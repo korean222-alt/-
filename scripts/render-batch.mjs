@@ -64,7 +64,7 @@ const render = async (composition, props, dest) => {
  * 다른 상품의 "오늘 자정까지"가 화면에 뜨는 식이다. 없는 마감을 지어내는
  * 허위 표시가 되므로, 빠진 건 전부 null로 못 박아 기본값을 덮는다.
  */
-const NULLABLE_DEAL_FIELDS = ['hook', 'deadline'];
+const NULLABLE_DEAL_FIELDS = ['hook', 'deadline', 'theme', 'narration'];
 const NULLABLE_ITEM_FIELDS = [
   'unitLabel',
   'badges',
@@ -72,6 +72,7 @@ const NULLABLE_ITEM_FIELDS = [
   'rating',
   'reviewCount',
   'lowestEver',
+  'stockWarning',
   'image',
   'emoji',
   'tint',

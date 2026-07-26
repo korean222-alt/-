@@ -6,7 +6,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { alpha, c, font, s, won } from '../theme';
+import { alpha, font, s, won } from '../theme';
+import { usePalette } from '../palette';
 
 /**
  * 원가 → 할인가로 숫자가 떨어진다.
@@ -23,9 +24,11 @@ export const PriceDrop: React.FC<{
   freeShipping?: boolean | null;
   from?: number;
   tint?: string;
-}> = ({ originalPrice, price, unitLabel, freeShipping, from = 0, tint = c.mint }) => {
+}> = ({ originalPrice, price, unitLabel, freeShipping, from = 0, tint }) => {
   const frame = useCurrentFrame() - from;
   const { fps } = useVideoConfig();
+  const pal = usePalette();
+  const color = tint ?? pal.price;
 
   // 취소선이 좌에서 우로 그어진다
   const strike = interpolate(frame, [s(0.2), s(0.5)], [0, 1], {
@@ -60,7 +63,7 @@ export const PriceDrop: React.FC<{
           fontFamily: font.body,
           fontWeight: 700,
           fontSize: 46,
-          color: alpha(c.text, 0.45),
+          color: alpha(pal.text, 0.42),
           opacity: interpolate(frame, [0, 4], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
@@ -76,7 +79,7 @@ export const PriceDrop: React.FC<{
             top: '52%',
             height: 5,
             borderRadius: 4,
-            background: c.pink,
+            background: pal.hot,
             transform: `scaleX(${strike})`,
             transformOrigin: 'left center',
           }}
@@ -88,10 +91,13 @@ export const PriceDrop: React.FC<{
           fontFamily: font.head,
           fontSize: 132,
           lineHeight: 1,
-          color: tint,
+          color,
           letterSpacing: '-0.03em',
           transform: `scale(${scale})`,
-          textShadow: `0 0 70px ${alpha(tint, 0.45)}, 0 12px 34px rgba(0,0,0,0.6)`,
+          textShadow:
+            pal.mode === 'dark'
+              ? `0 0 70px ${alpha(color, 0.45)}, 0 12px 34px rgba(0,0,0,0.6)`
+              : 'none',
           opacity: interpolate(frame, [s(0.3), s(0.45)], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
@@ -122,9 +128,9 @@ export const PriceDrop: React.FC<{
               style={{
                 fontFamily: font.head,
                 fontSize: 52,
-                color: c.text,
-                background: alpha(tint, 0.18),
-                border: `2px solid ${alpha(tint, 0.45)}`,
+                color: pal.mode === 'dark' ? pal.text : color,
+                background: alpha(color, pal.mode === 'dark' ? 0.18 : 0.09),
+                border: `2px solid ${alpha(color, pal.mode === 'dark' ? 0.45 : 0.3)}`,
                 borderRadius: 14,
                 padding: '6px 20px',
                 letterSpacing: '-0.02em',
@@ -139,7 +145,7 @@ export const PriceDrop: React.FC<{
                 fontFamily: font.body,
                 fontWeight: 900,
                 fontSize: 34,
-                color: c.mint,
+                color: pal.mint,
               }}
             >
               무료배송

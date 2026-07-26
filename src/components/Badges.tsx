@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { alpha, c, font } from '../theme';
+import { alpha, font } from '../theme';
+import { usePalette } from '../palette';
 
 /**
  * 판매 페이지에 붙어 있던 배지를 그대로 옮긴다.
@@ -16,13 +17,14 @@ export const Badges: React.FC<{ items?: string[] | null; from?: number }> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const pal = usePalette();
 
   if (!items || items.length === 0) return null;
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
       {items.map((label, i) => {
-        const p = spring({
+        const pop = spring({
           frame: frame - from - i * 3,
           fps,
           config: { damping: 200, mass: 0.5 },
@@ -34,13 +36,13 @@ export const Badges: React.FC<{ items?: string[] | null; from?: number }> = ({
               fontFamily: font.body,
               fontWeight: 900,
               fontSize: 32,
-              color: c.amber,
-              background: alpha(c.amber, 0.13),
-              border: `2px solid ${alpha(c.amber, 0.38)}`,
+              color: pal.mode === 'dark' ? pal.amber : pal.textDim,
+              background: pal.mode === 'dark' ? alpha(pal.amber, 0.13) : pal.surface,
+              border: `2px solid ${pal.mode === 'dark' ? alpha(pal.amber, 0.38) : pal.line}`,
               borderRadius: 10,
               padding: '7px 16px',
-              opacity: p,
-              transform: `translateY(${interpolate(p, [0, 1], [16, 0])}px)`,
+              opacity: pop,
+              transform: `translateY(${interpolate(pop, [0, 1], [16, 0])}px)`,
             }}
           >
             {label}

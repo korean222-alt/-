@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { alpha, c, font } from '../theme';
+import { alpha, font } from '../theme';
+import { usePalette } from '../palette';
 
 export const discountPct = (originalPrice: number, price: number) =>
   Math.max(0, Math.round((1 - price / originalPrice) * 100));
@@ -18,6 +19,7 @@ export const DiscountBadge: React.FC<{
 }> = ({ pct, from = 0, size = 180 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const pal = usePalette();
   const p = spring({
     frame: frame - from,
     fps,
@@ -30,7 +32,7 @@ export const DiscountBadge: React.FC<{
         display: 'inline-flex',
         alignItems: 'baseline',
         fontFamily: font.head,
-        color: c.pink,
+        color: pal.hot,
         lineHeight: 0.9,
         letterSpacing: '-0.04em',
         transform: `scale(${interpolate(p, [0, 1], [0.55, 1])}) rotate(${interpolate(
@@ -38,7 +40,10 @@ export const DiscountBadge: React.FC<{
           [0, 1],
           [-6, -3]
         )}deg)`,
-        textShadow: `0 0 80px ${alpha(c.pink, 0.55)}, 0 14px 40px rgba(0,0,0,0.65)`,
+        textShadow:
+          pal.mode === 'dark'
+            ? `0 0 80px ${alpha(pal.hot, 0.55)}, 0 14px 40px rgba(0,0,0,0.65)`
+            : 'none',
         opacity: interpolate(p, [0, 0.35], [0, 1], { extrapolateRight: 'clamp' }),
       }}
     >

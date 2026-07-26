@@ -1,6 +1,7 @@
 import React from 'react';
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { alpha, c } from '../theme';
+import { alpha } from '../theme';
+import { usePalette } from '../palette';
 import type { Product } from '../types';
 
 /**
@@ -19,6 +20,7 @@ export const ProductVisual: React.FC<{
 }> = ({ product, from = 0, size = 460, tint }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const pal = usePalette();
 
   const p = spring({
     frame: frame - from,
@@ -36,9 +38,12 @@ export const ProductVisual: React.FC<{
         borderRadius: 44,
         overflow: 'hidden',
         position: 'relative',
-        background: `linear-gradient(150deg, ${alpha(tint, 0.23)} 0%, ${c.surfaceHi} 55%, ${c.surface} 100%)`,
+        background: `linear-gradient(150deg, ${alpha(tint, 0.23)} 0%, ${pal.surfaceHi} 55%, ${pal.surface} 100%)`,
         border: `3px solid ${alpha(tint, 0.33)}`,
-        boxShadow: `0 30px 80px rgba(0,0,0,0.55), 0 0 60px ${alpha(tint, 0.13)}`,
+        boxShadow:
+          pal.mode === 'dark'
+            ? `0 30px 80px rgba(0,0,0,0.55), 0 0 60px ${alpha(tint, 0.13)}`
+            : '0 12px 32px rgba(0,0,0,0.10)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -65,7 +70,9 @@ export const ProductVisual: React.FC<{
           position: 'absolute',
           inset: 0,
           background:
-            'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 42%)',
+            pal.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 42%)'
+              : 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 46%)',
           pointerEvents: 'none',
         }}
       />

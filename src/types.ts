@@ -68,6 +68,13 @@ export type Deal = Product & {
   /** 실사용 후기를 대신하는 객관 지표. 있으면 넣는다. */
   rating?: number | null;
   reviewCount?: number | null;
+  /**
+   * "품절임박" 같은 재고 경고.
+   *
+   * 판매 페이지에 실제로 그렇게 적혀 있을 때만 넣는다. 지어내면 클릭은
+   * 몇 번 더 나오겠지만 그게 마지막 클릭이 된다.
+   */
+  stockWarning?: string | null;
   /** 가격 이력을 쌓기 시작하면 채운다. 이게 붙으면 설득력이 완전히 달라진다. */
   lowestEver?: boolean | null;
 };
@@ -86,6 +93,21 @@ export type DealProps = {
   priceCheckedAt: string;
   items: Deal[];
   cta: string;
+  /**
+   * 화면 톤. 기본은 밝은 쪽이다.
+   *
+   * 어두운 네온은 한국에서 도박·코인 광고의 시각 언어라 "광고"로 먼저
+   * 읽힌다. 토스·쿠팡·네이버쇼핑이 전부 흰 배경인 이유가 있다.
+   * 다만 어느 쪽이 실제로 이길지는 돌려봐야 아는 거라 둘 다 남겨둔다.
+   */
+  theme?: 'light' | 'dark' | null;
+  /**
+   * TTS 나레이션 대본. 화면에는 안 나온다.
+   *
+   * 대본이 콘텐츠와 떨어져 있으면 상품 정보를 고치고 대본 고치는 걸
+   * 잊어버려서 가격이 안 맞는 사고가 난다. 같은 파일에 둔다.
+   */
+  narration?: string[] | null;
 };
 
 export type VersusProps = {

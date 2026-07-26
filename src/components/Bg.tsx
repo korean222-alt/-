@@ -1,37 +1,61 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
-import { alpha, c, FPS } from '../theme';
+import { alpha, FPS } from '../theme';
+import { usePalette } from '../palette';
 
 /**
- * 배경. 아주 느리게 도는 컬러 덩어리 + 비네트.
+ * 배경.
  *
  * 두 가지를 노린다.
- * 1) 피드에서 넘기다 걸리려면 썸네일 한 장이 채도로 튀어야 한다.
- *    회색 화면은 그냥 지나간다.
+ * 1) 피드에서 넘기다 걸리려면 화면이 튀어야 한다
  * 2) 완전히 멈춘 화면은 "끝났나?" 싶어서 스와이프를 부른다.
- *    그래서 눈치 못 챌 정도로만 계속 움직인다.
+ *    그래서 눈치 못 챌 정도로만 계속 움직인다
+ *
+ * 밝은 테마에서는 흰 바탕을 거의 그대로 두고 색을 아주 옅게만 깐다.
+ * 커머스에서 신뢰는 흰 배경에서 나오고, 여기에 색을 얹는 순간 광고가 된다.
  */
-export const Bg: React.FC<{ tint?: string }> = ({ tint = c.violet }) => {
+export const Bg: React.FC<{ tint?: string }> = ({ tint }) => {
   const frame = useCurrentFrame();
+  const p = usePalette();
   const t = frame / FPS;
+  const color = tint ?? p.accent;
 
   const x1 = 52 + Math.sin(t * 0.28) * 14;
   const y1 = 30 + Math.cos(t * 0.22) * 9;
   const x2 = 44 + Math.cos(t * 0.19) * 16;
   const y2 = 76 + Math.sin(t * 0.25) * 8;
 
+  if (p.mode === 'light') {
+    return (
+      <AbsoluteFill style={{ backgroundColor: p.bg }}>
+        <AbsoluteFill
+          style={{
+            background: `radial-gradient(70% 46% at ${x1}% ${y1}%, ${alpha(color, 0.1)} 0%, transparent 70%),
+                         radial-gradient(64% 42% at ${x2}% ${y2}%, ${alpha(color, 0.06)} 0%, transparent 72%)`,
+          }}
+        />
+        {/* 아래쪽만 아주 살짝 눌러서 화면이 붕 뜨지 않게 한다 */}
+        <AbsoluteFill
+          style={{
+            background: `linear-gradient(180deg, transparent 62%, ${alpha('#8B95A1', 0.09)} 100%)`,
+          }}
+        />
+      </AbsoluteFill>
+    );
+  }
+
   return (
-    <AbsoluteFill style={{ backgroundColor: c.bg }}>
+    <AbsoluteFill style={{ backgroundColor: p.bg }}>
       <AbsoluteFill
         style={{
-          background: `radial-gradient(58% 42% at ${x1}% ${y1}%, ${alpha(tint, 0.8)} 0%, ${alpha(
-            tint,
+          background: `radial-gradient(58% 42% at ${x1}% ${y1}%, ${alpha(color, 0.8)} 0%, ${alpha(
+            color,
             0.2
           )} 45%, transparent 72%),
                        radial-gradient(62% 44% at ${x2}% ${y2}%, ${alpha(
-                         c.pink,
+                         p.hot,
                          0.6
-                       )} 0%, ${alpha(c.violet, 0.18)} 48%, transparent 74%)`,
+                       )} 0%, ${alpha(p.accent, 0.18)} 48%, transparent 74%)`,
         }}
       />
       {/* 가장자리만 눌러서 가운데 글씨가 뜨게 만든다. 전체를 덮으면 색이 죽는다. */}

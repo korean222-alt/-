@@ -1,5 +1,6 @@
 import React from 'react';
-import { c, font } from '../theme';
+import { font } from '../theme';
+import { usePalette } from '../palette';
 
 /**
  * 대가성 표기. 빼면 안 된다.
@@ -11,15 +12,17 @@ import { c, font } from '../theme';
  */
 export const Disclosure: React.FC<{ text?: string }> = ({
   text = '이 영상은 파트너스 활동의 일환으로 수수료를 받을 수 있습니다',
-}) => (
+}) => {
+  const pal = usePalette();
+  return (
   <div
     style={{
       fontFamily: font.body,
       fontSize: 24,
       fontWeight: 500,
-      color: c.textDim,
-      background: 'rgba(0,0,0,0.42)',
-      border: `1px solid ${c.line}`,
+      color: pal.textDim,
+      background: pal.mode === 'dark' ? 'rgba(0,0,0,0.42)' : pal.surface,
+      border: `1px solid ${pal.line}`,
       borderRadius: 10,
       padding: '8px 16px',
       alignSelf: 'flex-start',
@@ -28,4 +31,5 @@ export const Disclosure: React.FC<{ text?: string }> = ({
   >
     {text}
   </div>
-);
+  );
+};

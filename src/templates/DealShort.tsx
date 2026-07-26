@@ -16,7 +16,8 @@ import { TrustRow } from '../components/TrustRow';
 import { Badges } from '../components/Badges';
 import { ProductVisual } from '../components/ProductVisual';
 import { Disclosure } from '../components/Disclosure';
-import { alpha, c, font, s, SAFE, CONTENT_W } from '../theme';
+import { alpha, font, s, won, SAFE, CONTENT_W } from '../theme';
+import { PaletteProvider, usePalette, type Palette } from '../palette';
 import type { Deal, DealProps } from '../types';
 
 /**
@@ -27,8 +28,9 @@ import type { Deal, DealProps } from '../types';
  * 상품이 아니라 가격을 판다. "지금 싸다"는 검증이 링크 한 번이면
  * 끝나는 사실이라 화자가 누구인지 아무도 안 따진다.
  *
- * 대신 딱 하나를 지켜야 한다: 가격 확인 시점을 반드시 화면에 남길 것.
- * 특가는 몇 시간이면 끝나고, 틀린 가격 한 번이면 채널이 죽는다.
+ * 대신 지켜야 할 게 있다. 화면에 뜨는 모든 문구는 판매 페이지에서
+ * 확인된 것만 쓴다. 마감도 재고도 지어내지 않는다 — 확인되는 순간
+ * 채널이 끝나고, 허위 표시는 파트너스 약관 위반이기도 하다.
  */
 
 const HOOK = s(1.8);
@@ -63,46 +65,64 @@ const Section: React.FC<{ children: React.ReactNode; style?: React.CSSProperties
   </AbsoluteFill>
 );
 
-/** 가격 시점. 항상 떠 있어야 한다 — 이게 유일한 방어선이다. */
-const CheckedAt: React.FC<{ at: string }> = ({ at }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+/**
+ * 가격 확인 시점.
+ *
+ * 처음엔 "지금은 다를 수 있어요"라고 썼는데, 그건 살 마음을 직접 꺾는
+ * 문장이었다. 시점만 적어도 방어는 똑같이 되면서 김은 안 빠진다.
+ * 정보처럼 읽히지 변명처럼 읽히지 않는다.
+ */
+const CheckedAt: React.FC<{ at: string }> = ({ at }) => {
+  const pal = usePalette();
+  return (
     <div
-      style={{
-        fontFamily: font.body,
-        fontSize: 26,
-        fontWeight: 700,
-        color: c.amber,
-        background: alpha(c.amber, 0.12),
-        border: `1px solid ${alpha(c.amber, 0.35)}`,
-        borderRadius: 8,
-        padding: '6px 14px',
-      }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}
     >
-      {at} 가격 · 지금은 다를 수 있어요
+      <div
+        style={{
+          fontFamily: font.body,
+          fontSize: 26,
+          fontWeight: 700,
+          color: pal.textDim,
+          background: pal.mode === 'dark' ? alpha(pal.text, 0.07) : pal.surface,
+          border: `1px solid ${pal.line}`,
+          borderRadius: 8,
+          padding: '6px 14px',
+        }}
+      >
+        {at} 확인
+      </div>
+      <Disclosure />
     </div>
-    <Disclosure />
-  </div>
-);
+  );
+};
 
-const Deadline: React.FC<{ text: string }> = ({ text }) => {
+/**
+ * 마감·재고 경고.
+ *
+ * 판매 페이지에 실제로 그렇게 적혀 있을 때만 넘긴다. 없는 마감을 지어내
+ * 붙이면 클릭은 몇 번 더 나오겠지만 그게 마지막 클릭이 된다.
+ */
+const Urgency: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame();
+  const pal = usePalette();
   // 천천히 뛰는 맥박. 빠르게 깜빡이면 싸구려로 보인다.
-  const pulse = 0.72 + Math.sin(frame / 7) * 0.28;
+  const pulse = 0.75 + Math.sin(frame / 7) * 0.25;
   return (
     <div
       style={{
         fontFamily: font.body,
         fontWeight: 900,
         fontSize: 32,
-        color: c.pink,
-        background: alpha(c.pink, 0.14),
-        border: `2px solid ${alpha(c.pink, 0.45)}`,
+        color: pal.mode === 'dark' ? pal.hot : '#FFFFFF',
+        background: pal.mode === 'dark' ? alpha(pal.hot, 0.14) : pal.hot,
+        border: `2px solid ${pal.mode === 'dark' ? alpha(pal.hot, 0.45) : pal.hot}`,
         borderRadius: 10,
         padding: '8px 18px',
         opacity: pulse,
       }}
     >
-      ⏰ {text}
+      {text}
     </div>
   );
 };
@@ -114,6 +134,7 @@ const Hook: React.FC<{
 }> = ({ hook, deadline, items }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const pal = usePalette();
   const out = interpolate(frame, [HOOK - 5, HOOK], [1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -131,21 +152,23 @@ const Hook: React.FC<{
           <BigText text={line} size={98} instantFirstWord stagger={2} />
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 34, alignItems: 'center' }}>
-          <div
-            style={{
-              fontFamily: font.body,
-              fontWeight: 900,
-              fontSize: 34,
-              color: c.bg,
-              background: c.mint,
-              borderRadius: 10,
-              padding: '8px 18px',
-              opacity: spring({ frame: frame - 6, fps, config: { damping: 200 } }),
-            }}
-          >
-            {items.length}개
-          </div>
-          {deadline ? <Deadline text={deadline} /> : null}
+          {items.length > 1 ? (
+            <div
+              style={{
+                fontFamily: font.body,
+                fontWeight: 900,
+                fontSize: 34,
+                color: pal.mode === 'dark' ? pal.bg : '#FFFFFF',
+                background: pal.mode === 'dark' ? pal.mint : pal.text,
+                borderRadius: 10,
+                padding: '8px 18px',
+                opacity: spring({ frame: frame - 6, fps, config: { damping: 200 } }),
+              }}
+            >
+              {items.length}개
+            </div>
+          ) : null}
+          {deadline ? <Urgency text={`⏰ ${deadline}`} /> : null}
         </div>
       </div>
     </Section>
@@ -162,7 +185,8 @@ const DealScene: React.FC<{
 }> = ({ deal, index, total, priceCheckedAt, deadline, duration }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const tint = deal.tint ?? c.mint;
+  const pal = usePalette();
+  const tint = deal.tint ?? pal.price;
   const pct = discountPct(deal.originalPrice, deal.price);
 
   const enter = spring({ frame, fps, config: { damping: 200, mass: 0.5 } });
@@ -173,6 +197,9 @@ const DealScene: React.FC<{
   });
   const opacity = enter * (1 - exit);
   const x = interpolate(enter, [0, 1], [150, 0]) - exit * 130;
+
+  // 재고 경고가 있으면 그게 마감보다 세다. 둘 다 있으면 재고를 쓴다.
+  const urgency = deal.stockWarning || deadline;
 
   return (
     <Section style={{ justifyContent: 'space-between' }}>
@@ -192,13 +219,15 @@ const DealScene: React.FC<{
               fontFamily: font.body,
               fontWeight: 900,
               fontSize: 34,
-              color: alpha(c.text, 0.6),
+              color: alpha(pal.text, 0.6),
             }}
           >
             {index + 1} / {total}
           </div>
         ) : null}
-        {deadline ? <Deadline text={deadline} /> : null}
+        {urgency ? (
+          <Urgency text={deal.stockWarning ? `🔥 ${urgency}` : `⏰ ${urgency}`} />
+        ) : null}
       </div>
 
       <div
@@ -260,26 +289,50 @@ const DealScene: React.FC<{
   );
 };
 
-export const DealShort: React.FC<DealProps> = ({
-  hook,
-  deadline,
-  priceCheckedAt,
-  items,
-  cta,
-}) => {
-  const segments: BgSegment[] = [{ from: 0, tint: c.pink }];
+/**
+ * 마무리.
+ *
+ * "품절되면 죄송해요"라고 쓴 적이 있는데, 마지막 화면에서 사과를 하면
+ * 여태 쌓은 게 무너진다. 대신 원가를 다시 보여준다 — 안 사면 얼마를
+ * 더 내야 하는지가 마지막에 남아야 손이 링크로 간다.
+ */
+const Outro: React.FC<{ cta: string; anchorPrice: number }> = ({ cta, anchorPrice }) => {
+  const pal = usePalette();
+  return (
+    <Section style={{ justifyContent: 'center' }}>
+      <div style={{ width: CONTENT_W }}>
+        <BigText text={cta} size={92} instantFirstWord stagger={2} />
+        <div
+          style={{
+            marginTop: 26,
+            fontFamily: font.head,
+            fontSize: 52,
+            color: pal.hot,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          놓치면 다시 {won(anchorPrice)}원
+        </div>
+      </div>
+    </Section>
+  );
+};
+
+const DealBody: React.FC<DealProps> = ({ hook, deadline, priceCheckedAt, items, cta }) => {
+  const pal = usePalette();
+  const segments: BgSegment[] = [{ from: 0, tint: pal.hot }];
   const sceneLen = dealSceneLength(items.length);
   let cursor = HOOK;
   const scenes = items.map((deal) => {
     const from = cursor;
     cursor += sceneLen;
-    segments.push({ from, tint: deal.tint ?? c.mint });
+    segments.push({ from, tint: deal.tint ?? pal.price });
     return { deal, from };
   });
-  segments.push({ from: cursor, tint: c.gold });
+  segments.push({ from: cursor, tint: pal.hot });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: c.bg }}>
+    <AbsoluteFill style={{ backgroundColor: pal.bg }}>
       <TimedBg segments={segments} />
 
       <Sequence durationInFrames={HOOK}>
@@ -300,23 +353,16 @@ export const DealShort: React.FC<DealProps> = ({
       ))}
 
       <Sequence from={cursor} durationInFrames={OUTRO}>
-        <Section style={{ justifyContent: 'center' }}>
-          <div style={{ width: CONTENT_W }}>
-            <BigText text={cta} size={92} instantFirstWord stagger={2} />
-            <div
-              style={{
-                marginTop: 26,
-                fontFamily: font.body,
-                fontSize: 36,
-                fontWeight: 700,
-                color: c.textDim,
-              }}
-            >
-              {priceCheckedAt} 기준 · 품절되면 죄송해요
-            </div>
-          </div>
-        </Section>
+        <Outro cta={cta} anchorPrice={items[0].originalPrice} />
       </Sequence>
     </AbsoluteFill>
   );
 };
+
+export const DealShort: React.FC<DealProps> = (props) => (
+  <PaletteProvider theme={props.theme ?? 'light'}>
+    <DealBody {...props} />
+  </PaletteProvider>
+);
+
+export type { Palette };

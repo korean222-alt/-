@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, useCurrentFrame } from 'remotion';
-import { alpha, c, font } from '../theme';
+import { alpha, font } from '../theme';
+import { usePalette } from '../palette';
 
 /**
  * 별점 · 리뷰 수 · 역대최저 배지.
@@ -16,6 +17,7 @@ export const TrustRow: React.FC<{
   from?: number;
 }> = ({ rating, reviewCount, lowestEver, from = 0 }) => {
   const frame = useCurrentFrame();
+  const pal = usePalette();
   const opacity = interpolate(frame - from, [0, 8], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -28,8 +30,8 @@ export const TrustRow: React.FC<{
       <span
         key="lowest"
         style={{
-          color: c.bg,
-          background: c.gold,
+          color: pal.mode === 'dark' ? pal.bg : '#FFFFFF',
+          background: pal.mode === 'dark' ? pal.gold : pal.hot,
           fontWeight: 900,
           padding: '6px 16px',
           borderRadius: 8,
@@ -41,14 +43,16 @@ export const TrustRow: React.FC<{
   }
   if (rating !== undefined && rating !== null) {
     chips.push(
-      <span key="rating" style={{ color: c.gold }}>
-        ★ {rating.toFixed(1)}
+      // 밝은 배경에서 금색 글씨는 잘 안 읽힌다. 별만 금색으로 두고
+      // 숫자는 본문색으로 뽑아야 한눈에 들어온다.
+      <span key="rating" style={{ color: pal.text }}>
+        <span style={{ color: pal.gold }}>★</span> {rating.toFixed(1)}
       </span>
     );
   }
   if (reviewCount !== undefined && reviewCount !== null) {
     chips.push(
-      <span key="reviews" style={{ color: c.textDim }}>
+      <span key="reviews" style={{ color: pal.textDim }}>
         리뷰 {reviewCount.toLocaleString('ko-KR')}
       </span>
     );
@@ -70,7 +74,7 @@ export const TrustRow: React.FC<{
     >
       {chips.map((chip, i) => (
         <React.Fragment key={i}>
-          {i > 0 ? <span style={{ color: alpha(c.text, 0.25) }}>·</span> : null}
+          {i > 0 ? <span style={{ color: alpha(pal.text, 0.25) }}>·</span> : null}
           {chip}
         </React.Fragment>
       ))}

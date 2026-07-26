@@ -1,6 +1,7 @@
 import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { c, font } from '../theme';
+import { font } from '../theme';
+import { usePalette } from '../palette';
 
 type Props = {
   text: string;
@@ -28,7 +29,7 @@ type Props = {
 export const BigText: React.FC<Props> = ({
   text,
   size = 92,
-  color = c.text,
+  color,
   from = 0,
   stagger = 2,
   align = 'left',
@@ -39,6 +40,7 @@ export const BigText: React.FC<Props> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const p = usePalette();
   const words = text.split(' ');
 
   return (
@@ -51,16 +53,16 @@ export const BigText: React.FC<Props> = ({
         fontFamily: font.head,
         fontSize: size,
         fontWeight: weight,
-        color,
+        color: color ?? p.text,
         lineHeight,
         letterSpacing: '-0.02em',
-        textShadow: '0 6px 28px rgba(0,0,0,0.55)',
+        textShadow: p.mode === 'dark' ? '0 6px 28px rgba(0,0,0,0.55)' : 'none',
         ...style,
       }}
     >
       {words.map((w, i) => {
         const delay = instantFirstWord && i === 0 ? 0 : i * stagger;
-        const p = spring({
+        const pop = spring({
           frame: frame - from - delay,
           fps,
           config: { damping: 200, mass: 0.45 },
@@ -70,9 +72,9 @@ export const BigText: React.FC<Props> = ({
             key={`${w}-${i}`}
             style={{
               display: 'inline-block',
-              opacity: p,
-              transform: `translateY(${interpolate(p, [0, 1], [26, 0])}px) scale(${interpolate(
-                p,
+              opacity: pop,
+              transform: `translateY(${interpolate(pop, [0, 1], [26, 0])}px) scale(${interpolate(
+                pop,
                 [0, 1],
                 [0.94, 1]
               )})`,
