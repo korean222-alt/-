@@ -3,12 +3,14 @@ import { Composition } from 'remotion';
 import { RankingShort, rankingDuration } from './templates/RankingShort';
 import { ProblemSolveShort, problemSolveDuration } from './templates/ProblemSolveShort';
 import { VersusShort, versusDuration } from './templates/VersusShort';
+import { DealShort, dealDuration } from './templates/DealShort';
 import { ensureFonts } from './fonts';
 import { FPS, W, H } from './theme';
-import type { ProblemSolveProps, RankingProps, VersusProps } from './types';
+import type { DealProps, ProblemSolveProps, RankingProps, VersusProps } from './types';
 import deskTop5 from './data/desk-top5.json';
 import deskProblem from './data/desk-problem.json';
 import deskVersus from './data/desk-versus.json';
+import deskDeal from './data/desk-deal.json';
 
 ensureFonts();
 
@@ -40,6 +42,17 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={deskProblem as ProblemSolveProps}
         calculateMetadata={({ props }) => ({
           durationInFrames: problemSolveDuration(props.items.length),
+        })}
+      />
+      <Composition
+        id="Deal"
+        component={DealShort}
+        fps={FPS}
+        width={W}
+        height={H}
+        defaultProps={deskDeal as DealProps}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: dealDuration(props.items.length),
         })}
       />
       <Composition

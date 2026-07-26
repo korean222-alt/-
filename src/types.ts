@@ -37,6 +37,44 @@ export type ProblemSolveProps = {
   cta: string;
 };
 
+/**
+ * 특가 한 건.
+ *
+ * 실사용 영상이 없으면 "좋은 물건이다"는 못 판다 — 그건 신뢰의 영역이고
+ * 써본 사람을 못 이긴다. 대신 "지금 싸다"는 사실이라 신뢰가 필요 없다.
+ * 그래서 파는 건 상품이 아니라 가격 낙차다.
+ */
+export type Deal = Product & {
+  /**
+   * 가격 이력을 묶는 키. 아무 문자열이나 쓰되 같은 상품엔 같은 값을 쓴다.
+   * 이게 있으면 렌더할 때 역대 최저가인지 자동으로 판정된다.
+   */
+  id?: string;
+  /** 할인 전 가격. price와의 낙차가 곧 콘텐츠다. */
+  originalPrice: number;
+  /** 실사용 후기를 대신하는 객관 지표. 있으면 넣는다. */
+  rating?: number;
+  reviewCount?: number;
+  /** 가격 이력을 쌓기 시작하면 채운다. 이게 붙으면 설득력이 완전히 달라진다. */
+  lowestEver?: boolean;
+};
+
+export type DealProps = {
+  /** 비우면 최대 할인율로 자동 생성된다. */
+  hook?: string;
+  /** "오늘 자정까지" 같은 마감. 긴급성이 클릭을 만든다. */
+  deadline?: string;
+  /**
+   * 가격을 확인한 시점. 필수다.
+   *
+   * 특가는 몇 시간이면 끝난다. 올린 뒤 가격이 올라가 있으면 신뢰가 한 번에
+   * 무너지고 허위 표시 문제도 생긴다. 시점을 화면에 박아두는 게 유일한 방어다.
+   */
+  priceCheckedAt: string;
+  items: Deal[];
+  cta: string;
+};
+
 export type VersusProps = {
   hook: string;
   left: Product;

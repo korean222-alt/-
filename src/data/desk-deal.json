@@ -1,0 +1,40 @@
+{
+  "deadline": "오늘 자정까지",
+  "priceCheckedAt": "7/26 오후 3시",
+  "cta": "링크는 댓글에 있어요",
+  "items": [
+    {
+      "name": "대형 데스크패드",
+      "punch": "책상 절반 덮는 사이즈",
+      "originalPrice": 29900,
+      "price": 9900,
+      "rating": 4.8,
+      "reviewCount": 12340,
+      "emoji": "🟫",
+      "tint": "#5EE6C0",
+      "id": "deskpad-large"
+    },
+    {
+      "name": "무선 무드등",
+      "punch": "밝기 3단계",
+      "originalPrice": 18900,
+      "price": 8900,
+      "rating": 4.6,
+      "reviewCount": 3820,
+      "emoji": "💡",
+      "tint": "#FFC46B",
+      "id": "moodlight-wireless"
+    },
+    {
+      "name": "모니터 받침대",
+      "punch": "서랍형 수납",
+      "originalPrice": 24900,
+      "price": 14900,
+      "rating": 4.7,
+      "reviewCount": 8150,
+      "emoji": "🖥️",
+      "tint": "#8B6BFF",
+      "id": "monitor-stand"
+    }
+  ]
+}

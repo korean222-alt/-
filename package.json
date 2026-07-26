@@ -7,7 +7,8 @@
     "studio": "remotion studio",
     "render": "remotion render",
     "batch": "node scripts/render-batch.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "price": "node scripts/price-history.mjs"
   },
   "repository": {
     "type": "git",

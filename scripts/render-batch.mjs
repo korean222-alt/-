@@ -16,11 +16,13 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { addPrice, readHistory, isLowestEver } from './price-history.mjs';
+
 const CONTENT = join(process.cwd(), 'content');
 const OUT = join(process.cwd(), 'out');
 const FORCE = process.argv.includes('--force');
 
-const TEMPLATES = new Set(['Ranking', 'ProblemSolve', 'Versus']);
+const TEMPLATES = new Set(['Ranking', 'ProblemSolve', 'Versus', 'Deal']);
 
 const exists = async (p) => {
   try {
@@ -53,6 +55,31 @@ const render = async (composition, props, dest) => {
     await rm(propsFile, { force: true });
   }
 };
+
+/**
+ * 특가 영상은 렌더할 때 가격을 자동으로 기록하고, 역대 최저가면 배지를 붙인다.
+ *
+ * 영상을 만들 때마다 데이터가 쌓이는 구조라, 따로 관리할 필요가 없다.
+ * `id`를 안 넣은 상품은 그냥 지나간다 — 기록할 키가 없으니 판정도 못 한다.
+ */
+const enrichDeals = async (items) =>
+  Promise.all(
+    items.map(async (item) => {
+      if (!item.id) return item;
+
+      // 같은 날 같은 가격을 여러 번 기록하면 이력이 오염된다 (--force 재렌더 등)
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = await readHistory(item.id);
+      const dupe = rows.some(
+        (r) => r.price === item.price && r.at.slice(0, 10) === today
+      );
+      if (!dupe) await addPrice(item.id, item.price);
+
+      const lowest = await isLowestEver(item.id, item.price);
+      if (lowest) console.log(`  ★ ${item.name}: 역대 최저가`);
+      return { ...item, lowestEver: lowest };
+    })
+  );
 
 const run = async () => {
   if (!(await exists(CONTENT))) {
@@ -91,6 +118,7 @@ const run = async () => {
     const started = Date.now();
     console.log(`\n▶ ${name}  (${template})`);
     try {
+      if (template === 'Deal') props.items = await enrichDeals(props.items);
       await render(template, props, dest);
       console.log(`✓ ${name}.mp4  ${((Date.now() - started) / 1000).toFixed(0)}초`);
       ok++;

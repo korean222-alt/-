@@ -1,0 +1,103 @@
+import React from 'react';
+import {
+  Easing,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import { alpha, c, font, s, won } from '../theme';
+
+/**
+ * 원가 → 할인가로 숫자가 떨어진다.
+ *
+ * 이 컴포넌트가 이 영상의 본론이다. 실사용 영상이 없으면 상품 자체는 못
+ * 파니까, 파는 건 가격 낙차 하나다. 그래서 낙차를 글로 설명하지 않고
+ * 눈앞에서 떨어뜨린다 — 숫자가 굴러 내려가는 3초가 콘텐츠 전부다.
+ */
+export const PriceDrop: React.FC<{
+  originalPrice: number;
+  price: number;
+  from?: number;
+  tint?: string;
+}> = ({ originalPrice, price, from = 0, tint = c.mint }) => {
+  const frame = useCurrentFrame() - from;
+  const { fps } = useVideoConfig();
+
+  // 취소선이 좌에서 우로 그어진다
+  const strike = interpolate(frame, [s(0.2), s(0.5)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: Easing.out(Easing.cubic),
+  });
+
+  // 원가에서 할인가까지 굴러 떨어진다. 끝에서 감속시켜야 착지감이 산다.
+  const dropP = interpolate(frame, [s(0.35), s(1.25)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: Easing.out(Easing.cubic),
+  });
+  const shown = Math.round(
+    (originalPrice + (price - originalPrice) * dropP) / 100
+  ) * 100;
+
+  // 착지 순간 한 번 튕긴다
+  const land = spring({
+    frame: frame - s(1.25),
+    fps,
+    config: { damping: 9, mass: 0.5, stiffness: 180 },
+  });
+  const scale = 1 + land * 0.06;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <div
+        style={{
+          position: 'relative',
+          fontFamily: font.body,
+          fontWeight: 700,
+          fontSize: 46,
+          color: alpha(c.text, 0.45),
+          opacity: interpolate(frame, [0, 4], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          }),
+        }}
+      >
+        {won(originalPrice)}원
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: '52%',
+            height: 5,
+            borderRadius: 4,
+            background: c.pink,
+            transform: `scaleX(${strike})`,
+            transformOrigin: 'left center',
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          fontFamily: font.head,
+          fontSize: 132,
+          lineHeight: 1,
+          color: tint,
+          letterSpacing: '-0.03em',
+          transform: `scale(${scale})`,
+          textShadow: `0 0 70px ${alpha(tint, 0.45)}, 0 12px 34px rgba(0,0,0,0.6)`,
+          opacity: interpolate(frame, [s(0.3), s(0.45)], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          }),
+        }}
+      >
+        {won(shown)}
+        <span style={{ fontFamily: font.body, fontWeight: 700, fontSize: 54 }}>원</span>
+      </div>
+    </div>
+  );
+};
