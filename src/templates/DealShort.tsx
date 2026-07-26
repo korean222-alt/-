@@ -13,6 +13,7 @@ import { BigText } from '../components/BigText';
 import { PriceDrop } from '../components/PriceDrop';
 import { DiscountBadge, discountPct } from '../components/DiscountBadge';
 import { TrustRow } from '../components/TrustRow';
+import { Badges } from '../components/Badges';
 import { ProductVisual } from '../components/ProductVisual';
 import { Disclosure } from '../components/Disclosure';
 import { alpha, c, font, s, SAFE, CONTENT_W } from '../theme';
@@ -32,9 +33,20 @@ import type { Deal, DealProps } from '../types';
 
 const HOOK = s(1.8);
 const DEAL = s(3.6);
+/**
+ * 상품이 하나뿐이면 장면을 길게 준다.
+ *
+ * 여러 개를 훑을 땐 다음 게 있어서 빨리 넘겨도 되는데, 단품은 그 화면이
+ * 전부다. 3.6초에 끊으면 가격이 착지하자마자 영상이 끝나서 살지 말지
+ * 판단할 시간이 없다.
+ */
+const DEAL_SOLO = s(6.0);
 const OUTRO = s(1.6);
 
-export const dealDuration = (count: number) => HOOK + DEAL * count + OUTRO;
+const dealSceneLength = (count: number) => (count === 1 ? DEAL_SOLO : DEAL);
+
+export const dealDuration = (count: number) =>
+  HOOK + dealSceneLength(count) * count + OUTRO;
 
 const Section: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({
   children,
@@ -96,8 +108,8 @@ const Deadline: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const Hook: React.FC<{
-  hook?: string;
-  deadline?: string;
+  hook?: string | null;
+  deadline?: string | null;
   items: Deal[];
 }> = ({ hook, deadline, items }) => {
   const frame = useCurrentFrame();
@@ -108,7 +120,7 @@ const Hook: React.FC<{
   });
 
   const best = Math.max(...items.map((it) => discountPct(it.originalPrice, it.price)));
-  const line = hook ?? `오늘 최대 ${best}% 떨어진 것들`;
+  const line = hook || `오늘 최대 ${best}% 떨어진 것들`;
 
   return (
     <Section style={{ justifyContent: 'center', opacity: out }}>
@@ -145,15 +157,16 @@ const DealScene: React.FC<{
   index: number;
   total: number;
   priceCheckedAt: string;
-  deadline?: string;
-}> = ({ deal, index, total, priceCheckedAt, deadline }) => {
+  deadline?: string | null;
+  duration: number;
+}> = ({ deal, index, total, priceCheckedAt, deadline, duration }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const tint = deal.tint ?? c.mint;
   const pct = discountPct(deal.originalPrice, deal.price);
 
   const enter = spring({ frame, fps, config: { damping: 200, mass: 0.5 } });
-  const exit = interpolate(frame, [DEAL - 6, DEAL], [0, 1], {
+  const exit = interpolate(frame, [duration - 6, duration], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: Easing.in(Easing.cubic),
@@ -172,16 +185,19 @@ const DealScene: React.FC<{
           alignSelf: 'stretch',
         }}
       >
-        <div
-          style={{
-            fontFamily: font.body,
-            fontWeight: 900,
-            fontSize: 34,
-            color: alpha(c.text, 0.6),
-          }}
-        >
-          {index + 1} / {total}
-        </div>
+        {/* 단품이면 "1 / 1"은 의미가 없어서 안 그린다 */}
+        {total > 1 ? (
+          <div
+            style={{
+              fontFamily: font.body,
+              fontWeight: 900,
+              fontSize: 34,
+              color: alpha(c.text, 0.6),
+            }}
+          >
+            {index + 1} / {total}
+          </div>
+        ) : null}
         {deadline ? <Deadline text={deadline} /> : null}
       </div>
 
@@ -213,11 +229,17 @@ const DealScene: React.FC<{
           />
         </div>
 
+        <div style={{ marginTop: 16 }}>
+          <Badges items={deal.badges} from={7} />
+        </div>
+
         {/* 본론. 여기가 이 영상에서 유일하게 파는 지점이다. */}
-        <div style={{ marginTop: 22 }}>
+        <div style={{ marginTop: 20 }}>
           <PriceDrop
             originalPrice={deal.originalPrice}
             price={deal.price}
+            unitLabel={deal.unitLabel}
+            freeShipping={deal.freeShipping}
             from={8}
             tint={tint}
           />
@@ -246,10 +268,11 @@ export const DealShort: React.FC<DealProps> = ({
   cta,
 }) => {
   const segments: BgSegment[] = [{ from: 0, tint: c.pink }];
+  const sceneLen = dealSceneLength(items.length);
   let cursor = HOOK;
   const scenes = items.map((deal) => {
     const from = cursor;
-    cursor += DEAL;
+    cursor += sceneLen;
     segments.push({ from, tint: deal.tint ?? c.mint });
     return { deal, from };
   });
@@ -264,13 +287,14 @@ export const DealShort: React.FC<DealProps> = ({
       </Sequence>
 
       {scenes.map((sc, i) => (
-        <Sequence key={sc.deal.name} from={sc.from} durationInFrames={DEAL}>
+        <Sequence key={sc.deal.name} from={sc.from} durationInFrames={sceneLen}>
           <DealScene
             deal={sc.deal}
             index={i}
             total={items.length}
             priceCheckedAt={priceCheckedAt}
             deadline={deadline}
+            duration={sceneLen}
           />
         </Sequence>
       ))}

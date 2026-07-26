@@ -1,0 +1,23 @@
+{
+  "template": "Deal",
+  "slug": "kitchen-towel",
+  "hook": "키친타올 1롤에 575원",
+  "priceCheckedAt": "7/26 오후 8시",
+  "cta": "링크는 댓글에 있어요",
+  "items": [
+    {
+      "id": "monalisa-kitchen-towel-250x12",
+      "name": "모나리자 키친타올 250매 12롤",
+      "punch": "물이랑 기름기 빠르게 흡수",
+      "originalPrice": 23900,
+      "price": 6900,
+      "unitLabel": "1롤당 575원",
+      "freeShipping": true,
+      "badges": ["최저가보상", "내일출발", "롤키친타올 1위"],
+      "rating": 4.7,
+      "reviewCount": 1266,
+      "emoji": "🧻",
+      "tint": "#5EE6C0"
+    }
+  ]
+}

@@ -18,9 +18,12 @@ import { alpha, c, font, s, won } from '../theme';
 export const PriceDrop: React.FC<{
   originalPrice: number;
   price: number;
+  /** "1롤당 575원" 같은 단가. 총액보다 이게 사람을 움직인다. */
+  unitLabel?: string | null;
+  freeShipping?: boolean | null;
   from?: number;
   tint?: string;
-}> = ({ originalPrice, price, from = 0, tint = c.mint }) => {
+}> = ({ originalPrice, price, unitLabel, freeShipping, from = 0, tint = c.mint }) => {
   const frame = useCurrentFrame() - from;
   const { fps } = useVideoConfig();
 
@@ -98,6 +101,52 @@ export const PriceDrop: React.FC<{
         {won(shown)}
         <span style={{ fontFamily: font.body, fontWeight: 700, fontSize: 54 }}>원</span>
       </div>
+
+      {/* 단가는 착지 뒤에 따라 붙는다. 총액을 먼저 보여주고
+          "그런데 개당으로 치면"으로 한 번 더 때리는 순서. */}
+      {unitLabel || freeShipping ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            marginTop: 10,
+            opacity: interpolate(frame, [s(1.3), s(1.55)], [0, 1], {
+              extrapolateLeft: 'clamp',
+              extrapolateRight: 'clamp',
+            }),
+          }}
+        >
+          {unitLabel ? (
+            <span
+              style={{
+                fontFamily: font.head,
+                fontSize: 52,
+                color: c.text,
+                background: alpha(tint, 0.18),
+                border: `2px solid ${alpha(tint, 0.45)}`,
+                borderRadius: 14,
+                padding: '6px 20px',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {unitLabel}
+            </span>
+          ) : null}
+          {freeShipping ? (
+            <span
+              style={{
+                fontFamily: font.body,
+                fontWeight: 900,
+                fontSize: 34,
+                color: c.mint,
+              }}
+            >
+              무료배송
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -57,6 +57,34 @@ const render = async (composition, props, dest) => {
 };
 
 /**
+ * 안 넣은 필드를 null로 명시해서 넘긴다.
+ *
+ * Remotion은 컴포지션의 defaultProps와 --props를 병합한다. 그래서 JSON에
+ * 빠진 필드는 조용히 defaultProps 값으로 채워진다 — 마감 시한을 안 적었는데
+ * 다른 상품의 "오늘 자정까지"가 화면에 뜨는 식이다. 없는 마감을 지어내는
+ * 허위 표시가 되므로, 빠진 건 전부 null로 못 박아 기본값을 덮는다.
+ */
+const NULLABLE_DEAL_FIELDS = ['hook', 'deadline'];
+const NULLABLE_ITEM_FIELDS = [
+  'unitLabel',
+  'badges',
+  'freeShipping',
+  'rating',
+  'reviewCount',
+  'lowestEver',
+  'image',
+  'emoji',
+  'tint',
+  'punch',
+];
+
+const fillNulls = (obj, fields) => {
+  const out = { ...obj };
+  for (const f of fields) if (out[f] === undefined) out[f] = null;
+  return out;
+};
+
+/**
  * 특가 영상은 렌더할 때 가격을 자동으로 기록하고, 역대 최저가면 배지를 붙인다.
  *
  * 영상을 만들 때마다 데이터가 쌓이는 구조라, 따로 관리할 필요가 없다.
@@ -80,6 +108,14 @@ const enrichDeals = async (items) =>
       return { ...item, lowestEver: lowest };
     })
   );
+
+const prepareDeal = async (props) => {
+  const items = await enrichDeals(props.items);
+  return {
+    ...fillNulls(props, NULLABLE_DEAL_FIELDS),
+    items: items.map((it) => fillNulls(it, NULLABLE_ITEM_FIELDS)),
+  };
+};
 
 const run = async () => {
   if (!(await exists(CONTENT))) {
@@ -118,8 +154,8 @@ const run = async () => {
     const started = Date.now();
     console.log(`\n▶ ${name}  (${template})`);
     try {
-      if (template === 'Deal') props.items = await enrichDeals(props.items);
-      await render(template, props, dest);
+      const finalProps = template === 'Deal' ? await prepareDeal(props) : props;
+      await render(template, finalProps, dest);
       console.log(`✓ ${name}.mp4  ${((Date.now() - started) / 1000).toFixed(0)}초`);
       ok++;
     } catch (err) {

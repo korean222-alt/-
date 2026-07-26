@@ -10,9 +10,9 @@ import { alpha, c, font } from '../theme';
  * 숫자는 반드시 실제 값만 넣는다 — 지어내면 그 채널은 거기서 끝난다.
  */
 export const TrustRow: React.FC<{
-  rating?: number;
-  reviewCount?: number;
-  lowestEver?: boolean;
+  rating?: number | null;
+  reviewCount?: number | null;
+  lowestEver?: boolean | null;
   from?: number;
 }> = ({ rating, reviewCount, lowestEver, from = 0 }) => {
   const frame = useCurrentFrame();
@@ -39,14 +39,14 @@ export const TrustRow: React.FC<{
       </span>
     );
   }
-  if (rating !== undefined) {
+  if (rating !== undefined && rating !== null) {
     chips.push(
       <span key="rating" style={{ color: c.gold }}>
         ★ {rating.toFixed(1)}
       </span>
     );
   }
-  if (reviewCount !== undefined) {
+  if (reviewCount !== undefined && reviewCount !== null) {
     chips.push(
       <span key="reviews" style={{ color: c.textDim }}>
         리뷰 {reviewCount.toLocaleString('ko-KR')}

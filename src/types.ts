@@ -52,18 +52,31 @@ export type Deal = Product & {
   id?: string;
   /** 할인 전 가격. price와의 낙차가 곧 콘텐츠다. */
   originalPrice: number;
+  /**
+   * "1롤당 575원" 같은 단가.
+   *
+   * 소모품 특가에서 제일 센 한 방이다. 6,900원은 비교 대상이 없어서
+   * 싼지 모르겠는데, 1롤당 575원은 마트 가격이 머리에 있으니 즉시 판단된다.
+   */
+  unitLabel?: string | null;
+  /**
+   * 판매 페이지에 붙어 있는 배지. "최저가보상", "내일출발", "롤키친타올 1위" 등.
+   * 실사용 후기를 대신하는 근거라서 **있는 그대로만** 옮겨 적는다.
+   */
+  badges?: string[] | null;
+  freeShipping?: boolean | null;
   /** 실사용 후기를 대신하는 객관 지표. 있으면 넣는다. */
-  rating?: number;
-  reviewCount?: number;
+  rating?: number | null;
+  reviewCount?: number | null;
   /** 가격 이력을 쌓기 시작하면 채운다. 이게 붙으면 설득력이 완전히 달라진다. */
-  lowestEver?: boolean;
+  lowestEver?: boolean | null;
 };
 
 export type DealProps = {
   /** 비우면 최대 할인율로 자동 생성된다. */
-  hook?: string;
+  hook?: string | null;
   /** "오늘 자정까지" 같은 마감. 긴급성이 클릭을 만든다. */
-  deadline?: string;
+  deadline?: string | null;
   /**
    * 가격을 확인한 시점. 필수다.
    *
