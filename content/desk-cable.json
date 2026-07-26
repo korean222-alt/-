@@ -1,0 +1,27 @@
+{
+  "template": "ProblemSolve",
+  "slug": "desk-cable",
+  "problem": "책상 밑 케이블 지옥",
+  "problemDetail": "청소기 돌릴 때마다 스트레스",
+  "cta": "링크는 댓글에 있어요",
+  "items": [
+    {
+      "name": "케이블 정리 클립",
+      "punch": "책상 밑에 붙이면 선이 사라짐",
+      "price": 6900,
+      "emoji": "🔌"
+    },
+    {
+      "name": "멀티탭 수납함",
+      "punch": "먼지도 막고 보기에도 깔끔",
+      "price": 12900,
+      "emoji": "📦"
+    },
+    {
+      "name": "모니터 받침대",
+      "punch": "밑에 잡동사니 다 들어감",
+      "price": 24900,
+      "emoji": "🖥️"
+    }
+  ]
+}

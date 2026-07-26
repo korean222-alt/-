@@ -1,0 +1,10 @@
+node_modules/
+
+# 렌더 결과물. 용량이 커서 저장소에 넣지 않는다.
+out/
+
+# 폰트는 `npm run fonts` 로 받는다 (13MB).
+public/fonts/
+
+.DS_Store
+*.log

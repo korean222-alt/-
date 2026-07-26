@@ -1,0 +1,19 @@
+{
+  "template": "Versus",
+  "slug": "deskpad-vs",
+  "hook": "6천원 vs 3만원 진짜 차이날까",
+  "verdict": "책상 넓으면 무조건 큰 거",
+  "cta": "링크는 댓글에 있어요",
+  "left": {
+    "name": "기본 마우스패드",
+    "punch": "딱 마우스만 올라감",
+    "price": 6900,
+    "emoji": "🖱️"
+  },
+  "right": {
+    "name": "대형 데스크패드",
+    "punch": "책상 절반 덮어서 분위기가 바뀜",
+    "price": 29900,
+    "emoji": "🟫"
+  }
+}
