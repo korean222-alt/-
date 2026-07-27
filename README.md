@@ -4,6 +4,9 @@
 
 JSON 한 건 = 영상 한 편. 하루 1편 만들 걸 하루 10편 만드는 게 목적이다.
 
+- **[docs/decisions.md](docs/decisions.md)** — 왜 지금 모양이 됐는지. 확인된 사실, 내린 결정, 폐기한 선택지, 손절 기준
+- **[docs/channel.md](docs/channel.md)** — 사람이 하는 부분. 컨셉, 고정 댓글, 업로드 규칙, 상품 고르는 순서
+
 ```bash
 npm install
 npm run fonts     # 한글 폰트 내려받기 (13MB, 최초 1회)
