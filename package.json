@@ -1,7 +1,7 @@
 {
-  "name": "shorts-factory",
+  "name": "dealcast",
   "version": "0.1.0",
-  "description": "제휴 상품 쇼츠 자동 생성 파이프라인",
+  "description": "매일 같은 시간, 생활 소모품 특가를 가격 이력과 함께 내보내는 제휴 쇼츠 파이프라인",
   "scripts": {
     "fonts": "node scripts/fetch-fonts.mjs",
     "studio": "remotion studio",
