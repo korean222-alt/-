@@ -8,6 +8,7 @@ JSON 한 건 = 영상 한 편. 하루 1편 만들 걸 하루 10편 만드는 게
 파는 건 상품이 아니라 **가격 낙차**고, 남들이 못 따라오는 건 **가격을 계속 기록했다는 사실**이다.
 
 - **[docs/plan.md](docs/plan.md)** — 지금 실행 중인 계획. 정기 편성 전환, 나레이션 규칙, 2주 일정
+- **[docs/production.md](docs/production.md)** — 촬영 방식(앞 3초 화면 녹화 + 그래픽), 무료 TTS
 - **[docs/decisions.md](docs/decisions.md)** — 왜 지금 모양이 됐는지. 확인된 사실, 내린 결정, 폐기한 선택지, 손절 기준
 - **[docs/channel.md](docs/channel.md)** — 사람이 하는 부분. 컨셉, 고정 댓글, 업로드 규칙, 상품 고르는 순서
 
