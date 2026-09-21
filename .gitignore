@@ -8,3 +8,6 @@ public/fonts/
 
 .DS_Store
 *.log
+
+# 테스트 실행용으로 묶은 임시 번들
+roblox/CursedBarrel/build/test_bundle.luau
