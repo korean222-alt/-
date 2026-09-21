@@ -8,3 +8,7 @@ public/fonts/
 
 .DS_Store
 *.log
+
+# animal-train 검사용 자동 생성 파일 (tools/build_place.py 가 만듭니다)
+animal-train/tools/testkit/_all.luau
+animal-train/tools/testkit/bundle.luau
