@@ -8,3 +8,7 @@ public/fonts/
 
 .DS_Store
 *.log
+
+# 저주받은 통 (Roblox) — 빌드 결과물
+tools/rbxconv/target/
+tests/bundle.lua
