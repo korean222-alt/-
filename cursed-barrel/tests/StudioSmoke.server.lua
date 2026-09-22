@@ -21,7 +21,13 @@ for _,t in ipairs(Tables:GetAllTables()) do
   for key in pairs(slot:GetAttributes()) do check(not key:lower():find("danger"),"Hidden danger leaked") end
  end
 end
-for _,name in ipairs({"VoyageRequest","VoyageState","SelectSlot","ShopRequest","ShopResult","CatchInput","CatchResult","PresentationCue"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
+for _,name in ipairs({"VoyageRequest","VoyageState","SelectSlot","ShopRequest","ShopResult","CatchInput","CatchResult","PresentationCue","BraveRequest"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
+-- Phase 10 : 한 판에 한 번만 잡는다 (0 이면 잡기 자체가 없고, 너무 크면 판이 끝나지 않는다)
+check(Config.Catch.PerPlayer==1,"Catch.PerPlayer must be 1 for release")
+check(Config.Catch.Grace<=0.15,"Catch grace too generous")
+for _,t in ipairs(Tables:GetAllTables()) do
+ for _,attr in ipairs({"Pot","BraveOfferUserId","WinForfeit"}) do check(t.model:GetAttribute(attr)~=nil,"Missing table attribute "..attr) end
+end
 for _,obj in ipairs(workspace:GetDescendants()) do
  if obj.Name=="Plank" or obj.Name=="Gangplank" then check(obj.CanCollide,"Ship walkway must be collidable") end
  if obj.Name=="MainDeck" or obj.Name=="QuarterdeckStep" or obj.Name=="BowStep" then check(obj.CanCollide,"Playable deck/stair collision") end

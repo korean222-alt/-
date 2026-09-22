@@ -26,6 +26,7 @@ local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 local badges = {} -- [Player] = { gui, flame, count, glow, connections }
+local vipTags = {} -- [Player] = BillboardGui  (Phase 10 : VIP 패스 표시)
 
 --------------------------------------------------
 -- 배지 만들기
@@ -91,6 +92,64 @@ local function destroyBadge(player)
 end
 
 --------------------------------------------------
+-- VIP 표시 (Phase 10)
+-- 서버가 게임패스 소유를 확인하고 Player 의 VIP Attribute 를 켠다. 여기서는 보여 주기만 한다.
+--------------------------------------------------
+
+local function destroyVipTag(player)
+	local tag = vipTags[player]
+	if tag then
+		tag:Destroy()
+		vipTags[player] = nil
+	end
+end
+
+local function refreshVip(player)
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head")
+	if player:GetAttribute(PLAYER_ATTR.VIP) ~= true or not head then
+		destroyVipTag(player)
+		return
+	end
+	local tag = vipTags[player]
+	if tag and tag.Parent and tag.Adornee == head then
+		return
+	end
+	destroyVipTag(player)
+
+	tag = Instance.new("BillboardGui")
+	tag.Name = "CursedBarrel_VIP"
+	tag.Adornee = head
+	tag.Size = UDim2.fromOffset(52, 20)
+	tag.StudsOffset = Vector3.new(0, 1.7, 0)
+	tag.AlwaysOnTop = false
+	tag.MaxDistance = 60
+	tag.LightInfluence = 0
+	tag.ResetOnSpawn = false
+	tag.Parent = playerGui
+
+	local plate = Instance.new("TextLabel")
+	plate.Size = UDim2.fromScale(1, 1)
+	plate.BackgroundColor3 = Color3.fromRGB(44, 28, 8)
+	plate.BackgroundTransparency = 0.15
+	plate.Font = Enum.Font.GothamBlack
+	plate.TextSize = 13
+	plate.TextColor3 = Color3.fromRGB(255, 214, 120)
+	plate.Text = "VIP"
+	plate.Parent = tag
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = plate
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 214, 120)
+	stroke.Thickness = 1
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = plate
+
+	vipTags[player] = tag
+end
+
+--------------------------------------------------
 -- 갱신
 --------------------------------------------------
 
@@ -134,22 +193,31 @@ local function watch(player)
 	player:GetAttributeChangedSignal(PLAYER_ATTR.Streak):Connect(function()
 		refresh(player)
 	end)
+	player:GetAttributeChangedSignal(PLAYER_ATTR.VIP):Connect(function()
+		refreshVip(player)
+	end)
 	player.CharacterAdded:Connect(function(character)
 		character:WaitForChild("Head", 10)
 		task.wait(0.2)
 		refresh(player)
+		refreshVip(player)
 	end)
 	player.CharacterRemoving:Connect(function()
 		destroyBadge(player)
+		destroyVipTag(player)
 	end)
 	refresh(player)
+	refreshVip(player)
 end
 
 for _, player in ipairs(Players:GetPlayers()) do
 	watch(player)
 end
 Players.PlayerAdded:Connect(watch)
-Players.PlayerRemoving:Connect(destroyBadge)
+Players.PlayerRemoving:Connect(function(player)
+	destroyBadge(player)
+	destroyVipTag(player)
+end)
 
 -- 불꽃이 천천히 숨 쉰다. 초당 20번이면 충분하다.
 local pulseAt = 0

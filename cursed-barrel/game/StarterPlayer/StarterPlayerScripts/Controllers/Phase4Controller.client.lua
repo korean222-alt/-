@@ -11,6 +11,12 @@
 --   · 통 스킨은 이제 서버가 테이블마다 하나를 골라 칠합니다. 여기서 덧칠하지 않습니다.
 --   · 스킨 이펙트(SkinFX)가 해적에게도 붙습니다.
 --   · "장착 중" 표시를 작게 줄이고, 가까이 갔을 때만 뜨게 했습니다.
+--
+-- Phase 10 에서 고친 것
+--   · 잡기 안내가 "아무 키나"라서 스페이스를 누르면 의자에서 일어나 기권 처리됐습니다.
+--     이제 잡는 동안에는 점프(스페이스 · 게임패드 A)가 잡기 입력으로만 쓰이고, 의자에서 일어나지 않습니다.
+--   · 채팅을 치다가 눌린 키가 잡기로 들어가지 않습니다.
+--   · 한 판에 한 번만 잡을 수 있다는 것, 현상금, 배짱("한 번 더")을 화면에 보여 줍니다.
 
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
@@ -21,6 +27,8 @@ local Debris = game:GetService("Debris")
 local Tags = game:GetService("CollectionService")
 local SoundService = game:GetService("SoundService")
 local Input = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+local GuiService = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
 local package = RS:WaitForChild("CursedBarrel")
@@ -152,6 +160,9 @@ end
 local title = textLabel("Chapter", UDim2.new(0.8, 0, 0, 32), UDim2.new(0.1, 0, 0, 46), 22)
 title.TextColor3 = gold
 local status = textLabel("Status", UDim2.new(0.86, 0, 0, 34), UDim2.new(0.07, 0, 0, 80), 16)
+-- Phase 10 : 현상금 · 내 잡기 기회 · 배짱 단계
+local detail = textLabel("Detail", UDim2.new(0.86, 0, 0, 22), UDim2.new(0.07, 0, 0, 112), 14)
+detail.TextColor3 = teal
 local banner = textLabel("Result", UDim2.new(0.84, 0, 0, 100), UDim2.new(0.08, 0, 0.24, 0), 32)
 banner.TextStrokeTransparency = 0.5
 banner.TextTransparency = 1
@@ -384,7 +395,7 @@ local tutorial = Instance.new("Frame")
 tutorial.Name = "Tutorial"
 tutorial.AnchorPoint = Vector2.new(0, 0.5)
 tutorial.Position = UDim2.new(0, 22, 0.5, 0)
-tutorial.Size = UDim2.fromOffset(300, 214)
+tutorial.Size = UDim2.fromOffset(318, 290)
 tutorial.BackgroundColor3 = Color3.fromRGB(24, 20, 16)
 tutorial.BackgroundTransparency = 0.08
 tutorial.BorderSizePixel = 0
@@ -416,9 +427,11 @@ tutorialLine("처음이신가요?", 14, gold, 18)
 tutorialLine("1.  의자에 다가가 E · 모바일은 탭", 48)
 tutorialLine("2.  내 차례가 오면 아래에서 자리를 고르기", 74)
 tutorialLine("3.  저주받은 자리를 뽑으면 해적이 튀어나옵니다", 100)
-tutorialLine("     그 순간 아무 키나 눌러 붙잡으면 살아남습니다", 124, teal)
-tutorialLine("4.  마지막까지 남으면 승리", 150)
-tutorialLine("바닥 화살표를 따라가면 빈 자리가 나옵니다", 176, Color3.fromRGB(168, 152, 128))
+tutorialLine("     고리가 줄어들 때 눌러 잡으면 살아남아요", 124, teal)
+tutorialLine("     단, 한 판에 한 번만! 두 번째 해적은 못 잡습니다", 148, red)
+tutorialLine("4.  안전하면 「한 번 더」로 보너스 코인", 172)
+tutorialLine("5.  마지막 생존자가 현상금을 가져갑니다", 196)
+tutorialLine("바닥 화살표를 따라가면 빈 자리가 나옵니다", 222, Color3.fromRGB(168, 152, 128))
 button(tutorial, "알겠어요", UDim2.new(1, -96, 1, -34), UDim2.fromOffset(84, 26), function()
 	tutorial.Visible = false
     local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
@@ -467,6 +480,20 @@ local function tableOfCharacter()
 			return node
 		end
 		node = node.Parent
+	end
+	return nil
+end
+
+-- 이 테이블에서 내가 앉은(또는 앉았던) 좌석
+local function seatOf(model)
+	local seats = model and model:FindFirstChild("Seats")
+	if not seats then
+		return nil
+	end
+	for _, seat in ipairs(seats:GetDescendants()) do
+		if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == player.UserId then
+			return seat
+		end
 	end
 	return nil
 end
@@ -965,16 +992,59 @@ local catch = nil -- {opensAt, window, mine, sent, model}
 local dangerPending = {}
 local catchSeen = {}
 
+--------------------------------------------------
+-- 잡는 동안 의자에서 일어나지 않게 (Phase 10)
+--
+-- 스페이스 · 게임패드 A 는 원래 "점프 = 의자에서 일어나기"다. 잡기 안내가 "아무 키나"였으므로
+-- 스페이스를 누른 사람은 의자에서 일어나 기권 처리됐다. 잡는 동안에는 이 두 키를 가로채서
+-- 잡기 입력으로만 쓰고, 혹시 모를 점프 상태 전환도 잠시 막는다.
+--------------------------------------------------
+local SEAT_LOCK_ACTION = "CursedBarrel_CatchSeatLock"
+local seatLocked = false
+local seatLockUntil = 0
+local lockedHumanoid = nil
+local sendCatch -- 아래에서 정의한다
+
+local function setSeatLock(on, untilClock)
+	if on then
+		seatLockUntil = math.max(seatLockUntil, untilClock or (os.clock() + 6))
+	end
+	if on == seatLocked then
+		return
+	end
+	seatLocked = on
+	if on then
+		ContextActionService:BindActionAtPriority(SEAT_LOCK_ACTION, function(_, inputState)
+			if inputState == Enum.UserInputState.Begin and sendCatch then
+				sendCatch()
+			end
+			return Enum.ContextActionResult.Sink
+		end, false, Enum.ContextActionPriority.High.Value + 100, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			lockedHumanoid = humanoid
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+		end
+	else
+		ContextActionService:UnbindAction(SEAT_LOCK_ACTION)
+		if lockedHumanoid and lockedHumanoid.Parent then
+			lockedHumanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		end
+		lockedHumanoid = nil
+	end
+end
+
 local function endCatchUI()
 	catch = nil
 	catchGui.Visible = false
 	catchButton.Active = false
 	catchText.Text = ""
 	catchHint.Text = ""
+	setSeatLock(false)
 end
 
 local lastTapAt = 0
-local function sendCatch()
+function sendCatch()
 	if not catch or not catch.mine or catch.sent then
 		return
 	end
@@ -999,14 +1069,20 @@ local function sendCatch()
 end
 
 catchButton.Activated:Connect(sendCatch)
-Input.InputBegan:Connect(function(input)
+Input.InputBegan:Connect(function(input, processed)
 	if not catch or not catch.mine then
 		return
 	end
+	-- 채팅 입력 · 버튼 클릭(→ Activated) · 가로챈 스페이스(→ 위의 잠금 동작)는 여기서 세지 않는다.
+	if processed or Input:GetFocusedTextBox() then
+		return
+	end
+	-- 게임패드 스틱을 살짝 건드린 것은 누른 것으로 치지 않는다. ("너무 서둘렀다" 오판 방지)
+	local stick = input.KeyCode == Enum.KeyCode.Thumbstick1 or input.KeyCode == Enum.KeyCode.Thumbstick2
 	if input.UserInputType == Enum.UserInputType.Keyboard
 		or input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
-		or input.UserInputType == Enum.UserInputType.Gamepad1 then
+		or (input.UserInputType == Enum.UserInputType.Gamepad1 and not stick) then
 		sendCatch()
 	end
 end)
@@ -1060,8 +1136,15 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	catchGui.Visible = true
 	catchButton.Active = true
 	catchText.Text = ""
-	catchHint.Text = ("해적을 잡아라!   아무 키 · 화면 아무 곳이나 탭   ·   %d번째 (창 %.2f초)")
-		:format(catch.index, data.window or 0)
+	local onlyOnce = (tonumber(config.Catch.PerPlayer) or 1) <= 1
+	catchHint.Text = ("고리가 닫힐 때 잡아라!   아무 키 · 화면 탭   ·   %s (창 %.2f초)")
+		:format(onlyOnce and "한 판에 한 번뿐인 기회" or "잡기 기회", data.window or 0)
+	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
+	setSeatLock(true, opensLocal + (data.window or 0.6) + 4)
+	-- 게임패드로 칼 자리 버튼이 선택돼 있으면 A 가 그 버튼으로 먹힌다. 잡기 입력이 되도록 선택을 푼다.
+	if GuiService.SelectedObject then
+		GuiService.SelectedObject = nil
+	end
 end)
 
 catchResult.OnClientEvent:Connect(function(model, data)
@@ -1075,10 +1158,10 @@ catchResult.OnClientEvent:Connect(function(model, data)
 	end
 
 	if data.success then
-		local grade_ = data.accuracy and data.accuracy > 0.72 and "완벽!" or "아슬아슬!"
-		-- 잡으면 통 안에 해적이 새로 숨습니다. 그 사실을 바로 알려 줍니다.
-		local tail = data.rearmed and "  새 해적이 통 안에 숨었다!" or "  계속 갑니다"
-		announce(mine and ("잡았다!  " .. grade_ .. tail) or ((data.name or "") .. " 님이 해적을 잡았습니다!"), teal, 1.8)
+		local grade_ = data.perfect and "완벽! 보너스 코인" or "아슬아슬!"
+		-- 잡으면 통 안에 해적이 새로 숨습니다. 그리고 이번 판에는 더 잡을 수 없습니다.
+		local tail = (data.catchesLeft or 0) <= 0 and "  다음 해적은 못 잡는다!" or "  계속 갑니다"
+		announce(mine and ("잡았다!  " .. grade_ .. tail) or ((data.name or "") .. " 님이 해적을 잡았습니다!"), teal, 2)
 		blink(teal, 0.35)
 		sound("win", 1.4, 0.3)
 		-- 해적이 통으로 되돌아갑니다.
@@ -1091,7 +1174,8 @@ catchResult.OnClientEvent:Connect(function(model, data)
 	else
 		local reason = data.reason
 		local why = (reason == "late" and "놓쳤다…") or (reason == "panic" and "너무 서둘렀다…")
-			or (reason == "timeout" and "반응하지 못했다…") or "놓쳤다…"
+			or (reason == "timeout" and "반응하지 못했다…")
+			or (reason == "spent" and "두 번째 해적은 피할 수 없다…") or "놓쳤다…"
 		announce(mine and (why .. "  탈락") or ((data.name or "") .. " · 탈락"), red, 1.8)
 		blink(red, 0.4)
 		sound("danger", 0.6, 0.3)
@@ -1170,7 +1254,32 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 	if kind == "Pick" then
 		local tension = own and tensionOf(model) or 0
 		local hitAt = stab(model, data.slot, own, tension, data.userId)
-		if data.danger then
+		if data.danger and data.catchable == false then
+			-- ★ Phase 10 : 이미 이번 판의 잡기 기회를 쓴 사람이 또 해적을 만났다. 잡기 창은 열리지 않는다.
+			local popAt = os.clock() + hitAt + 0.1
+			if own then
+				lastTable = model
+				holdUntil = math.max(holdUntil, popAt + SCARE.Hold + SCARE.Release + 1.6)
+				if not reduced then
+					shot = {
+						model = model,
+						startedAt = popAt - (SCARE.Lead + SCARE.Punch),
+						total = SCARE.Lead + SCARE.Punch + SCARE.Hold + SCARE.Release,
+					}
+				end
+			end
+			task.delay(math.max(0, popAt - os.clock()), function()
+				pirate(model, own)
+				if own then
+					sound("danger", 0.6, 0.32)
+					blink(red, 0.45)
+					if not reduced then
+						shakeUntil = os.clock() + 0.5
+					end
+					announce(data.userId == player.UserId and "두 번째 해적! 이번엔 잡을 수 없다" or ((data.name or "") .. " · 두 번째 해적!"), red, 1.4)
+				end
+			end)
+		elseif data.danger then
 			-- 잡기가 꺼져 있는 서버라면 CatchPrompt 가 오지 않습니다. 그때만 예전 연출로 대신합니다.
 			dangerPending[model] = true
 			task.delay(hitAt + 0.25, function()
@@ -1194,14 +1303,38 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			end)
 		elseif own then
 			task.delay(hitAt, function()
-				announce("안전!  다음 차례로", teal)
+				local mineNow = data.userId == player.UserId
+				local canBrave = mineNow and model:GetAttribute(TABLE_ATTR.BraveOfferUserId) == player.UserId
+				announce(canBrave and "안전!  「한 번 더」로 보너스를 노릴 수 있어요" or "안전!  다음 차례로", teal)
 			end)
+		end
+	elseif kind == "Brave" then
+		if own then
+			local mineNow = data.userId == player.UserId
+			announce(mineNow and ("배짱 %d단계!  한 번 더 찌르세요"):format(data.level or 1)
+				or ("%s 님이 한 번 더 찌릅니다!  (배짱 %d단계)"):format(data.name or "", data.level or 1),
+				Color3.fromRGB(255, 160, 70), 1.6)
+			sound("riser", 1.2, 0.14)
+		end
+	elseif kind == "Card" then
+		if own then
+			local names = { skip = "한 번 넘기기", rotate = "통 회전", seal = "슬롯 봉인" }
+			announce(("%s 님의 카드 · %s"):format(data.name or "", names[data.card] or tostring(data.card)), Color3.fromRGB(196, 150, 255), 1.6)
 		end
 	elseif kind == "Win" then
 		burst(pos + Vector3.new(0, 3, 0), gold, reduced and 10 or 28)
 		if own then
 			local streakText = (data.streak and data.streak >= 2) and ("  ·  %d연승!"):format(data.streak) or ""
-			announce(data.userId == 0 and "이번 판은 승자 없음" or (data.name .. " 승리!" .. streakText), gold)
+			local potText = (data.pot and data.pot > 0) and ("  ·  현상금 %d 코인"):format(data.pot) or ""
+			local text
+			if data.userId == 0 then
+				text = "이번 판은 승자 없음"
+			elseif data.forfeit then
+				text = data.name .. " 생존!  상대가 모두 나가서 승리 기록은 없습니다"
+			else
+				text = data.name .. " 승리!" .. streakText .. potText
+			end
+			announce(text, gold, data.forfeit and 2.4 or 1.8)
 			blink(gold, 0.3)
 			for i, pitch in ipairs({ 1, 1.25, 1.5 }) do
 				task.delay((i - 1) * 0.15, function()
@@ -1230,6 +1363,11 @@ Run.Heartbeat:Connect(function()
 		return
 	end
 	tickAt = os.clock()
+
+	-- 서버 판정이 끝내 오지 않아도 의자 잠금이 남지 않게 한다.
+	if seatLocked and os.clock() > seatLockUntil then
+		endCatchUI()
+	end
 
 	local seated = tableOfCharacter()
 	if seated and tutorial.Visible then
@@ -1290,6 +1428,22 @@ Run.Heartbeat:Connect(function()
 			local pirateText = (pirates > 1) and ("해적 " .. pirates .. "마리  ·  ") or ""
 			status.Text = edge .. pirateText .. caughtText .. (duel and "최후의 2인  ·  " or "")
 				.. (mine and "내 차례! 아래에서 칼 자리를 선택하세요" or ((model:GetAttribute(TABLE_ATTR.CurrentTurnName) or "") .. " 님의 선택을 지켜보세요"))
+			-- 현상금 · 내 잡기 기회 · 배짱 단계
+			local parts = {}
+			local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
+			if pot > 0 then
+				table.insert(parts, ("현상금 %d 코인"):format(pot))
+			end
+			local mySeat = seatOf(model)
+			if mySeat and (mySeat:GetAttribute(config.SeatAttributes.TurnOrder) or 0) > 0 then
+				local left = mySeat:GetAttribute(config.SeatAttributes.CatchesLeft) or 0
+				table.insert(parts, left > 0 and ("내 잡기 기회 %d번"):format(left) or "잡기 기회 없음 · 해적을 만나면 탈락")
+			end
+			local brave = model:GetAttribute(TABLE_ATTR.BraveLevel) or 0
+			if brave > 0 then
+				table.insert(parts, ("배짱 %d단계"):format(brave))
+			end
+			detail.Text = table.concat(parts, "   ·   ")
 			if id ~= lastTurn then
 				lastTurn = id
 				if mine then
@@ -1309,11 +1463,15 @@ Run.Heartbeat:Connect(function()
 			status.Text = "다른 참가자를 기다리는 중"
 		end
 		if current ~= "Playing" then
+			detail.Text = ""
+		end
+		if current ~= "Playing" then
 			highlight.Adornee = nil
 		end
 	else
 		title.Text = "THE CURSED HARBOR"
 		status.Text = "가까운 의자에서 E · 모바일은 앉기 버튼  |  전시장에서 스킨을 바꿀 수 있어요"
+		detail.Text = ""
 		highlight.Adornee = nil
 		lastCountdown = nil
 	end

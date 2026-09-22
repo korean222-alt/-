@@ -22,6 +22,11 @@
 	  - 통 안에 숨어 있는 해적 수 (어느 자리인지는 서버만 안다)
 	  - 이 테이블에 적용 중인 통 스킨과 그 주인
 
+	Phase 10
+	  - 이번 판의 현상금, 기권승 표시
+	  - 테이블 안에 무엇이 하나 추가될 때마다(칼 이펙트 등) 현황판을 통째로 다시 만들던 것을 고쳤다.
+	    이제 좌석이나 StatusAnchor 가 새로 들어올 때만 다시 붙인다.
+
 	현황판은 통 위쪽(StatusAnchor)에 붙는다.
 	등불은 현황판보다 위에 매달려 있어서 글자를 가리지 않는다.
 ]]
@@ -326,7 +331,9 @@ local function updateBoard(entry)
 		statusText = pickText or STATE_TEXT[state]
 		statusColor = pickColor or PALETTE.Cream
 		-- 몇 마리인지만 보여준다. 어느 자리인지는 클라이언트가 알 방법이 없다.
-		infoText = ("생존 %d / %d명 · 칼 %d자루 · 해적 %d마리"):format(alive, math.max(started, alive), slotsLeft, pirates)
+		local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
+		infoText = ("생존 %d / %d명 · 해적 %d마리%s"):format(alive, math.max(started, alive), pirates,
+			pot > 0 and (" · 현상금 %d"):format(pot) or "")
 	elseif state == STATES.RoundEnding then
 		local winnerName = model:GetAttribute(TABLE_ATTR.WinnerName) or ""
 		local winnerId = model:GetAttribute(TABLE_ATTR.WinnerUserId) or 0
@@ -334,7 +341,11 @@ local function updateBoard(entry)
 		entry.count.Text = winnerId == 0 and "무승부" or "승리!"
 		entry.count.TextColor3 = PALETTE.Gold
 
-		if winnerId == localPlayer.UserId then
+		local forfeit = model:GetAttribute(TABLE_ATTR.WinForfeit) == true
+		if forfeit and winnerId ~= 0 then
+			entry.count.Text = "기권승"
+			statusText, statusColor = ("%s 생존 · 상대 기권 (기록 없음)"):format(winnerId == localPlayer.UserId and "나" or winnerName), PALETTE.Dim
+		elseif winnerId == localPlayer.UserId then
 			statusText, statusColor = "내가 마지막까지 살아남았다!", PALETTE.Mine
 		elseif winnerId ~= 0 then
 			statusText, statusColor = ("%s 님 우승"):format(winnerName), PALETTE.Gold
@@ -527,6 +538,8 @@ local function registerTable(model)
 		TABLE_ATTR.PirateCount,
 		TABLE_ATTR.BarrelSkinId,
 		TABLE_ATTR.BarrelSkinOwnerId,
+		TABLE_ATTR.Pot,
+		TABLE_ATTR.WinForfeit,
 	}) do
 		entry.cleaner:add(model:GetAttributeChangedSignal(attributeName):Connect(function()
 			updateBoard(entry)
@@ -570,20 +583,29 @@ end
 
 CollectionService:GetInstanceAddedSignal(TABLE_TAG):Connect(registerTable)
 CollectionService:GetInstanceRemovedSignal(TABLE_TAG):Connect(unregisterTable)
+
+-- 스트리밍으로 좌석이나 현황판 기준점이 뒤늦게 들어오면 그 테이블 현황판만 다시 붙인다.
+-- ★ Phase 9 까지는 테이블 안에 무엇이든(칼 이펙트 · 의자 장식) 추가될 때마다 현황판을 지우고 새로 만들었다.
+local rebuildQueued = {}
 workspace.DescendantAdded:Connect(function(instance)
-	local model = instance:IsA("Model") and instance or instance:FindFirstAncestorOfClass("Model")
-	while model and model ~= workspace do
-		if model:IsA("Model") and CollectionService:HasTag(model, TABLE_TAG) then
-			task.defer(function()
-				if model:IsDescendantOf(workspace) and CollectionService:HasTag(model, TABLE_TAG) then
-					unregisterTable(model)
-					registerTable(model)
-				end
-			end)
-			break
-		end
-		model = model.Parent
+	if not (instance:IsA("Seat") or instance.Name == "StatusAnchor") then
+		return
 	end
+	local model = instance:FindFirstAncestorOfClass("Model")
+	while model and not CollectionService:HasTag(model, TABLE_TAG) do
+		model = model:FindFirstAncestorOfClass("Model")
+	end
+	if not model or rebuildQueued[model] then
+		return
+	end
+	rebuildQueued[model] = true
+	task.defer(function()
+		rebuildQueued[model] = nil
+		if model:IsDescendantOf(workspace) and CollectionService:HasTag(model, TABLE_TAG) then
+			unregisterTable(model)
+			registerTable(model)
+		end
+	end)
 end)
 workspace.DescendantRemoving:Connect(function(instance)
 	if boards[instance] then unregisterTable(instance) end

@@ -31,6 +31,27 @@
 
 	  ★ 여전히 지키는 것: 어느 자리가 위험한지는 서버 메모리에만 있다.
 	    Attribute 로도 RemoteEvent 로도 나가지 않는다. 나가는 것은 "몇 마리인지"까지다.
+
+	───────────────────────────────────────────────
+	Phase 10 에서 고친 버그 (제보해 주신 것)
+
+	  증상 : 해적을 잡고 나서 또 해적을 만나도 매번 잡기 타이밍이 떠서 판이 끝나지 않는다.
+
+	  원인 : Phase 6 의 고침으로 잡을 때마다 해적이 다시 숨는 것은 맞았다.
+	         그런데 해적을 만날 때마다 잡기 기회도 새로 열렸고, 창이 0.8초 + 여유 0.4초로 넉넉했다.
+	         모두가 매번 잡을 수 있으니 아무도 탈락하지 않았다.
+
+	  고침 : · 한 사람은 한 판에 한 번만 잡을 수 있다. (GameConfig.Catch.PerPlayer)
+	           두 번째로 해적을 만나면 잡기 창 없이 탈락한다. 인원이 N 명이면 잡기는 많아야 N 번이다.
+	         · 누가 잡을 때마다 다음 창이 좁아진다. 창이 열리는 순간도 매번 조금씩 달라서 박자를 외울 수 없다.
+	         · 창이 닫힌 뒤의 여유를 0.4초 → 0.12초로 줄였다. (지연 보정은 따로 받는다)
+
+	Phase 10 에서 늘어난 것
+	  · 배짱 : 안전한 자리를 뽑은 뒤 "한 번 더" 찌를 수 있다. 살아남으면 보너스 코인.
+	  · 현상금 : 판 동안 쌓이고, 마지막 생존자가 가져간다.
+	  · 기권승 : 상대가 전부 스스로 나가서 이긴 짧은 판은 승리 · 연승 · 현상금을 주지 않는다.
+	  · 누가 나가는 순간에 다음 차례가 한 명 건너뛰던 문제, 칼이 다 떨어진 통으로 턴이 시작되던 문제를 고쳤다.
+	  · 봉인 카드가 "다음 사람"의 선택까지 유지된다. (전에는 봉인한 사람이 고르는 순간 풀려서 쓸모가 없었다)
 ]]
 
 local Players = game:GetService("Players")
@@ -61,7 +82,10 @@ local catchPrompt = ensureRemote(GameConfig.Remotes.CatchPrompt)
 local catchInput = ensureRemote(GameConfig.Remotes.CatchInput)
 local catchResult = ensureRemote(GameConfig.Remotes.CatchResult)
 local sabotageCue = ensureRemote(GameConfig.Remotes.SabotageCue)
+local braveRemote = ensureRemote(GameConfig.Remotes.Brave)
 local CATCH = GameConfig.Catch
+local BRAVE = GameConfig.Brave
+local POT = GameConfig.Pot
 
 local TABLE_ATTR = GameConfig.TableAttributes
 local SEAT_ATTR = GameConfig.SeatAttributes
@@ -107,6 +131,18 @@ function Round.new(gameTable)
 	self.turnCut = {} -- [Player] = 다음 턴을 깎을 비율
 	self.sabotageUses = {} -- [Player] = 이번 라운드에 쓴 횟수
 
+	-- Phase 10
+	self.catchesUsed = {} -- [Player] = 이번 판에 쓴 잡기 기회
+	self.braveLevel = 0 -- 지금 차례의 사람이 몇 번째로 더 찌르는 중인지
+	self.braveOffer = nil -- { player, token } "한 번 더" 제안
+	self.pot = 0
+	self.picks = 0 -- 이번 판에 꽂힌 칼 수
+	self.pirateOuts = 0 -- 이번 판에 해적에게 탈락한 사람 수 (스스로 나간 사람은 세지 않는다)
+	self.afk = {}
+	self.forfeited = {}
+	self.bonuses = {}
+	self.cards = {}
+
 	-- 예약한 작업을 취소하는 대신 토큰을 하나 올린다.
 	-- 늦게 도착한 task.delay 콜백은 토큰이 다르면 스스로 물러난다.
 	self.countdownToken = 0
@@ -148,6 +184,8 @@ function Round:Destroy()
 	table.clear(self.dangerSlots)
 	table.clear(self.turnCut)
 	table.clear(self.sabotageUses)
+	table.clear(self.catchesUsed)
+	self.braveOffer = nil
 end
 
 --------------------------------------------------
@@ -179,7 +217,19 @@ function Round:_writeSeatOrder()
 		if seat:GetAttribute(SEAT_ATTR.Alive) ~= alive then
 			seat:SetAttribute(SEAT_ATTR.Alive, alive)
 		end
+		local left = (player and alive) and self:_catchesLeft(player) or 0
+		if seat:GetAttribute(SEAT_ATTR.CatchesLeft) ~= left then
+			seat:SetAttribute(SEAT_ATTR.CatchesLeft, left)
+		end
 	end
+end
+
+-- 이 사람이 이번 판에 아직 해적을 잡을 수 있는 횟수
+function Round:_catchesLeft(player)
+	if not CATCH.Enabled then
+		return 0
+	end
+	return math.max(0, (tonumber(CATCH.PerPlayer) or 1) - (self.catchesUsed[player] or 0))
 end
 
 function Round:_resetRoundAttributes()
@@ -200,6 +250,10 @@ function Round:_resetRoundAttributes()
 	self:_set(TABLE_ATTR.WinnerName, "")
 	self:_set(TABLE_ATTR.ResetEndsAt, 0)
 	self:_set(TABLE_ATTR.PirateCount, 0)
+	self:_set(TABLE_ATTR.Pot, 0)
+	self:_set(TABLE_ATTR.BraveLevel, 0)
+	self:_set(TABLE_ATTR.WinForfeit, false)
+	self:_clearBraveOffer()
 	self:_writeSeatOrder()
 end
 
@@ -297,14 +351,27 @@ function Round:_liveDangerCount()
 end
 
 -- 아직 아무도 꽂지 않았고 해적도 없는 자리 목록
+-- ★ 봉인된 자리는 빼고 센다. 봉인된 자리를 "남은 안전한 자리"로 셈하면,
+--   고를 수 있는 마지막 한 칸에 해적이 숨어 다음 사람이 강제로 탈락할 수 있었다.
 function Round:_hidableSlots()
 	local list = {}
 	for _, slotIndex in ipairs(self.gameTable:GetFreeSlotIndices()) do
-		if not self.dangerSlots[slotIndex] then
+		if not self.dangerSlots[slotIndex] and slotIndex ~= self.sealed then
 			table.insert(list, slotIndex)
 		end
 	end
 	return list
+end
+
+-- 지금 고를 수 있는 빈 자리 수 (봉인된 자리는 뺀다)
+function Round:_pickableCount()
+	local count = 0
+	for _, slotIndex in ipairs(self.gameTable:GetFreeSlotIndices()) do
+		if slotIndex ~= self.sealed then
+			count += 1
+		end
+	end
+	return count
 end
 
 -- ★ 안 꽂은 자리 중 하나에 해적을 새로 숨긴다. 실제로 숨긴 수를 돌려준다.
@@ -360,7 +427,7 @@ end
 
 -- 통을 새 칼로 채우고 해적을 다시 숨긴다.
 function Round:_refillBarrel()
-    self:_clearSeal()
+	self:_clearSeal()
 	local gameTable = self.gameTable
 	gameTable:ResetSlots()
 	gameTable:ResetBarrelLook()
@@ -409,12 +476,19 @@ function Round:_beginRound()
 
 	self.participants = participants
 	self.forfeited = {}
-    self.bonuses = {}
-    self.cards = {}
-    self.afk = {}
-    self.sealed = nil
-    self.settled = false
-    self.roundStartedAt = os.clock()
+	self.bonuses = {}
+	self.cards = {}
+	self.afk = {}
+	self.sealed = nil
+	self.sealedBy = nil
+	self.settled = false
+	self.roundStartedAt = os.clock()
+	table.clear(self.catchesUsed)
+	self.braveLevel = 0
+	self.braveOffer = nil
+	self.picks = 0
+	self.pirateOuts = 0
+	self.pot = 0
     for _, p in ipairs(participants) do
         self.cards[p]={skip=true,rotate=true,seal=true}
         local bonus=0
@@ -453,11 +527,15 @@ function Round:_beginRound()
 	self:_set(TABLE_ATTR.TurnCount, #participants)
 	self:_set(TABLE_ATTR.WinnerUserId, 0)
 	self:_set(TABLE_ATTR.WinnerName, "")
+	self:_set(TABLE_ATTR.WinForfeit, false)
 	self:_set(TABLE_ATTR.ResetEndsAt, 0)
 	self:_set(TABLE_ATTR.LastPickSlot, 0)
 	self:_set(TABLE_ATTR.LastPickUserId, 0)
 	self:_set(TABLE_ATTR.LastPickName, "")
 	self:_set(TABLE_ATTR.LastPickSafe, true)
+	self:_set(TABLE_ATTR.BraveLevel, 0)
+	self:_clearBraveOffer()
+	self:_addPot(POT.Base)
 	self:_writeSeatOrder()
 
 	-- 3) 상태를 Starting 으로. 이 순간부터 빈 의자에도 앉을 수 없다.
@@ -500,7 +578,8 @@ end
 -- 턴
 --------------------------------------------------
 
-function Round:_beginTurn(index)
+-- braveContinue : "한 번 더"를 눌러 같은 사람이 다시 고르는 차례면 true
+function Round:_beginTurn(index, braveContinue)
 	if self.destroyed or self.gameTable.destroyed then
 		return
 	end
@@ -511,10 +590,21 @@ function Round:_beginTurn(index)
 		return
 	end
 
-	-- ★ Phase 6 안전망.
-	-- 어떤 경로로든 통 안의 해적이 정원보다 적으면 여기서 반드시 채워 넣는다.
-	-- 이 한 줄이 "잡고 나면 끝까지 해적이 안 나오던" 증상의 마지막 방어선이다.
+	self:_clearBraveOffer()
+	if not braveContinue then
+		self.braveLevel = 0
+	end
+
 	if self.gameTable.state == STATES.Playing then
+		-- ★ Phase 10 안전망. 칼이 한 자루도 남지 않은 통으로 차례를 시작하지 않는다.
+		--   (누가 나가는 순간과 통 재충전이 겹치면 이런 통이 남아서 시간 초과만 반복됐다)
+		if self:_freeSlotCount() == 0 then
+			self:_refillBarrel()
+		end
+
+		-- ★ Phase 6 안전망.
+		-- 어떤 경로로든 통 안의 해적이 정원보다 적으면 여기서 반드시 채워 넣는다.
+		-- 이 한 줄이 "잡고 나면 끝까지 해적이 안 나오던" 증상의 마지막 방어선이다.
 		self:_ensureDanger()
 	end
 
@@ -528,11 +618,12 @@ function Round:_beginTurn(index)
 	self.turnToken += 1
 	local token = self.turnToken
 
-	self:_set("TurnSerial",self.turnToken)
-    local hand=self.cards and self.cards[player]
-    self:_set("CardSkip",hand and hand.skip or false)
-    self:_set("CardRotate",hand and hand.rotate or false)
-    self:_set("CardSeal",hand and hand.seal or false)
+	self:_set("TurnSerial", self.turnToken)
+	local hand = self.cards and self.cards[player]
+	self:_set("CardSkip", hand and hand.skip or false)
+	self:_set("CardRotate", hand and hand.rotate or false)
+	self:_set("CardSeal", hand and hand.seal or false)
+	self:_set(TABLE_ATTR.BraveLevel, self.braveLevel)
 	self:_set(TABLE_ATTR.TurnIndex, index)
 	self:_set(TABLE_ATTR.TurnCount, count)
 	self:_set(TABLE_ATTR.CurrentTurnUserId, player.UserId)
@@ -574,11 +665,20 @@ function Round:_onTurnTimeout(player)
 		return
 	end
 
-	self.afk[player]=(self.afk[player] or 0)+1
- if self.afk[player]>=Release.AFKTimeouts then self.gameTable:RemovePlayer(player);return end
- if self.gameTable.config.AutoPickOnTimeout then
+	self.afk[player] = (self.afk[player] or 0) + 1
+	if self.afk[player] >= Release.AFKTimeouts then
+		-- 세 번 연속으로 고르지 않았다. 자리에서 일으켜 세운다. (이탈 처리는 RemoveParticipant 가 한다)
+		self.gameTable:RemovePlayer(player)
+		return
+	end
+	if self.gameTable.config.AutoPickOnTimeout then
 		local free = self.gameTable:GetFreeSlotIndices()
-        if self.sealed then local i=table.find(free,self.sealed);if i then table.remove(free,i) end end
+		if self.sealed then
+			local sealedAt = table.find(free, self.sealed)
+			if sealedAt then
+				table.remove(free, sealedAt)
+			end
+		end
 		local slotIndex = Utility.pickRandom(free, self.random)
 		if slotIndex and self:ValidatePick(player, slotIndex) == nil then
 			GameConfig.log(("%s 시간 초과 · 서버가 대신 %d번 자리를 고릅니다"):format(player.Name, slotIndex))
@@ -669,9 +769,14 @@ end
 function Round:_resolvePick(player, slotIndex, source)
 	local gameTable = self.gameTable
 	local isDanger = self.dangerSlots[slotIndex] == true
-    self:_clearSeal()
+	-- 봉인은 "봉인한 사람 다음 차례의 선택"까지 유지된다.
+	-- 봉인한 사람이 자기 칼을 꽂는 것으로는 풀리지 않는다. (Phase 9 에서는 여기서 바로 풀려 쓸모가 없었다)
+	if self.sealed and self.sealedBy ~= player then
+		self:_clearSeal()
+	end
 
 	self.resolving = true
+	self.picks = (self.picks or 0) + 1
 	self.turnToken += 1 -- 이번 턴의 제한 시간 타이머를 무효로 만든다
 
 	-- 해적을 밟았으면 그 자리의 해적은 여기서 소모된다.
@@ -681,8 +786,11 @@ function Round:_resolvePick(player, slotIndex, source)
 	end
 
 	gameTable:MarkSlotUsed(slotIndex, player, isDanger)
+	-- catchable : 이번 해적을 잡을 기회가 있는가. 이미 칼이 꽂혀 결과가 정해진 뒤라 알려도 된다.
 	presentation:FireAllClients("Pick", gameTable.model, {
 		slot = slotIndex, danger = isDanger, userId = player.UserId, name = player.DisplayName or player.Name,
+		catchable = self:_catchesLeft(player) > 0,
+		brave = self.braveLevel,
 	})
 	self:_set(TABLE_ATTR.SlotsRemaining, self:_freeSlotCount())
 	self:_set(TABLE_ATTR.LastPickSlot, slotIndex)
@@ -703,9 +811,27 @@ function Round:_resolvePick(player, slotIndex, source)
 
 	-- 안전. 작은 보상을 주고, 잠깐 결과를 보여준 뒤 다음 사람 차례로 넘어간다.
 	ProfileService:Award(player, ECONOMY.SurviveTurnReward * self:_rewardScale(), "safePicks")
+	self:_addPot(POT.PerPick)
+
+	-- 배짱으로 더 찌른 자리에서 살아남았다. 단계만큼 바로 보상한다.
+	local level = self.braveLevel or 0
+	if level > 0 then
+		ProfileService:Award(player, self:_braveReward(level), "bravePicks")
+		self:_addPot(POT.PerBravePick)
+	end
 
 	self.phaseToken += 1
 	local token = self.phaseToken
+
+	-- ★ Phase 10 : "한 번 더" 제안. 결과를 보여주는 동안(ResultHold)만 누를 수 있다.
+	--   누르면 AcceptBrave 가 phaseToken 을 올려 아래의 "다음 사람 차례" 예약을 무효로 만든다.
+	if BRAVE.Enabled and level < BRAVE.MaxChain and self:_pickableCount() >= BRAVE.MinPickable then
+		self.braveOffer = { player = player, token = token }
+		self:_set(TABLE_ATTR.BraveNextReward, self:_braveReward(level + 1))
+		self:_set(TABLE_ATTR.BraveOfferEndsAt, GameConfig.now() + TIMING.ResultHold)
+		self:_set(TABLE_ATTR.BraveOfferUserId, player.UserId)
+	end
+
 	task.delay(TIMING.ResultHold, function()
 		if self.destroyed or token ~= self.phaseToken then
 			return
@@ -721,6 +847,63 @@ function Round:_resolvePick(player, slotIndex, source)
 
 		self:_beginTurn(self.turnIndex + 1)
 	end)
+end
+
+--------------------------------------------------
+-- 배짱 · 현상금 (Phase 10)
+--------------------------------------------------
+
+function Round:_braveReward(level)
+	local list = BRAVE.Rewards
+	local amount = list[math.clamp(level, 1, #list)] or 0
+	return math.floor(amount * self:_rewardScale())
+end
+
+function Round:_clearBraveOffer()
+	self.braveOffer = nil
+	self:_set(TABLE_ATTR.BraveOfferUserId, 0)
+	self:_set(TABLE_ATTR.BraveOfferEndsAt, 0)
+	self:_set(TABLE_ATTR.BraveNextReward, 0)
+end
+
+function Round:_addPot(amount)
+	if not POT.Enabled then
+		return
+	end
+	local add = math.floor((tonumber(amount) or 0) * self:_rewardScale())
+	self.pot = math.clamp((self.pot or 0) + add, 0, POT.Cap)
+	self:_set(TABLE_ATTR.Pot, self.pot)
+end
+
+-- 결과를 보여주는 동안 "한 번 더"를 눌렀다. 같은 사람이 곧바로 다시 고른다.
+function Round:AcceptBrave(player)
+	local offer = self.braveOffer
+	if not offer or offer.player ~= player or offer.token ~= self.phaseToken then
+		return false, "지금은 한 번 더 찌를 수 없습니다"
+	end
+	if self.destroyed or self.gameTable.destroyed or self.gameTable.state ~= STATES.Playing then
+		return false, REJECT.NotPlaying
+	end
+	if not self.isParticipant[player] or self.participants[self.turnIndex] ~= player then
+		return false, REJECT.NotYourTurn
+	end
+	if self:_pickableCount() < BRAVE.MinPickable then
+		return false, "남은 자리가 너무 적습니다"
+	end
+
+	self.phaseToken += 1 -- "다음 사람 차례" 예약을 무효로 만든다
+	self.braveLevel = (self.braveLevel or 0) + 1
+	self.afk[player] = 0
+
+	presentation:FireAllClients("Brave", self.gameTable.model, {
+		userId = player.UserId,
+		name = player.DisplayName or player.Name,
+		level = self.braveLevel,
+	})
+	GameConfig.log(("%s · %s 배짱 %d단계"):format(self.gameTable.tableId, player.Name, self.braveLevel))
+
+	self:_beginTurn(self.turnIndex, true)
+	return true, nil
 end
 
 function Round:_rewardScale()
@@ -742,8 +925,37 @@ function Round:_beginCatch(player, slotIndex)
 	self.catchToken += 1
 	local token = self.catchToken
 
+	-- ★ Phase 10 : 이번 판의 잡기 기회를 이미 썼다. 해적은 이번엔 잡히지 않는다.
+	--   잡기 창을 열지 않고, 해적이 튀어나오는 연출이 끝날 즈음 탈락시킨다.
+	if self:_catchesLeft(player) <= 0 then
+		self.catch = {
+			token = token,
+			player = player,
+			slot = slotIndex,
+			opensAt = math.huge,
+			window = 0,
+			earlyTaps = 0,
+			resolved = false,
+			spent = true,
+		}
+		GameConfig.log(("%s · %s 잡기 기회 없음 → 탈락"):format(gameTable.tableId, player.Name))
+		task.delay(CATCH.SpentReveal, function()
+			if self.destroyed or token ~= self.catchToken then
+				return
+			end
+			self:_resolveCatch(false, "spent")
+		end)
+		return
+	end
+
+	-- 기회는 잡기 창이 열리는 순간 쓴 것으로 친다. (놓쳐도 어차피 탈락이다)
+	self.catchesUsed[player] = (self.catchesUsed[player] or 0) + 1
+	self:_writeSeatOrder()
+
 	local window = GameConfig.catchWindow(self.catchCount, #self.participants, self:_freeSlotCount())
-	local opensAt = GameConfig.now() + CATCH.Lead
+	-- 창이 열리는 순간을 조금씩 흔든다. 클라이언트는 opensAt 에 맞춰 연출하므로 화면과 어긋나지 않는다.
+	local lead = CATCH.Lead + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
+	local opensAt = GameConfig.now() + lead
 
 	self.catch = {
 		token = token,
@@ -781,7 +993,7 @@ function Round:_beginCatch(player, slotIndex)
 		:format(gameTable.tableId, player.Name, self.catchCount + 1, window))
 
 	-- 응답이 없어도 판이 멈추지 않도록 서버가 끝을 낸다.
-	task.delay(CATCH.Lead + window + CATCH.Timeout, function()
+	task.delay(lead + window + CATCH.Timeout, function()
 		if self.destroyed or token ~= self.catchToken then
 			return
 		end
@@ -792,7 +1004,7 @@ end
 -- 클라이언트가 "지금 눌렀다"고 알려 왔을 때.
 function Round:HandleCatchInput(player, tappedAt)
 	local catch = self.catch
-	if not catch or catch.resolved or catch.player ~= player then
+	if not catch or catch.resolved or catch.player ~= player or catch.spent then
 		return
 	end
 
@@ -845,6 +1057,8 @@ function Round:_resolveCatch(success, reason)
 		armed = self:_armDanger(CATCH.ArmOnCatch)
 	end
 
+	local perfect = success and (catch.accuracy or 0) >= (CATCH.PerfectAccuracy or 1)
+
 	catchResult:FireAllClients(gameTable.model, {
 		userId = player.UserId,
 		name = player.DisplayName or player.Name,
@@ -852,9 +1066,12 @@ function Round:_resolveCatch(success, reason)
 		reason = reason,
 		index = self.catchCount + 1,
 		accuracy = catch.accuracy or 0,
+		perfect = perfect,
 		-- 통 안에 아직 몇 마리가 있는지까지만 알린다. 어느 자리인지는 보내지 않는다.
 		pirates = self:_liveDangerCount(),
 		rearmed = armed > 0,
+		-- 이 사람은 이번 판에 더 잡을 수 없다 (다음 해적은 곧 탈락)
+		catchesLeft = self:_catchesLeft(player),
 	})
 
 	GameConfig.log(("%s · %s 잡기 %s (%s) · 남은 해적 %d마리")
@@ -873,6 +1090,11 @@ function Round:_resolveCatch(success, reason)
 	self:_set(TABLE_ATTR.CatchCount, self.catchCount)
 	self:_publishPirateCount()
 	ProfileService:Award(player, ECONOMY.CatchReward * self:_rewardScale(), "catches")
+	self:_addPot(POT.PerCatch)
+	if perfect then
+		ProfileService:Award(player, ECONOMY.PerfectCatchBonus * self:_rewardScale(), "perfectCatches")
+		self:_addPot(POT.PerPerfect)
+	end
 
 	-- 살아남았다. 통은 새로 채우지 않는다.
 	-- 대신 방금 숨긴 해적이 통 안에 남아 있으므로 긴장이 이어진다.
@@ -982,7 +1204,9 @@ end
 --------------------------------------------------
 
 function Round:_eliminate(player)
-    self.turnToken+=1;self.resolving=true
+	self.turnToken += 1
+	self.resolving = true
+	self:_clearBraveOffer()
 	local gameTable = self.gameTable
 
 	-- 잡기 도중에 탈락 처리가 들어오면(이탈 등) 진행 중인 잡기를 먼저 닫는다.
@@ -994,9 +1218,15 @@ function Round:_eliminate(player)
 	local index = table.find(self.participants, player)
 	if index then
 		table.remove(self.participants, index)
+		self.pirateOuts = (self.pirateOuts or 0) + 1
 	else
 		index = self.turnIndex
 	end
+	-- ★ Phase 10 : "마지막으로 차례를 마친 자리"를 탈락한 사람 바로 앞으로 옮겨 둔다.
+	--   아래 예약은 turnIndex + 1 로 다음 사람을 부른다. 기다리는 동안 누가 나가도
+	--   RemoveParticipant 가 turnIndex 를 함께 당겨 주므로 한 명을 건너뛰지 않는다.
+	--   (Phase 9 에서는 탈락한 자리 번호를 그대로 들고 있다가, 그 앞사람이 나가면 한 명을 건너뛰었다)
+	self.turnIndex = index - 1
 	self.isParticipant[player] = nil
 
 	local remaining = #self.participants
@@ -1042,20 +1272,41 @@ function Round:_eliminate(player)
 			return
 		end
 
-		self:_beginTurn(index)
+		self:_beginTurn(self.turnIndex + 1)
 	end)
 end
 
+-- 상대가 전부 스스로 나가서 이긴 짧은 판인가 (GameConfig.ForfeitWin)
+function Round:_isFullWin()
+	if (self.pirateOuts or 0) >= 1 then
+		return true
+	end
+	local need = math.max(1, self.startingCount or 1) * (tonumber(GameConfig.ForfeitWin.MinPicksPerPlayer) or 2)
+	return (self.picks or 0) >= need
+end
+
 function Round:_declareWinner(player)
- if self.settled or self.destroyed or self.gameTable.destroyed then return end
- self.settled=true
- self.turnToken+=1;self.catchToken+=1;self.catch=nil;self.resolving=true
+	if self.settled or self.destroyed or self.gameTable.destroyed then
+		return
+	end
+	self.settled = true
+	self.turnToken += 1
+	self.catchToken += 1
+	self.catch = nil
+	self.resolving = true
+	self:_clearBraveOffer()
 	local gameTable = self.gameTable
 
+	-- ★ Phase 10 : 기권승은 승리로 기록하지 않는다. 참가 기록과 참가 보상만 받는다.
+	local fullWin = player ~= nil and self:_isFullWin()
+	local credited = fullWin and player or nil
+	local pot = credited and (self.pot or 0) or 0
+
+	self:_set(TABLE_ATTR.WinForfeit, player ~= nil and not fullWin)
 	if player then
 		self:_set(TABLE_ATTR.WinnerUserId, player.UserId)
 		self:_set(TABLE_ATTR.WinnerName, player.DisplayName or player.Name)
-		GameConfig.log(("%s 라운드 %d 승자: %s"):format(gameTable.tableId, self.roundId, player.Name))
+		GameConfig.log(("%s 라운드 %d 승자: %s%s"):format(gameTable.tableId, self.roundId, player.Name, fullWin and "" or " (기권승)"))
 	else
 		self:_set(TABLE_ATTR.WinnerUserId, 0)
 		self:_set(TABLE_ATTR.WinnerName, "")
@@ -1063,19 +1314,23 @@ function Round:_declareWinner(player)
 	end
 
 	-- 기록과 보상 (Phase 7 : 승자뿐 아니라 참가자 전원의 판수가 저장된다)
-	ProfileService:RecordRound(gameTable, self.roundRoster or {}, player,self.forfeited,self.bonuses)
-	RankingService:RecordRound(gameTable, self.roundRoster or {}, player)
- if player then task.spawn(function()
-  local analytics=game:GetService("AnalyticsService")
-  pcall(analytics.LogCustomEvent,analytics,player,"RoundDuration",os.clock()-(self.roundStartedAt or os.clock()),{mode=gameTable.typeName})
- end) end
+	ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, pot)
+	RankingService:RecordRound(gameTable, self.roundRoster or {}, credited)
+	if player then
+		task.spawn(function()
+			local analytics = game:GetService("AnalyticsService")
+			pcall(analytics.LogCustomEvent, analytics, player, "RoundDuration", os.clock() - (self.roundStartedAt or os.clock()), { mode = gameTable.typeName })
+		end)
+	end
 
 	presentation:FireAllClients("Win", gameTable.model, {
 		userId = player and player.UserId or 0,
 		name = player and (player.DisplayName or player.Name) or "",
-		streak = player and (player:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
-        skin=player and player:GetAttribute("VictorySkin") or "classic",
-        duration=os.clock()-(self.roundStartedAt or os.clock()),
+		streak = credited and (credited:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
+		skin = player and player:GetAttribute("VictorySkin") or "classic",
+		duration = os.clock() - (self.roundStartedAt or os.clock()),
+		forfeit = player ~= nil and not fullWin,
+		pot = pot,
 	})
 
 	self:_set(TABLE_ATTR.CurrentTurnUserId, 0)
@@ -1100,7 +1355,9 @@ end
 --------------------------------------------------
 
 function Round:_resetTable()
-    self:_clearSeal()
+	self:_clearSeal()
+	self:_clearBraveOffer()
+	self.braveLevel = 0
 	local gameTable = self.gameTable
 
 	self.countdownToken += 1
@@ -1113,6 +1370,10 @@ function Round:_resetTable()
 	table.clear(self.dangerSlots)
 	table.clear(self.turnCut)
 	table.clear(self.sabotageUses)
+	table.clear(self.catchesUsed)
+	self.pot = 0
+	self.picks = 0
+	self.pirateOuts = 0
 	self.turnIndex = 0
 	self.startingCount = 0
 	self.barrelCycle = 0
@@ -1154,8 +1415,18 @@ end
 --------------------------------------------------
 
 function Round:RemoveParticipant(player)
- if self.forfeited and self.isParticipant[player] then self.forfeited[player]=true end
- if self.catch and self.catch.player==player then self.catch=nil;self.catchToken+=1 end
+	if self.forfeited and self.isParticipant[player] then
+		self.forfeited[player] = true
+	end
+	-- 잡는 도중에 나갔다. 잡기 결과를 기다리는 예약이 없으므로 아래에서 다음 차례를 직접 연다.
+	local wasCatching = self.catch ~= nil and self.catch.player == player
+	if wasCatching then
+		self.catch = nil
+		self.catchToken += 1
+	end
+	if self.braveOffer and self.braveOffer.player == player then
+		self:_clearBraveOffer()
+	end
 	local index = table.find(self.participants, player)
 	self.isParticipant[player] = nil
 	self.turnCut[player] = nil
@@ -1180,10 +1451,10 @@ function Round:RemoveParticipant(player)
 	end
 
 	task.spawn(function()
-  local analytics=game:GetService("AnalyticsService")
-  pcall(analytics.LogCustomEvent,analytics,player,"RoundForfeit",1,{mode=self.gameTable.typeName})
- end)
- -- 게임 중에 스스로 나간 사람은 연승이 끊긴다. (나가서 연승을 지키는 짓 방지)
+		local analytics = game:GetService("AnalyticsService")
+		pcall(analytics.LogCustomEvent, analytics, player, "RoundForfeit", 1, { mode = self.gameTable.typeName })
+	end)
+	-- 게임 중에 스스로 나간 사람은 연승이 끊긴다. (나가서 연승을 지키는 짓 방지)
 	ProfileService:BreakStreak(player)
 
 	if count == 1 then
@@ -1204,7 +1475,15 @@ function Round:RemoveParticipant(player)
 		self.turnIndex -= 1
 		self:_set(TABLE_ATTR.TurnIndex, self.turnIndex)
 	elseif index == self.turnIndex then
-		self:_beginTurn(index)
+		if self.resolving and not wasCatching then
+			-- ★ Phase 10 : 결과를 보여주는 중(안전한 자리 · 탈락 연출)에 나갔다.
+			--   곧 "turnIndex + 1" 로 다음 사람을 부르는 예약이 있으므로, 여기서 차례를 또 열지 않는다.
+			--   (Phase 9 에서는 여기서 한 번, 예약에서 한 번 더 넘겨서 한 명을 건너뛰었다)
+			self.turnIndex = index - 1
+		else
+			self.phaseToken += 1
+			self:_beginTurn(index)
+		end
 	end
 
 	return true
@@ -1238,33 +1517,64 @@ end
 --------------------------------------------------
 
 function Round:_clearSeal()
- if self.sealed then
-  local slot=self.gameTable:GetSlot(self.sealed)
-  if slot then slot:SetAttribute("Sealed",false) end
- end
- self.sealed=nil
- self:_set("SealedSlot",0)
+	if self.sealed then
+		local slot = self.gameTable:GetSlot(self.sealed)
+		if slot then
+			slot:SetAttribute("Sealed", false)
+		end
+	end
+	self.sealed = nil
+	self.sealedBy = nil
+	self:_set("SealedSlot", 0)
 end
-function Round:UseCard(player,card,index,roundId,serial)
- if not self.gameTable.config.SpecialCards then return false,"일반 테이블에서는 카드를 쓰지 않습니다" end
- if roundId~=self.roundId or serial~=self.turnToken or self.resolving or self:GetCurrentPlayer()~=player or not self.isParticipant[player] or self.gameTable.state~=STATES.Playing then return false,"지금은 사용할 수 없습니다" end
- local hand=self.cards[player]
- if not hand or not hand[card] then return false,"이미 사용한 카드입니다" end
- local free=self.gameTable:GetFreeSlotIndices()
- if card=="seal" and (typeof(index)~="number" or index%1~=0 or not table.find(free,index) or #free<=2 or self.sealed) then return false,"빈 자리 번호를 선택하세요 (최소 3칸)" end
- hand[card]=false
- self:_set("CardSkip",hand.skip);self:_set("CardRotate",hand.rotate);self:_set("CardSeal",hand.seal)
- if card=="skip" then self:AdvanceTurn()
- elseif card=="rotate" then
-  local count=math.min(self:_liveDangerCount(),#free)
-  Utility.shuffle(free,self.random);table.clear(self.dangerSlots)
-  for i=1,count do self.dangerSlots[free[i]]=true end
-  self:_publishPirateCount()
- elseif card=="seal" then
-  self.sealed=index;self.gameTable:GetSlot(index):SetAttribute("Sealed",true);self:_set("SealedSlot",index)
- end
- presentation:FireAllClients("Card",self.gameTable.model,{card=card,userId=player.UserId})
- return true,"카드 사용 / Card used"
+-- 파티 카드 (PartyCards6 테이블 전용). 한 판에 종류별로 한 번씩, 내 차례에만 쓴다.
+--   skip   : 이번 차례를 넘긴다
+--   rotate : 숨은 해적의 자리를 빈 자리 안에서 다시 섞는다 (마릿수는 그대로)
+--   seal   : 빈 자리 하나를 봉인한다. 봉인은 "다음 사람"이 고를 때까지 유지된다.
+function Round:UseCard(player, card, index, roundId, serial)
+	if not self.gameTable.config.SpecialCards then
+		return false, "일반 테이블에서는 카드를 쓰지 않습니다"
+	end
+	if roundId ~= self.roundId or serial ~= self.turnToken or self.resolving or self:GetCurrentPlayer() ~= player
+		or not self.isParticipant[player] or self.gameTable.state ~= STATES.Playing then
+		return false, "지금은 사용할 수 없습니다"
+	end
+	local hand = self.cards and self.cards[player]
+	if not hand or not hand[card] then
+		return false, "이미 사용한 카드입니다"
+	end
+	local free = self.gameTable:GetFreeSlotIndices()
+	if card == "seal" then
+		-- 봉인한 뒤에도 내가 하나 꽂고, 다음 사람에게 고를 자리가 둘 이상 남아야 한다. 그래서 4칸 이상.
+		if typeof(index) ~= "number" or index ~= index or index % 1 ~= 0 or not table.find(free, index) or #free < 4 or self.sealed then
+			return false, "봉인할 빈 자리를 고르세요 (빈 자리 4칸 이상일 때)"
+		end
+	end
+	hand[card] = false
+	self:_set("CardSkip", hand.skip)
+	self:_set("CardRotate", hand.rotate)
+	self:_set("CardSeal", hand.seal)
+	if card == "skip" then
+		self:AdvanceTurn()
+	elseif card == "rotate" then
+		local count = math.min(self:_liveDangerCount(), #free)
+		Utility.shuffle(free, self.random)
+		table.clear(self.dangerSlots)
+		for i = 1, count do
+			self.dangerSlots[free[i]] = true
+		end
+		self:_publishPirateCount()
+	elseif card == "seal" then
+		self.sealed = index
+		self.sealedBy = player
+		local slot = self.gameTable:GetSlot(index)
+		if slot then
+			slot:SetAttribute("Sealed", true)
+		end
+		self:_set("SealedSlot", index)
+	end
+	presentation:FireAllClients("Card", self.gameTable.model, { card = card, userId = player.UserId, name = player.DisplayName or player.Name })
+	return true, "카드 사용 / Card used"
 end
 
 function Round:GetParticipants()
@@ -1288,6 +1598,7 @@ RoundService._rounds = {} -- [GameTable] = Round
 RoundService._cleaner = Utility.Cleaner.new()
 RoundService._started = false
 RoundService._selectLimiter = Utility.RateLimiter.new(GameConfig.SelectCooldown)
+RoundService._braveLimiter = Utility.RateLimiter.new(0.3)
 
 function RoundService:_attach(gameTable)
 	if self._rounds[gameTable] or gameTable.destroyed then
@@ -1427,6 +1738,32 @@ function RoundService:Start()
 		end
 	end))
 
+	-- Phase 10 : "한 번 더" 요청. 판정은 Round:AcceptBrave 가 다시 한다.
+	self._cleaner:add(braveRemote.OnServerEvent:Connect(function(player, tableModel)
+		local ok, err = pcall(function()
+			if not self._braveLimiter:check(player.UserId) then
+				return
+			end
+			if typeof(tableModel) ~= "Instance" or not tableModel:IsA("Model") then
+				return
+			end
+			local gameTable = TableService:GetTableFromModel(tableModel)
+			if not gameTable or TableService:GetTableOfPlayer(player) ~= gameTable then
+				return
+			end
+			local round = self._rounds[gameTable]
+			if round then
+				local accepted, reason = round:AcceptBrave(player)
+				if not accepted and reason and self._remote then
+					self._remote:FireClient(player, false, reason)
+				end
+			end
+		end)
+		if not ok then
+			warn("[CursedBarrel] 배짱 요청 처리 중 오류: " .. tostring(err))
+		end
+	end))
+
 	self._cleaner:add(self._remote.OnServerEvent:Connect(function(player, tableModel, slotIndex)
 		local ok, err = pcall(function()
 			self:_onSelectRequest(player, tableModel, slotIndex)
@@ -1446,6 +1783,7 @@ function RoundService:Start()
 
 	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
 		self._selectLimiter:forget(player.UserId)
+		self._braveLimiter:forget(player.UserId)
 		for _, round in pairs(self._rounds) do
 			round.pickLimiter:forget(player.UserId)
 		end

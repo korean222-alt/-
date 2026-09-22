@@ -47,4 +47,4 @@ task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 9: Dragon Tide · 안정화 · 파티 · 시즌)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 10: Kraken · 잡기 1회 · 배짱 · 현상금)")

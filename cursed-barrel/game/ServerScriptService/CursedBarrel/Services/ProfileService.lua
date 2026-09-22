@@ -85,6 +85,11 @@ local function defaultProfile()
 		safePicks = 0,
 		duoGames = 0,
 		partyGames = 0,
+		bravePicks = 0, -- Phase 10 : 배짱으로 더 찔러 살아남은 횟수
+		perfectCatches = 0, -- Phase 10 : 완벽한 잡기 횟수
+		loginStreak = 0, -- Phase 10 : 연속 출석 일수
+		lastLoginDay = -1, -- Phase 10 : 마지막으로 출석 보상을 받은 날 (UTC 기준 1970-01-01 부터 센 날짜)
+		starterBought = false, -- Phase 10 : 스타터 팩은 계정당 한 번
 		owned = defaultInventory(),
 		equipped = {
 			Knife = SKINS.Knife[1].id,
@@ -110,12 +115,17 @@ local function migrate(raw)
 		return profile
 	end
 
-	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames" }) do
+	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak" }) do
 		local value = tonumber(raw[key])
-		if value then
+		if value and value == value and value < math.huge then
 			profile[key] = math.max(0, math.floor(value))
 		end
 	end
+	local lastDay = tonumber(raw.lastLoginDay)
+	if lastDay and lastDay == lastDay and lastDay < math.huge then
+		profile.lastLoginDay = math.floor(lastDay)
+	end
+	profile.starterBought = raw.starterBought == true
 
 	if typeof(raw.owned) == "table" then
 		for kind, list in pairs(profile.owned) do
@@ -235,6 +245,7 @@ local function publish(player, profile)
 	if not player or player.Parent ~= Players then
 		return
 	end
+	player:SetAttribute(PLAYER_ATTR.LoginStreak, profile.loginStreak or 0)
 	player:SetAttribute(PLAYER_ATTR.Coins, profile.coins)
 	player:SetAttribute(PLAYER_ATTR.Wins, profile.wins)
 	player:SetAttribute(PLAYER_ATTR.Games, profile.games)
@@ -405,9 +416,13 @@ function ProfileService:Award(player, coins, metric, metricAmount)
 		return
 	end
 
-	self:_rollDaily(player,profile)
-    self:_rollWeekly(profile)
-	local amount = math.floor(tonumber(coins) or 0)
+	self:_rollDaily(player, profile)
+	self:_rollWeekly(profile)
+	local amount = tonumber(coins) or 0
+	if amount > 0 then
+		amount *= self:GainScale(player)
+	end
+	amount = math.floor(amount)
 	if amount ~= 0 then
 		profile.coins = math.max(0, profile.coins + amount)
 	end
@@ -450,8 +465,20 @@ function ProfileService:BreakStreak(player)
 	self:_touch(player)
 end
 
+-- 게임에서 버는 코인에 곱하는 값. VIP 패스가 있으면 커진다. (퀘스트 · 업적 · 출석 보상에는 곱하지 않는다)
+-- VIP Attribute 는 ShopService 가 게임패스 소유를 확인한 뒤 서버에서만 쓴다.
+function ProfileService:GainScale(player)
+	local vip = GameConfig.Products.GamePasses and GameConfig.Products.GamePasses.VIP
+	if vip and player and player:GetAttribute(PLAYER_ATTR.VIP) == true then
+		return 1 + (tonumber(vip.coinBonus) or 0)
+	end
+	return 1
+end
+
 -- 라운드가 끝났다. 참가자 전원의 판수가 오르고, 승자는 승수와 연승이 오른다.
-function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuses)
+-- winner 는 정상 승리일 때만 넘어온다. (기권승이면 nil 이고, 그 사람은 참가자로만 기록된다)
+-- pot 은 이번 판의 현상금. 승자가 가져간다.
+function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuses, pot)
 	local scale = TableConfig.getRewardScale(gameTable and gameTable.typeName)
 	local typeName = gameTable and gameTable.typeName
 
@@ -468,7 +495,7 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 			end
 
 			if player ~= winner then
-				profile.coins += math.floor(ECONOMY.ParticipationReward * scale * (1 + ((bonuses or {})[player] or 0)))
+				profile.coins += math.floor(ECONOMY.ParticipationReward * scale * (1 + ((bonuses or {})[player] or 0)) * self:GainScale(player))
 				self:_advanceQuests(player, profile, "games", 1)
 				if typeName == "Duo2" then
 					self:_advanceQuests(player, profile, "duoGames", 1)
@@ -491,7 +518,10 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 
 			local bonusSteps = math.min(profile.streak - 1, ECONOMY.StreakBonusCap)
 			local reward = ECONOMY.WinReward + ECONOMY.StreakBonus * math.max(0, bonusSteps)
-			profile.coins += math.floor(reward * scale * (1 + ((bonuses or {})[winner] or 0)))
+			local gain = (1 + ((bonuses or {})[winner] or 0)) * self:GainScale(winner)
+			profile.coins += math.floor(reward * scale * gain)
+			-- 현상금은 이미 테이블 배율이 들어가 있다. (RoundService:_addPot)
+			profile.coins += math.floor(math.max(0, tonumber(pot) or 0) * gain)
 
 			self:_advanceQuests(winner, profile, "games", 1)
 			self:_advanceQuests(winner, profile, "wins", 1)
@@ -582,8 +612,18 @@ function ProfileService:_rollDaily(player, profile)
 		table.insert(profile.daily.quests, { id = pool[index].id, progress = 0, claimed = false })
 	end
 
-	-- 하루 한 번 접속 보상
-	profile.coins += ECONOMY.DailyBonus
+	-- 하루 한 번 접속 보상. Phase 10 : 이어서 들어오면 날마다 커진다. (7일째가 가장 크다)
+	local day = math.floor(os.time() / 86400)
+	if profile.lastLoginDay ~= day then
+		if profile.lastLoginDay == day - 1 then
+			profile.loginStreak = (profile.loginStreak or 0) + 1
+		else
+			profile.loginStreak = 1
+		end
+		profile.lastLoginDay = day
+		local bonus = GameConfig.dailyBonusFor(profile.loginStreak)
+		profile.coins += bonus
+	end
 	profile.daily.bonusTaken = true
 
 	-- 어제의 "오늘 최고 연승" 기록은 새 날이 되면 0 부터 다시 센다.

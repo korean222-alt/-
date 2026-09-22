@@ -255,47 +255,4 @@ function Utility.comma(value)
 	return (result:gsub("^,", ""))
 end
 
--- 장식 파트를 "부딪히지도 만져지지도 검사되지도 않는" 상태로 만든다.
--- Phase 6 : 장식이 늘어나면 이걸 안 한 파트 하나가 모바일 프레임을 갉아먹는다.
-function Utility.makeDecor(part, castShadow)
-	if not part or not part:IsA("BasePart") then
-		return part
-	end
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanTouch = false
-	part.CanQuery = false
-	part.CastShadow = castShadow == true
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	return part
-end
-
--- 모델 안의 모든 BasePart 에 같은 처리를 한다.
-function Utility.forEachPart(instance, handler)
-	if not instance then
-		return
-	end
-	if instance:IsA("BasePart") then
-		handler(instance)
-	end
-	for _, descendant in ipairs(instance:GetDescendants()) do
-		if descendant:IsA("BasePart") then
-			handler(descendant)
-		end
-	end
-end
-
--- 오늘 날짜(UTC)를 "2026-09-22" 같은 문자열로. 일일 퀘스트 갱신 기준.
-function Utility.today()
-	return os.date("!%Y-%m-%d")
-end
-
--- 큰 수를 읽기 좋게. 1234567 → "1,234,567"
-function Utility.comma(value)
-	local text = tostring(math.floor(tonumber(value) or 0))
-	local result = text:reverse():gsub("(%d%d%d)", "%1,"):reverse()
-	return (result:gsub("^,", ""))
-end
-
 return Utility

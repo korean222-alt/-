@@ -287,7 +287,14 @@ end
 --------------------------------------------------
 
 function GameTable:_onPromptTriggered(player, seat)
-    if player:GetAttribute("ProfileLoaded")~=true or player:GetAttribute("AFK")==true then return end
+	if player:GetAttribute("ProfileLoaded") ~= true then
+		return
+	end
+	-- 스스로 "앉기"를 눌렀다면 자리를 비운 것이 아니다. 자리 비움 표시를 풀어 준다.
+	-- (클라이언트의 "돌아왔음" 신호가 요청 제한에 걸려 사라지면, 영영 앉지 못하는 일이 있었다)
+	if player:GetAttribute("AFK") == true then
+		player:SetAttribute("AFK", false)
+	end
 	if not self.promptLimiter:check(player.UserId) then
 		return
 	end

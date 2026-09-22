@@ -97,7 +97,7 @@ function draw()
   for _,other in ipairs(data.players) do local rr=row(other.name);action(rr,lang("파티 초대","Invite to party"),function() request:FireServer("invite",other.id) end) end
  elseif tab=="cards" then
   local model=currentTable()
-  local _,l=row(lang("H 테이블에서 각 카드 1회 무료. 내 차례에만 사용합니다. 봉인은 다음 선택까지 유지됩니다.","Free at table H: one of each card per round, on your turn. Seal lasts until the next pick."),92);l.Size=UDim2.new(1,-20,1,-10)
+  local _,l=row(lang("H 테이블에서 각 카드 1회 무료. 내 차례에 칼 고르는 창 위 버튼으로도 씁니다. 봉인한 자리는 다음 사람이 고를 수 없습니다.","Free at table H: one of each card per round, on your turn (also above the slot picker). The sealed slot is blocked for the next player."),92);l.Size=UDim2.new(1,-20,1,-10)
   local inputRow=row(lang("봉인할 슬롯 번호","Slot number to seal"))
   local input=Instance.new("TextBox");input.Size=UDim2.fromOffset(110,36);input.Position=UDim2.new(1,-120,0.5,-18);input.Text="1";input.TextSize=18;input.ClearTextOnFocus=false;input.Parent=inputRow
   for _,id in ipairs({"skip","rotate","seal"}) do
@@ -126,9 +126,21 @@ stateRemote.OnClientEvent:Connect(function(new)
  local chosen=new.settings.language;locale=chosen=="Auto" and (player.LocaleId:sub(1,2)=="ko" and "ko" or "en") or chosen
  message.Text=new.message or "";if panel.Visible then draw() end
 end)
-Input.InputBegan:Connect(function(input,processed)
+-- 자리 비움 해제. 서버 요청 제한에 걸려 한 번 사라져도, 돌아온 뒤 계속 입력이 있으면 다시 보낸다.
+-- (설정에서 직접 켠 자리 비움은 건드리지 않는다. autoAfk 는 이 스크립트가 켠 경우에만 참이다)
+local autoAfk=false
+local afkClearAt=0
+local function backFromAfk()
  lastInput=os.clock()
- if afkSent then afkSent=false;request:FireServer("afk",false) end
+ if not autoAfk or os.clock()-afkClearAt<1 then return end
+ if not afkSent and player:GetAttribute("AFK")~=true then autoAfk=false;return end
+ afkClearAt=os.clock();afkSent=false;request:FireServer("afk",false)
+end
+Input.InputChanged:Connect(function(input)
+ if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Gamepad1 or input.UserInputType==Enum.UserInputType.Touch then backFromAfk() end
+end)
+Input.InputBegan:Connect(function(input,processed)
+ backFromAfk()
  if not processed and (input.KeyCode==Enum.KeyCode.M or input.KeyCode==Enum.KeyCode.ButtonY) then panel.Visible=not panel.Visible;if panel.Visible then refresh();draw();game:GetService("GuiService").SelectedObject=tabButtons[1] end end
  if input.KeyCode==Enum.KeyCode.ButtonB and panel.Visible then panel.Visible=false end
 end)
@@ -198,7 +210,7 @@ local heartbeat=Run.Heartbeat:Connect(function()
  local sid=id>0 and ("rbxassetid://"..id) or ""
  music.Volume=player:GetAttribute("Setting_music") or 0.35
  if music.SoundId~=sid then music:Stop();music.SoundId=sid;if sid~="" then music:Play() end end
- if os.clock()-lastInput>180 and not afkSent then afkSent=true;request:FireServer("afk",true) end
+ if os.clock()-lastInput>180 and not afkSent then afkSent=true;autoAfk=true;request:FireServer("afk",true) end
 end)
 player.CharacterRemoving:Connect(function() player:SetAttribute("SpectateTableId",nil);selected=nil end)
 script.Destroying:Connect(function() heartbeat:Disconnect();descendant:Disconnect();music:Destroy();FX.stop();gui:Destroy() end)

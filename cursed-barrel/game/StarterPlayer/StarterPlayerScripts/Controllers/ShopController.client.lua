@@ -6,8 +6,15 @@
 	  · 코인이 얼마인지, 무엇을 가지고 있는지는 전부 서버가 보내 준 값을 그대로 그린다.
 	  · "살게요 / 장착할게요 / 방해할게요" 는 요청일 뿐이고, 되는지 안 되는지는 서버가 정한다.
 	  · 여기서 버튼을 숨기는 것은 편의일 뿐, 보안은 서버가 담당한다.
+
+	Phase 10
+	  · 상점 맨 위에 VIP 패스 · 스타터 팩 (ID 가 비어 있으면 "준비 중")
+	  · VIP · 스타터 전용 스킨은 코인 구매 대신 해당 상품으로 안내한다
+	  · 전시대 프롬프트 글자를 내 상황에 맞게 바꾼다 (장착 / 구매 · 가격 / VIP 전용 …)
+	  · 퀘스트 화면에 연속 출석
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -42,6 +49,8 @@ local TAB_NAMES = { { "shop", "상점" }, { "quest", "퀘스트" }, { "sabotage"
 local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Chair","의자"},{"Elimination","탈락"},{"Victory","승리"} }
 
 local state = nil -- 서버가 보내 준 마지막 상태
+-- 상품 ID 를 아직 넣지 않은 것은 공개 서버에서 숨긴다. Studio 에서는 "준비 중"으로 보여 준다.
+local IN_STUDIO = game:GetService("RunService"):IsStudio()
 local sabotageState = { items = {}, opponents = {}, cooldown = 0 }
 local currentTab = "shop"
 local currentKind = "Knife"
@@ -226,6 +235,29 @@ end
 -- 상점 그리기
 --------------------------------------------------
 
+-- VIP 패스 · 스타터 팩 한 줄. 이미 가졌으면 그리지 않는다.
+local function premiumRow(order, offer, action, kind)
+	-- 상품 ID 를 아직 넣지 않았으면 공개 서버에서는 줄 자체를 숨긴다. (Studio 에서는 "준비 중"으로 보인다)
+	if not offer or offer.owned or not (offer.ready or IN_STUDIO) then
+		return order
+	end
+	order += 1
+	local row = makeRow(order, 62)
+	row.BackgroundColor3 = Color3.fromRGB(64, 44, 20)
+	label(row, "★ " .. offer.name, UDim2.new(1, -140, 0, 22), UDim2.fromOffset(12, 6), 15, PALETTE.Gold)
+	local blurb = label(row, offer.blurb or "", UDim2.new(1, -140, 0, 30), UDim2.fromOffset(12, 28), 12, PALETTE.Cream)
+	blurb.TextWrapped = true
+	blurb.TextYAlignment = Enum.TextYAlignment.Top
+	local buy = textButton(row, offer.ready and ("R$ %d"):format(offer.robux) or "준비 중",
+		UDim2.fromOffset(110, 34), UDim2.new(1, -122, 0, 14),
+		offer.ready and PALETTE.Robux or PALETTE.Panel,
+		offer.ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+	buy.Activated:Connect(function()
+		shopRequest:FireServer(action, kind, kind)
+	end)
+	return order
+end
+
 local function drawShop()
 	clearList()
 	if not state then
@@ -234,6 +266,8 @@ local function drawShop()
 	end
 
 	local order = 0
+	order = premiumRow(order, state.starter, "robux", "starter")
+	order = premiumRow(order, state.vip, "vip", "vip")
 	for _, entry in ipairs(state.catalog[currentKind] or {}) do
 		order += 1
 		local row = makeRow(order,78)
@@ -244,6 +278,10 @@ local function drawShop()
 		local detail
 		if entry.owned then
 			detail = entry.equipped and "장착 중" or "보유 중"
+		elseif entry.vip then
+			detail = "VIP 패스 전용"
+		elseif entry.pack then
+			detail = "스타터 팩 전용"
 		elseif entry.robux > 0 and entry.price <= 0 then
 			detail = ("R$ %d"):format(entry.robux)
 		else
@@ -262,6 +300,19 @@ local function drawShop()
 			local equip = textButton(row, "장착", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Row, PALETTE.Gold)
 			equip.Activated:Connect(function()
 				shopRequest:FireServer("equip", entry.kind, entry.id)
+			end)
+		elseif entry.vip or entry.pack then
+			-- 코인으로 살 수 없다. 해당 상품으로 안내한다.
+			local offer = entry.vip and state.vip or state.starter
+			local ready = offer and offer.ready and not offer.owned
+			local buy = textButton(row, entry.vip and "VIP 패스" or "스타터 팩", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11),
+				ready and PALETTE.Robux or PALETTE.Panel, ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+			buy.Activated:Connect(function()
+				if entry.vip then
+					shopRequest:FireServer("vip", "vip", "vip")
+				else
+					shopRequest:FireServer("robux", "starter", "starter")
+				end
 			end)
 		elseif entry.robux > 0 and entry.price <= 0 then
 			local buy = textButton(row, ("R$ %d"):format(entry.robux), UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Robux, Color3.new(1, 1, 1))
@@ -290,12 +341,20 @@ local function drawShop()
 	end
 
 	-- 코인 묶음
-	order += 1
-	local header = makeRow(order, 28)
-	header.BackgroundTransparency = 1
-	label(header, "코인 충전", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
-
+	local packs = {}
 	for _, pack in ipairs(state.coinPacks or {}) do
+		if pack.ready or IN_STUDIO then
+			table.insert(packs, pack)
+		end
+	end
+	if #packs > 0 then
+		order += 1
+		local header = makeRow(order, 28)
+		header.BackgroundTransparency = 1
+		label(header, "코인 충전", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+	end
+
+	for _, pack in ipairs(packs) do
 		order += 1
 		local row = makeRow(order, 44)
 		label(row, pack.name, UDim2.fromOffset(240, 20), UDim2.fromOffset(12, 12), 14, PALETTE.Cream)
@@ -340,6 +399,18 @@ local function drawQuests()
 	end
 
 	local order = 1
+	-- Phase 10 : 연속 출석
+	local streak = state.loginStreak or 0
+	if streak > 0 then
+		local today = GameConfig.dailyBonusFor(streak)
+		local tomorrow, day = GameConfig.dailyBonusFor(streak + 1)
+		local attendance = makeRow(order, 40)
+		attendance.BackgroundColor3 = Color3.fromRGB(40, 52, 36)
+		label(attendance, ("출석 %d일째 · 오늘 +%s 코인 · 내일(%d일째) 오면 +%s"):format(streak, Utility.comma(today), day, Utility.comma(tomorrow)),
+			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Good).TextWrapped = true
+		order += 1
+	end
+
 	local header = makeRow(order, 26)
 	header.BackgroundTransparency = 1
 	label(header, "오늘의 퀘스트", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
@@ -446,7 +517,13 @@ local function drawSabotage()
 	itemHeader.BackgroundTransparency = 1
 	label(itemHeader, "방해 아이템", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
 
+	local items = {}
 	for _, item in ipairs(sabotageState.items) do
+		if item.ready or (item.owned or 0) > 0 or IN_STUDIO then
+			table.insert(items, item)
+		end
+	end
+	for _, item in ipairs(items) do
 		order += 1
 		local row = makeRow(order, 62)
 		label(row, ("%s  %s"):format(item.icon or "", item.name),
@@ -468,6 +545,11 @@ local function drawSabotage()
 			end
 			sabotageRemote:FireServer("use", item.id, selectedTarget)
 		end)
+	end
+	if #items == 0 then
+		order += 1
+		label(makeRow(order, 38), "방해 아이템은 아직 준비 중입니다.",
+			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Dim)
 	end
 end
 
@@ -538,12 +620,56 @@ end)
 -- 서버가 보내는 값
 --------------------------------------------------
 
+--------------------------------------------------
+-- 전시대 프롬프트 글자 (Phase 10)
+-- 프롬프트는 서버 것이지만 글자는 각자 화면에서만 바꿀 수 있다. 판단은 여전히 서버가 한다.
+--------------------------------------------------
+local function findEntry(kind, id)
+	for _, entry in ipairs((state and state.catalog[kind]) or {}) do
+		if entry.id == id then
+			return entry
+		end
+	end
+	return nil
+end
+
+local function refreshPedestal(pedestal)
+	local prompt = pedestal:FindFirstChildOfClass("ProximityPrompt")
+	local entry = findEntry(pedestal:GetAttribute("SkinKind"), pedestal:GetAttribute("SkinId"))
+	if not prompt or not entry then
+		return
+	end
+	if entry.equipped then
+		prompt.ActionText = "장착 중"
+	elseif entry.owned then
+		prompt.ActionText = "장착"
+	elseif entry.vip then
+		prompt.ActionText = "VIP 패스 전용"
+	elseif entry.pack then
+		prompt.ActionText = "스타터 팩 전용"
+	elseif entry.robux > 0 and entry.price <= 0 then
+		prompt.ActionText = ("R$ %d · 상점에서"):format(entry.robux)
+	else
+		prompt.ActionText = ("구매 · %s 코인"):format(Utility.comma(entry.price))
+	end
+end
+
+local function refreshPedestals()
+	for _, pedestal in ipairs(CollectionService:GetTagged(GameConfig.Tags.SkinPedestal)) do
+		refreshPedestal(pedestal)
+	end
+end
+CollectionService:GetInstanceAddedSignal(GameConfig.Tags.SkinPedestal):Connect(function(pedestal)
+	task.defer(refreshPedestal, pedestal)
+end)
+
 shopResult.OnClientEvent:Connect(function(ok, message, payload)
 	if typeof(payload) == "table" then
 		state = payload
 		coinLabel.Text = ("%s 코인"):format(Utility.comma(state.coins))
 		levelLabel.Text = ("Lv.%d  ·  %d승 %d판  ·  최고 %d연승")
 			:format(state.level or 1, state.wins or 0, state.games or 0, state.bestStreak or 0)
+		refreshPedestals()
 	end
 	if message then
 		showToast(message, ok)
@@ -636,9 +762,23 @@ do
  tabButtons.quest.Size=UDim2.fromOffset(92,24)
  tabButtons.sabotage.Position=UDim2.fromOffset(110,44)
  tabButtons.sabotage.Size=UDim2.fromOffset(92,24)
+ -- 내 차례에는 칼 고르는 창이 화면 아래를 쓴다. 작은 화면에서 왼쪽 자리 버튼을 가리지 않도록 잠시 숨긴다.
+ task.spawn(function()
+  while gui.Parent do
+   local picker=playerGui:FindFirstChild("CursedBarrel_KnifePicker")
+   local busy=picker~=nil and picker.Enabled
+   if shopIcon.Visible==busy then
+    shopIcon.Visible=not busy;launcher.Visible=not busy
+    -- 내 차례가 오면 열려 있던 상점 창도 닫는다. (칼 고르는 창을 가리지 않게)
+    if busy and window.Visible then window.Visible=false;redraw() end
+   end
+   task.wait(0.25)
+  end
+ end)
  shopIcon.Activated:Connect(function()
-  currentTab="shop";window.Visible=not window.Visible
-  if window.Visible then shopRequest:FireServer("sync") end
+  -- 다른 탭이 열려 있으면 상점으로 바꾸고, 상점이 열려 있으면 닫는다.
+  if window.Visible and currentTab=="shop" then window.Visible=false
+  else currentTab="shop";window.Visible=true;shopRequest:FireServer("sync") end
   redraw()
  end)
 end

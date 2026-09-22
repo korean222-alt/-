@@ -201,7 +201,9 @@ function SlotBuilder.applyKnifeSkin(slot, skin)
 	end
 
 	-- 빛나는 스킨은 슬롯 주변도 살짝 물들인다.
-	local light = knife:FindFirstChildOfClass("PointLight")
+	-- ★ 빛은 칼날(Blade) 안에 붙는다. Phase 9 까지는 칼 모델에서 찾아서 한 번도 찾지 못했고,
+	--   빛나는 칼을 꽂을 때마다 새 빛이 쌓였으며 칼을 숨긴 뒤에도 빛이 남았다.
+	local light = blade and blade:FindFirstChildOfClass("PointLight")
 	if skin.glow and skin.glow > 0 then
 		if not light and blade then
 			light = Instance.new("PointLight")
@@ -272,6 +274,13 @@ function SlotBuilder.resetSlot(slot)
 	local knife = slot:FindFirstChild("Knife")
 	if not knife then
 		return
+	end
+
+	-- 숨긴 칼의 빛도 끈다. (보이지 않는 칼이 통 둘레를 비추지 않게)
+	for _, light in ipairs(knife:GetDescendants()) do
+		if light:IsA("PointLight") then
+			light:Destroy()
+		end
 	end
 
 	for _, part in ipairs(knife:GetChildren()) do

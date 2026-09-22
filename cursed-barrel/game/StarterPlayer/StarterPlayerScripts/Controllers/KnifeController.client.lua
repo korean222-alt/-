@@ -22,6 +22,12 @@
 	  뒤섞인 번호 : 버튼 위 숫자만 뒤섞인다.
 	                ★ 누른 "버튼"의 자리에 정확히 꽂힌다. 숫자만 거짓말을 한다.
 	                  (요청을 바꿔치기하지 않는다. 그건 조작이지 방해가 아니다)
+
+	Phase 10 에서 더해진 것
+	  · "한 번 더!" 버튼 : 안전한 자리를 뽑은 뒤 잠깐 뜬다. 누르면 같은 차례에 한 번 더 찌른다. (F · 게임패드 X)
+	  · 파티 카드 버튼 : H 테이블에서 넘기기 · 회전 · 봉인을 이 패널에서 바로 쓴다.
+	                     봉인은 버튼을 누른 뒤 봉인할 자리 번호를 누른다.
+	  · 이번 판의 잡기 기회를 이미 썼으면 머리글이 붉게 경고한다.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -39,6 +45,8 @@ local Utility = require(Shared:WaitForChild("Utility"))
 local Remotes = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild(GameConfig.Remotes.Folder)
 local selectSlotRemote = Remotes:WaitForChild(GameConfig.Remotes.SelectSlot)
 local sabotageCue = Remotes:WaitForChild(GameConfig.Remotes.SabotageCue)
+local GuiService = game:GetService("GuiService")
+local SEAT_ATTR = GameConfig.SeatAttributes
 
 local TABLE_TAG = GameConfig.Tags.Table
 local TABLE_ATTR = GameConfig.TableAttributes
@@ -179,6 +187,70 @@ toast.TextSize = 15
 toast.Parent = panel
 
 --------------------------------------------------
+-- Phase 10 : 패널 위에 붙는 동작 줄 ("한 번 더!" · 파티 카드)
+--------------------------------------------------
+
+local actions = Instance.new("Frame")
+actions.Name = "Actions"
+actions.AnchorPoint = Vector2.new(0.5, 1)
+actions.Position = UDim2.new(0.5, 0, 0, -16)
+actions.Size = UDim2.new(1, 0, 0, 40)
+actions.BackgroundTransparency = 1
+actions.Parent = panel
+
+local actionsLayout = Instance.new("UIListLayout")
+actionsLayout.FillDirection = Enum.FillDirection.Horizontal
+actionsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+actionsLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+actionsLayout.Padding = UDim.new(0, 6)
+actionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+actionsLayout.Parent = actions
+
+local function actionButton(name, text, width, color, order)
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.Size = UDim2.fromOffset(width, 36)
+	button.BackgroundColor3 = color
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = true
+	button.Font = Enum.Font.GothamBlack
+	button.TextSize = 15
+	button.TextColor3 = PALETTE.Cream
+	button.Text = text
+	button.LayoutOrder = order
+	button.Visible = false
+	button.Selectable = true
+	button.Parent = actions
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = button
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = PALETTE.Gold
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.2
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = button
+	return button
+end
+
+local braveButton = actionButton("Brave", "한 번 더!", 230, Color3.fromRGB(150, 60, 34), 1)
+local braveFill = Instance.new("Frame")
+braveFill.Name = "Time"
+braveFill.AnchorPoint = Vector2.new(0, 1)
+braveFill.Position = UDim2.fromScale(0, 1)
+braveFill.Size = UDim2.new(1, 0, 0, 4)
+braveFill.BackgroundColor3 = PALETTE.Gold
+braveFill.BorderSizePixel = 0
+braveFill.Parent = braveButton
+
+local cardButtons = {
+	skip = actionButton("CardSkip", "넘기기", 84, Color3.fromRGB(58, 52, 96), 2),
+	rotate = actionButton("CardRotate", "통 회전", 84, Color3.fromRGB(58, 52, 96), 3),
+	seal = actionButton("CardSeal", "봉인", 84, Color3.fromRGB(58, 52, 96), 4),
+}
+local CARD_ATTR = { skip = "CardSkip", rotate = "CardRotate", seal = "CardSeal" }
+
+--------------------------------------------------
 -- 상태
 --------------------------------------------------
 
@@ -187,6 +259,9 @@ local buttons = {} -- [슬롯번호] = TextButton
 local slotParts = {} -- [슬롯번호] = Part
 local tableCleaner = Utility.Cleaner.new()
 local toastToken = 0
+
+-- Phase 10 : 봉인 카드를 누른 뒤 "봉인할 자리"를 고르는 중인가
+local sealMode = false
 
 -- Phase 8 : 방해 아이템 상태
 local shakeUntil = 0 -- 이 시각까지 버튼이 흔들린다
@@ -219,8 +294,24 @@ local function clearButtons()
 	table.clear(buttons)
 end
 
+local function useCard(card, slotIndex)
+	local remote = Remotes:FindFirstChild("VoyageRequest")
+	if not currentModel or not remote then
+		return
+	end
+	-- 판 번호와 차례 번호를 같이 보낸다. 서버는 지난 차례에 눌린 요청을 거절한다.
+	remote:FireServer("card", currentModel, card, slotIndex,
+		currentModel:GetAttribute(TABLE_ATTR.RoundId), currentModel:GetAttribute("TurnSerial"))
+end
+
 local function requestSlot(slotIndex)
 	if not currentModel then
+		return
+	end
+	if sealMode then
+		-- 봉인 카드: 이 자리를 봉인한다. 칼을 꽂는 것이 아니다.
+		sealMode = false
+		useCard("seal", slotIndex)
 		return
 	end
 	-- 요청만 보낸다. 통과/거절은 서버가 정하고, 결과는 OnClientEvent 로 돌아온다.
@@ -345,30 +436,139 @@ local function isMyTurn()
 	return currentModel:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == localPlayer.UserId
 end
 
+-- 이 테이블에서 내 좌석
+local function mySeat()
+	local seats = currentModel and currentModel:FindFirstChild("Seats")
+	if not seats then
+		return nil
+	end
+	for _, seat in ipairs(seats:GetDescendants()) do
+		if seat:IsA("Seat") and seat:GetAttribute(SEAT_ATTR.OccupantUserId) == localPlayer.UserId then
+			return seat
+		end
+	end
+	return nil
+end
+
+-- "한 번 더" 제안이 지금 나에게 와 있는가
+local function braveOffered()
+	if not currentModel or currentModel:GetAttribute(TABLE_ATTR.BraveOfferUserId) ~= localPlayer.UserId then
+		return false
+	end
+	return (currentModel:GetAttribute(TABLE_ATTR.BraveOfferEndsAt) or 0) > GameConfig.now()
+end
+
+local function refreshActions(myTurn)
+	local offered = myTurn == true and braveOffered()
+	braveButton.Visible = offered
+	if offered then
+		local reward = currentModel:GetAttribute(TABLE_ATTR.BraveNextReward) or 0
+		local keyHint = UserInputService.GamepadEnabled and "X" or (UserInputService.KeyboardEnabled and "F" or "")
+		braveButton.Text = ("한 번 더!  +%d 코인%s"):format(reward, keyHint ~= "" and ("  (" .. keyHint .. ")") or "")
+	end
+
+	-- 파티 카드는 내 차례이고 아직 고르기 전(제한 시간이 흐르는 중)에만 쓸 수 있다.
+	local preset = currentModel and TableConfig.get(currentModel:GetAttribute(TABLE_ATTR.TableType))
+	local choosing = myTurn and not offered and (currentModel:GetAttribute(TABLE_ATTR.TurnEndsAt) or 0) > 0
+	local cardsOn = choosing and preset ~= nil and preset.SpecialCards == true
+	for card, button in pairs(cardButtons) do
+		local ready = cardsOn == true and currentModel:GetAttribute(CARD_ATTR[card]) == true
+		button.Visible = cardsOn == true
+		button.Active = ready
+		button.AutoButtonColor = ready
+		button.TextTransparency = ready and 0 or 0.55
+		if card == "seal" then
+			button.Text = sealMode and "봉인 취소" or "봉인"
+		end
+	end
+	if not cardsOn then
+		sealMode = false
+	end
+end
+
 local function refresh()
 	local myTurn = isMyTurn()
-    if myTurn and not gui.Enabled and UserInputService.GamepadEnabled then
-        for i,b in ipairs(buttons) do if not (slotParts[i] and slotParts[i]:GetAttribute(SLOT_ATTR.Used)) then game:GetService("GuiService").SelectedObject=b;break end end
-    end
+	if myTurn and not gui.Enabled and UserInputService.GamepadEnabled then
+		for i, b in ipairs(buttons) do
+			if not (slotParts[i] and slotParts[i]:GetAttribute(SLOT_ATTR.Used)) then
+				GuiService.SelectedObject = b
+				break
+			end
+		end
+	end
 	gui.Enabled = myTurn
 
 	if currentModel then
 		setPromptsEnabled(currentModel, myTurn)
 	end
 	hideOtherTablePrompts()
+	refreshActions(myTurn)
 
 	if not myTurn then
+		sealMode = false
 		return
 	end
 
 	refreshAllButtons()
 
+	if sealMode then
+		header.Text = "봉인할 자리를 누르세요 · 다음 사람은 그 자리를 고를 수 없습니다"
+		header.TextColor3 = Color3.fromRGB(196, 150, 255)
+		return
+	end
+
 	local slotsLeft = currentModel:GetAttribute(TABLE_ATTR.SlotsRemaining) or 0
 	local pirates = currentModel:GetAttribute(TABLE_ATTR.PirateCount) or 0
 	-- 몇 마리가 숨어 있는지만 보여준다. 어느 자리인지는 서버만 안다.
 	local pirateText = (pirates > 0) and ("  ·  해적 %d마리"):format(pirates) or ""
-	header.Text = ("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s"):format(slotsLeft, pirateText)
+	local seat = mySeat()
+	local noChance = seat ~= nil and (seat:GetAttribute(SEAT_ATTR.CatchesLeft) or 1) <= 0
+	if noChance then
+		-- 이번 판의 잡기 기회를 이미 썼다. 해적을 만나면 바로 탈락이다.
+		header.Text = ("⚠ 잡기 기회 없음 · 해적을 만나면 탈락 · 남은 자리 %d%s"):format(slotsLeft, pirateText)
+		header.TextColor3 = PALETTE.Danger
+	else
+		local brave = currentModel:GetAttribute(TABLE_ATTR.BraveLevel) or 0
+		local braveText = brave > 0 and ("  ·  배짱 %d단계"):format(brave) or ""
+		header.Text = ("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s%s"):format(slotsLeft, pirateText, braveText)
+		header.TextColor3 = PALETTE.Gold
+	end
 end
+
+local function requestBrave()
+	if currentModel and braveOffered() then
+		local remote = Remotes:FindFirstChild(GameConfig.Remotes.Brave)
+		if remote then
+			remote:FireServer(currentModel)
+		end
+		braveButton.Visible = false
+	end
+end
+
+braveButton.Activated:Connect(requestBrave)
+for card, button in pairs(cardButtons) do
+	button.Activated:Connect(function()
+		if not button.Active then
+			return
+		end
+		if card == "seal" then
+			sealMode = not sealMode
+			refresh()
+			return
+		end
+		sealMode = false
+		useCard(card, nil)
+	end)
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or UserInputService:GetFocusedTextBox() then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonX then
+		requestBrave()
+	end
+end)
 
 --------------------------------------------------
 -- 테이블 붙이기 / 떼기
@@ -419,8 +619,28 @@ local function bindTable(model)
 		TABLE_ATTR.SlotsRemaining,
 		TABLE_ATTR.LastPickSlot,
 		TABLE_ATTR.PirateCount,
+		-- Phase 10
+		TABLE_ATTR.TurnEndsAt,
+		TABLE_ATTR.BraveOfferUserId,
+		TABLE_ATTR.BraveOfferEndsAt,
+		TABLE_ATTR.BraveNextReward,
+		TABLE_ATTR.BraveLevel,
+		"CardSkip",
+		"CardRotate",
+		"CardSeal",
+		"TurnSerial",
 	}) do
 		tableCleaner:add(model:GetAttributeChangedSignal(attributeName):Connect(refresh))
+	end
+
+	-- 내 좌석의 남은 잡기 기회가 바뀌면 머리글을 다시 그린다.
+	local seatsFolder = model:FindFirstChild("Seats")
+	if seatsFolder then
+		for _, seat in ipairs(seatsFolder:GetDescendants()) do
+			if seat:IsA("Seat") then
+				tableCleaner:add(seat:GetAttributeChangedSignal(SEAT_ATTR.CatchesLeft):Connect(refresh))
+			end
+		end
 	end
 
 	tableCleaner:add(model.AncestryChanged:Connect(function()
@@ -511,6 +731,17 @@ RunService.Heartbeat:Connect(function()
 
 	if not gui.Enabled or not currentModel or not currentModel.Parent then
 		return
+	end
+
+	-- "한 번 더" 제안이 남은 시간을 줄여 보여 주고, 끝나면 버튼을 거둔다.
+	if braveButton.Visible then
+		local offerEnds = currentModel:GetAttribute(TABLE_ATTR.BraveOfferEndsAt) or 0
+		local left = offerEnds - GameConfig.now()
+		if left <= 0 then
+			braveButton.Visible = false
+		else
+			braveFill.Size = UDim2.new(math.clamp(left / GameConfig.Timing.ResultHold, 0, 1), 0, 0, 4)
+		end
 	end
 
 	local endsAt = currentModel:GetAttribute(TABLE_ATTR.TurnEndsAt) or 0

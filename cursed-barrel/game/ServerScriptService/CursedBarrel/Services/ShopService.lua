@@ -7,6 +7,11 @@
 	  · 이미 가진 것을 또 사게 두지 않는다. (코인만 사라진다)
 	  · 가지지 않은 스킨은 장착되지 않는다.
 	  · 로벅스 상품은 PurchaseService 가 영수증을 확인한 뒤에야 지급된다.
+
+	Phase 10
+	  · VIP 게임패스 : 게임에서 버는 코인 +20%, 전용 칼, 머리 위 VIP 표시. 소유 확인은 서버가 한다.
+	  · 스타터 팩 : 계정당 한 번 사는 개발자 상품. 코인과 전용 칼.
+	  · VIP · 스타터 전용 스킨은 코인으로 살 수 없다.
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -23,7 +28,9 @@ local PurchaseService = require(script.Parent.PurchaseService)
 local TableService = require(script.Parent.TableService)
 
 local REJECT = GameConfig.RejectMessages
-local SKIN_ATTR = GameConfig.Skins.PlayerAttributes
+local PLAYER_ATTR = GameConfig.PlayerAttributes
+local STARTER = GameConfig.Products.Starter
+local VIP = GameConfig.Products.GamePasses.VIP
 
 local ShopService = {}
 ShopService._started = false
@@ -57,9 +64,19 @@ local function skinEntry(kind, skin, owned, equipped)
 		rarityColor = rarity.color,
 		price = tonumber(skin.price) or 0,
 		robux = tonumber(skin.robux) or 0,
+		vip = skin.vip == true,
+		pack = skin.pack,
 		owned = owned,
 		equipped = equipped,
 	}
+end
+
+-- "Knife/vip_cutlass" 같은 문자열을 종류와 id 로 나눈다.
+local function splitSkin(text)
+	if typeof(text) ~= "string" then
+		return nil, nil
+	end
+	return text:match("^(%a+)/(.+)$")
 end
 
 function ShopService:BuildState(player)
@@ -86,8 +103,20 @@ function ShopService:BuildState(player)
 		})
 	end
 
+	local vipReady = (tonumber(VIP.gamePassId) or 0) > 0
+	local starterReady = (tonumber(STARTER.productId) or 0) > 0
+
 	return {
 		coins = profile.coins,
+		loginStreak = profile.loginStreak or 0,
+		vip = {
+			name = VIP.name, robux = VIP.robux, blurb = VIP.blurb,
+			owned = player:GetAttribute(PLAYER_ATTR.VIP) == true, ready = vipReady,
+		},
+		starter = {
+			name = STARTER.name, robux = STARTER.robux, blurb = STARTER.blurb,
+			owned = profile.starterBought == true, ready = starterReady,
+		},
 		level = GameConfig.levelOf(profile.wins, profile.games),
 		wins = profile.wins,
 		games = profile.games,
@@ -142,6 +171,13 @@ function ShopService:Buy(player, kind, id)
 		return false, REJECT.AlreadyOwned
 	end
 
+	if skin.vip then
+		return false, REJECT.VipOnly
+	end
+	if skin.pack then
+		return false, REJECT.PackOnly
+	end
+
 	local price = tonumber(skin.price) or 0
 	if price <= 0 then
 		-- 가격이 없는 스킨은 로벅스 전용이거나 기본 지급품이다.
@@ -189,18 +225,78 @@ end
 --------------------------------------------------
 
 function ShopService:_registerProducts()
- for _,pack in ipairs(GameConfig.Products.Coins) do
-  PurchaseService:Register(pack.productId,function(profile)
-   profile.coins=profile.coins+pack.coins;return true
-  end)
- end
- for _,entry in ipairs(GameConfig.Products.Skins) do
-  local kind,id=entry.skin:match("^(%a+)/(.+)$")
-  PurchaseService:Register(entry.productId,function(profile)
-   if not kind or not profile.owned[kind] or GameConfig.findSkin(kind,id).id~=id then return false end
-   profile.owned[kind][id]=true;return true
-  end)
- end
+	for _, pack in ipairs(GameConfig.Products.Coins) do
+		PurchaseService:Register(pack.productId, function(profile)
+			profile.coins = profile.coins + pack.coins
+			return true
+		end)
+	end
+	for _, entry in ipairs(GameConfig.Products.Skins) do
+		local kind, id = splitSkin(entry.skin)
+		PurchaseService:Register(entry.productId, function(profile)
+			if not kind or not profile.owned[kind] or GameConfig.findSkin(kind, id).id ~= id then
+				return false
+			end
+			profile.owned[kind][id] = true
+			return true
+		end)
+	end
+
+	-- 스타터 팩. 이미 산 사람이 영수증을 또 보내오면(다른 서버에서 동시에 샀을 때 등) 코인만 다시 준다.
+	-- 결제는 이미 끝났으므로 거절하지 않는다. 가게에서는 산 뒤로 버튼이 사라진다.
+	local starterKind, starterId = splitSkin(STARTER.skin)
+	PurchaseService:Register(STARTER.productId, function(profile)
+		profile.coins = profile.coins + (tonumber(STARTER.coins) or 0)
+		if starterKind and profile.owned[starterKind] and GameConfig.findSkin(starterKind, starterId).id == starterId then
+			profile.owned[starterKind][starterId] = true
+		end
+		profile.starterBought = true
+		return true
+	end)
+end
+
+--------------------------------------------------
+-- VIP 게임패스 (Phase 10)
+--------------------------------------------------
+
+function ShopService:_setVip(player, owned)
+	if player.Parent ~= Players then
+		return
+	end
+	if owned then
+		player:SetAttribute(PLAYER_ATTR.VIP, true)
+		self:_grantVipSkin(player)
+	elseif player:GetAttribute(PLAYER_ATTR.VIP) == nil then
+		player:SetAttribute(PLAYER_ATTR.VIP, false)
+	end
+end
+
+-- 자료를 다 읽은 뒤에만 줄 수 있다. 소유 확인이 먼저 끝나면 ProfileChanged 에서 다시 부른다.
+function ShopService:_grantVipSkin(player)
+	if player:GetAttribute(PLAYER_ATTR.VIP) ~= true then
+		return
+	end
+	local kind, id = splitSkin(VIP.skin)
+	if kind and ProfileService:Get(player) and not ProfileService:Owns(player, kind, id) then
+		ProfileService:Grant(player, kind, id)
+	end
+end
+
+function ShopService:_checkVip(player)
+	local passId = tonumber(VIP.gamePassId) or 0
+	if passId <= 0 then
+		return
+	end
+	task.spawn(function()
+		for attempt = 1, 3 do
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				self:_setVip(player, owned == true)
+				return
+			end
+			task.wait(attempt * 2)
+		end
+	end)
 end
 
 -- 클라이언트가 로벅스 구매창을 띄우기 전에 "그 상품이 진짜 있는지" 서버가 확인한다.
@@ -242,13 +338,46 @@ function ShopService:_onRequest(player, action, kind, id)
 		return
 	end
 
+	if action == "vip" then
+		local passId = tonumber(VIP.gamePassId) or 0
+		if passId <= 0 then
+			self:Sync(player, "VIP 패스는 아직 준비 중입니다", false)
+			return
+		end
+		if player:GetAttribute(PLAYER_ATTR.VIP) == true then
+			self:Sync(player, "이미 VIP 입니다", false)
+			return
+		end
+		local ok, err = pcall(function()
+			MarketplaceService:PromptGamePassPurchase(player, passId)
+		end)
+		if not ok then
+			warn("[CursedBarrel] 게임패스 구매창을 띄우지 못했습니다: " .. tostring(err))
+		end
+		return
+	end
+
 	if action == "robux" then
-        if not ProfileService:CanPurchase(player) then self:Sync(player,"저장 연결이 필요합니다",false);return end
-        if typeof(kind)~="string" or typeof(id)~="string" then return end
-        if kind~="coins" and ProfileService:Owns(player,kind,id) then return end
-		-- kind/id 는 스킨, 또는 kind == "coins" 이면 코인 묶음 id
+		if not ProfileService:CanPurchase(player) then
+			self:Sync(player, "저장 연결이 필요합니다", false)
+			return
+		end
+		if typeof(kind) ~= "string" or typeof(id) ~= "string" then
+			return
+		end
+		if kind ~= "coins" and kind ~= "starter" and ProfileService:Owns(player, kind, id) then
+			return
+		end
+		-- kind/id 는 스킨, 또는 kind == "coins" 이면 코인 묶음 id, kind == "starter" 면 스타터 팩
 		local productId = 0
-		if kind == "coins" then
+		if kind == "starter" then
+			local profile = ProfileService:Get(player)
+			if profile and profile.starterBought then
+				self:Sync(player, "스타터 팩은 계정당 한 번만 살 수 있습니다", false)
+				return
+			end
+			productId = tonumber(STARTER.productId) or 0
+		elseif kind == "coins" then
 			for _, pack in ipairs(GameConfig.Products.Coins) do
 				if pack.id == id then
 					productId = tonumber(pack.productId) or 0
@@ -301,12 +430,27 @@ function ShopService:Start()
 
 	-- 자료를 다 읽으면 한 번 내려보낸다.
 	self._cleaner:add(ProfileService.ProfileChanged:Connect(function(player)
+		self:_grantVipSkin(player)
 		self:Sync(player, nil, true)
 	end))
 
 	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
 		self._limiter:forget(player.UserId)
 		self._lastSync[player] = nil
+	end))
+
+	-- VIP 게임패스
+	self._cleaner:add(Players.PlayerAdded:Connect(function(player)
+		self:_checkVip(player)
+	end))
+	for _, player in ipairs(Players:GetPlayers()) do
+		self:_checkVip(player)
+	end
+	self._cleaner:add(MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		if purchased and passId == (tonumber(VIP.gamePassId) or 0) and passId > 0 then
+			self:_setVip(player, true)
+			self:Sync(player, VIP.name .. " 구매 완료! 이제 코인을 더 법니다", true)
+		end
 	end))
 
 	if RunService:IsStudio() then

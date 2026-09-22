@@ -76,7 +76,9 @@ function Service:accept(player,leaderId)
 end
 function Service:rejoin(player,model)
  local t=typeof(model)=="Instance" and Tables:GetTableFromModel(model)
- if not t or not t:IsJoinable() or player:GetAttribute("AFK")==true then return false end
+ if not t or not t:IsJoinable() then return false end
+ -- "다음 판 참가"를 직접 눌렀다면 자리를 비운 것이 아니다.
+ if player:GetAttribute("AFK")==true then player:SetAttribute("AFK",false) end
  local h=Utility.getHumanoid(player);local root=h and h.RootPart
  if not root or h.Health<=0 or h.SeatPart then return false end
  local free=t:GetFreeSeats();local seat=free[1]

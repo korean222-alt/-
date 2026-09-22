@@ -78,6 +78,14 @@ GameConfig.TableAttributes = {
 	-- Phase 8 : 통 안에 몇 마리가 숨어 있는지 (어느 자리인지는 절대 쓰지 않는다)
 	PirateCount = "PirateCount",
 
+	-- Phase 10 : 현상금과 배짱
+	Pot = "Pot", -- 이번 판의 현상금 (마지막 생존자가 가져간다)
+	BraveOfferUserId = "BraveOfferUserId", -- "한 번 더" 를 누를 수 있는 사람 (0 = 없음)
+	BraveOfferEndsAt = "BraveOfferEndsAt", -- 그 제안이 끝나는 서버 시각
+	BraveLevel = "BraveLevel", -- 지금 차례의 사람이 몇 번째로 더 찌르는 중인지 (0 = 보통 차례)
+	BraveNextReward = "BraveNextReward", -- 한 번 더 찔러 살아남으면 받을 코인
+	WinForfeit = "WinForfeit", -- 이번 승리가 기권승인가 (승리 · 현상금 없음)
+
 	-- Phase 7 : 이 테이블에 적용 중인 통 스킨 (앉은 사람들 중에서 서버가 하나를 고른다)
 	BarrelSkinId = "BarrelSkinId",
 	BarrelSkinOwnerId = "BarrelSkinOwnerId",
@@ -92,6 +100,7 @@ GameConfig.SeatAttributes = {
 	OccupantUserId = "OccupantUserId", -- 앉아 있는 플레이어 UserId (비었으면 0)
 	TurnOrder = "TurnOrder", -- Phase 2: 이번 라운드의 턴 순서 (0 = 참가자 아님)
 	Alive = "Alive", -- Phase 3: 아직 살아 있는 참가자인가
+	CatchesLeft = "CatchesLeft", -- Phase 10: 이번 판에 남은 잡기 기회 (참가자가 아니면 0)
 }
 
 --------------------------------------------------
@@ -121,6 +130,8 @@ GameConfig.PlayerAttributes = {
 	Streak = "Streak", -- 지금 연승 수
 	BestStreak = "BestStreak",
 	Loaded = "ProfileLoaded", -- 저장된 자료를 다 읽었는가
+	VIP = "VIP", -- Phase 10: VIP 게임패스를 가지고 있는가 (서버만 쓴다)
+	LoginStreak = "LoginStreak", -- Phase 10: 연속 출석 일수
 }
 
 --------------------------------------------------
@@ -194,6 +205,9 @@ GameConfig.Remotes = {
 	Sabotage = "Sabotage", -- 클라이언트 → 서버 (누구를 방해할지)
 	SabotageCue = "SabotageCue", -- 서버 → 당한 사람 + 테이블 (연출)
 	QuestUpdate = "QuestUpdate", -- 서버 → 그 사람 (퀘스트 진행도)
+
+	-- Phase 10 : 배짱 ("한 번 더")
+	Brave = "BraveRequest", -- 클라이언트 → 서버 (테이블 모델)
 }
 
 -- 서버가 거절할 때 클라이언트에 보여 줄 문구
@@ -212,6 +226,8 @@ GameConfig.RejectMessages = {
 	RobuxOnly = "로벅스로만 살 수 있습니다",
 	NoTarget = "방해할 상대가 없습니다",
 	SabotageCooldown = "아직 다시 쓸 수 없습니다",
+	VipOnly = "VIP 패스 전용입니다",
+	PackOnly = "스타터 팩 전용입니다",
 }
 
 --------------------------------------------------
@@ -273,20 +289,32 @@ GameConfig.Ranking = {
 GameConfig.Catch = {
 	Enabled = true,
 
-	-- 칼이 꽂힌 순간부터 잡기 창이 열릴 때까지.
-	-- 클라이언트의 클로즈업 연출 길이와 같아야 손이 화면과 맞는다.
-	Lead = 1.30,
+	-- ★ Phase 10 : 한 판에 한 사람이 잡을 수 있는 횟수.
+	--   Phase 6 에서는 잡을 때마다 해적이 다시 숨고, 매번 잡기 기회가 새로 열렸다.
+	--   창이 넉넉해서 누구나 잡을 수 있었으므로 판이 끝나지 않았다. (제보된 버그)
+	--   이제 한 사람은 한 판에 한 번만 잡을 수 있다. 두 번째로 해적을 만나면 잡기 창 없이 탈락한다.
+	--   인원이 N 명이면 잡기는 많아야 N 번이라 판이 반드시 끝난다.
+	PerPlayer = 1,
+	SpentReveal = 1.4, -- 기회를 다 쓴 사람이 해적을 만났을 때, 해적을 보여주고 탈락시키기까지
 
-	BaseWindow = 0.80, -- 첫 번째 잡기의 창 길이(초)
-	StepPerCatch = 0.09, -- 이번 라운드에서 한 번 잡을 때마다 이만큼 좁아진다
-	MinWindow = 0.34, -- ★ 이 아래로는 내리지 않는다. 모바일 터치 왕복이 이 정도다.
+	-- 칼이 꽂힌 순간부터 잡기 창이 열릴 때까지.
+	-- 클라이언트는 서버가 보낸 opensAt 에 맞춰 연출하므로 길이가 매번 달라도 화면과 맞는다.
+	Lead = 1.30,
+	LeadJitter = 0.5, -- 0 ~ 이 값만큼 무작위로 늦춘다. 박자를 외워서 누르는 것을 막는다.
+
+	BaseWindow = 0.62, -- 첫 번째 잡기의 창 길이(초)
+	StepPerCatch = 0.1, -- 이 테이블에서 누군가 잡을 때마다 다음 창이 이만큼 좁아진다 (점점 빨라진다)
+	MinWindow = 0.3, -- ★ 이 아래로는 내리지 않는다. 모바일 터치 왕복이 이 정도다.
 	DuelScale = 0.85, -- 최후의 2인이면 곱한다
 	LowSlotScale = 0.90, -- 남은 자리가 3칸 이하면 곱한다
 
-	Grace = 0.40, -- 창이 닫힌 뒤에도 이만큼 늦은 입력은 받아준다 (네트워크 지연 배려)
+	-- 클라이언트가 보낸 "누른 시각"은 MaxLatency 안에서 이미 지연 보정을 받는다.
+	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
+	Grace = 0.12,
 	MaxLatency = 0.25, -- 지연 보정 상한. 이보다 큰 차이는 조작으로 본다.
 	Timeout = 2.2, -- 창이 열리고 이 시간이 지나면 서버가 실패로 확정한다
 	Hold = 1.6, -- 결과를 보여주고 다음 턴으로 넘어가기까지
+	PerfectAccuracy = 0.72, -- 이 정확도 이상이면 "완벽한 잡기"
 
 	-- Phase 5 에서는 "잡으면 통을 다시 채우지 않는다" 였다.
 	-- 그런데 위험 자리는 하나뿐이라, 그 자리를 잡고 나면 통이 완전히 안전해져
@@ -297,6 +325,45 @@ GameConfig.Catch = {
 	--   새 해적을 이만큼 더 숨긴다. 통을 새로 채우지 않아도 긴장이 이어진다.
 	ArmOnCatch = 1,
 	MinFreeSlotsToArm = 1, -- 남은 빈 자리가 이보다 적으면 숨길 곳이 없다
+}
+
+--------------------------------------------------
+-- 배짱 (Phase 10) : 안전한 자리를 뽑은 뒤 "한 번 더" 찌를 수 있다.
+--
+-- 운만으로 흘러가던 판에 고를 거리를 준다.
+--   · 더 찌르면 보너스 코인을 바로 받고 현상금이 커진다.
+--   · 대신 통의 안전한 자리가 줄어서 내가 해적을 만날 확률이 오른다.
+--   · 반대로 다음 사람 차례의 통은 더 위험해진다. (상대를 몰아붙이는 수)
+--------------------------------------------------
+GameConfig.Brave = {
+	Enabled = true,
+	MaxChain = 3, -- 한 차례에 더 찌를 수 있는 최대 횟수
+	MinPickable = 3, -- 고를 수 있는 빈 자리가 이보다 적으면 제안하지 않는다
+	Rewards = { 12, 22, 36 }, -- 배짱 1·2·3단계로 살아남으면 바로 받는 코인
+}
+
+--------------------------------------------------
+-- 현상금 (Phase 10) : 한 판 동안 쌓이다가 마지막 생존자가 가져간다.
+-- 참가자의 코인을 걷는 것이 아니다. 판돈이 아니라 서버가 거는 상금이다.
+--------------------------------------------------
+GameConfig.Pot = {
+	Enabled = true,
+	Base = 20,
+	PerPick = 6, -- 안전한 자리 하나마다
+	PerBravePick = 14, -- 배짱으로 더 찌른 안전한 자리마다 (PerPick 에 더해진다)
+	PerCatch = 16, -- 해적을 잡을 때마다
+	PerPerfect = 10, -- 완벽한 잡기는 더
+	Cap = 500,
+}
+
+--------------------------------------------------
+-- 기권승 (Phase 10)
+-- 상대가 전부 스스로 나가서 이긴 판은 "승리"로 치지 않는다.
+-- 부계정 두 개로 앉았다 일어나기를 반복해 승리·연승·코인을 버는 것을 막는다.
+-- 해적에게 탈락한 사람이 한 명이라도 있거나, 칼을 참가 인원 × 이 값만큼 꽂았으면 정상 승리다.
+--------------------------------------------------
+GameConfig.ForfeitWin = {
+	MinPicksPerPlayer = 2,
 }
 
 -- 이번 잡기의 창 길이. 서버에서만 호출한다.
@@ -392,6 +459,21 @@ GameConfig.Skins = {
 			handle = Color3.fromRGB(28, 58, 74), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(96, 168, 226), trail = Color3.fromRGB(150, 214, 255), glow = 0.6,
 			fx = { emit = Color3.fromRGB(150, 214, 255), spark = true, trail = Color3.fromRGB(150, 214, 255), halo = Color3.fromRGB(96, 168, 226), pulse = 1.1, bubbles = true },
+		},
+		-- Phase 10 : 스타터 팩 · VIP 패스 전용 (코인으로는 살 수 없다)
+		{
+			id = "starter_hook", name = "선원의 갈고리", rarity = "rare", price = 0, pack = "starter",
+			blade = Color3.fromRGB(176, 186, 196), bladeMaterial = Enum.Material.Metal,
+			handle = Color3.fromRGB(34, 64, 96), handleMaterial = Enum.Material.Fabric,
+			guard = Color3.fromRGB(226, 178, 86), trail = Color3.fromRGB(186, 220, 255),
+			fx = { emit = Color3.fromRGB(186, 220, 255), bubbles = true },
+		},
+		{
+			id = "vip_cutlass", name = "VIP 선장의 곡도", rarity = "legend", price = 0, vip = true,
+			blade = Color3.fromRGB(255, 222, 128), bladeMaterial = Enum.Material.Neon,
+			handle = Color3.fromRGB(96, 24, 36), handleMaterial = Enum.Material.Leather,
+			guard = Color3.fromRGB(255, 236, 170), trail = Color3.fromRGB(255, 222, 128), glow = 0.8,
+			fx = { emit = Color3.fromRGB(255, 222, 128), spark = true, trail = Color3.fromRGB(255, 222, 128), halo = Color3.fromRGB(255, 196, 96), pulse = 1.6, coins = true },
 		},
 	},
 
@@ -523,9 +605,9 @@ function GameConfig.findSkin(kind, id)
 	return list[1]
 end
 
--- 기본으로 처음부터 가지고 있는 스킨 (가격 0 이고 로벅스 전용이 아닌 것)
+-- 기본으로 처음부터 가지고 있는 스킨 (가격 0 이고 로벅스 · VIP · 묶음 전용이 아닌 것)
 function GameConfig.isFreeSkin(skin)
-	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux
+	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux and not skin.vip and not skin.pack
 end
 
 --------------------------------------------------
@@ -541,8 +623,18 @@ GameConfig.Economy = {
 	DuoScale = 0.7, -- 2인 테이블은 금방 끝나므로 보상을 줄인다
 	PartyScale = 1.25, -- 6인 테이블은 오래 버텨야 하므로 더 준다
 	LeaveEarlyReward = 0, -- 중도 이탈은 주지 않는다
-	DailyBonus = 150, -- 하루에 한 번 접속 보상
+	DailyBonus = 150, -- 하루에 한 번 접속 보상 (연속 출석 1일째)
+	-- Phase 10 : 연속 출석. 7일을 채우면 다시 1일째부터 돈다. 하루라도 빠지면 1일째로 돌아간다.
+	DailyStreakBonus = { 150, 200, 250, 300, 350, 400, 700 },
+	PerfectCatchBonus = 15, -- 완벽한 잡기에 더 주는 코인
 }
+
+-- 연속 출석 N일째의 보상
+function GameConfig.dailyBonusFor(streak)
+	local list = GameConfig.Economy.DailyStreakBonus
+	local day = ((math.max(1, math.floor(tonumber(streak) or 1)) - 1) % #list) + 1
+	return list[day], day
+end
 
 -- 레벨 = 판수와 승수가 같이 쌓인다. 승리가 더 크게 쌓이지만 참가만 해도 오른다.
 function GameConfig.experienceOf(wins, games)
@@ -664,6 +756,25 @@ GameConfig.Products = {
 		{ id = "skin_ember_knife", skin = "Knife/ember", robux = 99, productId = 0 },
 		{ id = "skin_ember_ghost", skin = "Ghost/ember", robux = 129, productId = 0 },
 	},
+
+	-- Phase 10 : 스타터 팩 (계정당 한 번). 처음 들어온 사람이 가장 많이 사는 묶음이다.
+	-- 게임 결과를 바꾸는 것은 넣지 않는다. 코인과 전용 칼 스킨뿐이다.
+	Starter = {
+		id = "starter", name = "선원 스타터 팩", robux = 49, productId = 0,
+		coins = 2500, skin = "Knife/starter_hook",
+		blurb = "코인 2,500 + 전용 칼 「선원의 갈고리」 · 계정당 한 번",
+	},
+
+	-- Phase 10 : 게임패스. Creator Dashboard 에서 게임패스를 만들고 그 ID 를 gamePassId 에 적는다.
+	-- 0 이면 상점에 "준비 중"으로만 보인다.
+	GamePasses = {
+		VIP = {
+			id = "vip", name = "VIP 선장 패스", robux = 199, gamePassId = 0,
+			coinBonus = 0.2, -- 게임에서 버는 코인 +20% (퀘스트 · 업적 · 출석 보상에는 붙지 않는다)
+			skin = "Knife/vip_cutlass",
+			blurb = "게임 코인 +20% · 전용 칼 「VIP 선장의 곡도」 · 머리 위 VIP 표시",
+		},
+	},
 }
 
 --------------------------------------------------
@@ -680,6 +791,9 @@ GameConfig.Quests = {
 		{ id = "duo2", text = "2인 테이블에서 2판 하기", metric = "duoGames", goal = 2, reward = 130 },
 		{ id = "party1", text = "6인 테이블에서 1판 하기", metric = "partyGames", goal = 1, reward = 160 },
 		{ id = "streak2", text = "2연승 만들기", metric = "bestStreakToday", goal = 2, reward = 220 },
+		-- Phase 10
+		{ id = "brave3", text = "배짱으로 3번 더 찌르고 살아남기", metric = "bravePicks", goal = 3, reward = 200 },
+		{ id = "perfect2", text = "해적을 완벽하게 2번 잡기", metric = "perfectCatches", goal = 2, reward = 220 },
 	},
 }
 
@@ -692,6 +806,9 @@ GameConfig.Achievements = {
 	{ id = "streak3", text = "3연승", metric = "bestStreak", goal = 3, reward = 700 },
 	{ id = "streak7", text = "7연승", metric = "bestStreak", goal = 7, reward = 2800 },
 	{ id = "games100", text = "100판 참가", metric = "games", goal = 100, reward = 1200 },
+	-- Phase 10
+	{ id = "brave25", text = "배짱으로 25번 살아남기", metric = "bravePicks", goal = 25, reward = 900 },
+	{ id = "perfect20", text = "완벽한 잡기 20회", metric = "perfectCatches", goal = 20, reward = 1100 },
 }
 
 --------------------------------------------------

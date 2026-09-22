@@ -301,6 +301,12 @@ local PREVIEW_BUILDERS = {
 local function priceText(skin)
 	local rarity = GameConfig.rarityOf(skin)
 	local price = tonumber(skin.price) or 0
+	if skin.vip then
+		return ("%s  ·  %s  ·  VIP 패스 전용"):format(skin.name, rarity.label)
+	end
+	if skin.pack then
+		return ("%s  ·  %s  ·  스타터 팩 전용"):format(skin.name, rarity.label)
+	end
 	if skin.robux then
 		return ("%s  ·  %s  ·  R$ %d"):format(skin.name, rarity.label, skin.robux)
 	end
@@ -399,9 +405,11 @@ function LobbyBuilder:_buildShowcase()
 
 				local prompt = Instance.new("ProximityPrompt")
 				prompt.Name = "Equip"
-				prompt.ActionText = "장착"
+				-- 가진 스킨이면 장착, 아니면 구매. 글자는 각자 화면에서 ShopController 가 바꿔 준다.
+				-- 지나가다 잘못 눌러 비싼 스킨을 사지 않도록 잠깐 누르고 있어야 한다.
+				prompt.ActionText = "장착 · 구매"
 				prompt.ObjectText = skin.name
-				prompt.HoldDuration = 0
+				prompt.HoldDuration = 0.6
 				prompt.MaxActivationDistance = 12
 				prompt.RequiresLineOfSight = false
 				prompt.Parent = pedestal
