@@ -1,7 +1,7 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase9_DragonTide.rbxl`: 통합 Place.
-- `game`: 30개 Script/LocalScript/ModuleScript 소스.
+- `output/CursedBarrel_Phase10_Kraken.rbxl`: 통합 Place. (Phase 10 변경 내용: `docs/Phase10_변경사항_KO.md`)
+- `game`: 32개 Script/LocalScript/ModuleScript 소스.
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
@@ -10,17 +10,28 @@
 
 ## 오프라인 검사 및 빌드
 
-Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. 이 도구는 Roblox Studio 또는 Luau 컴파일러를 포함하지 않습니다.
+Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같이 하려면 [Luau 릴리스](https://github.com/luau-lang/luau/releases)의 `luau` · `luau-compile` 실행 파일을 받아 `LUAU` 환경 변수로 알려 주세요.
 
 ```bash
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase9_DragonTide.rbxl
-python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase9_DragonTide.rbxl
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase10_Kraken.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase10_Kraken.rbxl
+
+# 개별 실행
+python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
+python tests/run_luau.py /path/to/luau # 크라켄 겹침 검사 + 같은 동작 검사를 Luau 로 직접
+python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택)
 ```
 
 `extend_place.py`는 이 원본의 기존 스크립트 클래스 구조에 맞춘 빌더입니다. 다른 구조의 임의 rbxl에 적용하는 일반 편집기가 아닙니다. 소스 변경 전후는 소스 관리로 별도 보관하세요. Roblox에서 직접 열어 확인하기 전에는 바이너리 구조 검사만으로 완전한 호환성을 단정할 수 없습니다.
 
 ## 변경 기록
 
+- 10.0.0 Kraken:
+  - 해적 잡기는 한 사람당 한 판에 1번이고, 잡을수록 창이 짧아진다. 판이 끝나지 않던 버그를 고쳤다.
+  - 잡는 동안 스페이스를 눌러도 기권되지 않는다.
+  - 중도 이탈 때 차례를 건너뛰던 문제, 봉인 카드, 자리 비움, 칼 빛 누수, 현황판 재생성 등 버그 15건을 고쳤다.
+  - 새 기능: 배짱("한 번 더"), 현상금, 완벽한 잡기, 카드 버튼, 연속 출석, VIP 패스, 스타터 팩, 기권승 판정, 크라켄 장식.
+  - 검사가 62개로 늘었다. 무작위 판 시뮬레이션, Luau 직접 실행, 크라켄 겹침 검사를 추가했다.
 - 9.0.0 Dragon Tide: 프로필/영수증/라운드 안정화, 6종 코스메틱과 절차적 용 VFX, 관전/파티/카드/주간/시즌/설정, 선박형 플레이 공간, 사용자 브랜딩 연결.
 - 카탈로그 희귀도 조회 부작용 제거; 중복 ID/조회 불변성 회귀 검사 추가.
 - 공개 및 Roblox Studio 검증은 수행하지 않음.
@@ -29,10 +40,10 @@ python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_P
 
 **저주받은 통 — 용의 항로**
 
-해적선에 올라 친구들과 통에 칼을 꽂아 보세요. 튀어나오는 해적을 타이밍에 맞춰 잡고, 마지막까지 살아남아 선장의 자리를 차지하세요!
+크라켄에게 붙잡힌 해적선! 친구들과 저주받은 통에 칼을 꽂아 보세요. 튀어나오는 해적은 딱 한 번만 잡을 수 있습니다. 배짱 있게 한 번 더 찔러 현상금을 키우고, 마지막까지 살아남아 선장의 자리를 차지하세요!
 
 2인 결투부터 6인 파티, 빠른 모드와 무료 특수 카드 테이블까지. 코인을 모아 칼·통·해적·의자와 화려한 용 이펙트를 꾸며 보세요.
 
-조작: 빈 의자에 앉기 → 내 차례에 슬롯 선택 → 해적이 나오면 잡기 버튼. 모바일은 화면 버튼, PC는 화면 안내, 게임패드는 선택 포커스를 사용합니다. 눈부심이 불편하면 항해 수첩 설정에서 효과와 화면 흔들림을 줄이세요.
+조작: 빈 의자에 앉기 → 내 차례에 슬롯 선택 → 해적이 나오면 고리가 닫힐 때 잡기 (한 판에 한 번!) → 안전하면 "한 번 더"로 보너스. 마지막 생존자가 현상금을 가져갑니다. 모바일은 화면 버튼, PC는 화면 안내, 게임패드는 선택 포커스를 사용합니다. 눈부심이 불편하면 항해 수첩 설정에서 효과와 화면 흔들림을 줄이세요.
 
 이 초안은 출시 QA 후 실제 활성화된 기능만 남겨 게시하세요. 스킨 외 기존 방해 상품을 판매한다면 그 기능과 가격도 별도로 명확히 고지하세요.
