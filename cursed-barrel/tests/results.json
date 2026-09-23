@@ -1,23 +1,23 @@
 {
   "place": "CursedBarrel_Phase13_Rewards.rbxl",
-  "sha256": "3cc2a814bc8b5ee30bba3fb3d8ef6420e6f1965481cbb21a11f41d021c1aa95a",
+  "sha256": "98e9ed20c80973db7715692f3380b9e83b6a5c90a9f72433a684876b2f87c24b",
   "original_instances": 1255,
-  "output_instances": 1285,
-  "source_files": 53,
-  "behavior_checks_passed": 92,
+  "output_instances": 1286,
+  "source_files": 54,
+  "behavior_checks_passed": 96,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
-  "luau_compile": "PASS (53 files, luau-compile)",
+  "luau_compile": "PASS (54 files, luau-compile)",
   "native_luau_checks": [
     "[kraken] KRAKEN CHECKS: 232175 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 92 passed"
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 96 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
   "live_datastore_receipts_assets": "NOT_RUN",
   "test_output": [
-    "PASS: 53 source files parsed by Lua 5.4 after compound-assignment translation",
+    "PASS: 54 source files parsed by Lua 5.4 after compound-assignment translation",
     "PASS rarity lookup does not mutate or duplicate the skin catalog",
     "PASS new profile acquires an atomic session",
     "PASS six inventory categories and defaults",
@@ -77,7 +77,9 @@
     "PASS new profile fields survive a save and reload",
     "  simulated 160 rounds · catches 718 · pirate outs 271 · brave 1613 · cards 164 · leavers 119 · longest 128 picks",
     "PASS randomized full rounds always end (escalating catches, brave, cards, leavers)",
-    "  perfect catchers: 120 rounds · catches 2186 · pirate outs 292 · longest 208 picks",
+    "  average coins per player per round: 853",
+    "PASS economy: an average round pays about 800 coins (big-looking numbers)",
+    "  perfect catchers: 120 rounds · catches 2069 · pirate outs 292 · longest 221 picks",
     "PASS reported bug: even if everyone always catches, every round still ends",
     "PASS treasure surge: pouch adds, kraken multiplies, pity resets",
     "PASS surge chance grows with pity but stays capped",
@@ -109,11 +111,14 @@
     "PASS first coin top-up is doubled once",
     "PASS daily deal: one discounted coin skin per day, charged at the deal price",
     "PASS English: exact, templated, nested and concatenated UI text all become English",
+    "PASS skin price ladder: common ~1만, rare ~1.7~6.9만, epic ~13~15만, legend ~25~30만, mythic 49.9만",
+    "PASS blue steel drum: coin skin with rolling hoops, ribs, chimes and two bungs on the lid",
+    "PASS buying a legend or mythic skin is announced to the whole server",
     "PASS all ten tables fit the ship with chair clearance",
     "PASS table pairs preserve at least 26 studs center separation",
     "PASS lantern posts are outside chair access rings",
     "PASS showcase rows fit inside the stern cabin",
-    "BEHAVIOR CHECKS: 92 passed",
-    "PASS: English covers all 562 Korean UI strings"
+    "BEHAVIOR CHECKS: 96 passed",
+    "PASS: English covers all 569 Korean UI strings"
   ]
 }

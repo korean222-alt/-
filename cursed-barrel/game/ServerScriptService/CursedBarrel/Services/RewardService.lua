@@ -130,6 +130,9 @@ function RewardService:Spin(player, today)
 		if pick then
 			profile.owned[pick.kind][pick.skin.id] = true
 			result.skinKind, result.skinId, result.skinName = pick.kind, pick.skin.id, pick.skin.name
+			if GameConfig.Announce and GameConfig.Announce.RouletteRare and (segment.minPrice or 0) > 12000 then
+				require(script.Parent.ShopService).announce(player, pick.skin, "roulette")
+			end
 		else
 			profile.coins += segment.fallbackCoins or 0
 			result.kind, result.amount = "coins", segment.fallbackCoins or 0

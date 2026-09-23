@@ -13,18 +13,15 @@
 - 음원은 `assets/audio`: lobby_harbor → ReleaseConfig.Audio.Lobby, match_tension → Match, dragon_roar → Dragon, knife_impact → Impact, victory_fanfare → Win.
 - 음원 5개는 원본 합성 WAV다. Roblox 업로드·검토·권한은 소유자가 확인한다. 기존 기본 효과음 ID의 실제 사용 권한도 점검한다.
 - `GameConfig`의 Developer Product IDs를 본인 경험의 상품으로 연결한다. 표시 가격과 실제 결제 창을 대조한다.
-- Phase 10 상품:
-  - `GameConfig.Products.Starter.productId`: 개발자 상품, 추천 49 R$, 계정당 1회
-  - `GameConfig.Products.GamePasses.VIP.gamePassId`: 게임패스, 추천 199 R$
-  - ID 가 0 이면 공개 서버에서 상점에 보이지 않는다. 코인 묶음과 방해 아이템도 같다.
+- **최신 상품 · 그림 · 소리 전체 목록: `docs/할일_총정리_KO.md`** (아래 Phase별 항목보다 이 문서가 우선)
+- ID 가 0 이면 공개 서버에서 상점에 보이지 않는다. 코인 묶음과 방해 아이템도 같다.
 - Phase 13 상품 (`docs/Phase13_돈_출석_룰렛_영어_KO.md` 6장) — 스킨은 코인으로만, 로벅스로는 코인 충전:
-  - 코인 충전 4개: coins_small 159 · coins_medium 319 · coins_large 369 · coins_huge 799 R$ (팝콘 가격, "대" 강조)
+  - 코인 충전 5개: coins_small 159 · coins_medium 319 · coins_large 369 · coins_huge 799 · coins_vault 1,999 R$ (팝콘 가격, "대" 강조)
   - 스타터 팩 99 R$, VIP 399 R$, 부스터 249 R$ (Creator Hub 가격과 `robux` 값을 똑같이)
+  - 확인: 한 판 평균 약 800 코인, 신화 스킨 무지갯빛 · 구매 알림, 파란 철제 드럼 모양(테이블 · 전시대 · 3D 미리보기)
   - `ReleaseConfig.Images.Attendance` · `Images.Roulette` (`assets/branding/attendance_button.png` · `roulette_button.png`)
   - 확인: 코인이 모자란 스킨 옆 「충전」 버튼이 알맞은 묶음을 띄우는지, 첫 충전 2배가 한 번만인지, 룰렛이 하루 한 번인지
-- Phase 12 상품 (전체 표 · 만드는 법: `docs/Phase12_에셋_상품_안내_KO.md`):
-  - `GameConfig.Products.GamePasses.Booster.gamePassId`: 현상금 부스터 게임패스, 추천 149 R$
-  - `skin_storm_victory.productId` (GameConfig.lua 아래쪽 `table.insert` 줄): 승리 세리머니 「폭풍의 군주」, 추천 99 R$
+- 만드는 법: `docs/Phase12_에셋_상품_안내_KO.md` 3장
   - `ReleaseConfig.Badges` 의 `cannon100` · `raid10` · `crew5` · `tourney34` (선택)
   - `ReleaseConfig.Audio` 의 새 칸 12개(Night · Storm · Rain · Thunder · KrakenRoar · Slam · WoodCrack · Cannon · Splash · Hit · Coins · Waves). 0 이면 Roblox 기본 소리로 대신한다.
 - Phase 11 상품: `GameConfig.Products.Skins` 의 `skin_ember_stab.productId` (칼 꽂기 모션 「잿불 강타」, 추천 79 R$). 0 이면 목록에는 보이지만 누르면 "준비 중"으로 거절된다.

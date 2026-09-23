@@ -22,6 +22,7 @@ local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shar
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
+local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
 
 local ProfileService = require(script.Parent.ProfileService)
 local ShopService = require(script.Parent.ShopService)
@@ -234,19 +235,25 @@ local function previewBarrel(skin, parent, base)
 	model.Parent = parent
 
 	local pivot = base * CFrame.new(0, 1.8, 0)
-	makeCylinder(model, "Body", 3, 3.4, pivot, skin.body, skin.bodyMaterial)
+	local body = makeCylinder(model, "Body", 3, 3.4, pivot, skin.body, skin.bodyMaterial)
+	body.Reflectance = skin.reflectance or 0
 
-	makeCylinder(model, "HoopLower", 3.18, 0.3, pivot * CFrame.new(0, -1.1, 0), skin.hoop, skin.hoopMaterial)
-	makeCylinder(model, "HoopUpper", 3.18, 0.3, pivot * CFrame.new(0, 1.1, 0), skin.hoop, skin.hoopMaterial)
-	makeCylinder(model, "Lid", 2.9, 0.22, pivot * CFrame.new(0, 1.76, 0), skin.lid, skin.hoopMaterial)
+	if not skin.drum then
+		makeCylinder(model, "HoopLower", 3.18, 0.3, pivot * CFrame.new(0, -1.1, 0), skin.hoop, skin.hoopMaterial)
+		makeCylinder(model, "HoopUpper", 3.18, 0.3, pivot * CFrame.new(0, 1.1, 0), skin.hoop, skin.hoopMaterial)
+	end
+	makeCylinder(model, "Lid", 2.9, 0.22, pivot * CFrame.new(0, 1.76, 0), skin.lid, skin.hoopMaterial).Reflectance = skin.reflectance or 0
 
-	if skin.ribbed then
+	if skin.drum then
+		-- Phase 13 : 철제 드럼 (굴림 테 · 주름 · 마개)
+		DrumStyle.build(model, body.CFrame, 3.4, 3, skin, "Drum", 1.87)
+	elseif skin.ribbed then
 		for _, offset in ipairs({ -0.5, 0.1, 0.7 }) do
 			makeCylinder(model, "Rib", 3.1, 0.14, pivot * CFrame.new(0, offset, 0), skin.hoop, skin.hoopMaterial)
 		end
 	end
 
-	local glow = makeCylinder(model, "Glow", 2.7, 0.1, pivot * CFrame.new(0, 1.66, 0), skin.glow, Enum.Material.Neon)
+	local glow = makeCylinder(model, "Glow", 2.7, 0.1, pivot * CFrame.new(0, 1.66, 0), skin.glow, skin.glowMaterial or Enum.Material.Neon)
 	glow.Transparency = 0.25
 
 	local light = Instance.new("PointLight")

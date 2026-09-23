@@ -73,7 +73,7 @@ workspace={GetServerTimeNow=function() return now end,GetAttribute=function(_,k)
 local cache={TableService={GetAllTables=function() return {} end,GetTableOfPlayer=function() return nil end},RankingService={RecordRound=function() end}}
 local function loadModule(name,source)
  local parent=node("Services")
- for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry","LocaleData","Locale"}) do parent:WaitForChild(n) end
+ for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry","LocaleData","Locale","ShopService","PurchaseService","DrumStyle"}) do parent:WaitForChild(n) end
  local env=setmetatable({script={Parent=parent}}, {__index=(getfenv and getfenv(1)) or _G})
  env.require=function(ref)
   local key=type(ref)=="table" and ref.Name or ref
@@ -148,7 +148,7 @@ check("changes during save remain dirty",function()
 end)
 check("weekly claims pay exactly once",function()
  local d=Profiles:Get(p);Profiles:_advanceQuests(p,d,"games",20);local old=d.coins
- assert(Profiles:ClaimWeekly(p,"week_games"));assert(not Profiles:ClaimWeekly(p,"week_games"));assert(d.coins==old+1800)
+ assert(Profiles:ClaimWeekly(p,"week_games"));assert(not Profiles:ClaimWeekly(p,"week_games"));assert(d.coins==old+Release.Weekly[1].reward)
 end)
 check("weekly rollover removes old progress",function()
  local d=Profiles:Get(p);local saved=epoch;epoch=epoch+604800;Profiles:_rollWeekly(d);assert(next(d.weekly.progress)==nil);assert(next(d.weekly.claimed)==nil);epoch=saved;Profiles:_rollWeekly(d)
@@ -163,7 +163,7 @@ check("login streak grows day by day, caps at a 7-day cycle and resets after a m
  local q=player(21);Profiles:_load(q);local d=Profiles:Get(q);assert(d.loginStreak==1)
  local saved=epoch
  for day=2,8 do epoch=saved+(day-1)*86400;local before=d.coins;Profiles:_rollDaily(q,d);assert(d.loginStreak==day);assert(d.coins==before) end
- assert(Config.dailyBonusFor(7)==700 and Config.dailyBonusFor(8)==Config.dailyBonusFor(1))
+ assert(Config.dailyBonusFor(7)==Config.Economy.DailyStreakBonus[7] and Config.dailyBonusFor(8)==Config.dailyBonusFor(1))
  epoch=saved+10*86400;Profiles:_rollDaily(q,d);assert(d.loginStreak==1)
  epoch=saved
 end)
@@ -587,6 +587,33 @@ check("randomized full rounds always end (escalating catches, brave, cards, leav
  print(("  simulated %d rounds · catches %d · pirate outs %d · brave %d · cards %d · leavers %d · longest %d picks"):format(stats.rounds,stats.catches,stats.eliminated,stats.brave,stats.cards,stats.forfeits,stats.maxPicks))
 end) end)
 
+check("economy: an average round pays about 800 coins (big-looking numbers)",function() withScheduler(function()
+ local aq,ca=Profiles._advanceQuests,Profiles._checkAchievements;Profiles._advanceQuests=function() end;Profiles._checkAchievements=function() end
+ local random=rng(99);local total,count=0,0
+ for trial=1,120 do
+  local typeName=({"Standard4","Duo2","Party6","Blitz4","PartyCards6"})[trial%5+1]
+  local preset=TableConfig.Types[typeName]
+  local n=math.min(preset.SeatCount,({2,3,4,4,6})[trial%5+1])
+  local r,t,players=makeTable(n,typeName,preset.KnifeSlots,true)
+  local before={};for _,q in ipairs(players) do before[q]=Profiles:Get(q).coins end
+  local handled={};local started=false
+  for it=1,6000 do
+   if t.state=="Playing" then started=true end
+   if started and (t.state=="RoundEnding" or t.state=="Resetting" or t.state=="Waiting") then break end
+   if playing(t) then
+    local cur=r:GetCurrentPlayer()
+    if r.catch and not r.catch.spent and not r.catch.resolved and not handled[r.catch] then handled[r.catch]=true;if random()<0.6 then now=r.catch.opensAt+0.05;r:HandleCatchInput(r.catch.player,now) end
+    elseif r.braveOffer and not handled[r.braveOffer] then handled[r.braveOffer]=true;if random()<0.3 then now=now+0.3;r:AcceptBrave(r.braveOffer.player) end
+    elseif cur and not r.resolving then now=now+0.3;local c={};for _,i in ipairs(t:GetFreeSlotIndices()) do if i~=r.sealed then c[#c+1]=i end end;r:HandlePick(cur,c[1+math.floor(random()*#c)],"sim") end
+   end
+   if not step() then break end
+  end
+  for _,q in ipairs(players) do total=total+(Profiles:Get(q).coins-before[q]);count=count+1 end
+ end
+ Profiles._advanceQuests,Profiles._checkAchievements=aq,ca
+ local avg=total/count;print(("  average coins per player per round: %d"):format(math.floor(avg)))
+ assert(avg>=600 and avg<=1100,"round income should be about 800, got "..avg)
+end) end)
 check("reported bug: even if everyone always catches, every round still ends",function() withScheduler(function()
  local stats=simulate(120,77,1.0,0)
  assert(stats.rounds==120 and stats.maxCatch==Config.Catch.MaxPerPlayer)
@@ -601,9 +628,9 @@ end) end)
 check("treasure surge: pouch adds, kraken multiplies, pity resets",function()
  local r,p1=makeRound();r.pot=100;r.surgeMiss=5
  local rolls={0,0};r.random={NextNumber=function() return table.remove(rolls,1) or 0 end,NextInteger=function(_,lo) return lo end}
- local tier=r:_rollSurge(p1);assert(tier and tier.id=="pouch");assert(r.pot==100+math.floor(45*TableConfig.getRewardScale("PartyCards6")));assert(r.surgeMiss==0)
+ local tier=r:_rollSurge(p1);assert(tier and tier.id=="pouch");assert(r.pot==100+math.floor(Config.Pot.Surge.Tiers[1].add*TableConfig.getRewardScale("PartyCards6")));assert(r.surgeMiss==0)
  local cue=services.ReplicatedStorage.CursedBarrel.Remotes.PresentationCue.last;assert(cue[1]=="Surge" and cue[3].amount>0 and cue[3].pot==r.pot)
- r.pot=200;rolls={0,0.999};tier=r:_rollSurge(p1);assert(tier.id=="kraken" and r.pot==500)
+ r.pot=200;rolls={0,0.999};tier=r:_rollSurge(p1);assert(tier.id=="kraken" and r.pot==math.max(200+math.floor(Config.Pot.Surge.Tiers[3].add*TableConfig.getRewardScale("PartyCards6")),500))
  r.pot=Config.Pot.Cap-10;rolls={0,0.999};r:_rollSurge(p1);assert(r.pot==Config.Pot.Cap,"surge respects the cap")
  rolls={0.99};local before=r.pot;assert(r:_rollSurge(p1)==nil and r.pot==before and r.surgeMiss==1,"a miss raises pity only")
 end)
@@ -859,22 +886,22 @@ check("roulette: once a day, mostly small coins, plain skins 20% and rare skins 
  assert(Config.rouletteTotalWeight()==1000)
  local w={};for _,seg in ipairs(Config.Roulette.Segments) do w[seg.id]=seg.weight end
  assert(w.skin_plain==200 and w.skin_rare<=30,"plain skins 20%, rare skins at most 3%")
- local coinsWeight=0;for _,seg in ipairs(Config.Roulette.Segments) do if seg.kind=="coins" and seg.amount<=100 then coinsWeight=coinsWeight+seg.weight end end
+ local coinsWeight=0;for _,seg in ipairs(Config.Roulette.Segments) do if seg.kind=="coins" and seg.amount<=300 then coinsWeight=coinsWeight+seg.weight end end
  assert(coinsWeight>=600,"most spins give a little coin")
  local function force(x) Reward._random={NextNumber=function() return x end,NextInteger=function(_,lo) return lo end} end
  local saved=epoch
- force(0.0);local before=d.coins;local ok,r=Reward:Spin(q);assert(ok and r.id=="c20" and d.coins==before+20)
+ force(0.0);local before=d.coins;local ok,r=Reward:Spin(q);assert(ok and r.id=="c60" and d.coins==before+60)
  assert(not Reward:Spin(q),"only once a day")
  -- 평범한 스킨 칸 (700 코인 이하, 아직 없는 것)
  epoch=saved+86400;force(0.56);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin" and d.owned[r.skinKind][r.skinId]==true)
- local skin=Config.findSkin(r.skinKind,r.skinId);assert(Config.isCoinSkin(skin) and skin.price<=700)
+ local skin=Config.findSkin(r.skinKind,r.skinId);assert(Config.isCoinSkin(skin) and skin.price<=12000)
  -- 희귀 스킨 칸 (701~1800)
- epoch=saved+2*86400;force(0.95);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin");skin=Config.findSkin(r.skinKind,r.skinId);assert(skin.price>700 and skin.price<=1800)
+ epoch=saved+2*86400;force(0.95);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin");skin=Config.findSkin(r.skinKind,r.skinId);assert(skin.price>12000 and skin.price<=69000)
  -- 대박
- epoch=saved+3*86400;force(0.999);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.id=="jackpot" and d.coins==before+2000)
+ epoch=saved+3*86400;force(0.999);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.id=="jackpot" and d.coins==before+6000)
  -- 받을 스킨이 없으면 그 칸의 코인으로
  for kind,list in pairs(Config.Skins) do if type(list)=="table" and d.owned[kind] then for _,sk in ipairs(list) do if type(sk)=="table" then d.owned[kind][sk.id]=true end end end end
- epoch=saved+4*86400;force(0.56);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.kind=="coins" and d.coins==before+150)
+ epoch=saved+4*86400;force(0.56);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.kind=="coins" and d.coins==before+450)
  epoch=saved
 end)
 check("skins are bought with coins only; coin packs are priced like cinema popcorn",function()
@@ -887,8 +914,8 @@ check("skins are bought with coins only; coin packs are priced like cinema popco
  assert(l.robux-m.robux<=60 and l.coins>=m.coins*2,"large costs a little more than medium but gives over twice the coins")
  assert(rate(l)>=rate(m)*2 and l.highlight,"large is the obvious pick")
  -- 모자란 만큼 채우는 가장 작은 묶음을 권한다
- assert(Config.coinPackFor(1000).id=="coins_small" and Config.coinPackFor(2000).id=="coins_medium" and Config.coinPackFor(5000).id=="coins_large")
- assert(Config.coinPackFor(99999).id=="coins_huge")
+ assert(Config.coinPackFor(10000).id=="coins_small" and Config.coinPackFor(20000).id=="coins_medium" and Config.coinPackFor(50000).id=="coins_large")
+ assert(Config.coinPackFor(99999).id=="coins_huge" and Config.coinPackFor(400000).id=="coins_vault" and Config.coinPackFor(9e9).id=="coins_vault")
  -- 스킨을 로벅스로 사려 해도 상품이 없다
  local Shop=loadModule("ShopService");local q=player(133);Profiles:_load(q)
  local msg;Shop._limiter=Utility.RateLimiter.new(0);Shop._result={FireClient=function(_,_,ok,m) msg=m end}
@@ -904,7 +931,7 @@ check("first coin top-up is doubled once",function()
 end)
 check("daily deal: one discounted coin skin per day, charged at the deal price",function()
  local a,b=Config.dailyDealFor("2026-09-24"),Config.dailyDealFor("2026-09-25")
- assert(a and a.price<a.original and a.price==math.floor(a.original*0.7/10+0.5)*10)
+ assert(a and a.price<a.original and a.price==math.floor(a.original*0.7/100+0.5)*100)
  local seen={};for i=1,20 do local deal=Config.dailyDealFor(("2026-10-%02d"):format(i));seen[deal.kind.."/"..deal.id]=true end
  local n=0;for _ in pairs(seen) do n=n+1 end;assert(n>=4,"the deal rotates")
  local Shop=loadModule("ShopService");local q=player(134);Profiles:_load(q);local d=Profiles:Get(q)
@@ -947,6 +974,41 @@ check("English: exact, templated, nested and concatenated UI text all become Eng
  assert(count>=570)
  local ko=player(141);ko.LocaleId="ko-kr";assert(L.language(ko)=="ko");ko.LocaleId="en-us";assert(L.language(ko)=="en")
  ko:SetAttribute("Setting_language","ko");assert(L.language(ko)=="ko")
+end)
+
+check("skin price ladder: common ~1만, rare ~1.7~6.9만, epic ~13~15만, legend ~25~30만, mythic 49.9만",function()
+ local ranges={common={7000,12000},rare={16000,69000},epic={128000,149000},legend={240000,300000},mythic={499000,499000}}
+ local seen={}
+ for kind in pairs(Config.Skins.PlayerAttributes) do for _,skin in ipairs(Config.Skins[kind]) do
+  if Config.isCoinSkin(skin) then
+   local range=ranges[skin.rarity];assert(range,kind.."/"..skin.id);assert(skin.price>=range[1] and skin.price<=range[2],kind.."/"..skin.id.." "..skin.price)
+   seen[skin.rarity]=(seen[skin.rarity] or 0)+1
+   if skin.rarity=="mythic" then assert(skin.fx and skin.fx.mythic,"mythic skins get the rainbow sparkle") end
+  end
+ end end
+ assert(seen.mythic>=10 and seen.legend>=5 and seen.common>=4)
+ -- 코인 묶음과 맞물린다 : 대 = 희귀 하나, 특대 = 영웅 하나, 금고 = 신화 하나
+ local by={};for _,pack in ipairs(Config.Products.Coins) do by[pack.id]=pack end
+ assert(by.coins_large.coins>=ranges.rare[2] and by.coins_huge.coins>=ranges.epic[2] and by.coins_vault.coins>=ranges.mythic[1])
+ assert(Config.Rarity.mythic.rank>Config.Rarity.legend.rank)
+end)
+check("blue steel drum: coin skin with rolling hoops, ribs, chimes and two bungs on the lid",function()
+ local skin=Config.findSkin("Barrel","blue_drum");assert(skin.id=="blue_drum" and skin.price==16900 and Config.isCoinSkin(skin) and skin.drum)
+ local Drum=loadModule("DrumStyle");local length,diameter,top=3.4,3,1.87
+ local kinds={};for _,e in ipairs(Drum.layout(length,diameter,top)) do
+  kinds[e.kind]=(kinds[e.kind] or 0)+1
+  if e.kind=="bung" or e.kind=="bungSmall" then assert(e.x>top and math.sqrt(e.y^2+e.z^2)+e.size/2<diameter/2,"bungs sit on the lid")
+  else assert(math.abs(e.x)<=length/2,"rings stay on the body") end
+ end
+ assert(kinds.hoop==2 and kinds.rib==8 and kinds.chime==2 and kinds.bung==1 and kinds.bungSmall==1)
+end)
+check("buying a legend or mythic skin is announced to the whole server",function()
+ local Shop=loadModule("ShopService");local q=player(151);Profiles:_load(q);local d=Profiles:Get(q)
+ local cue=services.ReplicatedStorage.CursedBarrel.Remotes:WaitForChild("WorldCue");cue.last=nil
+ local skin=Config.findSkin("Knife","deep");d.coins=skin.price;d.owned.Knife.deep=nil
+ local deal=Config.dailyDealFor(Utility.today());if deal and deal.kind=="Knife" and deal.id=="deep" then d.coins=skin.price end
+ assert(Shop:Buy(q,"Knife","deep"));assert(cue.last and cue.last[1]=="Announce" and cue.last[2].rarity=="legend" and cue.last[2].skin==skin.name)
+ cue.last=nil;local cheap=Config.findSkin("Knife","bone");d.coins=cheap.price;d.owned.Knife.bone=nil;assert(Shop:Buy(q,"Knife","bone"));assert(cue.last==nil,"common skins are not announced")
 end)
 
 local Ship=loadModule("ShipLayout")

@@ -158,14 +158,15 @@ VIP 선장 패스, 현상금 부스터가 여기에 해당합니다.
 
 > ★ Phase 13 에서 바뀐 최신 표입니다. 스킨은 코인으로만 사고, 로벅스로는 코인을 충전합니다. (자세한 이유: [Phase 13 문서](Phase13_돈_출석_룰렛_영어_KO.md) 1장)
 
-### 개발자 상품 10개
+### 개발자 상품 11개 (최신 전체 목록은 [할일 총정리](할일_총정리_KO.md) 3장)
 
 | 상품 | 추천 가격 | 넣는 곳 (`GameConfig.lua`) |
 |---|---|---|
-| 코인 충전 소 · 1,500 코인 | 159 R$ | `Products.Coins` 의 `coins_small` 줄 `productId` |
-| 코인 충전 중 · 3,000 코인 | 319 R$ | `Products.Coins` 의 `coins_medium` 줄 `productId` |
-| 코인 충전 대 · 7,000 코인 | 369 R$ | `Products.Coins` 의 `coins_large` 줄 `productId` |
-| 코인 충전 특대 · 16,000 코인 | 799 R$ | `Products.Coins` 의 `coins_huge` 줄 `productId` |
+| 코인 충전 소 · 15,000 코인 | 159 R$ | `Products.Coins` 의 `coins_small` 줄 `productId` |
+| 코인 충전 중 · 30,000 코인 | 319 R$ | `Products.Coins` 의 `coins_medium` 줄 `productId` |
+| 코인 충전 대 · 70,000 코인 | 369 R$ | `Products.Coins` 의 `coins_large` 줄 `productId` |
+| 코인 충전 특대 · 160,000 코인 | 799 R$ | `Products.Coins` 의 `coins_huge` 줄 `productId` |
+| 코인 충전 금고 · 500,000 코인 | 1,999 R$ | `Products.Coins` 의 `coins_vault` 줄 `productId` |
 | 선원 스타터 팩 (계정당 1회) | 99 R$ | `Products.Starter.productId` |
 | 먹물 한 통 (방해) | 15 R$ | `Sabotage.Items` 의 `ink` 줄 `productId` |
 | 흔들리는 손 (방해) | 25 R$ | `Sabotage.Items` 의 `shake` 줄 `productId` |
@@ -208,6 +209,7 @@ coins_small =
 coins_medium =
 coins_large =
 coins_huge =
+coins_vault =
 starter =
 ink =
 shake =

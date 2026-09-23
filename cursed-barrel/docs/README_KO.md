@@ -1,7 +1,7 @@
 # 소스 및 재현
 
 - `output/CursedBarrel_Phase13_Rewards.rbxl`: 통합 Place. (Phase 13 변경 내용과 할 일: `docs/Phase13_돈_출석_룰렛_영어_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
-- `game`: 53개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
+- `game`: 54개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
@@ -31,7 +31,8 @@ python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택
   - 스킨은 모두 코인으로만 산다 (로벅스 전용 스킨 4개도 코인 스킨으로). 로벅스로는 코인을 충전한다: 소 159 · 중 319 · 대 369 · 특대 799 R$ (팝콘 가격, 대 강조).
   - 코인이 모자란 스킨 옆에 알맞은 묶음의 「충전」 버튼, 첫 코인 충전 2배, 오늘의 특가(매일 스킨 하나 30% 할인). 스타터 99 · VIP 399 · 부스터 249 R$.
   - 출석판(7칸, 직접 받기, 빠져도 이어받기, VIP 2배, 자동으로 열림), 룰렛(하루 한 번 무료, 적은 코인 위주 · 평범한 스킨 20% · 희귀 3%, 확률표).
-  - 영어: 한국어 UI 문장 571개 번역 사전 + 클라이언트 자동 번역(LocaleController). 빠진 영어는 테스트가 잡는다. 플레이어 목록 머리글 Wins/Streak.
+  - 영어: 한국어 UI 문장 번역 사전 + 클라이언트 자동 번역(LocaleController). 빠진 영어는 테스트가 잡는다. 플레이어 목록 머리글 Wins/Streak.
+  - 경제: 모든 코인 수입 ×3 (한 판 평균 약 800), 끝자리 9 가격표(기본 ~1만 · 희귀 1.7~6.9만 · 영웅 13~15만 · 전설 25~30만 · 신화 49.9만), 금고 묶음(500,000 · 1,999 R$), 신화 등급(무지갯빛 · 구매 알림), 파란 철제 드럼(DrumStyle).
 - 12.0.0 Kraken Storm:
   - 15분 항해 시계(낮 · 노을 · 밤 · 안개 · 폭풍 · 새벽). 하늘 · 비 · 번개 · 음악이 바뀌고 단계마다 현상금 · 보물 폭발 · 해적 수 · 잡기 속도가 바뀐다.
   - 폭풍의 크라켄 습격: 서버가 정한 내려치기(치켜듦 → 쾅 → 물러남), 화면 흔들림 · 충격파 · 파편 · 물기둥, 보스 체력, 대포로 막기, 승리 · 도망 보상.

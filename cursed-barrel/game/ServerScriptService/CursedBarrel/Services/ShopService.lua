@@ -234,7 +234,29 @@ function ShopService:Buy(player, kind, id)
 
 	ProfileService:Grant(player, kind, id)
 	GameConfig.log(("%s 가 %s/%s 를 %d코인에 구매"):format(player.Name, kind, id, price))
+	ShopService.announce(player, skin, "shop")
 	return true, ("%s 구매 완료 (-%s 코인)"):format(skin.name, Utility.comma(price))
+end
+
+-- Phase 13 : 전설 · 신화 스킨을 손에 넣으면 서버 전체에 알린다 (룰렛의 희귀 스킨도)
+function ShopService.announce(player, skin, source)
+	local rules = GameConfig.Announce
+	if not rules or not skin then
+		return
+	end
+	if source ~= "roulette" and not rules.Rarities[skin.rarity or "common"] then
+		return
+	end
+	local folder = ReplicatedStorage:FindFirstChild("CursedBarrel") and ReplicatedStorage.CursedBarrel:FindFirstChild(GameConfig.Remotes.Folder)
+	local cue = folder and folder:FindFirstChild(GameConfig.Remotes.WorldCue)
+	if cue then
+		cue:FireAllClients("Announce", {
+			name = player.DisplayName or player.Name,
+			skin = skin.name,
+			rarity = skin.rarity or "common",
+			source = source,
+		})
+	end
 end
 
 --------------------------------------------------

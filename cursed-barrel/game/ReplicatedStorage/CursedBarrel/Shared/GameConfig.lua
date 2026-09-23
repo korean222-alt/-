@@ -379,7 +379,7 @@ GameConfig.Brave = {
 	Enabled = true,
 	MaxChain = 3, -- 한 차례에 더 찌를 수 있는 최대 횟수
 	MinPickable = 3, -- 고를 수 있는 빈 자리가 이보다 적으면 제안하지 않는다
-	Rewards = { 12, 22, 36 }, -- 배짱 1·2·3단계로 살아남으면 바로 받는 코인
+	Rewards = { 35, 65, 110 }, -- 배짱 1·2·3단계로 살아남으면 바로 받는 코인
 }
 
 --------------------------------------------------
@@ -388,12 +388,12 @@ GameConfig.Brave = {
 --------------------------------------------------
 GameConfig.Pot = {
 	Enabled = true,
-	Base = 20,
-	PerPick = 6, -- 안전한 자리 하나마다
-	PerBravePick = 14, -- 배짱으로 더 찌른 안전한 자리마다 (PerPick 에 더해진다)
-	PerCatch = 16, -- 해적을 잡을 때마다
-	PerPerfect = 10, -- 완벽한 잡기는 더
-	Cap = 2500,
+	Base = 60,
+	PerPick = 18, -- 안전한 자리 하나마다
+	PerBravePick = 42, -- 배짱으로 더 찌른 안전한 자리마다 (PerPick 에 더해진다)
+	PerCatch = 48, -- 해적을 잡을 때마다
+	PerPerfect = 30, -- 완벽한 잡기는 더
+	Cap = 7500,
 
 	-- ★ Phase 11 : 보물 폭발. 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
 	--   안 터질수록 확률이 조금씩 오른다(PityStep). 한 판에 한두 번쯤 터지게 맞췄다.
@@ -404,15 +404,15 @@ GameConfig.Pot = {
 		MaxChance = 0.3,
 		BoostedMaxChance = 0.5, -- Phase 12 : 노을 · 행운 테이블로 커져도 이 이상은 안 된다
 		Tiers = {
-			{ id = "pouch", name = "금화 주머니", weight = 70, add = 45 },
-			{ id = "chest", name = "보물 상자", weight = 25, add = 90, mult = 1.5 },
-			{ id = "kraken", name = "크라켄의 보물", weight = 5, add = 150, mult = 2.5 },
+			{ id = "pouch", name = "금화 주머니", weight = 70, add = 135 },
+			{ id = "chest", name = "보물 상자", weight = 25, add = 270, mult = 1.5 },
+			{ id = "kraken", name = "크라켄의 보물", weight = 5, add = 450, mult = 2.5 },
 		},
 	},
 
 	-- ★ Phase 11 : 이월. 현상금을 다 가져가지 못한 판(기권승 · 승자 없음 · AI 선원 승리)은
 	--   남은 몫이 이 테이블의 다음 판으로 넘어간다. 판이 거듭될수록 테이블 위 금화가 쌓인다.
-	CarryCap = 1500,
+	CarryCap = 4500,
 }
 
 --------------------------------------------------
@@ -460,6 +460,8 @@ GameConfig.Rarity = {
 	rare = { rank = 2, label = "희귀", color = Color3.fromRGB(120, 190, 255) },
 	epic = { rank = 3, label = "영웅", color = Color3.fromRGB(196, 130, 255) },
 	legend = { rank = 4, label = "전설", color = Color3.fromRGB(255, 186, 78) },
+	-- Phase 13 : 가장 비싼 용 세트. 무지갯빛 반짝임이 더 붙고, 사면 서버 전체에 알린다.
+	mythic = { rank = 5, label = "신화", color = Color3.fromRGB(255, 92, 150) },
 }
 
 function GameConfig.rarityOf(skin)
@@ -499,35 +501,35 @@ GameConfig.Skins = {
 			guard = Color3.fromRGB(126, 104, 62), trail = Color3.fromRGB(226, 216, 190),
 		},
 		{
-			id = "bone", name = "뼈칼", rarity = "common", price = 250,
+			id = "bone", name = "뼈칼", rarity = "common", price = 7900,
 			blade = Color3.fromRGB(238, 232, 212), bladeMaterial = Enum.Material.Sand,
 			handle = Color3.fromRGB(206, 196, 170), handleMaterial = Enum.Material.Sand,
 			guard = Color3.fromRGB(96, 86, 68), trail = Color3.fromRGB(240, 236, 216),
 			fx = { emit = Color3.fromRGB(226, 220, 200), trail = Color3.fromRGB(240, 236, 216) },
 		},
 		{
-			id = "gold", name = "선장의 금검", rarity = "rare", price = 900,
+			id = "gold", name = "선장의 금검", rarity = "rare", price = 48900,
 			blade = Color3.fromRGB(246, 206, 106), bladeMaterial = Enum.Material.Metal,
 			handle = Color3.fromRGB(120, 78, 32), handleMaterial = Enum.Material.Wood,
 			guard = Color3.fromRGB(255, 226, 140), trail = Color3.fromRGB(255, 226, 140), glow = 0.45,
 			fx = { emit = Color3.fromRGB(255, 226, 140), spark = true, trail = Color3.fromRGB(255, 226, 140), halo = Color3.fromRGB(255, 206, 110), pulse = 1.4 },
 		},
 		{
-			id = "cursed", name = "저주받은 칼날", rarity = "epic", price = 2200,
+			id = "cursed", name = "저주받은 칼날", rarity = "epic", price = 128900,
 			blade = Color3.fromRGB(120, 255, 214), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(26, 34, 40), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(84, 214, 186), trail = Color3.fromRGB(120, 255, 214), glow = 1,
 			fx = { emit = Color3.fromRGB(120, 255, 214), spark = true, trail = Color3.fromRGB(120, 255, 214), halo = Color3.fromRGB(84, 214, 186), pulse = 2.1 },
 		},
 		{
-			id = "ember", name = "잿불 단검", rarity = "legend", price = 9000,
+			id = "ember", name = "잿불 단검", rarity = "legend", price = 291900,
 			blade = Color3.fromRGB(255, 132, 62), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(46, 26, 20), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(255, 96, 48), trail = Color3.fromRGB(255, 150, 70), glow = 1,
 			fx = { emit = Color3.fromRGB(255, 132, 62), spark = true, trail = Color3.fromRGB(255, 150, 70), halo = Color3.fromRGB(255, 96, 48), pulse = 3.2, smoke = true },
 		},
 		{
-			id = "deep", name = "심해의 작살", rarity = "legend", price = 6000,
+			id = "deep", name = "심해의 작살", rarity = "legend", price = 248900,
 			blade = Color3.fromRGB(126, 196, 255), bladeMaterial = Enum.Material.Ice,
 			handle = Color3.fromRGB(28, 58, 74), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(96, 168, 226), trail = Color3.fromRGB(150, 214, 255), glow = 0.6,
@@ -558,7 +560,7 @@ GameConfig.Skins = {
 			lid = Color3.fromRGB(96, 62, 36), glow = Color3.fromRGB(255, 196, 120),
 		},
 		{
-			id = "drum", name = "기름 드럼통", rarity = "common", price = 350,
+			id = "drum", name = "기름 드럼통", rarity = "common", price = 8900,
 			body = Color3.fromRGB(196, 62, 44), bodyMaterial = Enum.Material.CorrodedMetal,
 			hoop = Color3.fromRGB(226, 208, 96), hoopMaterial = Enum.Material.Metal,
 			lid = Color3.fromRGB(150, 46, 34), glow = Color3.fromRGB(255, 150, 90),
@@ -566,29 +568,37 @@ GameConfig.Skins = {
 			fx = { emit = Color3.fromRGB(255, 150, 90), smoke = true },
 		},
 		{
-			id = "steel", name = "폐유 드럼통", rarity = "common", price = 350,
+			id = "steel", name = "폐유 드럼통", rarity = "common", price = 8900,
 			body = Color3.fromRGB(96, 104, 110), bodyMaterial = Enum.Material.DiamondPlate,
 			hoop = Color3.fromRGB(58, 64, 70), hoopMaterial = Enum.Material.Metal,
 			lid = Color3.fromRGB(78, 86, 92), glow = Color3.fromRGB(180, 220, 255),
 			ribbed = true,
 			fx = { emit = Color3.fromRGB(180, 220, 255) },
 		},
+		-- Phase 13 : 파란 철제 드럼 (진짜 200리터 드럼처럼 : 광택 파란 페인트 · 굴림 테 두 줄 · 위아래 주름 · 뚜껑 마개 둘)
 		{
-			id = "treasure", name = "보물 상자", rarity = "rare", price = 1200,
+			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 16900,
+			body = Color3.fromRGB(26, 70, 178), bodyMaterial = Enum.Material.SmoothPlastic, reflectance = 0.16,
+			hoop = Color3.fromRGB(34, 84, 196), hoopMaterial = Enum.Material.SmoothPlastic,
+			lid = Color3.fromRGB(30, 76, 186), glow = Color3.fromRGB(30, 76, 186), glowMaterial = Enum.Material.SmoothPlastic,
+			drum = { bung = Color3.fromRGB(206, 210, 216), bungSmall = Color3.fromRGB(196, 158, 92) },
+		},
+		{
+			id = "treasure", name = "보물 상자", rarity = "rare", price = 55900,
 			body = Color3.fromRGB(104, 68, 38), bodyMaterial = Enum.Material.Wood,
 			hoop = Color3.fromRGB(240, 202, 104), hoopMaterial = Enum.Material.Metal,
 			lid = Color3.fromRGB(240, 202, 104), glow = Color3.fromRGB(255, 220, 140),
 			fx = { emit = Color3.fromRGB(255, 220, 140), spark = true, halo = Color3.fromRGB(255, 206, 110), pulse = 1.2, coins = true },
 		},
 		{
-			id = "kimchi", name = "김치통", rarity = "rare", price = 1200,
+			id = "kimchi", name = "김치통", rarity = "rare", price = 55900,
 			body = Color3.fromRGB(236, 66, 52), bodyMaterial = Enum.Material.Plastic,
 			hoop = Color3.fromRGB(246, 246, 246), hoopMaterial = Enum.Material.Plastic,
 			lid = Color3.fromRGB(246, 246, 246), glow = Color3.fromRGB(255, 150, 130),
 			fx = { emit = Color3.fromRGB(255, 120, 100), pulse = 0.9 },
 		},
 		{
-			id = "abyss", name = "심연의 통", rarity = "legend", price = 7000,
+			id = "abyss", name = "심연의 통", rarity = "legend", price = 262900,
 			body = Color3.fromRGB(28, 34, 46), bodyMaterial = Enum.Material.Slate,
 			hoop = Color3.fromRGB(120, 255, 214), hoopMaterial = Enum.Material.Neon,
 			lid = Color3.fromRGB(38, 46, 60), glow = Color3.fromRGB(120, 255, 214),
@@ -596,14 +606,14 @@ GameConfig.Skins = {
 		},
 		-- Phase 8 : 새 통 테마
 		{
-			id = "volcano", name = "화산의 통", rarity = "epic", price = 3400,
+			id = "volcano", name = "화산의 통", rarity = "epic", price = 140900,
 			body = Color3.fromRGB(58, 34, 30), bodyMaterial = Enum.Material.Basalt,
 			hoop = Color3.fromRGB(255, 118, 46), hoopMaterial = Enum.Material.Neon,
 			lid = Color3.fromRGB(44, 26, 24), glow = Color3.fromRGB(255, 132, 46),
 			fx = { emit = Color3.fromRGB(255, 132, 46), spark = true, halo = Color3.fromRGB(255, 90, 40), pulse = 3, smoke = true },
 		},
 		{
-			id = "frost", name = "유빙의 통", rarity = "epic", price = 3400,
+			id = "frost", name = "유빙의 통", rarity = "epic", price = 140900,
 			body = Color3.fromRGB(176, 220, 246), bodyMaterial = Enum.Material.Ice,
 			hoop = Color3.fromRGB(226, 246, 255), hoopMaterial = Enum.Material.Glass,
 			lid = Color3.fromRGB(198, 232, 250), glow = Color3.fromRGB(198, 240, 255),
@@ -619,35 +629,35 @@ GameConfig.Skins = {
 			aura = Color3.fromRGB(101, 241, 211),
 		},
 		{
-			id = "skull", name = "해골 선장", rarity = "common", price = 400,
+			id = "skull", name = "해골 선장", rarity = "common", price = 9900,
 			coat = Color3.fromRGB(46, 46, 52), skin = Color3.fromRGB(242, 240, 228),
 			hat = Color3.fromRGB(22, 22, 26), accent = Color3.fromRGB(226, 226, 226),
 			aura = Color3.fromRGB(226, 230, 236),
 			fx = { emit = Color3.fromRGB(226, 230, 236), smoke = true },
 		},
 		{
-			id = "kraken", name = "크라켄", rarity = "rare", price = 1500,
+			id = "kraken", name = "크라켄", rarity = "rare", price = 61900,
 			coat = Color3.fromRGB(94, 58, 140), skin = Color3.fromRGB(176, 130, 226),
 			hat = Color3.fromRGB(52, 30, 82), accent = Color3.fromRGB(226, 150, 255),
 			aura = Color3.fromRGB(196, 130, 255),
 			fx = { emit = Color3.fromRGB(196, 130, 255), spark = true, halo = Color3.fromRGB(150, 90, 226), pulse = 1.6, bubbles = true },
 		},
 		{
-			id = "cook", name = "좀비 요리사", rarity = "rare", price = 1500,
+			id = "cook", name = "좀비 요리사", rarity = "rare", price = 61900,
 			coat = Color3.fromRGB(226, 226, 220), skin = Color3.fromRGB(150, 196, 120),
 			hat = Color3.fromRGB(240, 240, 236), accent = Color3.fromRGB(196, 72, 60),
 			aura = Color3.fromRGB(170, 226, 130),
 			fx = { emit = Color3.fromRGB(170, 226, 130), smoke = true, pulse = 1 },
 		},
 		{
-			id = "ember", name = "잿불 망령", rarity = "legend", price = 9500,
+			id = "ember", name = "잿불 망령", rarity = "legend", price = 298900,
 			coat = Color3.fromRGB(96, 34, 20), skin = Color3.fromRGB(255, 160, 90),
 			hat = Color3.fromRGB(42, 20, 14), accent = Color3.fromRGB(255, 120, 50),
 			aura = Color3.fromRGB(255, 140, 60),
 			fx = { emit = Color3.fromRGB(255, 140, 60), spark = true, halo = Color3.fromRGB(255, 90, 40), pulse = 3.4, smoke = true },
 		},
 		{
-			id = "siren", name = "심해의 인어", rarity = "legend", price = 6500,
+			id = "siren", name = "심해의 인어", rarity = "legend", price = 255900,
 			coat = Color3.fromRGB(28, 88, 126), skin = Color3.fromRGB(150, 226, 255),
 			hat = Color3.fromRGB(20, 60, 90), accent = Color3.fromRGB(120, 255, 255),
 			aura = Color3.fromRGB(120, 226, 255),
@@ -655,7 +665,7 @@ GameConfig.Skins = {
 		},
 		-- Phase 8 : 새 괴물
 		{
-			id = "voidking", name = "공허의 왕", rarity = "epic", price = 3800,
+			id = "voidking", name = "공허의 왕", rarity = "epic", price = 144900,
 			coat = Color3.fromRGB(26, 22, 40), skin = Color3.fromRGB(150, 130, 226),
 			hat = Color3.fromRGB(16, 14, 26), accent = Color3.fromRGB(196, 150, 255),
 			aura = Color3.fromRGB(150, 110, 255),
@@ -668,12 +678,12 @@ GameConfig.Skins = {
 	--   color : 칼이 지나간 자리에 남는 빛 색
 	Stab = {
 		{ id = "classic", name = "기본 찌르기", rarity = "common", price = 0, style = "classic", color = Color3.fromRGB(226, 216, 190) },
-		{ id = "overhead", name = "내려찍기", rarity = "common", price = 600, style = "overhead", color = Color3.fromRGB(255, 226, 140) },
-		{ id = "triple", name = "세 번 찌르기", rarity = "rare", price = 1500, style = "triple", color = Color3.fromRGB(150, 214, 255) },
-		{ id = "spin", name = "회전 베기", rarity = "rare", price = 1800, style = "spin", color = Color3.fromRGB(120, 255, 214) },
-		{ id = "flourish", name = "단검 저글링", rarity = "epic", price = 3600, style = "flourish", color = Color3.fromRGB(196, 130, 255) },
-		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 8000, style = "slam", color = Color3.fromRGB(255, 132, 62) },
-		{ id = "dragon_dive", name = "용의 급강하", rarity = "legend", price = 8000, style = "dive", color = Color3.fromRGB(68, 240, 218) },
+		{ id = "overhead", name = "내려찍기", rarity = "common", price = 11900, style = "overhead", color = Color3.fromRGB(255, 226, 140) },
+		{ id = "triple", name = "세 번 찌르기", rarity = "rare", price = 61900, style = "triple", color = Color3.fromRGB(150, 214, 255) },
+		{ id = "spin", name = "회전 베기", rarity = "rare", price = 68900, style = "spin", color = Color3.fromRGB(120, 255, 214) },
+		{ id = "flourish", name = "단검 저글링", rarity = "epic", price = 142900, style = "flourish", color = Color3.fromRGB(196, 130, 255) },
+		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 277900, style = "slam", color = Color3.fromRGB(255, 132, 62) },
+		{ id = "dragon_dive", name = "용의 급강하", rarity = "mythic", price = 499000, style = "dive", color = Color3.fromRGB(68, 240, 218) },
 		-- Phase 12 : 시즌 한정 (시즌 보상으로만 받는다 · 상점에서 살 수 없다)
 		{ id = "storm_strike", name = "폭풍의 일격", rarity = "legend", price = 0, season = true, style = "bolt", color = Color3.fromRGB(170, 210, 255) },
 	},
@@ -702,19 +712,19 @@ end
 -- 코인과 레벨 (Phase 7)
 --------------------------------------------------
 GameConfig.Economy = {
-	WinReward = 120, -- 우승
-	ParticipationReward = 25, -- 한 판 끝까지 앉아 있기
-	SurviveTurnReward = 6, -- 안전한 자리를 뽑을 때마다
-	CatchReward = 18, -- 해적을 잡을 때마다
-	StreakBonus = 35, -- 연승 1회당 더해지는 우승 보상 (5연승이면 +175)
+	WinReward = 360, -- 우승
+	ParticipationReward = 75, -- 한 판 끝까지 앉아 있기
+	SurviveTurnReward = 18, -- 안전한 자리를 뽑을 때마다
+	CatchReward = 55, -- 해적을 잡을 때마다
+	StreakBonus = 100, -- 연승 1회당 더해지는 우승 보상 (5연승이면 +500)
 	StreakBonusCap = 6, -- 보너스가 커지는 상한 연승 수
 	DuoScale = 0.7, -- 2인 테이블은 금방 끝나므로 보상을 줄인다
 	PartyScale = 1.25, -- 6인 테이블은 오래 버텨야 하므로 더 준다
 	LeaveEarlyReward = 0, -- 중도 이탈은 주지 않는다
-	DailyBonus = 150, -- 하루에 한 번 접속 보상 (연속 출석 1일째)
+	DailyBonus = 450, -- 하루에 한 번 접속 보상 (연속 출석 1일째)
 	-- Phase 10 : 연속 출석. 7일을 채우면 다시 1일째부터 돈다. 하루라도 빠지면 1일째로 돌아간다.
-	DailyStreakBonus = { 150, 200, 250, 300, 350, 400, 700 },
-	PerfectCatchBonus = 15, -- 완벽한 잡기에 더 주는 코인
+	DailyStreakBonus = { 450, 600, 750, 900, 1050, 1200, 2100 },
+	PerfectCatchBonus = 45, -- 완벽한 잡기에 더 주는 코인
 }
 
 -- 연속 출석 N일째의 보상
@@ -833,20 +843,23 @@ end
 -- 로벅스 상품 (Phase 7 · Phase 13 에서 다시 짬)
 --
 -- ★ Phase 13 : 스킨은 모두 코인으로만 산다. 로벅스로는 코인을 충전한다. (돈 → 코인 → 스킨)
+--   코인 숫자는 일부러 크게 보이게 잡았다 (한 판 평균 약 800 코인). 1 코인 ≈ 0.1원.
 --   코인 묶음은 영화관 팝콘처럼 값을 매겼다. (400 R$ ≈ 7,500원 기준, R$ 1 ≈ 19원)
---     소  1,500 코인  159 R$ (약 3,000원)
---     중  3,000 코인  319 R$ (약 6,000원)   ← 소 두 개와 똑같다. 일부러 이득이 없다
---     대  7,000 코인  369 R$ (약 7,000원)   ← 중보다 50 R$ 더 내면 코인이 2배 넘게. 이걸 사게 만든다
---     특대 16,000 코인 799 R$ (약 15,000원) ← 크게 쓰는 사람용. 옆에 있으면 "대"가 싸 보인다
+--     소     15,000 코인   159 R$ (약 3,000원)
+--     중     30,000 코인   319 R$ (약 6,000원)   ← 소 두 개와 똑같다. 일부러 이득이 없다
+--     대     70,000 코인   369 R$ (약 7,000원)   ← 중보다 50 R$ 더 내면 코인이 2배 넘게. 희귀 스킨 하나 값
+--     특대  160,000 코인   799 R$ (약 15,000원)  ← 영웅 스킨 하나 값
+--     금고  500,000 코인 1,999 R$ (약 37,000원)  ← 신화 스킨 하나 값. 크게 쓰는 사람용
 --   robux 값은 상점에 보이는 숫자일 뿐이다. 실제 가격은 Creator Hub 에서 상품을 만들 때 같은 값으로 적는다.
 --------------------------------------------------
 GameConfig.Products = {
 	Coins = {
-		{ id = "coins_small", size = "소", name = "코인 1,500", coins = 1500, robux = 159, productId = 0 },
-		{ id = "coins_medium", size = "중", name = "코인 3,000", coins = 3000, robux = 319, productId = 0 },
-		{ id = "coins_large", size = "대", name = "코인 7,000", coins = 7000, robux = 369, productId = 0,
+		{ id = "coins_small", size = "소", name = "코인 15,000", coins = 15000, robux = 159, productId = 0 },
+		{ id = "coins_medium", size = "중", name = "코인 30,000", coins = 30000, robux = 319, productId = 0 },
+		{ id = "coins_large", size = "대", name = "코인 70,000", coins = 70000, robux = 369, productId = 0,
 			highlight = true, badge = "🔥 가장 인기 · 중보다 R$ 50만 더 내면 코인 2배 넘게!" },
-		{ id = "coins_huge", size = "특대", name = "코인 16,000", coins = 16000, robux = 799, productId = 0, badge = "👑 보물 상자 · 가장 많이" },
+		{ id = "coins_huge", size = "특대", name = "코인 160,000", coins = 160000, robux = 799, productId = 0, badge = "👑 보물 상자 · 영웅 스킨 하나 값" },
+		{ id = "coins_vault", size = "금고", name = "코인 500,000", coins = 500000, robux = 1999, productId = 0, badge = "💎 선장의 금고 · 신화 스킨 하나 값" },
 	},
 	-- 로벅스 전용 스킨 (Phase 13 부터 비움 : 스킨은 코인으로만 산다). skin 에는 "Knife/ember" 처럼 적는다.
 	Skins = {},
@@ -855,8 +868,8 @@ GameConfig.Products = {
 	-- 게임 결과를 바꾸는 것은 넣지 않는다. 코인과 전용 칼 스킨뿐이다.
 	Starter = {
 		id = "starter", name = "선원 스타터 팩", robux = 99, productId = 0,
-		coins = 2500, skin = "Knife/starter_hook",
-		blurb = "코인 2,500 + 전용 칼 「선원의 갈고리」 · 계정당 한 번",
+		coins = 25000, skin = "Knife/starter_hook",
+		blurb = "코인 25,000 + 전용 칼 「선원의 갈고리」 · 계정당 한 번",
 	},
 
 	-- Phase 10 : 게임패스. Creator Dashboard 에서 게임패스를 만들고 그 ID 를 gamePassId 에 적는다.
@@ -886,40 +899,40 @@ GameConfig.Quests = {
 	Enabled = true,
 	DailyCount = 3, -- 하루에 주어지는 개수
 	Pool = {
-		{ id = "play3", text = "3판 참가하기", metric = "games", goal = 3, reward = 120 },
-		{ id = "win1", text = "1판 우승하기", metric = "wins", goal = 1, reward = 200 },
-		{ id = "catch5", text = "해적 5번 잡기", metric = "catches", goal = 5, reward = 180 },
-		{ id = "safe12", text = "안전한 자리 12번 뽑기", metric = "safePicks", goal = 12, reward = 150 },
-		{ id = "duo2", text = "2인 테이블에서 2판 하기", metric = "duoGames", goal = 2, reward = 130 },
-		{ id = "party1", text = "6인 테이블에서 1판 하기", metric = "partyGames", goal = 1, reward = 160 },
-		{ id = "streak2", text = "2연승 만들기", metric = "bestStreakToday", goal = 2, reward = 220 },
+		{ id = "play3", text = "3판 참가하기", metric = "games", goal = 3, reward = 360 },
+		{ id = "win1", text = "1판 우승하기", metric = "wins", goal = 1, reward = 600 },
+		{ id = "catch5", text = "해적 5번 잡기", metric = "catches", goal = 5, reward = 540 },
+		{ id = "safe12", text = "안전한 자리 12번 뽑기", metric = "safePicks", goal = 12, reward = 450 },
+		{ id = "duo2", text = "2인 테이블에서 2판 하기", metric = "duoGames", goal = 2, reward = 390 },
+		{ id = "party1", text = "6인 테이블에서 1판 하기", metric = "partyGames", goal = 1, reward = 480 },
+		{ id = "streak2", text = "2연승 만들기", metric = "bestStreakToday", goal = 2, reward = 660 },
 		-- Phase 10
-		{ id = "brave3", text = "배짱으로 3번 더 찌르고 살아남기", metric = "bravePicks", goal = 3, reward = 200 },
-		{ id = "perfect2", text = "해적을 완벽하게 2번 잡기", metric = "perfectCatches", goal = 2, reward = 220 },
+		{ id = "brave3", text = "배짱으로 3번 더 찌르고 살아남기", metric = "bravePicks", goal = 3, reward = 600 },
+		{ id = "perfect2", text = "해적을 완벽하게 2번 잡기", metric = "perfectCatches", goal = 2, reward = 660 },
 		-- Phase 12
-		{ id = "cannon10", text = "대포로 크라켄을 10번 맞히기", metric = "cannonHits", goal = 10, reward = 160 },
-		{ id = "raid1", text = "크라켄 습격 물리치기에 참여하기", metric = "raidWins", goal = 1, reward = 200 },
-		{ id = "predict2", text = "관전하며 생존자 2번 맞히기", metric = "predictWins", goal = 2, reward = 150 },
+		{ id = "cannon10", text = "대포로 크라켄을 10번 맞히기", metric = "cannonHits", goal = 10, reward = 480 },
+		{ id = "raid1", text = "크라켄 습격 물리치기에 참여하기", metric = "raidWins", goal = 1, reward = 600 },
+		{ id = "predict2", text = "관전하며 생존자 2번 맞히기", metric = "predictWins", goal = 2, reward = 450 },
 	},
 }
 
 GameConfig.Achievements = {
-	{ id = "first_win", text = "첫 승리", metric = "wins", goal = 1, reward = 200 },
-	{ id = "win10", text = "10승", metric = "wins", goal = 10, reward = 600 },
-	{ id = "win50", text = "50승", metric = "wins", goal = 50, reward = 2500 },
-	{ id = "catch50", text = "해적 50번 잡기", metric = "catches", goal = 50, reward = 900 },
-	{ id = "catch250", text = "해적 250번 잡기", metric = "catches", goal = 250, reward = 3000 },
-	{ id = "streak3", text = "3연승", metric = "bestStreak", goal = 3, reward = 700 },
-	{ id = "streak7", text = "7연승", metric = "bestStreak", goal = 7, reward = 2800 },
-	{ id = "games100", text = "100판 참가", metric = "games", goal = 100, reward = 1200 },
+	{ id = "first_win", text = "첫 승리", metric = "wins", goal = 1, reward = 600 },
+	{ id = "win10", text = "10승", metric = "wins", goal = 10, reward = 1800 },
+	{ id = "win50", text = "50승", metric = "wins", goal = 50, reward = 7500 },
+	{ id = "catch50", text = "해적 50번 잡기", metric = "catches", goal = 50, reward = 2700 },
+	{ id = "catch250", text = "해적 250번 잡기", metric = "catches", goal = 250, reward = 9000 },
+	{ id = "streak3", text = "3연승", metric = "bestStreak", goal = 3, reward = 2100 },
+	{ id = "streak7", text = "7연승", metric = "bestStreak", goal = 7, reward = 8400 },
+	{ id = "games100", text = "100판 참가", metric = "games", goal = 100, reward = 3600 },
 	-- Phase 10
-	{ id = "brave25", text = "배짱으로 25번 살아남기", metric = "bravePicks", goal = 25, reward = 900 },
-	{ id = "perfect20", text = "완벽한 잡기 20회", metric = "perfectCatches", goal = 20, reward = 1100 },
+	{ id = "brave25", text = "배짱으로 25번 살아남기", metric = "bravePicks", goal = 25, reward = 2700 },
+	{ id = "perfect20", text = "완벽한 잡기 20회", metric = "perfectCatches", goal = 20, reward = 3300 },
 	-- Phase 12 (title 이 있으면 머리 위 칭호가 생긴다)
-	{ id = "cannon100", text = "대포로 크라켄 100번 맞히기", metric = "cannonHits", goal = 100, reward = 800 },
-	{ id = "raid10", text = "크라켄 습격 10번 물리치기", metric = "raidWins", goal = 10, reward = 2000, title = "크라켄 사냥꾼" },
-	{ id = "crew5", text = "친구 · 파티와 같은 판에서 5번 우승", metric = "crewWins", goal = 5, reward = 900, title = "선원 동료" },
-	{ id = "tourney34", text = "토너먼트 시리즈 34점 이상", metric = "bestSeries", goal = 34, reward = 2500, title = "토너먼트 챔피언" },
+	{ id = "cannon100", text = "대포로 크라켄 100번 맞히기", metric = "cannonHits", goal = 100, reward = 2400 },
+	{ id = "raid10", text = "크라켄 습격 10번 물리치기", metric = "raidWins", goal = 10, reward = 6000, title = "크라켄 사냥꾼" },
+	{ id = "crew5", text = "친구 · 파티와 같은 판에서 5번 우승", metric = "crewWins", goal = 5, reward = 2700, title = "선원 동료" },
+	{ id = "tourney34", text = "토너먼트 시리즈 34점 이상", metric = "bestSeries", goal = 34, reward = 7500, title = "토너먼트 챔피언" },
 }
 
 --------------------------------------------------
@@ -1161,18 +1174,18 @@ GameConfig.Skins.PlayerAttributes.Elimination = "EliminationSkin"
 GameConfig.Skins.PlayerAttributes.Victory = "VictorySkin"
 GameConfig.Skins.Chair = {
  {id="classic",name="선술집 의자",rarity="common",price=0},
- {id="captain",name="선장의 황금좌",rarity="epic",price=2400,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
- {id="dragon_throne",name="해룡의 왕좌",rarity="legend",price=8500,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
+ {id="captain",name="선장의 황금좌",rarity="epic",price=130900,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
+ {id="dragon_throne",name="해룡의 왕좌",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
 GameConfig.Skins.Elimination = {
  {id="classic",name="유령의 흔적",rarity="common",price=0},
- {id="rift",name="심연의 균열",rarity="epic",price=3200,fx={theme="void",emit=Color3.fromRGB(186,102,255)}},
- {id="dragon_devour",name="용의 심판",rarity="legend",price=7600,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
+ {id="rift",name="심연의 균열",rarity="epic",price=138900,fx={theme="void",emit=Color3.fromRGB(186,102,255)}},
+ {id="dragon_devour",name="용의 심판",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
 GameConfig.Skins.Victory = {
  {id="classic",name="선장의 경례",rarity="common",price=0},
- {id="solar_crown",name="태양의 대관식",rarity="epic",price=3800,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
- {id="dragon_ascension",name="쌍룡 승천",rarity="legend",price=10000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
+ {id="solar_crown",name="태양의 대관식",rarity="epic",price=144900,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
+ {id="dragon_ascension",name="쌍룡 승천",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
 local themes = {
  {id="tide_dragon",name="청해룡",theme="dragon",color=Color3.fromRGB(68,240,218),accent=Color3.fromRGB(255,212,126)},
@@ -1181,9 +1194,9 @@ local themes = {
 }
 for _, t in ipairs(themes) do
  local fx={theme=t.theme,emit=t.color,trail=t.color,halo=t.accent,spark=true,pulse=1.2,accent=t.accent}
- table.insert(GameConfig.Skins.Knife,{id=t.id,name=t.name.."의 송곳니",rarity="legend",price=9000,blade=t.color,bladeMaterial=Enum.Material.Neon,handle=Color3.fromRGB(19,27,40),handleMaterial=Enum.Material.Metal,guard=t.accent,trail=t.color,glow=0.6,fx=fx})
- table.insert(GameConfig.Skins.Barrel,{id=t.id,name=t.name.."의 봉인",rarity="legend",price=11000,body=Color3.fromRGB(24,36,49),bodyMaterial=Enum.Material.Slate,hoop=t.accent,hoopMaterial=Enum.Material.Metal,lid=t.color,glow=t.color,fx=fx})
- table.insert(GameConfig.Skins.Ghost,{id=t.id,name=t.name.."의 수호자",rarity="legend",price=9500,coat=Color3.fromRGB(25,39,56),skin=t.color,hat=Color3.fromRGB(20,28,42),accent=t.accent,aura=t.color,fx=fx})
+ table.insert(GameConfig.Skins.Knife,{id=t.id,name=t.name.."의 송곳니",rarity="mythic",price=499000,blade=t.color,bladeMaterial=Enum.Material.Neon,handle=Color3.fromRGB(19,27,40),handleMaterial=Enum.Material.Metal,guard=t.accent,trail=t.color,glow=0.6,fx=fx})
+ table.insert(GameConfig.Skins.Barrel,{id=t.id,name=t.name.."의 봉인",rarity="mythic",price=499000,body=Color3.fromRGB(24,36,49),bodyMaterial=Enum.Material.Slate,hoop=t.accent,hoopMaterial=Enum.Material.Metal,lid=t.color,glow=t.color,fx=fx})
+ table.insert(GameConfig.Skins.Ghost,{id=t.id,name=t.name.."의 수호자",rarity="mythic",price=499000,coat=Color3.fromRGB(25,39,56),skin=t.color,hat=Color3.fromRGB(20,28,42),accent=t.accent,aura=t.color,fx=fx})
 end
 for _, list in ipairs({GameConfig.Skins.Knife,GameConfig.Skins.Barrel,GameConfig.Skins.Ghost}) do
  for _, skin in ipairs(list) do
@@ -1202,17 +1215,17 @@ GameConfig.TableTypeByName.Table_H = "PartyCards6"
 -- Phase 12 : 승리 · 탈락 연출 추가 (전부 모양일 뿐이다)
 --------------------------------------------------
 for _, skin in ipairs({
-	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 1800, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
-	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 3600, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
-	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 4200, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
-	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 9000, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
+	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 68900, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
+	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 142900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 148900, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
+	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 291900, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
 }) do
 	table.insert(GameConfig.Skins.Victory, skin)
 end
 for _, skin in ipairs({
-	{ id = "ink_burst", name = "먹물 폭발", rarity = "rare", price = 1600, fx = { theme = "kraken", emit = Color3.fromRGB(96, 50, 130) } },
-	{ id = "ember_ash", name = "잿더미", rarity = "epic", price = 3400, fx = { theme = "phoenix", emit = Color3.fromRGB(255, 120, 50) } },
-	{ id = "frost_shatter", name = "얼음 파편", rarity = "epic", price = 3400, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+	{ id = "ink_burst", name = "먹물 폭발", rarity = "rare", price = 64900, fx = { theme = "kraken", emit = Color3.fromRGB(96, 50, 130) } },
+	{ id = "ember_ash", name = "잿더미", rarity = "epic", price = 140900, fx = { theme = "phoenix", emit = Color3.fromRGB(255, 120, 50) } },
+	{ id = "frost_shatter", name = "얼음 파편", rarity = "epic", price = 140900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
 }) do
 	table.insert(GameConfig.Skins.Elimination, skin)
 end
@@ -1344,10 +1357,10 @@ GameConfig.Raid = {
 		{ side = -1, z = 76 }, { side = -1, z = 23 }, { side = -1, z = -20 },
 		{ side = 1, z = 74 }, { side = 1, z = 30 }, { side = 1, z = -28 },
 	},
-	WinCoins = 60, -- 물리치면 참여한 사람 모두에게
-	CoinsPerHit = 3, -- 맞힌 횟수만큼 더
-	WinCoinsCap = 150,
-	EscapeCoins = 15, -- 못 물리쳐도 한 번이라도 맞힌 사람에게
+	WinCoins = 180, -- 물리치면 참여한 사람 모두에게
+	CoinsPerHit = 9, -- 맞힌 횟수만큼 더
+	WinCoinsCap = 450,
+	EscapeCoins = 45, -- 못 물리쳐도 한 번이라도 맞힌 사람에게
 }
 
 --------------------------------------------------
@@ -1363,9 +1376,9 @@ GameConfig.Cannon = {
 	PromptDistance = 10,
 	LeaveDistance = 16, -- 대포에서 이보다 멀어지면 자동으로 내린다
 	IdleTimeout = 90, -- 이만큼 안 쏘면 자동으로 내린다
-	CoinsPerHit = 2,
-	EyeCoins = 4,
-	DailyCoinCap = 100, -- 평소 대포로 벌 수 있는 하루 코인
+	CoinsPerHit = 6,
+	EyeCoins = 12,
+	DailyCoinCap = 300, -- 평소 대포로 벌 수 있는 하루 코인
 	TargetRadius = 4.4, -- 다리 약점 판정 반지름
 	EyeRadius = 4.2,
 	SlamRadius = 5.5,
@@ -1376,9 +1389,9 @@ GameConfig.Cannon = {
 --------------------------------------------------
 GameConfig.Prediction = {
 	Enabled = true,
-	BaseCoins = 15,
-	PerPlayer = 5, -- 참가 인원 1명마다 더
-	MaxCoins = 40,
+	BaseCoins = 45,
+	PerPlayer = 15, -- 참가 인원 1명마다 더
+	MaxCoins = 120,
 	DailyCap = 10, -- 하루에 보상을 받는 적중 횟수
 }
 
@@ -1395,7 +1408,7 @@ GameConfig.Tournament = {
 	Placement = { 10, 6, 4, 2, 1, 1 }, -- 1등(생존) · 2등 · 3등 …
 	CatchPoint = 1, -- 이번 판에 잡은 해적 1번마다
 	CatchPointCap = 3,
-	CoinsPerPoint = 5, -- 시리즈를 마치면 점수 × 이 값
+	CoinsPerPoint = 15, -- 시리즈를 마치면 점수 × 이 값
 	SeriesTimeout = 900, -- 이만큼(초) 토너먼트 판을 안 하면 시리즈가 끊긴다
 	StoreName = "CursedBarrel_Tournament_v1", -- 시즌 id 가 뒤에 붙는다
 	BoardRows = 10,
@@ -1403,8 +1416,8 @@ GameConfig.Tournament = {
 
 GameConfig.Referral = {
 	Enabled = true,
-	InviterCoins = 200,
-	NewcomerCoins = 150,
+	InviterCoins = 600,
+	NewcomerCoins = 450,
 	DailyCap = 5, -- 초대한 사람이 하루에 받을 수 있는 횟수
 }
 
@@ -1462,7 +1475,7 @@ function GameConfig.dailyDealFor(day)
 	local pool = {}
 	for _, kind in ipairs(GameConfig.DailyDeal.Kinds) do
 		for _, skin in ipairs(GameConfig.Skins[kind] or {}) do
-			if GameConfig.isCoinSkin(skin) and (skin.rarity == "rare" or skin.rarity == "epic" or skin.rarity == "legend") then
+			if GameConfig.isCoinSkin(skin) and skin.rarity ~= "common" then
 				table.insert(pool, { kind = kind, skin = skin })
 			end
 		end
@@ -1480,7 +1493,7 @@ function GameConfig.dailyDealFor(day)
 		kind = pick.kind,
 		id = pick.skin.id,
 		original = original,
-		price = math.max(1, math.floor(original * (1 - GameConfig.DailyDeal.Discount) / 10 + 0.5) * 10),
+		price = math.max(1, math.floor(original * (1 - GameConfig.DailyDeal.Discount) / 100 + 0.5) * 100),
 	}
 end
 
@@ -1491,13 +1504,13 @@ GameConfig.Attendance = {
 	AutoOpen = true, -- 받을 것이 있으면 들어오자마자 출석판을 띄운다
 	VipMultiplier = 2,
 	Days = {
-		{ coins = 150, icon = "coins" },
-		{ coins = 200, icon = "coins" },
-		{ coins = 250, icon = "coins" },
-		{ coins = 300, icon = "coins" },
-		{ coins = 350, icon = "coins" },
-		{ coins = 450, icon = "gem" },
-		{ coins = 1000, icon = "chest" },
+		{ coins = 450, icon = "coins" },
+		{ coins = 600, icon = "coins" },
+		{ coins = 750, icon = "coins" },
+		{ coins = 900, icon = "coins" },
+		{ coins = 1050, icon = "coins" },
+		{ coins = 1350, icon = "gem" },
+		{ coins = 3000, icon = "chest" },
 	},
 }
 
@@ -1509,15 +1522,31 @@ GameConfig.Roulette = {
 	Enabled = true,
 	-- weight 합이 1000 이면 weight / 10 이 곧 % 다
 	Segments = {
-		{ id = "c20", kind = "coins", amount = 20, weight = 300, label = "20", color = Color3.fromRGB(120, 86, 52) },
-		{ id = "c50", kind = "coins", amount = 50, weight = 250, label = "50", color = Color3.fromRGB(150, 104, 58) },
-		{ id = "skin_plain", kind = "skin", minPrice = 1, maxPrice = 700, fallbackCoins = 150, weight = 200, label = "스킨", color = Color3.fromRGB(46, 110, 150) },
-		{ id = "c100", kind = "coins", amount = 100, weight = 140, label = "100", color = Color3.fromRGB(120, 86, 52) },
-		{ id = "c300", kind = "coins", amount = 300, weight = 60, label = "300", color = Color3.fromRGB(150, 104, 58) },
-		{ id = "skin_rare", kind = "skin", minPrice = 701, maxPrice = 1800, fallbackCoins = 500, weight = 30, label = "희귀", color = Color3.fromRGB(120, 60, 150) },
-		{ id = "c1000", kind = "coins", amount = 1000, weight = 15, label = "1000", color = Color3.fromRGB(180, 132, 40) },
-		{ id = "jackpot", kind = "coins", amount = 2000, weight = 5, label = "2000", color = Color3.fromRGB(200, 60, 50) },
+		{ id = "c60", kind = "coins", amount = 60, weight = 300, label = "60", color = Color3.fromRGB(120, 86, 52) },
+		{ id = "c150", kind = "coins", amount = 150, weight = 250, label = "150", color = Color3.fromRGB(150, 104, 58) },
+		{ id = "skin_plain", kind = "skin", minPrice = 1, maxPrice = 12000, fallbackCoins = 450, weight = 200, label = "스킨", color = Color3.fromRGB(46, 110, 150) },
+		{ id = "c300", kind = "coins", amount = 300, weight = 140, label = "300", color = Color3.fromRGB(120, 86, 52) },
+		{ id = "c900", kind = "coins", amount = 900, weight = 60, label = "900", color = Color3.fromRGB(150, 104, 58) },
+		{ id = "skin_rare", kind = "skin", minPrice = 12001, maxPrice = 69000, fallbackCoins = 1500, weight = 30, label = "희귀", color = Color3.fromRGB(120, 60, 150) },
+		{ id = "c3000", kind = "coins", amount = 3000, weight = 15, label = "3000", color = Color3.fromRGB(180, 132, 40) },
+		{ id = "jackpot", kind = "coins", amount = 6000, weight = 5, label = "6000", color = Color3.fromRGB(200, 60, 50) },
 	},
+}
+
+-- 신화 스킨은 무지갯빛 반짝임이 하나 더 붙는다 (SkinFX 의 fx.mythic)
+for _, kind in ipairs({ "Knife", "Barrel", "Ghost", "Chair", "Elimination", "Victory", "Stab" }) do
+	for _, skin in ipairs(GameConfig.Skins[kind] or {}) do
+		if skin.rarity == "mythic" then
+			skin.fx = skin.fx or {}
+			skin.fx.mythic = true
+		end
+	end
+end
+
+-- 전설 · 신화 스킨을 사면 서버 전체에 알린다 (남이 사는 걸 보면 사고 싶어진다)
+GameConfig.Announce = {
+	Rarities = { legend = true, mythic = true },
+	RouletteRare = true, -- 룰렛에서 희귀 스킨이 나와도 알린다
 }
 
 function GameConfig.rouletteTotalWeight()

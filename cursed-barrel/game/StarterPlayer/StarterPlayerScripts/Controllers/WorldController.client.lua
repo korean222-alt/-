@@ -427,6 +427,17 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Tourney" then
 		announce(("🏆 토너먼트 시리즈 완료!  %d점 · +%d 코인"):format(data.score or 0, data.coins or 0), gold, 4)
 		Sfx.play("Coins", { volume = 0.6 })
+	elseif kind == "Announce" then
+		-- Phase 13 : 누군가 전설 · 신화 스킨을 손에 넣었다 (또는 룰렛에서 희귀 스킨)
+		local rarity = config.Rarity[data.rarity or "common"] or config.Rarity.common
+		local text
+		if data.source == "roulette" then
+			text = ("🎡 %s 님이 룰렛에서 「%s」을(를) 뽑았다!"):format(data.name or "?", data.skin or "?")
+		else
+			text = ("✨ %s 님이 %s 스킨 「%s」을(를) 손에 넣었다!"):format(data.name or "?", rarity.label, data.skin or "?")
+		end
+		announce(text, rarity.color, 3.5)
+		Sfx.play("Coins", { volume = 0.5 })
 	end
 end)
 

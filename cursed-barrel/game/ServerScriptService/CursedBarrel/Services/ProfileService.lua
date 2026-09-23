@@ -75,7 +75,7 @@ end
 local function defaultProfile()
 	return {
 		schema = SCHEMA,
-		coins = 300, -- 처음 시작하는 사람도 싼 스킨 하나는 살 수 있게
+		coins = 3000, -- Phase 13 : 처음 몇 판이면 첫 스킨(8,000~)을 살 수 있게
 		wins = 0,
 		games = 0,
 		streak = 0,

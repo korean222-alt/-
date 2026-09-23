@@ -22,6 +22,7 @@ local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local TableConfig = require(Shared:WaitForChild("TableConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
+local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
 
 local SlotBuilder = require(script.Parent.SlotBuilder)
 local BotRegistry = require(script.Parent.BotRegistry)
@@ -681,20 +682,27 @@ function GameTable:_applyBarrelSkin(skin)
 	end
 
 	-- ★ 크기는 절대 건드리지 않는다. 칼 슬롯 배치가 Body 크기에서 계산된다.
-	local function paint(part, color, material)
+	local function paint(part, color, material, reflectance)
 		if part and part:IsA("BasePart") then
 			part.Color = color
 			if material then
 				part.Material = material
 			end
+			part.Reflectance = reflectance or 0
 		end
 	end
 
-	paint(parts.body, skin.body, skin.bodyMaterial)
-	paint(parts.hoopLower, skin.hoop, skin.hoopMaterial)
-	paint(parts.hoopUpper, skin.hoop, skin.hoopMaterial)
-	paint(parts.lid, skin.lid, skin.hoopMaterial)
-	paint(parts.glow, skin.glow, Enum.Material.Neon)
+	paint(parts.body, skin.body, skin.bodyMaterial, skin.reflectance)
+	paint(parts.hoopLower, skin.hoop, skin.hoopMaterial, skin.reflectance)
+	paint(parts.hoopUpper, skin.hoop, skin.hoopMaterial, skin.reflectance)
+	paint(parts.lid, skin.lid, skin.hoopMaterial, skin.reflectance)
+	paint(parts.glow, skin.glow, skin.glowMaterial or Enum.Material.Neon)
+	-- Phase 13 : 철제 드럼은 원래 쇠테 대신 DrumStyle 의 굴림 테 · 주름을 쓴다
+	for _, hoop in ipairs({ parts.hoopLower, parts.hoopUpper }) do
+		if hoop and hoop:IsA("BasePart") then
+			hoop.Transparency = skin.drum and 1 or 0
+		end
+	end
 
 	local light = parts.glow and parts.glow:FindFirstChildOfClass("PointLight")
 	if light then
@@ -707,7 +715,18 @@ function GameTable:_applyBarrelSkin(skin)
 			child:Destroy()
 		end
 	end
-	if skin.ribbed then
+	if skin.drum and parts.body:IsA("Part") and parts.body.Shape == Enum.PartType.Cylinder then
+		-- 마개는 뚜껑 · 빛 원판 중 더 높은 면 위에 얹는다
+		local top = nil
+		local frame = DrumStyle.upright(parts.body.CFrame)
+		for _, cover in ipairs({ parts.lid, parts.glow }) do
+			if cover and cover:IsA("BasePart") then
+				local height = frame:PointToObjectSpace(cover.Position).X + cover.Size.X * 0.5
+				top = math.max(top or height, height)
+			end
+		end
+		DrumStyle.build(parts.model, parts.body.CFrame, parts.body.Size.X, parts.body.Size.Y, skin, "SkinRib", top)
+	elseif skin.ribbed then
 		for _, offset in ipairs({ -0.75, 0, 0.75 }) do
 			local rib = Instance.new("Part")
 			rib.Name = "SkinRib"
@@ -731,6 +750,7 @@ function GameTable:_applyBarrelSkin(skin)
 					piece.Color = skin.body:Lerp(Color3.new(0, 0, 0), 0.45)
 					piece.Transparency = (wooden and not skin.ribbed) and 0 or 1
 				elseif piece.Name == "Rivet" then
+					piece.Transparency = skin.drum and 1 or 0
 					piece.Color = skin.hoop:Lerp(Color3.new(1, 1, 1), 0.2)
 					piece.Material = skin.hoopMaterial == Enum.Material.Neon and Enum.Material.Neon or Enum.Material.Metal
 				end

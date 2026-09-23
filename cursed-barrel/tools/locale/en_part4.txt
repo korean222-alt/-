@@ -22,3 +22,16 @@
 충전 준비 중	Top-up soon
 %s 묶음 · 코인 %s 충전 (R$ %d)	%s pack · +%s coins (R$ %d)
 %s  ·  %s  →  %s (2배)	%s  ·  %s  →  %s (2x)
+금고	Vault
+코인 15,000	15,000 Coins
+코인 30,000	30,000 Coins
+코인 70,000	70,000 Coins
+코인 160,000	160,000 Coins
+코인 500,000	500,000 Coins
+👑 보물 상자 · 영웅 스킨 하나 값	👑 Treasure chest · worth one Epic skin
+💎 선장의 금고 · 신화 스킨 하나 값	💎 Captain's vault · worth one Mythic skin
+코인 25,000 + 전용 칼 「선원의 갈고리」 · 계정당 한 번	25,000 coins + exclusive knife "Sailor's Hook" · once per account
+신화	Mythic
+파란 철제 드럼	Blue Steel Drum
+🎡 %s 님이 룰렛에서 「%s」을(를) 뽑았다!	🎡 %s won "%s" on the wheel!
+✨ %s 님이 %s 스킨 「%s」을(를) 손에 넣었다!	✨ %s got the %s skin "%s"!

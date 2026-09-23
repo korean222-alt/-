@@ -13,6 +13,7 @@
 	  smoke   느리고 큰 연기
 	  bubbles 위로 올라가는 물방울
 	  coins   튀어 오르는 금화
+	  mythic  (Phase 13) 신화 스킨 : 무지갯빛 별가루가 천천히 감싸 돈다
 
 	규칙
 	  · 이 모듈이 만든 것은 전부 이름이 "SkinFX_" 로 시작한다.
@@ -122,6 +123,39 @@ local function addSpark(part, color)
 	emitter.Speed = NumberRange.new(1.5, 3.4)
 	emitter.SpreadAngle = Vector2.new(180, 180)
 	emitter.Drag = 4
+	return emitter
+end
+
+-- Phase 13 : 신화 스킨의 무지갯빛 별가루. 한 알 한 알 색이 금 → 분홍 → 하늘 → 보라로 바뀐다.
+local function addAurora(part, scale)
+	local emitter = named("ParticleEmitter", "Aurora", part)
+	emitter.Texture = SPARKLE
+	emitter.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 214, 96)),
+		ColorSequenceKeypoint.new(0.35, Color3.fromRGB(255, 96, 170)),
+		ColorSequenceKeypoint.new(0.7, Color3.fromRGB(96, 220, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 120, 255)),
+	})
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.3, 0.45 * scale + 0.1),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.2, 0.1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Lifetime = NumberRange.new(1.4, 2.2)
+	emitter.Rate = 6 * scale + 2
+	emitter.Speed = NumberRange.new(0.6, 1.6)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Acceleration = Vector3.new(0, 0.8, 0)
+	emitter.Drag = 1.5
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-90, 90)
 	return emitter
 end
 
@@ -275,6 +309,9 @@ local function applyCommon(anchor, fx, scale)
 	end
 	if fx.coins then
 		addCoins(anchor, fx.coins == true and Color3.fromRGB(255, 206, 110) or fx.coins)
+	end
+	if fx.mythic then
+		addAurora(anchor, scale)
 	end
 	if fx.halo and scale>0.3 then
 		addHalo(anchor, fx.halo, math.max(anchor.Size.X, anchor.Size.Z) * 1.9, fx.pulse)

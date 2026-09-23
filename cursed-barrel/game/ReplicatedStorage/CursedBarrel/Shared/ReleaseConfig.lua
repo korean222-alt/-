@@ -42,15 +42,15 @@ C.Branding = {
  ShopFile = "assets/branding/shop_button.jpeg",
 }
 C.Weekly = {
- {id="week_games",text="주간 20판 완료",en="Complete 20 rounds",metric="games",goal=20,reward=1800},
- {id="week_wins",text="주간 5회 우승",en="Win 5 rounds",metric="wins",goal=5,reward=2200},
- {id="week_catches",text="주간 해적 25회 잡기",en="Catch 25 pirates",metric="catches",goal=25,reward=1600},
+ {id="week_games",text="주간 20판 완료",en="Complete 20 rounds",metric="games",goal=20,reward=5400},
+ {id="week_wins",text="주간 5회 우승",en="Win 5 rounds",metric="wins",goal=5,reward=6600},
+ {id="week_catches",text="주간 해적 25회 잡기",en="Catch 25 pirates",metric="catches",goal=25,reward=4800},
 }
 C.Season = {
  Enabled=true, Id="dragon_tide_2026", Name="용의 항로", EnglishName="Dragon Tide",
  StartsAt=1788220800, EndsAt=1798761600, -- 2026-09-01 through 2027-01-01 UTC
  Tiers={
-  {xp=100,coins=500}, {xp=250,coins=1000},
+  {xp=100,coins=1500}, {xp=250,coins=3000},
   {xp=500,kind="Chair",skin="dragon_throne"},
   {xp=900,kind="Victory",skin="dragon_ascension"},
   {xp=1300,kind="Stab",skin="storm_strike"}, -- Phase 12 : 시즌 한정 칼 모션
