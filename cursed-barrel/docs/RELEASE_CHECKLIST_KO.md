@@ -17,6 +17,11 @@
   - `GameConfig.Products.Starter.productId`: 개발자 상품, 추천 49 R$, 계정당 1회
   - `GameConfig.Products.GamePasses.VIP.gamePassId`: 게임패스, 추천 199 R$
   - ID 가 0 이면 공개 서버에서 상점에 보이지 않는다. 코인 묶음과 방해 아이템도 같다.
+- Phase 12 상품 (전체 표 · 만드는 법: `docs/Phase12_에셋_상품_안내_KO.md`):
+  - `GameConfig.Products.GamePasses.Booster.gamePassId`: 현상금 부스터 게임패스, 추천 149 R$
+  - `skin_storm_victory.productId` (GameConfig.lua 아래쪽 `table.insert` 줄): 승리 세리머니 「폭풍의 군주」, 추천 99 R$
+  - `ReleaseConfig.Badges` 의 `cannon100` · `raid10` · `crew5` · `tourney34` (선택)
+  - `ReleaseConfig.Audio` 의 새 칸 12개(Night · Storm · Rain · Thunder · KrakenRoar · Slam · WoodCrack · Cannon · Splash · Hit · Coins · Waves). 0 이면 Roblox 기본 소리로 대신한다.
 - Phase 11 상품: `GameConfig.Products.Skins` 의 `skin_ember_stab.productId` (칼 꽂기 모션 「잿불 강타」, 추천 79 R$). 0 이면 목록에는 보이지만 누르면 "준비 중"으로 거절된다.
 - VIP 로 확인할 것: 게임 코인 +20%, 전용 칼 지급, 머리 위 VIP 표시, 재접속 후 유지, 구매 직후 바로 적용(PromptGamePassPurchaseFinished).
 - 스타터 팩으로 확인할 것: 코인 2,500 + 「선원의 갈고리」, 구매 후 상점에서 버튼이 사라지는지, 같은 영수증 재처리 시 중복 지급이 없는지.
@@ -26,6 +31,12 @@
 
 ## 실제 플레이
 
+- Phase 12 규칙 (`GameConfig.World.StudioStartPhase = "storm"`, `StudioTimeScale = 0.2` 로 빨리 확인하고 되돌린다):
+  - 항해 시계: 오른쪽 위 단계 표시, 하늘 · 안개 · 비 · 번개 전환, 단계별 규칙(노을 보물 폭발 2배, 밤 +25% · 빠른 해적, 안개 번호 가림, 폭풍 현상금 2배 · 해적 +1).
+  - 습격: 내려치기 경고(치켜든 다리 · 떨림) → 쾅(흔들림 · 소리 · 파편) → 물러남. 테이블 게임 중에는 흔들림이 아주 약한지. 설정의 흔들림 끄기 · 연출 줄이기.
+  - 대포: 앉기 · 조준 · 발사 · 내리기(버튼 · 스페이스 · B · 멀리 걷기 · 90초), 한 대포에 한 명, 맞힌 곳과 판정 일치, 하루 코인 상한, 막기와 체력 감소, 승리 · 도망 보상.
+  - 토너먼트(J): 4판 점수, 기권 절반, 나가면 끊김, 순위판(DataStore), AI 가 앉지 않는지.
+  - 행운 테이블 🍀, 관전 예측(한 바퀴 뒤 닫힘 · 참가자 금지 · 적중 보상), 연습 판(AI 둘 · 안내 카드), 친구 초대 보상, 칭호 표시.
 - Phase 11 규칙:
   - 해적이 나오기 전에 한 번 누르면 바로 탈락하는지, 칼을 고른 직후의 두 번째 탭은 무시되는지 확인한다. (PC 클릭 · 모바일 탭 · 게임패드)
   - 잡을 때마다 창이 짧아지고(머리글 "잡기 N회 · 다음 해적은 더 빠르다"), 6번 잡은 뒤에는 "분노한 해적"으로 탈락하는지 확인한다.
