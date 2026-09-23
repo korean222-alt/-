@@ -8,15 +8,12 @@
 	  · VIP 는 코인이 2배. (VIP 패스를 사고 싶게 만드는 가장 눈에 띄는 자리)
 
 	룰렛
-	  · 하루 한 번 무료. 이용권(출석 · 룰렛 칸 · 구매)으로 더 돌린다.
+	  · 하루에 한 번 무료로 돌린다. (이용권 · 로벅스 판매 없음 : 돈 주고 사는 뽑기가 아니다)
 	  · 결과는 서버가 정하고, 클라이언트는 그 칸에 멈추는 연출만 한다.
-	  · 로벅스 이용권은 "무작위 보상"이므로 확률표를 항상 보여 주고,
-	    PolicyService 가 막은 나라(ArePaidRandomItemsRestricted)에서는 팔지 않는다.
+	  · 확률표는 화면에 늘 보여 준다.
 ]]
 
 local Players = game:GetService("Players")
-local PolicyService = game:GetService("PolicyService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shared")
@@ -24,7 +21,6 @@ local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
 
 local ProfileService = require(script.Parent.ProfileService)
-local PurchaseService = require(script.Parent.PurchaseService)
 
 local ATTEND = GameConfig.Attendance
 local ROULETTE = GameConfig.Roulette
@@ -67,9 +63,8 @@ function RewardService:ClaimAttendance(player, today)
 	profile.attendDay = today
 	profile.attendCount = index >= #ATTEND.Days and 0 or index
 	profile.coins += coins
-	profile.spins = (profile.spins or 0) + (tonumber(reward.spins) or 0)
 	ProfileService:_touch(player)
-	return true, { day = index, coins = coins, spins = reward.spins or 0, vip = vip, full = index >= #ATTEND.Days }
+	return true, { day = index, coins = coins, vip = vip, full = index >= #ATTEND.Days }
 end
 
 --------------------------------------------------
@@ -88,13 +83,14 @@ function RewardService:_rollIndex()
 	return #ROULETTE.Segments
 end
 
--- 스킨 칸 : 아직 없는, 코인으로 살 수 있는 싼 스킨 하나
-function RewardService:_pickSkin(profile)
+-- 스킨 칸 : 아직 없는 코인 스킨 중 segment.minPrice ~ maxPrice 가격의 것 하나
+function RewardService:_pickSkin(profile, segment)
 	local pool = {}
 	for kind, list in pairs(GameConfig.Skins) do
 		if typeof(list) == "table" and profile.owned[kind] then
 			for _, skin in ipairs(list) do
-				if typeof(skin) == "table" and GameConfig.isCoinSkin(skin) and skin.price <= ROULETTE.SkinMaxPrice and not profile.owned[kind][skin.id] then
+				if typeof(skin) == "table" and GameConfig.isCoinSkin(skin) and skin.price >= (segment.minPrice or 1)
+					and skin.price <= (segment.maxPrice or math.huge) and not profile.owned[kind][skin.id] then
 					table.insert(pool, { kind = kind, skin = skin })
 				end
 			end
@@ -109,7 +105,7 @@ function RewardService:_pickSkin(profile)
 	return pool[self._random:NextInteger(1, #pool)]
 end
 
--- useFree : 오늘 무료 돌리기를 먼저 쓴다. 없으면 이용권.
+-- 하루에 한 번
 function RewardService:Spin(player, today)
 	if not ROULETTE.Enabled then
 		return false, REJECT.NoSpins
@@ -119,47 +115,29 @@ function RewardService:Spin(player, today)
 		return false, "자료를 불러오는 중입니다"
 	end
 	today = today or Utility.today()
-	local usedFree = false
-	if profile.freeSpinDay ~= today then
-		profile.freeSpinDay = today
-		usedFree = true
-	elseif (profile.spins or 0) > 0 then
-		profile.spins -= 1
-	else
+	if profile.freeSpinDay == today then
 		return false, REJECT.NoSpins
 	end
+	profile.freeSpinDay = today
 
 	local index = self:_rollIndex()
 	local segment = ROULETTE.Segments[index]
-	local result = { index = index, id = segment.id, kind = segment.kind, amount = segment.amount, free = usedFree }
+	local result = { index = index, id = segment.id, kind = segment.kind, amount = segment.amount }
 	if segment.kind == "coins" then
 		profile.coins += segment.amount
-	elseif segment.kind == "spins" then
-		profile.spins = (profile.spins or 0) + segment.amount
 	elseif segment.kind == "skin" then
-		local pick = self:_pickSkin(profile)
+		local pick = self:_pickSkin(profile, segment)
 		if pick then
 			profile.owned[pick.kind][pick.skin.id] = true
 			result.skinKind, result.skinId, result.skinName = pick.kind, pick.skin.id, pick.skin.name
 		else
-			profile.coins += ROULETTE.SkinFallbackCoins
-			result.kind, result.amount = "coins", ROULETTE.SkinFallbackCoins
+			profile.coins += segment.fallbackCoins or 0
+			result.kind, result.amount = "coins", segment.fallbackCoins or 0
 		end
 	end
 	profile.spinCount = (profile.spinCount or 0) + 1
 	ProfileService:_touch(player)
 	return true, result
-end
-
-function RewardService:_checkPolicy(player)
-	task.spawn(function()
-		local ok, info = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
-		if player.Parent ~= Players then
-			return
-		end
-		-- 확인을 못 하면 막힌 것으로 본다 (안전한 쪽)
-		player:SetAttribute("PaidRandomRestricted", not ok or typeof(info) ~= "table" or info.ArePaidRandomItemsRestricted ~= false)
-	end)
 end
 
 --------------------------------------------------
@@ -176,16 +154,6 @@ function RewardService:_onRequest(player, action)
 	elseif action == "spin" then
 		local ok, result = self:Spin(player)
 		self._cue:FireClient(player, "spin", ok, result)
-	elseif action == "buySpins" then
-		local pack = ROULETTE.SpinPack
-		local productId = tonumber(pack.productId) or 0
-		if player:GetAttribute("PaidRandomRestricted") ~= false then
-			self._cue:FireClient(player, "notice", false, REJECT.PaidRandomRestricted)
-		elseif productId <= 0 or not ProfileService:CanPurchase(player) then
-			self._cue:FireClient(player, "notice", false, "아직 준비 중입니다")
-		else
-			pcall(MarketplaceService.PromptProductPurchase, MarketplaceService, player, productId)
-		end
 	end
 end
 
@@ -213,18 +181,6 @@ function RewardService:Start()
 		end
 	end)
 
-	local pack = ROULETTE.SpinPack
-	PurchaseService:Register(pack.productId, function(profile)
-		profile.spins = (profile.spins or 0) + pack.spins
-		return true
-	end)
-
-	Players.PlayerAdded:Connect(function(player)
-		self:_checkPolicy(player)
-	end)
-	for _, player in ipairs(Players:GetPlayers()) do
-		self:_checkPolicy(player)
-	end
 	Players.PlayerRemoving:Connect(function(player)
 		self._limiter:forget(player.UserId)
 	end)

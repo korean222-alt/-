@@ -259,29 +259,36 @@ local function premiumRow(order, offer, action, kind)
 	return order
 end
 
--- Phase 13 : 코인 스킨은 코인으로도, 로벅스로도 산다. (위 : 코인 · 아래 : 로벅스)
+-- Phase 13 : 스킨은 코인으로만 산다. 코인이 모자라면 아래에 "충전" 버튼이 생긴다.
+-- (모자란 만큼을 채우는 가장 작은 코인 묶음을 권한다. 누르면 그 묶음의 로벅스 구매창)
 coinAndRobuxButtons = function(row, entry)
 	local affordable = state.coins >= entry.price
-	local coinText = "🪙 " .. Utility.comma(entry.price)
-	local buy = textButton(row, coinText, UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 6),
+	local buy = textButton(row, "🪙 " .. Utility.comma(entry.price), UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 6),
 		affordable and PALETTE.Row or PALETTE.Panel, affordable and PALETTE.Gold or PALETTE.Dim)
 	buy.Activated:Connect(function()
 		if state.coins >= entry.price then
 			shopRequest:FireServer("buy", entry.kind, entry.id)
-		elseif entry.tierReady then
-			showToast(("코인이 %s 모자라요 · 아래 R$ %d 로 바로 살 수 있어요"):format(Utility.comma(entry.price - state.coins), entry.tierRobux), false)
 		else
-			showToast(("코인이 %s 모자라요"):format(Utility.comma(entry.price - state.coins)), false)
+			showToast(("코인이 %s 모자라요 · 아래 「충전」으로 채울 수 있어요"):format(Utility.comma(entry.price - state.coins)), false)
 		end
 	end)
-	if entry.tierRobux > 0 and (entry.tierReady or IN_STUDIO) then
-		local robux = textButton(row, entry.tierReady and ("R$ %d"):format(entry.tierRobux) or "R$ 준비 중",
-			UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 42),
-			entry.tierReady and PALETTE.Robux or PALETTE.Panel, entry.tierReady and Color3.new(1, 1, 1) or PALETTE.Dim)
-		robux.Activated:Connect(function()
-			shopRequest:FireServer("robux", entry.kind, entry.id)
-		end)
+	if affordable then
+		return
 	end
+	local shortfall = entry.price - state.coins
+	local pack = GameConfig.coinPackFor(shortfall, not IN_STUDIO)
+	if not pack then
+		return
+	end
+	local ready = (tonumber(pack.productId) or 0) > 0
+	local topUp = textButton(row, ready and ("충전 R$ %d"):format(pack.robux) or "충전 준비 중",
+		UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 42),
+		ready and PALETTE.Robux or PALETTE.Panel, ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+	topUp.TextSize = 12
+	topUp.Activated:Connect(function()
+		showToast(("%s 묶음 · 코인 %s 충전 (R$ %d)"):format(pack.size or "", Utility.comma(pack.coins), pack.robux), true)
+		shopRequest:FireServer("robux", "coins", pack.id)
+	end)
 end
 
 local KIND_NAMES = {}
@@ -339,8 +346,6 @@ local function drawShop()
 			detail = ("R$ %d"):format(entry.robux)
 		elseif entry.deal then
 			detail = ("🔥 특가 %s 코인"):format(Utility.comma(entry.price))
-		elseif entry.tierRobux > 0 then
-			detail = ("%s 코인 또는 R$ %d"):format(Utility.comma(entry.price), entry.tierRobux)
 		else
 			detail = ("%s 코인"):format(Utility.comma(entry.price))
 		end
@@ -420,14 +425,26 @@ local function drawShop()
 
 	for _, pack in ipairs(packs) do
 		order += 1
-		local row = makeRow(order, 44)
-		local coinsText = state.firstPurchase and ("%s  →  %s (2배)"):format(pack.name, Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier)) or pack.name
-		label(row, coinsText, UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, pack.bonus and 4 or 12), 14, PALETTE.Cream)
-		if pack.bonus then
-			label(row, "⭐ " .. pack.bonus, UDim2.new(1, -130, 0, 16), UDim2.fromOffset(12, 24), 11, PALETTE.Good)
+		-- Phase 13 : 영화관 팝콘처럼 "대"를 크게 · 금색으로
+		local row = makeRow(order, pack.highlight and 64 or (pack.badge and 52 or 44))
+		if pack.highlight then
+			row.BackgroundColor3 = Color3.fromRGB(96, 70, 22)
+			row.BackgroundTransparency = 0
+			stroke(row, PALETTE.Gold, 2, 0)
+		end
+		local coinsText = ("%s  ·  %s"):format(pack.size or "", pack.name)
+		if state.firstPurchase then
+			coinsText = ("%s  ·  %s  →  %s (2배)"):format(pack.size or "", pack.name, Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier))
+		end
+		label(row, coinsText, UDim2.new(1, -130, 0, 22), UDim2.fromOffset(12, pack.badge and 6 or 12), pack.highlight and 16 or 14,
+			pack.highlight and PALETTE.Gold or PALETTE.Cream)
+		if pack.badge then
+			local badge = label(row, pack.badge, UDim2.new(1, -130, 0, 30), UDim2.fromOffset(12, 28), 11, pack.highlight and PALETTE.Good or PALETTE.Dim)
+			badge.TextWrapped = true
+			badge.TextYAlignment = Enum.TextYAlignment.Top
 		end
 		local buy = textButton(row, pack.ready and ("R$ %d"):format(pack.robux) or "준비 중",
-			UDim2.fromOffset(96, 26), UDim2.new(1, -110, 0, 9),
+			UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0.5, -15),
 			pack.ready and PALETTE.Robux or PALETTE.Panel,
 			pack.ready and Color3.new(1, 1, 1) or PALETTE.Dim)
 		buy.Activated:Connect(function()

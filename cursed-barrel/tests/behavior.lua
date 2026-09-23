@@ -658,9 +658,9 @@ check("if the human leaves, an AI-only table closes at once and half the pot car
  t:RemovePlayer(players[1]);assert(t.state=="RoundEnding","closed immediately")
  assert((t.model:GetAttribute("WinnerUserId") or 0)<0,"an AI is shown as the winner");assert(r.carry==math.floor(pot*0.5))
 end) end)
-check("stab motions are cosmetic skins with a free default and a robux item",function()
+check("stab motions are cosmetic skins with a free default and coin-priced legends",function()
  assert(Config.Skins.PlayerAttributes.Stab=="StabSkin");assert(Config.Skins.Stab[1].id=="classic" and Config.isFreeSkin(Config.Skins.Stab[1]))
- local robux=0;for _,skin in ipairs(Config.Skins.Stab) do assert(skin.style and skin.color);if skin.robux then robux=robux+1 end end;assert(robux>=1)
+ local legend=0;for _,skin in ipairs(Config.Skins.Stab) do assert(skin.style and skin.color);if skin.rarity=="legend" and Config.isCoinSkin(skin) then legend=legend+1 end end;assert(legend>=1)
  local q=player(34);Profiles:_load(q);local d=Profiles:Get(q);assert(d.owned.Stab.classic and d.equipped.Stab=="classic");assert(not d.owned.Stab.ember_slam)
 end)
 
@@ -848,58 +848,55 @@ check("attendance: claim once a day, missed days do not reset, 7-day cycle, VIP 
  local before=d.coins;local ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==1 and d.coins==before+days[1].coins)
  assert(not Reward:ClaimAttendance(q),"only once per day")
  epoch=saved+5*86400;ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==2,"a missed day continues where it stopped")
- local spins=d.spins
- for i=3,7 do epoch=saved+(i+5)*86400;ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==i) end
+ for i=3,7 do epoch=saved+(i+5)*86400;before=d.coins;ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==i and d.coins==before+days[i].coins) end
  assert(d.attendCount==0 and r.full,"after day 7 a new board starts")
- local wantSpins=0;for i=3,7 do wantSpins=wantSpins+(days[i].spins or 0) end;assert(d.spins==spins+wantSpins)
  q:SetAttribute("VIP",true);epoch=saved+20*86400;before=d.coins;ok,r=Reward:ClaimAttendance(q)
  assert(ok and r.day==1 and d.coins==before+days[1].coins*Config.Attendance.VipMultiplier and r.vip)
  q:SetAttribute("VIP",nil);epoch=saved
 end)
-check("roulette: odds sum to 100%, free once a day then tickets, prizes are granted on the server",function()
+check("roulette: once a day, mostly small coins, plain skins 20% and rare skins rare",function()
  local Reward=loadModule("RewardService");local q=player(132);Profiles:_load(q);local d=Profiles:Get(q)
  assert(Config.rouletteTotalWeight()==1000)
+ local w={};for _,seg in ipairs(Config.Roulette.Segments) do w[seg.id]=seg.weight end
+ assert(w.skin_plain==200 and w.skin_rare<=30,"plain skins 20%, rare skins at most 3%")
+ local coinsWeight=0;for _,seg in ipairs(Config.Roulette.Segments) do if seg.kind=="coins" and seg.amount<=100 then coinsWeight=coinsWeight+seg.weight end end
+ assert(coinsWeight>=600,"most spins give a little coin")
  local function force(x) Reward._random={NextNumber=function() return x end,NextInteger=function(_,lo) return lo end} end
- force(0.0);local before=d.coins;local ok,r=Reward:Spin(q);assert(ok and r.free and r.id=="c50" and d.coins==before+50)
- assert(not Reward:Spin(q),"no free spin left and no tickets")
- d.spins=2;force(0.999);before=d.coins;ok,r=Reward:Spin(q);assert(ok and not r.free and r.id=="jackpot" and d.coins==before+3000 and d.spins==1)
- -- +1 칸 : 이용권이 다시 생긴다
- force(0.75);ok,r=Reward:Spin(q);assert(ok and r.kind=="spins" and d.spins==1)
- -- 스킨 칸 : 아직 없는 싼 코인 스킨
- force(0.93);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin" and d.owned[r.skinKind][r.skinId]==true)
- local skin=Config.findSkin(r.skinKind,r.skinId);assert(Config.isCoinSkin(skin) and skin.price<=Config.Roulette.SkinMaxPrice)
- -- 받을 스킨이 없으면 코인으로
+ local saved=epoch
+ force(0.0);local before=d.coins;local ok,r=Reward:Spin(q);assert(ok and r.id=="c20" and d.coins==before+20)
+ assert(not Reward:Spin(q),"only once a day")
+ -- 평범한 스킨 칸 (700 코인 이하, 아직 없는 것)
+ epoch=saved+86400;force(0.56);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin" and d.owned[r.skinKind][r.skinId]==true)
+ local skin=Config.findSkin(r.skinKind,r.skinId);assert(Config.isCoinSkin(skin) and skin.price<=700)
+ -- 희귀 스킨 칸 (701~1800)
+ epoch=saved+2*86400;force(0.95);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin");skin=Config.findSkin(r.skinKind,r.skinId);assert(skin.price>700 and skin.price<=1800)
+ -- 대박
+ epoch=saved+3*86400;force(0.999);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.id=="jackpot" and d.coins==before+2000)
+ -- 받을 스킨이 없으면 그 칸의 코인으로
  for kind,list in pairs(Config.Skins) do if type(list)=="table" and d.owned[kind] then for _,sk in ipairs(list) do if type(sk)=="table" then d.owned[kind][sk.id]=true end end end end
- d.spins=1;before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.kind=="coins" and d.coins==before+Config.Roulette.SkinFallbackCoins)
- -- 로벅스 이용권은 PolicyService 확인 전(또는 막힌 나라)에는 팔지 않는다
- local sent;Reward._cue={FireClient=function(_,_,kind,ok2,msg) sent={kind,ok2,msg} end}
- Reward:_onRequest(q,"buySpins");assert(sent[1]=="notice" and sent[3]==Config.RejectMessages.PaidRandomRestricted)
+ epoch=saved+4*86400;force(0.56);before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.kind=="coins" and d.coins==before+150)
+ epoch=saved
 end)
-check("every coin skin can also be bought with Robux through a price-tier product",function()
- for kind in pairs(Config.Skins.PlayerAttributes) do
-  for _,skin in ipairs(Config.Skins[kind]) do
-   if Config.isCoinSkin(skin) then local tier=Config.skinTierFor(skin.price);assert(tier and skin.price<=tier.maxPrice and tier.refundCoins>=math.min(skin.price,tier.maxPrice),kind.."/"..skin.id) end
-  end
- end
- local coinSkins=0;for kind in pairs(Config.Skins.PlayerAttributes) do for _,skin in ipairs(Config.Skins[kind]) do if Config.isCoinSkin(skin) then coinSkins=coinSkins+1 end end end;print("  coin skins buyable with Robux: "..coinSkins)
- assert(Config.skinTierFor(250).id=="tier_s" and Config.skinTierFor(1800).id=="tier_m" and Config.skinTierFor(4200).id=="tier_l" and Config.skinTierFor(8000).id=="tier_xl" and Config.skinTierFor(11000).id=="tier_xxl")
- assert(not Config.isCoinSkin(Config.findSkin("Knife","vip_cutlass")) and not Config.isCoinSkin(Config.findSkin("Stab","storm_strike")))
-end)
-check("tier purchase grants the chosen skin once; otherwise refunds coins (never loses a payment)",function()
- local Shop=loadModule("ShopService");local q=player(133);Profiles:_load(q);local d=Profiles:Get(q)
- local tier=Config.skinTierFor(Config.findSkin("Knife","gold").price);local saved=tier.productId;tier.productId=424242
- Shop._limiter=Utility.RateLimiter.new(0);Shop._result={FireClient=function() end}
- Shop:_onRequest(q,"robux","Knife","gold");tier.productId=saved
- assert(d.pendingSkin and d.pendingSkin.kind=="Knife" and d.pendingSkin.id=="gold" and d.pendingSkin.tier==tier.id)
- local kind,got=Shop.grantTier(d,tier);assert(kind=="skin" and d.owned.Knife.gold and d.pendingSkin==nil)
- local before=d.coins;kind=Shop.grantTier(d,tier);assert(kind=="coins" and d.coins==before+tier.refundCoins,"no pending choice → coins")
- d.pendingSkin={kind="Knife",id="deep",tier=tier.id};before=d.coins;kind=Shop.grantTier(d,tier)
- assert(kind=="coins" and not d.owned.Knife.deep and d.coins==before+tier.refundCoins,"a pricier skin cannot ride on a cheaper tier")
+check("skins are bought with coins only; coin packs are priced like cinema popcorn",function()
+ assert(#Config.Products.Skins==0,"no Robux-only skins")
+ for kind in pairs(Config.Skins.PlayerAttributes) do for _,skin in ipairs(Config.Skins[kind]) do assert(not skin.robux,kind.."/"..skin.id) end end
+ local byId={};for _,pack in ipairs(Config.Products.Coins) do byId[pack.id]=pack end
+ local s,m,l=byId.coins_small,byId.coins_medium,byId.coins_large
+ local function rate(pack) return pack.coins/pack.robux end
+ assert(rate(m)<=rate(s)*1.02,"medium is no better than small")
+ assert(l.robux-m.robux<=60 and l.coins>=m.coins*2,"large costs a little more than medium but gives over twice the coins")
+ assert(rate(l)>=rate(m)*2 and l.highlight,"large is the obvious pick")
+ -- 모자란 만큼 채우는 가장 작은 묶음을 권한다
+ assert(Config.coinPackFor(1000).id=="coins_small" and Config.coinPackFor(2000).id=="coins_medium" and Config.coinPackFor(5000).id=="coins_large")
+ assert(Config.coinPackFor(99999).id=="coins_huge")
+ -- 스킨을 로벅스로 사려 해도 상품이 없다
+ local Shop=loadModule("ShopService");local q=player(133);Profiles:_load(q)
+ local msg;Shop._limiter=Utility.RateLimiter.new(0);Shop._result={FireClient=function(_,_,ok,m) msg=m end}
+ Shop:_onRequest(q,"robux","Knife","gold");assert(msg=="이 상품은 아직 준비 중입니다")
 end)
 check("first coin top-up is doubled once",function()
  local Purchase=cache.PurchaseService or loadModule("PurchaseService");cache.PurchaseService=Purchase
  local Shop=loadModule("ShopService");local pack=Config.Products.Coins[1];local saved=pack.productId;pack.productId=515151
- for _,t in ipairs(Config.Products.SkinTiers) do assert((tonumber(t.productId) or 0)==0) end
  Shop:_registerProducts();pack.productId=saved
  local handler=Purchase._handlers[515151];Purchase._handlers[515151]=nil
  local d={coins=0,coinPackBought=false};assert(handler(d)==true and d.coins==pack.coins*2 and d.coinPackBought)

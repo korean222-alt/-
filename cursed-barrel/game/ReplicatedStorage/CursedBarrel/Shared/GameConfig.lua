@@ -258,8 +258,7 @@ GameConfig.RejectMessages = {
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
-	NoSpins = "돌릴 수 있는 룰렛이 없습니다",
-	PaidRandomRestricted = "이 지역에서는 룰렛 이용권을 살 수 없습니다",
+	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
 }
 
 --------------------------------------------------
@@ -521,7 +520,7 @@ GameConfig.Skins = {
 			fx = { emit = Color3.fromRGB(120, 255, 214), spark = true, trail = Color3.fromRGB(120, 255, 214), halo = Color3.fromRGB(84, 214, 186), pulse = 2.1 },
 		},
 		{
-			id = "ember", name = "잿불 단검", rarity = "legend", price = 0, robux = 99,
+			id = "ember", name = "잿불 단검", rarity = "legend", price = 9000,
 			blade = Color3.fromRGB(255, 132, 62), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(46, 26, 20), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(255, 96, 48), trail = Color3.fromRGB(255, 150, 70), glow = 1,
@@ -641,7 +640,7 @@ GameConfig.Skins = {
 			fx = { emit = Color3.fromRGB(170, 226, 130), smoke = true, pulse = 1 },
 		},
 		{
-			id = "ember", name = "잿불 망령", rarity = "legend", price = 0, robux = 129,
+			id = "ember", name = "잿불 망령", rarity = "legend", price = 9500,
 			coat = Color3.fromRGB(96, 34, 20), skin = Color3.fromRGB(255, 160, 90),
 			hat = Color3.fromRGB(42, 20, 14), accent = Color3.fromRGB(255, 120, 50),
 			aura = Color3.fromRGB(255, 140, 60),
@@ -673,7 +672,7 @@ GameConfig.Skins = {
 		{ id = "triple", name = "세 번 찌르기", rarity = "rare", price = 1500, style = "triple", color = Color3.fromRGB(150, 214, 255) },
 		{ id = "spin", name = "회전 베기", rarity = "rare", price = 1800, style = "spin", color = Color3.fromRGB(120, 255, 214) },
 		{ id = "flourish", name = "단검 저글링", rarity = "epic", price = 3600, style = "flourish", color = Color3.fromRGB(196, 130, 255) },
-		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 0, robux = 79, style = "slam", color = Color3.fromRGB(255, 132, 62) },
+		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 8000, style = "slam", color = Color3.fromRGB(255, 132, 62) },
 		{ id = "dragon_dive", name = "용의 급강하", rarity = "legend", price = 8000, style = "dive", color = Color3.fromRGB(68, 240, 218) },
 		-- Phase 12 : 시즌 한정 (시즌 보상으로만 받는다 · 상점에서 살 수 없다)
 		{ id = "storm_strike", name = "폭풍의 일격", rarity = "legend", price = 0, season = true, style = "bolt", color = Color3.fromRGB(170, 210, 255) },
@@ -831,26 +830,31 @@ function GameConfig.findSabotage(id)
 end
 
 --------------------------------------------------
--- 로벅스 상품 (Phase 7)
--- 코인 묶음과 스킨 직접 구매. 역시 ID 를 채워 넣어야 실제로 팔린다.
+-- 로벅스 상품 (Phase 7 · Phase 13 에서 다시 짬)
+--
+-- ★ Phase 13 : 스킨은 모두 코인으로만 산다. 로벅스로는 코인을 충전한다. (돈 → 코인 → 스킨)
+--   코인 묶음은 영화관 팝콘처럼 값을 매겼다. (400 R$ ≈ 7,500원 기준, R$ 1 ≈ 19원)
+--     소  1,500 코인  159 R$ (약 3,000원)
+--     중  3,000 코인  319 R$ (약 6,000원)   ← 소 두 개와 똑같다. 일부러 이득이 없다
+--     대  7,000 코인  369 R$ (약 7,000원)   ← 중보다 50 R$ 더 내면 코인이 2배 넘게. 이걸 사게 만든다
+--     특대 16,000 코인 799 R$ (약 15,000원) ← 크게 쓰는 사람용. 옆에 있으면 "대"가 싸 보인다
+--   robux 값은 상점에 보이는 숫자일 뿐이다. 실제 가격은 Creator Hub 에서 상품을 만들 때 같은 값으로 적는다.
 --------------------------------------------------
 GameConfig.Products = {
 	Coins = {
-		{ id = "coins_small", name = "코인 1,000", coins = 1000, robux = 25, productId = 0 },
-		{ id = "coins_medium", name = "코인 5,500", coins = 5500, robux = 99, productId = 0, bonus = "인기 · +39%" },
-		{ id = "coins_large", name = "코인 12,000", coins = 12000, robux = 199, productId = 0, bonus = "최고 가치 · +50%" },
+		{ id = "coins_small", size = "소", name = "코인 1,500", coins = 1500, robux = 159, productId = 0 },
+		{ id = "coins_medium", size = "중", name = "코인 3,000", coins = 3000, robux = 319, productId = 0 },
+		{ id = "coins_large", size = "대", name = "코인 7,000", coins = 7000, robux = 369, productId = 0,
+			highlight = true, badge = "🔥 가장 인기 · 중보다 R$ 50만 더 내면 코인 2배 넘게!" },
+		{ id = "coins_huge", size = "특대", name = "코인 16,000", coins = 16000, robux = 799, productId = 0, badge = "👑 보물 상자 · 가장 많이" },
 	},
-	-- 스킨을 로벅스로 바로 사고 싶을 때. skin 에는 "Knife/ember" 처럼 적는다.
-	Skins = {
-		{ id = "skin_ember_knife", skin = "Knife/ember", robux = 99, productId = 0 },
-		{ id = "skin_ember_ghost", skin = "Ghost/ember", robux = 129, productId = 0 },
-		{ id = "skin_ember_stab", skin = "Stab/ember_slam", robux = 79, productId = 0 },
-	},
+	-- 로벅스 전용 스킨 (Phase 13 부터 비움 : 스킨은 코인으로만 산다). skin 에는 "Knife/ember" 처럼 적는다.
+	Skins = {},
 
 	-- Phase 10 : 스타터 팩 (계정당 한 번). 처음 들어온 사람이 가장 많이 사는 묶음이다.
 	-- 게임 결과를 바꾸는 것은 넣지 않는다. 코인과 전용 칼 스킨뿐이다.
 	Starter = {
-		id = "starter", name = "선원 스타터 팩", robux = 49, productId = 0,
+		id = "starter", name = "선원 스타터 팩", robux = 99, productId = 0,
 		coins = 2500, skin = "Knife/starter_hook",
 		blurb = "코인 2,500 + 전용 칼 「선원의 갈고리」 · 계정당 한 번",
 	},
@@ -859,7 +863,7 @@ GameConfig.Products = {
 	-- 0 이면 상점에 "준비 중"으로만 보인다.
 	GamePasses = {
 		VIP = {
-			id = "vip", name = "VIP 선장 패스", robux = 199, gamePassId = 0,
+			id = "vip", name = "VIP 선장 패스", robux = 399, gamePassId = 0,
 			coinBonus = 0.2, -- 게임에서 버는 코인 +20% (퀘스트 · 업적 · 출석 보상에는 붙지 않는다)
 			skin = "Knife/vip_cutlass",
 			blurb = "게임 코인 +20% · 전용 칼 「VIP 선장의 곡도」 · 머리 위 VIP 표시",
@@ -867,7 +871,7 @@ GameConfig.Products = {
 		},
 		-- Phase 12 : 현상금 부스터. 내가 이긴 판의 현상금이 늘어난다. (판정 · 확률에는 영향 없음)
 		Booster = {
-			id = "booster", name = "현상금 부스터", robux = 149, gamePassId = 0,
+			id = "booster", name = "현상금 부스터", robux = 249, gamePassId = 0,
 			potBonus = 0.1, -- 내가 가져가는 현상금 +10%
 			blurb = "내가 이긴 판의 현상금 +10% · 금화가 더 크게 쏟아지는 승리 연출",
 			attribute = "Booster",
@@ -1201,7 +1205,7 @@ for _, skin in ipairs({
 	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 1800, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
 	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 3600, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
 	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 4200, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
-	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 0, robux = 99, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
+	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 9000, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
 }) do
 	table.insert(GameConfig.Skins.Victory, skin)
 end
@@ -1212,7 +1216,6 @@ for _, skin in ipairs({
 }) do
 	table.insert(GameConfig.Skins.Elimination, skin)
 end
-table.insert(GameConfig.Products.Skins, { id = "skin_storm_victory", skin = "Victory/storm_lord", robux = 99, productId = 0 })
 
 --------------------------------------------------
 -- Phase 12 : 시간과 날씨 (항해 시계)
@@ -1416,45 +1419,26 @@ GameConfig.TableTypeByName.Table_J = "Tournament4"
 -- Phase 13 : 코인 · 로벅스 둘 다로 스킨 사기, 출석판, 룰렛, 첫 구매 보너스, 오늘의 특가
 --------------------------------------------------
 
--- 코인 가격이 있는 스킨은 로벅스로도 바로 살 수 있다.
--- 스킨마다 상품을 만들면 수십 개가 되므로, 가격대별 개발자 상품 5개로 모든 스킨을 판다.
---   · 상점에서 "R$ 39" 를 누르면 서버가 "이 사람이 고른 스킨"을 저장해 두고 그 가격대 상품의 구매창을 띄운다.
---   · 영수증이 오면 저장해 둔 스킨을 준다. 혹시 그 사이 스킨이 사라졌거나 이미 가졌다면 refundCoins 만큼 코인을 준다.
---     (결제는 이미 끝났으므로 무엇이든 반드시 준다)
-GameConfig.Products.SkinTiers = {
-	{ id = "tier_s", name = "스킨 바로 구매 (일반)", maxPrice = 700, robux = 19, refundCoins = 700, productId = 0 },
-	{ id = "tier_m", name = "스킨 바로 구매 (희귀)", maxPrice = 1800, robux = 39, refundCoins = 1800, productId = 0 },
-	{ id = "tier_l", name = "스킨 바로 구매 (영웅)", maxPrice = 4200, robux = 79, refundCoins = 4200, productId = 0 },
-	{ id = "tier_xl", name = "스킨 바로 구매 (전설)", maxPrice = 8000, robux = 129, refundCoins = 8000, productId = 0 },
-	{ id = "tier_xxl", name = "스킨 바로 구매 (신화)", maxPrice = 1e9, robux = 179, refundCoins = 11000, productId = 0 },
-}
-
--- 이 코인 가격의 스킨은 어느 가격대 상품으로 파는가
-function GameConfig.skinTierFor(price)
-	price = tonumber(price) or 0
-	if price <= 0 then
-		return nil
-	end
-	for _, tier in ipairs(GameConfig.Products.SkinTiers) do
-		if price <= tier.maxPrice then
-			return tier
-		end
-	end
-	return GameConfig.Products.SkinTiers[#GameConfig.Products.SkinTiers]
-end
-
-function GameConfig.findSkinTier(id)
-	for _, tier in ipairs(GameConfig.Products.SkinTiers) do
-		if tier.id == id then
-			return tier
-		end
-	end
-	return nil
-end
-
 -- 코인으로 살 수 있는 스킨인가 (VIP · 스타터 · 시즌 · 로벅스 전용 · 기본 지급은 아니다)
 function GameConfig.isCoinSkin(skin)
 	return skin ~= nil and (tonumber(skin.price) or 0) > 0 and not skin.vip and not skin.pack and not skin.season
+end
+
+-- 코인이 shortfall 만큼 모자랄 때 권할 묶음 : 그만큼 채우는 가장 작은 묶음 (다 모자라면 가장 큰 묶음)
+-- ready 가 true 면 상품 ID 가 있는 묶음만 본다
+function GameConfig.coinPackFor(shortfall, readyOnly)
+	local best, biggest = nil, nil
+	for _, pack in ipairs(GameConfig.Products.Coins) do
+		if not readyOnly or (tonumber(pack.productId) or 0) > 0 then
+			if pack.coins >= shortfall and (not best or pack.coins < best.coins) then
+				best = pack
+			end
+			if not biggest or pack.coins > biggest.coins then
+				biggest = pack
+			end
+		end
+	end
+	return best or biggest
 end
 
 -- 첫 코인 충전은 2배. 처음 돈을 쓰는 문턱을 낮추는 가장 흔한 방법이다.
@@ -1501,7 +1485,7 @@ function GameConfig.dailyDealFor(day)
 end
 
 -- 출석판 : 들어온 날마다 한 칸씩 받는다. (하루 빠져도 처음으로 돌아가지 않는다. 7칸을 다 받으면 새 판)
--- spins = 룰렛 이용권. VIP 는 코인이 2배.
+-- VIP 는 코인이 2배.
 GameConfig.Attendance = {
 	Enabled = true,
 	AutoOpen = true, -- 받을 것이 있으면 들어오자마자 출석판을 띄운다
@@ -1509,35 +1493,31 @@ GameConfig.Attendance = {
 	Days = {
 		{ coins = 150, icon = "coins" },
 		{ coins = 200, icon = "coins" },
-		{ coins = 150, spins = 1, icon = "spin" },
+		{ coins = 250, icon = "coins" },
 		{ coins = 300, icon = "coins" },
-		{ coins = 250, spins = 1, icon = "spin" },
-		{ coins = 400, icon = "gem" },
-		{ coins = 700, spins = 3, icon = "chest" },
+		{ coins = 350, icon = "coins" },
+		{ coins = 450, icon = "gem" },
+		{ coins = 1000, icon = "chest" },
 	},
 }
 
--- 룰렛 : 하루 한 번 무료. 이용권(출석 · 퀘스트 · 구매)으로 더 돌린다.
---   ★ 로벅스로 사는 "무작위 보상"은 Roblox 규칙상 확률을 먼저 보여 줘야 하고,
---     일부 나라에서는 팔 수 없다(PolicyService). 그래서 확률표를 항상 보여 주고, 막힌 나라에서는 이용권 판매를 숨긴다.
+-- 룰렛 : 하루에 한 번 무료로 돌린다. (이용권 · 로벅스 판매 없음)
+--   대부분 적은 코인이 나오고, 평범한 스킨은 20%, 희귀 스킨은 3%.
+--   "스킨" 칸은 아직 없는 코인 스킨 중 minPrice ~ maxPrice 가격의 것 하나. 다 가졌으면 fallbackCoins.
+--   확률표는 룰렛 화면에 늘 보여 준다.
 GameConfig.Roulette = {
 	Enabled = true,
-	FreePerDay = 1,
-	SkinMaxPrice = 1800, -- "스킨" 칸이 나오면 이 가격 이하의, 아직 없는 코인 스킨 하나
-	SkinFallbackCoins = 800, -- 받을 스킨이 없으면 대신 주는 코인
 	-- weight 합이 1000 이면 weight / 10 이 곧 % 다
 	Segments = {
-		{ id = "c50", kind = "coins", amount = 50, weight = 300, label = "50", color = Color3.fromRGB(120, 86, 52) },
-		{ id = "c100", kind = "coins", amount = 100, weight = 250, label = "100", color = Color3.fromRGB(150, 104, 58) },
-		{ id = "c200", kind = "coins", amount = 200, weight = 170, label = "200", color = Color3.fromRGB(120, 86, 52) },
-		{ id = "spin", kind = "spins", amount = 1, weight = 100, label = "+1", color = Color3.fromRGB(46, 110, 150) },
-		{ id = "c500", kind = "coins", amount = 500, weight = 90, label = "500", color = Color3.fromRGB(150, 104, 58) },
-		{ id = "skin", kind = "skin", amount = 1, weight = 50, label = "스킨", color = Color3.fromRGB(120, 60, 150) },
-		{ id = "c1000", kind = "coins", amount = 1000, weight = 30, label = "1000", color = Color3.fromRGB(180, 132, 40) },
-		{ id = "jackpot", kind = "coins", amount = 3000, weight = 10, label = "3000", color = Color3.fromRGB(200, 60, 50) },
+		{ id = "c20", kind = "coins", amount = 20, weight = 300, label = "20", color = Color3.fromRGB(120, 86, 52) },
+		{ id = "c50", kind = "coins", amount = 50, weight = 250, label = "50", color = Color3.fromRGB(150, 104, 58) },
+		{ id = "skin_plain", kind = "skin", minPrice = 1, maxPrice = 700, fallbackCoins = 150, weight = 200, label = "스킨", color = Color3.fromRGB(46, 110, 150) },
+		{ id = "c100", kind = "coins", amount = 100, weight = 140, label = "100", color = Color3.fromRGB(120, 86, 52) },
+		{ id = "c300", kind = "coins", amount = 300, weight = 60, label = "300", color = Color3.fromRGB(150, 104, 58) },
+		{ id = "skin_rare", kind = "skin", minPrice = 701, maxPrice = 1800, fallbackCoins = 500, weight = 30, label = "희귀", color = Color3.fromRGB(120, 60, 150) },
+		{ id = "c1000", kind = "coins", amount = 1000, weight = 15, label = "1000", color = Color3.fromRGB(180, 132, 40) },
+		{ id = "jackpot", kind = "coins", amount = 2000, weight = 5, label = "2000", color = Color3.fromRGB(200, 60, 50) },
 	},
-	-- 로벅스 이용권 (개발자 상품). productId 0 이면 팔지 않는다.
-	SpinPack = { id = "spins5", name = "룰렛 이용권 5장", spins = 5, robux = 49, productId = 0 },
 }
 
 function GameConfig.rouletteTotalWeight()

@@ -1,17 +1,17 @@
 {
   "place": "CursedBarrel_Phase13_Rewards.rbxl",
-  "sha256": "6ebd1d1585f1a7bd69094ce39bdcb697e195bb3c964d848c5b1e34523dd5cb52",
+  "sha256": "3cc2a814bc8b5ee30bba3fb3d8ef6420e6f1965481cbb21a11f41d021c1aa95a",
   "original_instances": 1255,
   "output_instances": 1285,
   "source_files": 53,
-  "behavior_checks_passed": 93,
+  "behavior_checks_passed": 92,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
   "luau_compile": "PASS (53 files, luau-compile)",
   "native_luau_checks": [
     "[kraken] KRAKEN CHECKS: 232175 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 93 passed"
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 92 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
@@ -88,7 +88,7 @@
     "PASS solo player + AI: every round ends; AI are practice rounds with reduced pay and no win record",
     "PASS practice win pays reduced coins and never touches wins, streak or ranking",
     "PASS if the human leaves, an AI-only table closes at once and half the pot carries over",
-    "PASS stab motions are cosmetic skins with a free default and a robux item",
+    "PASS stab motions are cosmetic skins with a free default and coin-priced legends",
     "PASS every stab motion lands before the pirate can appear",
     "PASS voyage clock cycles day→dusk→night→fog→storm→dawn in 15 minutes",
     "PASS world mods change the table rules (pot, surge, pirates, lead)",
@@ -104,10 +104,8 @@
     "PASS season-limited motion is not free and cannot be bought with coins",
     "PASS friend invite pays both once, inviter capped per day",
     "PASS attendance: claim once a day, missed days do not reset, 7-day cycle, VIP doubles coins",
-    "PASS roulette: odds sum to 100%, free once a day then tickets, prizes are granted on the server",
-    "  coin skins buyable with Robux: 42",
-    "PASS every coin skin can also be bought with Robux through a price-tier product",
-    "PASS tier purchase grants the chosen skin once; otherwise refunds coins (never loses a payment)",
+    "PASS roulette: once a day, mostly small coins, plain skins 20% and rare skins rare",
+    "PASS skins are bought with coins only; coin packs are priced like cinema popcorn",
     "PASS first coin top-up is doubled once",
     "PASS daily deal: one discounted coin skin per day, charged at the deal price",
     "PASS English: exact, templated, nested and concatenated UI text all become English",
@@ -115,7 +113,7 @@
     "PASS table pairs preserve at least 26 studs center separation",
     "PASS lantern posts are outside chair access rings",
     "PASS showcase rows fit inside the stern cabin",
-    "BEHAVIOR CHECKS: 93 passed",
-    "PASS: English covers all 571 Korean UI strings"
+    "BEHAVIOR CHECKS: 92 passed",
+    "PASS: English covers all 562 Korean UI strings"
   ]
 }

@@ -31,7 +31,7 @@ C.Audio = {
 C.Textures = { Rain = 0 }
 -- Phase 13 : 버튼 이미지 ID. 0 이면 코드로 그린 나무 버튼을 쓴다.
 --   Attendance : assets/branding/attendance_button.png 을 올린 이미지 ID (출석판 버튼)
---   Roulette   : 룰렛 버튼 이미지 (선택)
+--   Roulette   : assets/branding/roulette_button.png 을 올린 이미지 ID (룰렛 버튼)
 C.Images = { Attendance = 0, Roulette = 0 } -- 빗줄기 이미지 (0 이면 기본 입자를 길게 늘여 쓴다)
 C.Branding = {
  -- Exact user-supplied images are in assets/branding, unchanged.

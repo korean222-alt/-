@@ -156,33 +156,33 @@ VIP 선장 패스, 현상금 부스터가 여기에 해당합니다.
 - `GameConfig.lua` = `game/ReplicatedStorage/CursedBarrel/Shared/GameConfig.lua`
 - `ReleaseConfig.lua` = 같은 폴더의 `ReleaseConfig.lua`
 
-### 개발자 상품 13개
+> ★ Phase 13 에서 바뀐 최신 표입니다. 스킨은 코인으로만 사고, 로벅스로는 코인을 충전합니다. (자세한 이유: [Phase 13 문서](Phase13_돈_출석_룰렛_영어_KO.md) 1장)
 
-| 상품 | 추천 가격 | 넣는 곳 (`GameConfig.lua`) | 새로 생김 |
-|---|---|---|---|
-| 코인 1,000 | 25 R$ | `Products.Coins` 의 `coins_small` 줄 `productId` | |
-| 코인 5,500 | 99 R$ | `Products.Coins` 의 `coins_medium` 줄 `productId` | |
-| 코인 12,000 | 199 R$ | `Products.Coins` 의 `coins_large` 줄 `productId` | |
-| 잿불 칼 스킨 | 99 R$ | `Products.Skins` 의 `skin_ember_knife` 줄 `productId` | |
-| 잿불 유령 스킨 | 129 R$ | `Products.Skins` 의 `skin_ember_ghost` 줄 `productId` | |
-| 잿불 강타 (칼 꽂기 모션) | 79 R$ | `Products.Skins` 의 `skin_ember_stab` 줄 `productId` | Phase 11 |
-| **폭풍의 군주 (승리 세리머니)** | 99 R$ | 파일 아래쪽 `table.insert(GameConfig.Products.Skins, { id = "skin_storm_victory", ... productId = 0 })` 의 `productId` | **Phase 12** |
-| 선원 스타터 팩 (계정당 1회) | 49 R$ | `Products.Starter.productId` | |
-| 먹물 한 통 (방해) | 15 R$ | `Sabotage.Items` 의 `ink` 줄 `productId` | |
-| 흔들리는 손 (방해) | 25 R$ | `Sabotage.Items` 의 `shake` 줄 `productId` | |
-| 저주의 재촉 (방해) | 35 R$ | `Sabotage.Items` 의 `hurry` 줄 `productId` | |
-| 뒤섞인 번호 (방해) | 45 R$ | `Sabotage.Items` 의 `scramble` 줄 `productId` | |
-| 해적의 포효 (방해) | 55 R$ | `Sabotage.Items` 의 `roar` 줄 `productId` | |
+### 개발자 상품 10개
+
+| 상품 | 추천 가격 | 넣는 곳 (`GameConfig.lua`) |
+|---|---|---|
+| 코인 충전 소 · 1,500 코인 | 159 R$ | `Products.Coins` 의 `coins_small` 줄 `productId` |
+| 코인 충전 중 · 3,000 코인 | 319 R$ | `Products.Coins` 의 `coins_medium` 줄 `productId` |
+| 코인 충전 대 · 7,000 코인 | 369 R$ | `Products.Coins` 의 `coins_large` 줄 `productId` |
+| 코인 충전 특대 · 16,000 코인 | 799 R$ | `Products.Coins` 의 `coins_huge` 줄 `productId` |
+| 선원 스타터 팩 (계정당 1회) | 99 R$ | `Products.Starter.productId` |
+| 먹물 한 통 (방해) | 15 R$ | `Sabotage.Items` 의 `ink` 줄 `productId` |
+| 흔들리는 손 (방해) | 25 R$ | `Sabotage.Items` 의 `shake` 줄 `productId` |
+| 저주의 재촉 (방해) | 35 R$ | `Sabotage.Items` 의 `hurry` 줄 `productId` |
+| 뒤섞인 번호 (방해) | 45 R$ | `Sabotage.Items` 의 `scramble` 줄 `productId` |
+| 해적의 포효 (방해) | 55 R$ | `Sabotage.Items` 의 `roar` 줄 `productId` |
 
 - 방해 아이템은 상대에게 영향을 줍니다. 공정성 논란이 생길 수 있으니 **팔지 말지 먼저 정하세요.** 안 팔려면 ID를 0으로 두면 됩니다.
 - 표의 가격과 Creator Hub에 적은 가격이 **같아야** 합니다. 상점에 보이는 숫자는 코드의 `robux`, 실제 결제는 Creator Hub 가격입니다.
+- 예전 표에 있던 "잿불 칼 · 잿불 유령 · 잿불 강타 · 폭풍의 군주" 로벅스 스킨은 이제 코인 스킨이라 **만들지 않아도 됩니다.**
 
 ### 게임패스 2개
 
-| 패스 | 추천 가격 | 넣는 곳 (`GameConfig.lua`) | 새로 생김 |
-|---|---|---|---|
-| VIP 선장 패스 | 199 R$ | `Products.GamePasses.VIP.gamePassId` | |
-| **현상금 부스터** | 149 R$ | `Products.GamePasses.Booster.gamePassId` | **Phase 12** |
+| 패스 | 추천 가격 | 넣는 곳 (`GameConfig.lua`) |
+|---|---|---|
+| VIP 선장 패스 | 399 R$ | `Products.GamePasses.VIP.gamePassId` |
+| 현상금 부스터 | 249 R$ | `Products.GamePasses.Booster.gamePassId` |
 
 ### 배지 12개 (선택)
 
@@ -207,10 +207,7 @@ VIP 선장 패스, 현상금 부스터가 여기에 해당합니다.
 coins_small =
 coins_medium =
 coins_large =
-skin_ember_knife =
-skin_ember_ghost =
-skin_ember_stab =
-skin_storm_victory =
+coins_huge =
 starter =
 ink =
 shake =

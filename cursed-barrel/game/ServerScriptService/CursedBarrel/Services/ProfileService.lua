@@ -105,11 +105,9 @@ local function defaultProfile()
 		referralClaimed = false, -- Phase 12 : 초대받아 온 사람의 환영 선물은 한 번
 		attendCount = 0, -- Phase 13 : 출석판에서 이번 판(7칸)에 받은 칸 수
 		attendDay = "", -- Phase 13 : 마지막으로 출석을 받은 날짜
-		spins = 0, -- Phase 13 : 룰렛 이용권
 		freeSpinDay = "", -- Phase 13 : 오늘 무료 룰렛을 쓴 날짜
 		spinCount = 0, -- Phase 13 : 룰렛을 돌린 횟수 (통계)
 		coinPackBought = false, -- Phase 13 : 코인 충전을 한 번이라도 했는가 (첫 구매 2배)
-		pendingSkin = nil, -- Phase 13 : 로벅스로 사려고 고른 스킨 { kind, id, tier }
 		owned = defaultInventory(),
 		equipped = {
 			Knife = SKINS.Knife[1].id,
@@ -137,7 +135,7 @@ local function migrate(raw)
 
 	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak",
 		"cannonHits", "raidWins", "predictWins", "crewWins", "bestSeries", "cannonCoins", "predictCount", "inviteCount",
-		"attendCount", "spins", "spinCount" }) do
+		"attendCount", "spinCount" }) do
 		local value = tonumber(raw[key])
 		if value and value == value and value < math.huge then
 			profile[key] = math.max(0, math.floor(value))
@@ -158,10 +156,6 @@ local function migrate(raw)
 	-- Phase 13
 	profile.coinPackBought = raw.coinPackBought == true
 	profile.attendCount = math.min(profile.attendCount, #GameConfig.Attendance.Days)
-	if typeof(raw.pendingSkin) == "table" and typeof(raw.pendingSkin.kind) == "string" and typeof(raw.pendingSkin.id) == "string"
-		and typeof(raw.pendingSkin.tier) == "string" then
-		profile.pendingSkin = { kind = raw.pendingSkin.kind, id = raw.pendingSkin.id, tier = raw.pendingSkin.tier }
-	end
 	if typeof(raw.referrals) == "table" then
 		local kept = 0
 		for id, yes in pairs(raw.referrals) do
@@ -300,7 +294,6 @@ local function publish(player, profile)
 	player:SetAttribute(PLAYER_ATTR.Loaded, true)
 	-- Phase 13 : 출석판 · 룰렛 알림 점 (버튼 위 빨간 점)
 	local today = Utility.today()
-	player:SetAttribute("Spins", profile.spins or 0)
 	player:SetAttribute("AttendReady", GameConfig.Attendance.Enabled and profile.attendDay ~= today)
 	player:SetAttribute("FreeSpin", GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today)
 	-- Phase 12 : 칭호. 업적 목록의 뒤쪽(더 어려운 것)이 앞선다.

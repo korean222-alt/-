@@ -1,0 +1,24 @@
+# Phase 13 : 코인만으로 스킨 · 팝콘식 코인 묶음 · 하루 한 번 룰렛
+오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요	Already spun today. Come back tomorrow for another spin
+소	Small
+중	Medium
+대	Large
+특대	Mega
+코인 1,500	1,500 Coins
+코인 3,000	3,000 Coins
+코인 7,000	7,000 Coins
+코인 16,000	16,000 Coins
+🔥 가장 인기 · 중보다 R$ 50만 더 내면 코인 2배 넘게!	🔥 Most popular · just R$ 50 more than Medium for over 2x the coins!
+👑 보물 상자 · 가장 많이	👑 Treasure chest · the biggest pile
+확률표 · 하루 한 번 무료	Odds · one free spin a day
+희귀 스킨 (없는 것 중 하나)	Rare skin (one you don't own)
+평범한 스킨 (없는 것 중 하나)	Plain skin (one you don't own)
+다 가진 스킨 칸은 코인으로 바뀌어요	If you own them all, a skin slot pays coins instead
+오늘의 룰렛 돌리기!	Spin today's wheel!
+내일 또 돌릴 수 있어요	Spin again tomorrow
++%s 코인%s	+%s coins%s
+코인이 %s 모자라요 · 아래 「충전」으로 채울 수 있어요	You need %s more coins · top up with the button below
+충전 R$ %d	Top up R$ %d
+충전 준비 중	Top-up soon
+%s 묶음 · 코인 %s 충전 (R$ %d)	%s pack · +%s coins (R$ %d)
+%s  ·  %s  →  %s (2배)	%s  ·  %s  →  %s (2x)

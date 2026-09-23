@@ -199,7 +199,7 @@ for index, reward in ipairs(ATTEND.Days) do
 	corner(slot, 10)
 	text(cell, ("%d일"):format(index), UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 3), 14, COLORS.Ink, Enum.Font.GothamBlack)
 	local icon = text(slot, ICONS[reward.icon] or "🪙", UDim2.fromScale(1, 1), UDim2.new(), 34, COLORS.Cream)
-	local amount = reward.coins .. (reward.spins and ("\n+🎟" .. reward.spins) or "")
+	local amount = Utility.comma(reward.coins)
 	local amountLabel = text(cell, amount, UDim2.new(1, -8, 0, 34), UDim2.fromOffset(4, 90), 13, COLORS.Ink, Enum.Font.GothamBlack)
 	local check = text(cell, "✔", UDim2.fromScale(1, 1), UDim2.new(), 64, COLORS.Green, Enum.Font.GothamBlack)
 	check.TextStrokeTransparency = 0.2
@@ -233,7 +233,7 @@ local function drawAttendance()
 		cell.icon.TextTransparency = cell.check.Visible and 0.6 or 0
 		cell.glow.Thickness = index == nextIndex and 4 or 0
 		cell.frame.BackgroundColor3 = index == nextIndex and Color3.fromRGB(255, 226, 150) or COLORS.Cell
-		cell.amount.Text = ("%s%s"):format(Utility.comma(math.floor(reward.coins * vipScale)), reward.spins and ("\n+🎟" .. reward.spins) or "")
+		cell.amount.Text = Utility.comma(math.floor(reward.coins * vipScale))
 	end
 	if attend.ready then
 		claimButton.Text = "받기!"
@@ -317,8 +317,8 @@ for index, segment in ipairs(SEGMENTS) do
 	tile.TextWrapped = true
 	if segment.kind == "coins" then
 		tile.Text = "🪙\n" .. segment.label
-	elseif segment.kind == "spins" then
-		tile.Text = "🎟\n" .. segment.label
+	elseif (segment.minPrice or 0) > 700 then
+		tile.Text = "💎\n" .. segment.label
 	else
 		tile.Text = "🎁\n" .. segment.label
 	end
@@ -346,53 +346,43 @@ side.Position = UDim2.new(0, WHEEL + 32, 0, 12)
 side.Size = UDim2.new(1, -(WHEEL + 44), 1, -24)
 side.BackgroundTransparency = 1
 side.Parent = roulettePaper
-local oddsTitle = text(side, "확률표 (모든 돌리기 동일)", UDim2.new(1, 0, 0, 20), UDim2.new(), 13, COLORS.Ink, Enum.Font.GothamBlack)
+local oddsTitle = text(side, "확률표 · 하루 한 번 무료", UDim2.new(1, 0, 0, 20), UDim2.new(), 13, COLORS.Ink, Enum.Font.GothamBlack)
 oddsTitle.TextXAlignment = Enum.TextXAlignment.Left
 local total = GameConfig.rouletteTotalWeight()
 for index, segment in ipairs(SEGMENTS) do
 	local name
 	if segment.kind == "coins" then
 		name = Utility.comma(segment.amount) .. " 코인"
-	elseif segment.kind == "spins" then
-		name = "이용권 +1"
+	elseif (segment.minPrice or 0) > 700 then
+		name = "희귀 스킨 (없는 것 중 하나)"
 	else
-		name = "스킨 (없는 것 중 하나)"
+		name = "평범한 스킨 (없는 것 중 하나)"
 	end
 	local line = text(side, ("%s  ·  %.1f%%"):format(name, segment.weight / total * 100),
 		UDim2.new(1, 0, 0, 17), UDim2.fromOffset(0, 20 + (index - 1) * 17), 12, COLORS.Ink, Enum.Font.Gotham)
 	line.TextXAlignment = Enum.TextXAlignment.Left
 end
-local spinsLabel = text(side, "", UDim2.new(1, 0, 0, 20), UDim2.fromOffset(0, 162), 14, COLORS.Ink, Enum.Font.GothamBlack)
-spinsLabel.TextXAlignment = Enum.TextXAlignment.Left
-local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 46), UDim2.fromOffset(0, 188), COLORS.Green)
-local buyButton = button(side, "", UDim2.new(1, 0, 0, 36), UDim2.fromOffset(0, 242), COLORS.Robux)
-buyButton.TextSize = 13
-local resultLabel = text(side, "", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 284), 14, COLORS.Ink, Enum.Font.GothamBlack)
+local fallbackNote = text(side, "다 가진 스킨 칸은 코인으로 바뀌어요", UDim2.new(1, 0, 0, 30), UDim2.fromOffset(0, 160), 11, COLORS.Dim, Enum.Font.Gotham)
+fallbackNote.TextXAlignment = Enum.TextXAlignment.Left
+local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 52), UDim2.fromOffset(0, 196), COLORS.Green)
+local resultLabel = text(side, "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 258), 15, COLORS.Ink, Enum.Font.GothamBlack)
 
 local spinning = false
 local spinToken = 0
-local IN_STUDIO = game:GetService("RunService"):IsStudio()
 
 local function drawRoulette()
 	local info = state and state.roulette
 	if not info then
 		return
 	end
-	spinsLabel.Text = ("🎟 이용권 %d장%s"):format(info.spins, info.free and "  ·  오늘 무료 1회!" or "")
 	if spinning then
 		spinButton.Text = "돌아가는 중…"
 	elseif info.free then
-		spinButton.Text = "무료로 돌리기!"
-	elseif info.spins > 0 then
-		spinButton.Text = "이용권 1장 쓰기"
+		spinButton.Text = "오늘의 룰렛 돌리기!"
 	else
-		spinButton.Text = "내일 무료 1회"
+		spinButton.Text = "내일 또 돌릴 수 있어요"
 	end
-	spinButton.BackgroundColor3 = (not spinning and (info.free or info.spins > 0)) and COLORS.Green or COLORS.Dim
-	local pack = info.pack
-	buyButton.Visible = not info.restricted and (pack.ready or IN_STUDIO)
-	buyButton.Text = pack.ready and ("R$ %d · 이용권 %d장"):format(pack.robux, pack.spins) or "이용권 판매 준비 중"
-	buyButton.BackgroundColor3 = pack.ready and COLORS.Robux or COLORS.Dim
+	spinButton.BackgroundColor3 = (not spinning and info.free) and COLORS.Green or COLORS.Dim
 end
 
 spinButton.Activated:Connect(function()
@@ -400,7 +390,7 @@ spinButton.Activated:Connect(function()
 		return
 	end
 	local info = state and state.roulette
-	if info and (info.free or info.spins > 0) then
+	if info and info.free then
 		spinning = true
 		spinToken += 1
 		local token = spinToken
@@ -416,15 +406,10 @@ spinButton.Activated:Connect(function()
 		end)
 	end
 end)
-buyButton.Activated:Connect(function()
-	rewardRequest:FireServer("buySpins")
-end)
 
 local function resultText(result)
 	if result.kind == "coins" then
 		return ("🪙 %s 코인!"):format(Utility.comma(result.amount)), result.amount >= 1000
-	elseif result.kind == "spins" then
-		return "🎟 이용권 +1! 한 번 더!", false
 	elseif result.kind == "skin" then
 		return ("🎁 스킨 「%s」!"):format(result.skinName or "?"), true
 	end
@@ -550,12 +535,9 @@ end)
 
 local function refreshDots()
 	attendDot.Visible = player:GetAttribute("AttendReady") == true
-	local spins = player:GetAttribute("Spins") or 0
-	local free = player:GetAttribute("FreeSpin") == true
-	rouletteDot.Visible = free or spins > 0
-	rouletteDot.Text = free and "!" or tostring(math.min(spins, 99))
+	rouletteDot.Visible = player:GetAttribute("FreeSpin") == true
 end
-for _, name in ipairs({ "AttendReady", "Spins", "FreeSpin" }) do
+for _, name in ipairs({ "AttendReady", "FreeSpin" }) do
 	player:GetAttributeChangedSignal(name):Connect(refreshDots)
 end
 refreshDots()
@@ -617,11 +599,11 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 				state.attendance.ready = false
 			end
 			celebrateCell(result.day)
-			attendNote.Text = ("+%s 코인%s%s"):format(Utility.comma(result.coins), (result.spins or 0) > 0 and (" · 룰렛 이용권 +" .. result.spins) or "",
-				result.vip and " (VIP 2배)" or "")
+			attendNote.Text = ("+%s 코인%s"):format(Utility.comma(result.coins), result.vip and " (VIP 2배)" or "")
 			claimButton.Text = "내일 또 와요"
 			claimButton.BackgroundColor3 = COLORS.Dim
-			if (result.spins or 0) > 0 then
+			-- 오늘 룰렛을 아직 안 돌렸으면 이어서 룰렛을 보여 준다
+			if player:GetAttribute("FreeSpin") == true then
 				task.delay(1.6, function()
 					if attendWindow.Visible then
 						openRoulette()
