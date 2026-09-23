@@ -1,7 +1,7 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase10_Kraken.rbxl`: 통합 Place. (Phase 10 변경 내용: `docs/Phase10_변경사항_KO.md`)
-- `game`: 32개 Script/LocalScript/ModuleScript 소스.
+- `output/CursedBarrel_Phase11_Treasure.rbxl`: 통합 Place. (Phase 11 변경 내용과 해야 할 일: `docs/Phase11_변경사항_KO.md`)
+- `game`: 37개 Script/LocalScript/ModuleScript 소스.
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
@@ -13,8 +13,8 @@
 Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같이 하려면 [Luau 릴리스](https://github.com/luau-lang/luau/releases)의 `luau` · `luau-compile` 실행 파일을 받아 `LUAU` 환경 변수로 알려 주세요.
 
 ```bash
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase10_Kraken.rbxl
-LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase10_Kraken.rbxl
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase11_Treasure.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase11_Treasure.rbxl
 
 # 개별 실행
 python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
@@ -26,6 +26,15 @@ python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택
 
 ## 변경 기록
 
+- 11.0.0 Deadly Treasure:
+  - 해적은 계속 잡을 수 있고, 잡을 때마다 다음 해적이 빨라진다. 6번 잡은 뒤의 해적은 "분노한 해적"이라 판은 반드시 끝난다.
+  - 해적이 나오기 전에 누르면 바로 탈락한다. (칼 고른 직후 0.3초 입력은 버린다)
+  - 기권승은 승리 보상 · 현상금 절반. 남은 현상금은 다음 판으로 이월된다.
+  - 보물 폭발(현상금이 확률로 크게 뜀), 테이블 위 금화 더미, 이월 금화.
+  - AI 선원: 혼자 앉으면 6초 뒤 AI 가 앉는다. AI 가 낀 판은 연습 판(코인 60%, 승수 · 랭킹 제외).
+  - 칼 꽂기 모션 스킨 7종(1종 로벅스), 상점 모션 탭과 미리보기.
+  - 해적 등장 연출(덜컹거림 · 가짜 손 · 뚜껑 폭발 · 비명), 약 60개 부품의 새 해적, 통 이음새 · 징, 칼 날선 · 끈 · 폼멜.
+  - 검사 73개(시뮬레이션 340판 포함).
 - 10.0.0 Kraken:
   - 해적 잡기는 한 사람당 한 판에 1번이고, 잡을수록 창이 짧아진다. 판이 끝나지 않던 버그를 고쳤다.
   - 잡는 동안 스페이스를 눌러도 기권되지 않는다.
