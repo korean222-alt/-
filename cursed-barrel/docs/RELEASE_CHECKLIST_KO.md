@@ -17,6 +17,11 @@
   - `GameConfig.Products.Starter.productId`: 개발자 상품, 추천 49 R$, 계정당 1회
   - `GameConfig.Products.GamePasses.VIP.gamePassId`: 게임패스, 추천 199 R$
   - ID 가 0 이면 공개 서버에서 상점에 보이지 않는다. 코인 묶음과 방해 아이템도 같다.
+- Phase 13 상품 (`docs/Phase13_돈_출석_룰렛_영어_KO.md` 6장):
+  - `GameConfig.Products.SkinTiers` 5개 (tier_s 19 · tier_m 39 · tier_l 79 · tier_xl 129 · tier_xxl 179 R$) — 코인 스킨 로벅스 바로 구매
+  - `GameConfig.Roulette.SpinPack.productId` (룰렛 이용권 5장, 49 R$) — 확률표 표시 · PolicyService 제한 확인
+  - `ReleaseConfig.Images.Attendance` (출석 버튼 그림, `assets/branding/attendance_button.png`)
+  - 확인: R$ 버튼으로 산 스킨이 바로 들어오는지, 이미 가진 뒤 영수증이 오면 코인으로 대체되는지, 첫 충전 2배가 한 번만인지
 - Phase 12 상품 (전체 표 · 만드는 법: `docs/Phase12_에셋_상품_안내_KO.md`):
   - `GameConfig.Products.GamePasses.Booster.gamePassId`: 현상금 부스터 게임패스, 추천 149 R$
   - `skin_storm_victory.productId` (GameConfig.lua 아래쪽 `table.insert` 줄): 승리 세리머니 「폭풍의 군주」, 추천 99 R$
@@ -31,6 +36,7 @@
 
 ## 실제 플레이
 
+- Phase 13: 출석판(자동으로 열림 · 받기 · ✔ 연출 · 다음 날 빨간 점), 룰렛(무료 1회 · 이용권 · 멈춘 칸과 보상 일치 · 확률표), 오늘의 특가 가격, 설정 언어 English 에서 모든 화면 · 간판 · 안내가 영어인지 (글자가 칸을 넘치지 않는지), 휴대폰 화면에서 두 창 크기.
 - Phase 12 규칙 (`GameConfig.World.StudioStartPhase = "storm"`, `StudioTimeScale = 0.2` 로 빨리 확인하고 되돌린다):
   - 항해 시계: 오른쪽 위 단계 표시, 하늘 · 안개 · 비 · 번개 전환, 단계별 규칙(노을 보물 폭발 2배, 밤 +25% · 빠른 해적, 안개 번호 가림, 폭풍 현상금 2배 · 해적 +1).
   - 습격: 내려치기 경고(치켜든 다리 · 떨림) → 쾅(흔들림 · 소리 · 파편) → 물러남. 테이블 게임 중에는 흔들림이 아주 약한지. 설정의 흔들림 끄기 · 연출 줄이기.

@@ -1,7 +1,7 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase12_Storm.rbxl`: 통합 Place. (Phase 12 변경 내용과 해야 할 일: `docs/Phase12_변경사항_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
-- `game`: 48개 Script/LocalScript/ModuleScript 소스.
+- `output/CursedBarrel_Phase13_Rewards.rbxl`: 통합 Place. (Phase 13 변경 내용과 할 일: `docs/Phase13_돈_출석_룰렛_영어_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
+- `game`: 53개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
@@ -13,8 +13,9 @@
 Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같이 하려면 [Luau 릴리스](https://github.com/luau-lang/luau/releases)의 `luau` · `luau-compile` 실행 파일을 받아 `LUAU` 환경 변수로 알려 주세요.
 
 ```bash
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase12_Storm.rbxl
-LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase12_Storm.rbxl
+python tools/build_locale.py --check   # 영어 사전 다시 만들기 + 빠진 영어 검사
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase13_Rewards.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase13_Rewards.rbxl
 
 # 개별 실행
 python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
@@ -26,6 +27,11 @@ python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택
 
 ## 변경 기록
 
+- 13.0.0 Rewards:
+  - 코인 스킨 42개를 로벅스로도 바로 산다 (가격대별 개발자 상품 5개 + 고른 스킨 저장, 못 주면 코인 환불).
+  - 첫 코인 충전 2배, 오늘의 특가(매일 스킨 하나 30% 할인), 코인 묶음 가치 표시, 코인 부족 시 로벅스 안내.
+  - 출석판(7칸, 직접 받기, 빠져도 이어받기, VIP 2배, 자동으로 열림), 룰렛(하루 무료 1회, 이용권, 확률표, PolicyService 로 유료 이용권 제한).
+  - 영어: 한국어 UI 문장 571개 번역 사전 + 클라이언트 자동 번역(LocaleController). 빠진 영어는 테스트가 잡는다. 플레이어 목록 머리글 Wins/Streak.
 - 12.0.0 Kraken Storm:
   - 15분 항해 시계(낮 · 노을 · 밤 · 안개 · 폭풍 · 새벽). 하늘 · 비 · 번개 · 음악이 바뀌고 단계마다 현상금 · 보물 폭발 · 해적 수 · 잡기 속도가 바뀐다.
   - 폭풍의 크라켄 습격: 서버가 정한 내려치기(치켜듦 → 쾅 → 물러남), 화면 흔들림 · 충격파 · 파편 · 물기둥, 보스 체력, 대포로 막기, 승리 · 도망 보상.
