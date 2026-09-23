@@ -214,6 +214,12 @@ local heartbeat=Run.Heartbeat:Connect(function()
   end
  end
  local id=(t or watching) and Release.Audio.Match or Release.Audio.Lobby
+ -- Phase 12 : 로비 음악은 항해 시계를 따른다 (밤 · 안개 / 폭풍 · 습격)
+ if not (t or watching) then
+  local phase=workspace:GetAttribute("WorldPhase")
+  if (workspace:GetAttribute("RaidActive")==true or phase=="storm") and (Release.Audio.Storm or 0)>0 then id=Release.Audio.Storm
+  elseif (phase=="night" or phase=="fog") and (Release.Audio.Night or 0)>0 then id=Release.Audio.Night end
+ end
  local sid=id>0 and ("rbxassetid://"..id) or ""
  music.Volume=player:GetAttribute("Setting_music") or 0.35
  if music.SoundId~=sid then music:Stop();music.SoundId=sid;if sid~="" then music:Play() end end

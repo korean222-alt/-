@@ -1,23 +1,23 @@
 {
-  "place": "CursedBarrel_Phase11_Treasure.rbxl",
-  "sha256": "fa1a68b8df3db1968b490cbb01826f63e4e90fe2695dd434d683526c74351902",
+  "place": "CursedBarrel_Phase12_Storm.rbxl",
+  "sha256": "2c6dfb83475d49085b28fc03bc4cece3a0956575004ce0c9beeb87125dd2d208",
   "original_instances": 1255,
-  "output_instances": 1269,
-  "source_files": 37,
-  "behavior_checks_passed": 73,
+  "output_instances": 1280,
+  "source_files": 48,
+  "behavior_checks_passed": 86,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
-  "luau_compile": "PASS (37 files, luau-compile)",
+  "luau_compile": "PASS (48 files, luau-compile)",
   "native_luau_checks": [
-    "[kraken] KRAKEN CHECKS: 75645 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 73 passed"
+    "[kraken] KRAKEN CHECKS: 232175 run, 0 failed",
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 86 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
   "live_datastore_receipts_assets": "NOT_RUN",
   "test_output": [
-    "PASS: 37 source files parsed by Lua 5.4 after compound-assignment translation",
+    "PASS: 48 source files parsed by Lua 5.4 after compound-assignment translation",
     "PASS rarity lookup does not mutate or duplicate the skin catalog",
     "PASS new profile acquires an atomic session",
     "PASS six inventory categories and defaults",
@@ -90,10 +90,23 @@
     "PASS if the human leaves, an AI-only table closes at once and half the pot carries over",
     "PASS stab motions are cosmetic skins with a free default and a robux item",
     "PASS every stab motion lands before the pirate can appear",
+    "PASS voyage clock cycles day→dusk→night→fog→storm→dawn in 15 minutes",
+    "PASS world mods change the table rules (pot, surge, pirates, lead)",
+    "PASS tutorial round: the newcomer's first pirate is slower and wider",
+    "PASS round settled signal carries winner, elimination order and catches",
+    "PASS prediction: spectators pick once early, correct picks pay with a daily cap",
+    "PASS tournament: placements, catch points, forfeit resets and a 4-round series pays out",
+    "PASS kraken raid: HP, slam blocking, victory rewards and escape",
+    "PASS voyage clock starts a raid in the storm and ends it at dawn",
+    "PASS lucky table is picked daily and skips tournament tables",
+    "PASS cannon coins stop at the daily cap but hits still count",
+    "PASS booster pass raises the winner's pot, crew wins build the crewmate title",
+    "PASS season-limited motion is not free and cannot be bought with coins",
+    "PASS friend invite pays both once, inviter capped per day",
     "PASS all ten tables fit the ship with chair clearance",
     "PASS table pairs preserve at least 26 studs center separation",
     "PASS lantern posts are outside chair access rings",
     "PASS showcase rows fit inside the stern cabin",
-    "BEHAVIOR CHECKS: 73 passed"
+    "BEHAVIOR CHECKS: 86 passed"
   ]
 }

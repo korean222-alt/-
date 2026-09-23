@@ -45,7 +45,7 @@ script = { Parent = setmetatable({}, { __index = function(_, key) return { __nam
 
 def bundle(test):
     parts = [PRELUDE]
-    for name in ('ShipLayout', 'KrakenLayout'):
+    for name in ('ShipLayout', 'KrakenLayout', 'KrakenTargets'):
         parts.append(f'MODULES.{name} = function()\n{(shared / (name + ".lua")).read_text()}\nend\n')
     parts.append((root / 'tests' / test).read_text())
     return '\n'.join(parts)

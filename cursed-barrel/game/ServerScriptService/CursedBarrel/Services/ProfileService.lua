@@ -90,6 +90,19 @@ local function defaultProfile()
 		loginStreak = 0, -- Phase 10 : 연속 출석 일수
 		lastLoginDay = -1, -- Phase 10 : 마지막으로 출석 보상을 받은 날 (UTC 기준 1970-01-01 부터 센 날짜)
 		starterBought = false, -- Phase 10 : 스타터 팩은 계정당 한 번
+		cannonHits = 0, -- Phase 12 : 대포로 크라켄을 맞힌 횟수
+		raidWins = 0, -- Phase 12 : 크라켄 습격을 물리친 횟수 (참여)
+		predictWins = 0, -- Phase 12 : 관전 예측 적중
+		crewWins = 0, -- Phase 12 : 친구 · 파티와 같은 판에서 우승
+		bestSeries = 0, -- Phase 12 : 토너먼트 시리즈 최고 점수
+		cannonDay = "", -- Phase 12 : 대포 코인 하루 상한을 세는 날짜
+		cannonCoins = 0,
+		predictDay = "", -- Phase 12 : 예측 보상 하루 상한을 세는 날짜
+		predictCount = 0,
+		referrals = {}, -- Phase 12 : [초대해서 온 사람 UserId] = true (한 사람당 한 번)
+		inviteDay = "",
+		inviteCount = 0,
+		referralClaimed = false, -- Phase 12 : 초대받아 온 사람의 환영 선물은 한 번
 		owned = defaultInventory(),
 		equipped = {
 			Knife = SKINS.Knife[1].id,
@@ -115,7 +128,8 @@ local function migrate(raw)
 		return profile
 	end
 
-	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak" }) do
+	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak",
+		"cannonHits", "raidWins", "predictWins", "crewWins", "bestSeries", "cannonCoins", "predictCount", "inviteCount" }) do
 		local value = tonumber(raw[key])
 		if value and value == value and value < math.huge then
 			profile[key] = math.max(0, math.floor(value))
@@ -126,6 +140,22 @@ local function migrate(raw)
 		profile.lastLoginDay = math.floor(lastDay)
 	end
 	profile.starterBought = raw.starterBought == true
+	-- Phase 12
+	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay" }) do
+		if typeof(raw[key]) == "string" then
+			profile[key] = raw[key]
+		end
+	end
+	profile.referralClaimed = raw.referralClaimed == true
+	if typeof(raw.referrals) == "table" then
+		local kept = 0
+		for id, yes in pairs(raw.referrals) do
+			if yes == true and kept < 500 then
+				profile.referrals[tostring(id)] = true
+				kept += 1
+			end
+		end
+	end
 
 	if typeof(raw.owned) == "table" then
 		for kind, list in pairs(profile.owned) do
@@ -253,6 +283,16 @@ local function publish(player, profile)
 	player:SetAttribute(PLAYER_ATTR.Streak, profile.streak)
 	player:SetAttribute(PLAYER_ATTR.BestStreak, profile.bestStreak)
 	player:SetAttribute(PLAYER_ATTR.Loaded, true)
+	-- Phase 12 : 칭호. 업적 목록의 뒤쪽(더 어려운 것)이 앞선다.
+	local title = ""
+	for _, entry in ipairs(GameConfig.Achievements) do
+		if entry.title and profile.achievements[entry.id] then
+			title = entry.title
+		end
+	end
+	if player:GetAttribute(PLAYER_ATTR.Title) ~= title then
+		player:SetAttribute(PLAYER_ATTR.Title, title)
+	end
 
 	for kind, attribute in pairs(SKIN_ATTR) do
 		local id = profile.equipped[kind]
@@ -475,6 +515,42 @@ function ProfileService:GainScale(player)
 	return 1
 end
 
+-- Phase 12 : 현상금 부스터 게임패스가 있으면 내가 가져가는 현상금이 늘어난다.
+function ProfileService:PotScale(player)
+	local pass = GameConfig.Products.GamePasses and GameConfig.Products.GamePasses.Booster
+	if pass and player and player:GetAttribute(PLAYER_ATTR.Booster) == true then
+		return 1 + (tonumber(pass.potBonus) or 0)
+	end
+	return 1
+end
+
+-- Phase 12 : 연습 판을 마쳤다
+function ProfileService:MarkTutorialDone(player)
+	local profile = self._profiles[player]
+	if profile and not profile.tutorialDone then
+		profile.tutorialDone = true
+		player:SetAttribute("TutorialDone", true)
+		self:_touch(player)
+	end
+end
+
+-- Phase 12 : 통계만 올린다 (코인 없이). 퀘스트 · 업적이 따라 움직인다.
+-- absolute 가 있으면 "최고 기록"처럼 큰 값으로만 바꾼다.
+function ProfileService:Bump(player, metric, amount, absolute)
+	local profile = self._profiles[player]
+	if not profile or profile[metric] == nil then
+		return
+	end
+	if absolute then
+		profile[metric] = math.max(profile[metric], math.floor(absolute))
+	else
+		profile[metric] += math.floor(tonumber(amount) or 1)
+	end
+	self:_advanceQuests(player, profile, metric, math.floor(tonumber(amount) or 1))
+	self:_checkAchievements(player, profile)
+	self:_touch(player)
+end
+
 -- 라운드가 끝났다. 참가자 전원의 판수가 오르고, 승자는 승수와 연승이 오른다.
 -- winner 는 정상 승리일 때만 넘어온다.
 -- pot 은 이번 판에 승자(또는 기권승한 사람)가 가져가는 현상금. 테이블 배율이 이미 들어가 있다.
@@ -529,7 +605,7 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 			local share = tonumber(GameConfig.ForfeitWin.RewardShare) or 0.5
 			local gain = (1 + ((bonuses or {})[halfWinner] or 0)) * self:GainScale(halfWinner)
 			profile.coins += math.floor(ECONOMY.WinReward * share * scale * gain)
-			profile.coins += math.floor(potAmount * gain)
+			profile.coins += math.floor(potAmount * gain * self:PotScale(halfWinner))
 			self:_advanceQuests(halfWinner, profile, "games", 1)
 			tableQuests(halfWinner, profile)
 			self:_checkAchievements(halfWinner, profile)
@@ -553,7 +629,11 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 			local gain = (1 + ((bonuses or {})[winner] or 0)) * self:GainScale(winner)
 			profile.coins += math.floor(reward * scale * gain)
 			-- 현상금은 이미 테이블 배율이 들어가 있다. (RoundService:_addPot)
-			profile.coins += math.floor(potAmount * gain)
+			profile.coins += math.floor(potAmount * gain * self:PotScale(winner))
+			-- Phase 12 : 친구 · 파티와 같은 판에서 이겼다 (선원 동료 칭호)
+			if ((bonuses or {})[winner] or 0) > 0 and not practice then
+				profile.crewWins = (profile.crewWins or 0) + 1
+			end
 
 			self:_advanceQuests(winner, profile, "games", 1)
 			self:_advanceQuests(winner, profile, "wins", 1)
@@ -676,7 +756,7 @@ function ProfileService:_advanceQuests(player, profile, metric, amount, absolute
   if q.metric==metric then profile.weekly.progress[q.id]=math.min(q.goal,(profile.weekly.progress[q.id] or 0)+(amount or 0)) end
  end
  if Release.seasonActive(os.time()) then
-  local xp=({games=20,wins=35,catches=3})[metric] or 0
+  local xp=({games=20,wins=35,catches=3,raidWins=40,predictWins=10,cannonHits=1})[metric] or 0
   profile.season.xp=profile.season.xp+xp*(amount or 0)
  end
 	if not GameConfig.Quests.Enabled then

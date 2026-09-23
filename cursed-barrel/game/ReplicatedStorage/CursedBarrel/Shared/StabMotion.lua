@@ -82,6 +82,11 @@ local PLANS = {
 		local rise = 0.5 + w * 0.2
 		return { rise = rise, strike = 0.1, hits = { { t = rise + 0.1, power = 1.4 } } }
 	end,
+	-- Phase 12 (시즌 한정) : 칼이 하늘 높이 떠올랐다가 번개처럼 내리꽂힌다
+	bolt = function(w)
+		local rise = math.max(0.22, w * 0.9)
+		return { rise = rise, strike = 0.07, hits = { { t = rise + 0.07, power = 1.7 } } }
+	end,
 }
 
 function StabMotion.plan(style, windup, color)
@@ -152,6 +157,14 @@ function StabMotion.knifeAt(plan, t, ctx)
 			return CFrame.new(pos) * flip * start.Rotation:Lerp(raised.Rotation, a)
 		end
 		return raised:Lerp(target, inQuint(clamp01((t - plan.rise) / plan.strike)))
+	elseif style == "bolt" then
+		local sky = CFrame.new(target.Position + UP * 11) * target.Rotation * CFrame.Angles(math.rad(-60), 0, 0)
+		if t < plan.rise then
+			-- 번쩍이며 하늘로 솟는다 (떨림)
+			local a = outQuad(t / plan.rise)
+			return start:Lerp(sky, a) * CFrame.new(math.sin(t * 80) * 0.08 * a, 0, 0)
+		end
+		return sky:Lerp(target, inQuint(clamp01((t - plan.rise) / plan.strike)))
 	elseif style == "dive" then
 		if t < plan.rise then
 			local a = t / plan.rise
@@ -281,6 +294,11 @@ local function bodyFrames(plan)
 			{ 0.12, up - 0.12, 70, nil, 0, 0 },
 			{ up - 0.1, 0.1, 150, nil, -6, 0 }, -- 받는다
 			{ up, plan.strike, 55, nil, 16, 0 },
+		}
+	elseif s == "bolt" then
+		return {
+			{ 0, up, 175, 60, -14, 0 }, -- 하늘을 가리킨다
+			{ up, plan.strike, 35, 20, 26, 0 },
 		}
 	elseif s == "dive" then
 		return {

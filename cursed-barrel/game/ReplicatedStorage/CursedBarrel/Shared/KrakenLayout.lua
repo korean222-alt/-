@@ -114,6 +114,8 @@ local function sternArm(name, x, opts)
 		tipRadius = 0.34,
 		speed = opts.speed or 0.5,
 		phase = opts.phase or 0,
+		-- 선미 벽 바로 위로 넘어오므로 습격 때도 조금만 더 날뛴다 (벽을 스치지 않게)
+		wildScale = 0.35,
 		waypoints = {
 			{ p = v(x + drift, K.SeaY - 8, -182), sway = 0, lift = 0 },
 			{ p = v(x + drift * 0.7, K.SeaY + 4, -174), sway = 0.6, lift = 0.4 },
@@ -209,16 +211,25 @@ function K.planeNormal(arm)
 end
 
 -- 시각 t 에서 점들의 위치. t 가 nil 이면 쉬는 자세.
-function K.waypointsAt(arm, t)
+-- amp (Phase 12) : 얼마나 날뛰는가. 1 이 평소. 폭풍 · 습격 때 커진다.
+--   바다 위로 솟은 점(sway 0.6 이상)만 크게 흔든다. 난간 · 갑판에 걸친 점은 그대로라 배를 뚫지 않는다.
+function K.waypointsAt(arm, t, amp)
 	local normal = K.planeNormal(arm)
 	local up = Vector3.new(0, 1, 0)
+	local wild = math.max(1, tonumber(amp) or 1)
 	local list = {}
 	for index, point in ipairs(arm.waypoints) do
 		local position = point.p
 		if t and (point.sway > 0 or point.lift > 0) then
 			local w = arm.speed * t + arm.phase + index * 0.8
-			local side = math.sin(w) * point.sway
-			local lift = (0.5 + 0.5 * math.sin(w * 0.73 + index * 1.1)) * point.lift
+			local free = point.sway >= 0.6 and (1 + (wild - 1) * (arm.wildScale or 1)) or 1
+			local side = math.sin(w) * point.sway * free
+			local lift = (0.5 + 0.5 * math.sin(w * 0.73 + index * 1.1)) * point.lift * free
+			if free > 1 then
+				-- 날뛸 때는 빠른 떨림이 더해진다
+				side += math.sin(t * 2.3 + index * 1.7 + arm.phase) * 0.45 * (free - 1)
+				lift += (0.5 + 0.5 * math.sin(t * 1.9 + index)) * 0.6 * (free - 1)
+			end
 			position = position + normal * side + up * lift
 		end
 		list[index] = position
@@ -236,8 +247,8 @@ end
 	count 개의 점이 길이를 따라 고르게 놓인다.
 	돌려주는 값 : { {p = Vector3, r = number, u = number}, ... }
 ]]
-function K.sample(arm, t, count)
-	local points = K.waypointsAt(arm, t)
+function K.sample(arm, t, count, amp)
+	local points = K.waypointsAt(arm, t, amp)
 	local n = #points
 	-- 양 끝에 가상의 점을 하나씩 더해 첫 구간과 마지막 구간도 곡선이 되게 한다.
 	local padded = { points[1] * 2 - points[2] }

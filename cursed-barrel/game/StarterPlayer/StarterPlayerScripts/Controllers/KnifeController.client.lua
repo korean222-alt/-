@@ -268,6 +268,14 @@ local sealMode = false
 -- Phase 8 : 방해 아이템 상태
 local shakeUntil = 0 -- 이 시각까지 버튼이 흔들린다
 local scrambleUntil = 0 -- 이 시각까지 숫자가 뒤섞인다
+-- Phase 12 : 안개 단계 (GameConfig.World mods.fog)
+local function fogHides(index)
+	if GameConfig.worldMods().fog ~= true then
+		return false
+	end
+	return math.sin(os.clock() * 0.9 + index * 2.3) > 0.35
+end
+local fogRefreshAt = 0
 local scrambleMap = {} -- [진짜 번호] = 화면에 보여줄 번호
 local shaken = false -- 지난 프레임에 흔들리고 있었는가 (한 번만 되돌리려고)
 
@@ -386,6 +394,10 @@ local function refreshButton(index)
 
 	-- 뒤섞인 번호를 맞고 있으면 숫자만 다른 것을 보여준다. 누르는 자리는 그대로다.
 	local shown = (os.clock() < scrambleUntil) and (scrambleMap[index] or index) or index
+	-- Phase 12 : 안개 단계에는 번호가 이따금 안개에 가려진다 (내 화면만. 누르는 자리는 그대로)
+	if not used and fogHides(index) then
+		shown = "?"
+	end
 	button.Text = used and ("× "..shown) or (sealed and ("◆ "..shown) or ("○ "..shown))
 end
 
@@ -870,6 +882,11 @@ RunService.RenderStepped:Connect(function()
 	-- 뒤섞임이 끝나면 숫자를 되돌린다
 	if next(scrambleMap) and now >= scrambleUntil then
 		table.clear(scrambleMap)
+		refreshAllButtons()
+	end
+	-- 안개가 번호 위를 흘러간다 (0.5초마다)
+	if GameConfig.worldMods().fog == true and now >= fogRefreshAt then
+		fogRefreshAt = now + 0.5
 		refreshAllButtons()
 	end
 end)

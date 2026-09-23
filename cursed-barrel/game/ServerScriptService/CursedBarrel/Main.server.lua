@@ -15,6 +15,9 @@
 	  8. LobbyBuilder    — 간판 · 전시장 (ShopService 를 쓴다)
 	  9. MapBuilder      — 항구와 해적선. 무거운 장식이라 마지막에 세운다
 	 10. BotService      — Phase 11 AI 선원. 테이블과 라운드 담당이 다 선 뒤에 켠다
+	 11. WorldService    — Phase 12 항해 시계 · 크라켄 습격 · 행운의 테이블
+	 12. CannonService   — Phase 12 대포 미니게임 (배가 선 뒤에 대포를 찾는다)
+	 13. PredictionService · TournamentService — Phase 12 관전 예측 · 토너먼트
 ]]
 
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -31,6 +34,10 @@ local SabotageService = require(Services.SabotageService)
 local LobbyBuilder = require(Services.LobbyBuilder)
 local MapBuilder = require(Services.MapBuilder)
 local BotService = require(Services.BotService)
+local WorldService = require(Services.WorldService)
+local CannonService = require(Services.CannonService)
+local PredictionService = require(Services.PredictionService)
+local TournamentService = require(Services.TournamentService)
 
 -- Relocate whole table models before GameTable caches seat/slot geometry.
 require(Services.ShipLobbyBuilder):Prepare()
@@ -44,10 +51,14 @@ SabotageService:Start()
 LobbyBuilder:Start()
 require(Services.ReleaseService):Start()
 BotService:Start()
+WorldService:Start()
+CannonService:Start()
+PredictionService:Start()
+TournamentService:Start()
 
 -- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
 task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 11: 빨라지는 잡기 · 보물 폭발 · AI 선원 · 칼 모션)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 12: 날씨 · 크라켄 습격 · 대포 · 예측 · 토너먼트)")

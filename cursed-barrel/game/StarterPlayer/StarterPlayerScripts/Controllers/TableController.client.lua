@@ -376,6 +376,26 @@ local function updateBoard(entry)
 			carry > 0 and (" · 이월 현상금 %d"):format(carry) or "")
 	end
 
+	-- Phase 12 : 오늘의 행운 테이블 · 토너먼트 · 연습 판
+	local extras = {}
+	if model:GetAttribute(TABLE_ATTR.Lucky) == true then
+		table.insert(extras, "🍀 오늘의 행운 테이블 · 보물 폭발 2배")
+	end
+	if preset.Tournament then
+		local rounds = localPlayer:GetAttribute("TourneyRounds") or 0
+		table.insert(extras, rounds > 0 and ("🏆 내 시리즈 %d/4판 · %d점"):format(rounds, localPlayer:GetAttribute("TourneyScore") or 0)
+			or "🏆 4판 연속 점수로 시즌 순위 · AI 없음")
+	end
+	local tutorialId = model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+	if tutorialId ~= 0 then
+		table.insert(extras, "연습 판 · AI 선원과 함께")
+	end
+	if #extras > 0 and infoText ~= "" then
+		infoText = infoText .. "  ·  " .. table.concat(extras, "  ·  ")
+	elseif #extras > 0 then
+		infoText = table.concat(extras, "  ·  ")
+	end
+
 	entry.status.Text = statusText
 	entry.status.TextColor3 = statusColor
 	if state ~= STATES.RoundEnding then
@@ -545,6 +565,9 @@ local function registerTable(model)
 		TABLE_ATTR.BarrelSkinOwnerId,
 		TABLE_ATTR.Pot,
 		TABLE_ATTR.WinForfeit,
+		TABLE_ATTR.PotCarry,
+		TABLE_ATTR.Lucky,
+		TABLE_ATTR.Tutorial,
 	}) do
 		entry.cleaner:add(model:GetAttributeChangedSignal(attributeName):Connect(function()
 			updateBoard(entry)

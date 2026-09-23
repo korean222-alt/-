@@ -104,15 +104,29 @@ local function destroyVipTag(player)
 	end
 end
 
+-- Phase 12 : VIP 표시에 칭호(선원 동료 · 크라켄 사냥꾼 · 토너먼트 챔피언)도 함께 띄운다.
+local function tagText(player)
+	local parts = {}
+	if player:GetAttribute(PLAYER_ATTR.VIP) == true then
+		table.insert(parts, "VIP")
+	end
+	local title = player:GetAttribute(PLAYER_ATTR.Title)
+	if typeof(title) == "string" and title ~= "" then
+		table.insert(parts, title)
+	end
+	return table.concat(parts, " · ")
+end
+
 local function refreshVip(player)
 	local character = player.Character
 	local head = character and character:FindFirstChild("Head")
-	if player:GetAttribute(PLAYER_ATTR.VIP) ~= true or not head then
+	local text = tagText(player)
+	if text == "" or not head then
 		destroyVipTag(player)
 		return
 	end
 	local tag = vipTags[player]
-	if tag and tag.Parent and tag.Adornee == head then
+	if tag and tag.Parent and tag.Adornee == head and tag:GetAttribute("Text") == text then
 		return
 	end
 	destroyVipTag(player)
@@ -120,7 +134,8 @@ local function refreshVip(player)
 	tag = Instance.new("BillboardGui")
 	tag.Name = "CursedBarrel_VIP"
 	tag.Adornee = head
-	tag.Size = UDim2.fromOffset(52, 20)
+	tag.Size = UDim2.fromOffset(math.max(52, 16 + utf8.len(text) * 12), 20)
+	tag:SetAttribute("Text", text)
 	tag.StudsOffset = Vector3.new(0, 1.7, 0)
 	tag.AlwaysOnTop = false
 	tag.MaxDistance = 60
@@ -135,7 +150,7 @@ local function refreshVip(player)
 	plate.Font = Enum.Font.GothamBlack
 	plate.TextSize = 13
 	plate.TextColor3 = Color3.fromRGB(255, 214, 120)
-	plate.Text = "VIP"
+	plate.Text = text
 	plate.Parent = tag
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
@@ -194,6 +209,9 @@ local function watch(player)
 		refresh(player)
 	end)
 	player:GetAttributeChangedSignal(PLAYER_ATTR.VIP):Connect(function()
+		refreshVip(player)
+	end)
+	player:GetAttributeChangedSignal(PLAYER_ATTR.Title):Connect(function()
 		refreshVip(player)
 	end)
 	player.CharacterAdded:Connect(function(character)

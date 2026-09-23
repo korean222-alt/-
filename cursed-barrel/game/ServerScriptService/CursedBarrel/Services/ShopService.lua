@@ -31,6 +31,7 @@ local REJECT = GameConfig.RejectMessages
 local PLAYER_ATTR = GameConfig.PlayerAttributes
 local STARTER = GameConfig.Products.Starter
 local VIP = GameConfig.Products.GamePasses.VIP
+local BOOSTER = GameConfig.Products.GamePasses.Booster
 
 local ShopService = {}
 ShopService._started = false
@@ -66,6 +67,7 @@ local function skinEntry(kind, skin, owned, equipped)
 		robux = tonumber(skin.robux) or 0,
 		vip = skin.vip == true,
 		pack = skin.pack,
+		season = skin.season == true,
 		owned = owned,
 		equipped = equipped,
 	}
@@ -117,6 +119,10 @@ function ShopService:BuildState(player)
 			name = STARTER.name, robux = STARTER.robux, blurb = STARTER.blurb,
 			owned = profile.starterBought == true, ready = starterReady,
 		},
+		booster = BOOSTER and {
+			name = BOOSTER.name, robux = BOOSTER.robux, blurb = BOOSTER.blurb,
+			owned = player:GetAttribute(PLAYER_ATTR.Booster) == true, ready = (tonumber(BOOSTER.gamePassId) or 0) > 0,
+		} or nil,
 		level = GameConfig.levelOf(profile.wins, profile.games),
 		wins = profile.wins,
 		games = profile.games,
@@ -176,6 +182,9 @@ function ShopService:Buy(player, kind, id)
 	end
 	if skin.pack then
 		return false, REJECT.PackOnly
+	end
+	if skin.season then
+		return false, REJECT.SeasonOnly
 	end
 
 	local price = tonumber(skin.price) or 0
@@ -299,6 +308,26 @@ function ShopService:_checkVip(player)
 	end)
 end
 
+-- Phase 12 : VIP 말고 다른 게임패스 (현상금 부스터). 소유하면 Player Attribute 를 켠다.
+function ShopService:_checkPass(player, pass)
+	local passId = tonumber(pass and pass.gamePassId) or 0
+	if passId <= 0 or not pass.attribute then
+		return
+	end
+	task.spawn(function()
+		for attempt = 1, 3 do
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				if player.Parent == Players then
+					player:SetAttribute(pass.attribute, owned == true)
+				end
+				return
+			end
+			task.wait(attempt * 2)
+		end
+	end)
+end
+
 -- 클라이언트가 로벅스 구매창을 띄우기 전에 "그 상품이 진짜 있는지" 서버가 확인한다.
 function ShopService:_robuxProductFor(kind, id)
 	for _, entry in ipairs(GameConfig.Products.Skins) do
@@ -335,6 +364,27 @@ function ShopService:_onRequest(player, action, kind, id)
 	if action == "equip" then
 		local ok, message = self:Equip(player, kind, id)
 		self:Sync(player, message, ok)
+		return
+	end
+
+	if action == "pass" then
+		-- Phase 12 : kind = 게임패스 키 ("Booster")
+		local pass = typeof(kind) == "string" and GameConfig.Products.GamePasses[kind] or nil
+		local passId = tonumber(pass and pass.gamePassId) or 0
+		if not pass or pass == VIP then
+			return
+		end
+		if passId <= 0 then
+			self:Sync(player, pass.name .. " 은(는) 아직 준비 중입니다", false)
+			return
+		end
+		if player:GetAttribute(pass.attribute) == true then
+			self:Sync(player, "이미 가지고 있습니다", false)
+			return
+		end
+		pcall(function()
+			MarketplaceService:PromptGamePassPurchase(player, passId)
+		end)
 		return
 	end
 
@@ -442,14 +492,19 @@ function ShopService:Start()
 	-- VIP 게임패스
 	self._cleaner:add(Players.PlayerAdded:Connect(function(player)
 		self:_checkVip(player)
+		self:_checkPass(player, BOOSTER)
 	end))
 	for _, player in ipairs(Players:GetPlayers()) do
 		self:_checkVip(player)
+		self:_checkPass(player, BOOSTER)
 	end
 	self._cleaner:add(MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
 		if purchased and passId == (tonumber(VIP.gamePassId) or 0) and passId > 0 then
 			self:_setVip(player, true)
 			self:Sync(player, VIP.name .. " 구매 완료! 이제 코인을 더 법니다", true)
+		elseif purchased and BOOSTER and passId == (tonumber(BOOSTER.gamePassId) or 0) and passId > 0 then
+			player:SetAttribute(BOOSTER.attribute, true)
+			self:Sync(player, BOOSTER.name .. " 구매 완료! 이긴 판의 현상금이 늘어납니다", true)
 		end
 	end))
 

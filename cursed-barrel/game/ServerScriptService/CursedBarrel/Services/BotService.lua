@@ -12,6 +12,10 @@
 	  · 사람이 모두 일어나면 AI 도 일어난다.
 	  · 게임 중에는 떠나지 않는다. (해적에게 탈락하면 그때 사라진다)
 
+	Phase 12
+	  · 토너먼트 테이블(config.NoBots)에는 앉지 않는다.
+	  · 연습 판(Tutorial) : 처음 온 사람이 "AI 와 연습 한 판"을 누르면 빈 테이블에 앉히고, AI 가 곧바로 앉는다.
+
 	AI 의 차례 · 잡기 · 배짱은 RoundService 가 사람과 같은 규칙으로 처리한다.
 	AI 도 해적 위치를 모른다. 이 파일은 "앉히고 치우는 일"과 "몸 만들기"만 한다.
 
@@ -343,10 +347,28 @@ function BotService:_tick(gameTable)
 	if state ~= STATES.Waiting and state ~= STATES.Countdown then
 		return -- 게임 중에는 아무도 넣고 빼지 않는다
 	end
+	if gameTable.config.NoBots then
+		return
+	end
 
 	local humans = gameTable:GetHumanCount()
 	local bots = self:_botsAt(gameTable)
 	local minPlayers = gameTable:GetMinPlayers()
+
+	-- 연습 판 : 그 사람이 자리를 떠났으면 연습 표시를 지운다
+	local tutorialId = gameTable.model and gameTable.model:GetAttribute(GameConfig.TableAttributes.Tutorial) or 0
+	if tutorialId and tutorialId ~= 0 then
+		local stillHere = false
+		for _, occupant in ipairs(gameTable:GetPlayers()) do
+			if occupant.UserId == tutorialId then
+				stillHere = true
+			end
+		end
+		if not stillHere then
+			gameTable:SetTableAttribute(GameConfig.TableAttributes.Tutorial, 0)
+			tutorialId = 0
+		end
+	end
 
 	-- 사람이 없거나, 사람만으로 시작 인원이 찼으면 AI 는 비켜 준다.
 	if humans == 0 or humans >= minPlayers then
@@ -362,7 +384,8 @@ function BotService:_tick(gameTable)
 		self._waitingSince[gameTable] = os.clock()
 		return
 	end
-	if os.clock() - since < (tonumber(BOTS.FillDelay) or 6) then
+	local delay = (tutorialId and tutorialId ~= 0) and GameConfig.Tutorial.BotFillDelay or (tonumber(BOTS.FillDelay) or 6)
+	if os.clock() - since < delay then
 		return
 	end
 
@@ -426,6 +449,45 @@ function BotService:Start()
 	end)
 
 	GameConfig.log("BotService 시작 완료")
+end
+
+--------------------------------------------------
+-- 연습 판 (Phase 12)
+--------------------------------------------------
+
+-- 처음 온 사람을 빈 테이블에 앉힌다. 성공하면 true.
+function BotService:SeatForPractice(player)
+	if not GameConfig.Tutorial.Enabled or not BOTS.Enabled then
+		return false, "지금은 연습 판을 열 수 없습니다"
+	end
+	if TableService:GetTableOfPlayer(player) then
+		return false, "이미 테이블에 앉아 있습니다"
+	end
+	local humanoid = Utility.getHumanoid(player)
+	local root = humanoid and humanoid.RootPart
+	if not root or humanoid.SeatPart then
+		return false, "캐릭터가 준비되면 다시 눌러 주세요"
+	end
+	local best, bestDistance = nil, math.huge
+	for _, gameTable in ipairs(TableService:GetAllTables()) do
+		if not gameTable.destroyed and not gameTable.config.NoBots and gameTable.state == STATES.Waiting
+			and gameTable:GetHumanCount() == 0 and #gameTable:GetFreeSeats() >= 3 then
+			local seat = gameTable:GetFreeSeats()[1]
+			local distance = (seat.Position - root.Position).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = gameTable, distance
+			end
+		end
+	end
+	if not best then
+		return false, "빈 테이블이 없습니다. 잠시 뒤 다시 눌러 주세요"
+	end
+	best:SetTableAttribute(GameConfig.TableAttributes.Tutorial, player.UserId)
+	self._waitingSince[best] = os.clock() - 10
+	local seat = best:GetFreeSeats()[1]
+	root.CFrame = seat.CFrame * CFrame.new(0, 3, 0)
+	seat:Sit(humanoid)
+	return true, "연습 판에 앉았습니다. 곧 AI 선원이 옵니다"
 end
 
 -- 테스트 · 디버그용

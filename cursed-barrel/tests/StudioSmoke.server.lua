@@ -36,4 +36,16 @@ for _,obj in ipairs(workspace:GetDescendants()) do
  if obj.Name=="MainDeck" or obj.Name=="QuarterdeckStep" or obj.Name=="BowStep" then check(obj.CanCollide,"Playable deck/stair collision") end
  if obj.Name=="SupportedLantern" then check(obj:GetAttribute("StructurallySupported"),"Lantern support") end
 end
+-- Phase 12 : 항해 시계 · 크라켄 습격 · 대포 · 관전 예측 · 토너먼트
+local Services=game.ServerScriptService.CursedBarrel.Services
+for _,name in ipairs({"WorldCue","CannonRequest","CannonCue","PredictRequest"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
+for _,name in ipairs({"WorldService","CannonService","PredictionService","TournamentService"}) do check(require(Services[name])._started,name.." started") end
+check(not Config.World.Enabled or type(workspace:GetAttribute("WorldPhase"))=="string","WorldPhase attribute")
+check(Config.worldCycleLength()>=300,"World cycle too short")
+local cannons=0;for _ in pairs(require(Services.CannonService).cannons) do cannons+=1 end
+check(not Config.Cannon.Enabled or cannons>=4,"Deck cannons registered")
+local Stab=require(RS.CursedBarrel.Shared.StabMotion)
+check(Config.Catch.MinLead>=(Stab.MaxDuration or 0),"Stab motion (incl. storm_strike) must land before the pirate")
+check(Config.TableTypeByName.Table_J=="Tournament4","Tournament table assignment")
+for _,t in ipairs(Tables:GetAllTables()) do check(t.model:GetAttribute("PredictOpen")~=nil,"Missing table attribute PredictOpen") end
 print("[StudioSmoke] "..assertions.." engine assertions passed. This does not replace multiplayer/device QA.")

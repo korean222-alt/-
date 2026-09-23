@@ -66,13 +66,14 @@ services.HttpService={GenerateGUID=function() return "test-session" end}
 services.ReplicatedStorage=node("ReplicatedStorage")
 local pkg=services.ReplicatedStorage:WaitForChild("CursedBarrel");local shared=pkg:WaitForChild("Shared")
 local remotes=pkg:WaitForChild("Remotes");remotes:WaitForChild("PresentationCue")
-for _,n in ipairs({"GameConfig","ReleaseConfig","Utility","TableConfig"}) do shared:WaitForChild(n) end
+for _,n in ipairs({"GameConfig","ReleaseConfig","Utility","TableConfig","PremiumFX"}) do shared:WaitForChild(n) end
 game={JobId="server-A",GetService=function(_,name) services[name]=services[name] or node(name);return services[name] end}
-workspace={GetServerTimeNow=function() return now end}
-local cache={TableService={},RankingService={RecordRound=function() end}}
+local worldAttrs={}
+workspace={GetServerTimeNow=function() return now end,GetAttribute=function(_,k) return worldAttrs[k] end,SetAttribute=function(_,k,v) worldAttrs[k]=v end}
+local cache={TableService={GetAllTables=function() return {} end,GetTableOfPlayer=function() return nil end},RankingService={RecordRound=function() end}}
 local function loadModule(name,source)
  local parent=node("Services")
- for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig"}) do parent:WaitForChild(n) end
+ for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry"}) do parent:WaitForChild(n) end
  local env=setmetatable({script={Parent=parent}}, {__index=(getfenv and getfenv(1)) or _G})
  env.require=function(ref)
   local key=type(ref)=="table" and ref.Name or ref
@@ -190,7 +191,7 @@ end)
 local Purchase=loadModule("PurchaseService")
 check("duplicate product IDs are rejected",function() assert(Purchase:Register(123,function()end));assert(not pcall(function() Purchase:Register(123,function()end) end));assert(not Purchase:Register(0,function()end)) end)
 check("unknown receipts remain pending",function() Purchase:Start();assert(services.MarketplaceService.ProcessReceipt({PlayerId=1,ProductId=777,PurchaseId="none"})=="NotProcessedYet") end)
-local Round=loadModule("RoundService",SOURCES.RoundService:gsub("return RoundService%s*$","return Round"))
+local Round=loadModule("RoundService",SOURCES.RoundService:gsub("return RoundService%s*$","Round.__settled=RoundSettled;return Round"))
 local function makeRound()
  local p1,p2=player(101),player(102)
  local seats={node("Seat1"),node("Seat2")};for _,seat in ipairs(seats) do seat.Position=Vector3.new(0,0,0) end
@@ -674,6 +675,172 @@ check("every stab motion lands before the pirate can appear",function()
  end
  assert(Stab.MaxDuration<Config.Catch.MinLead)
 end)
+--------------------------------------------------
+-- Phase 12 : 항해 시계 · 크라켄 습격 · 대포 · 예측 · 토너먼트 · 칭호 · 초대
+--------------------------------------------------
+local function withPhase(id,fn)
+ local old=Config.World.current;Config.World.current=Config.findPhase(id)
+ local ok,err=pcall(fn);Config.World.current=old
+ if not ok then error(err,0) end
+end
+check("voyage clock cycles day→dusk→night→fog→storm→dawn in 15 minutes",function()
+ assert(Config.worldCycleLength()==900)
+ local ids={};local e=0
+ for _,phase in ipairs(Config.World.Phases) do local p,into=Config.worldPhaseAt(e+1);ids[#ids+1]=p.id;assert(into==1);e=e+phase.duration end
+ assert(table.concat(ids,",")=="day,dusk,night,fog,storm,dawn")
+ local p,_,_,lap=Config.worldPhaseAt(900*3+10);assert(p.id=="day" and lap==3)
+ assert(Config.findPhase("storm").mods.raid and Config.findPhase("storm").mods.extraPirate==1)
+ for _,phase in ipairs(Config.World.Phases) do assert(Config.World.Sky[phase.id],"sky preset "..phase.id) end
+end)
+check("world mods change the table rules (pot, surge, pirates, lead)",function()
+ local r,p1=makeRound();r.pot=0
+ withPhase("day",function() r:_addPot(8) end);local day=r.pot
+ r.pot=0;withPhase("storm",function() r:_addPot(8) end);assert(r.pot==day*2,"storm doubles the pot")
+ local base=r:_targetPirateCount();withPhase("storm",function() assert(r:_targetPirateCount()==base+1,"storm adds a pirate") end)
+ withPhase("night",function() assert(Config.catchLead(0,Config.worldMods().lead)<Config.catchLead(0)) end)
+ for n=0,8 do assert(Config.catchLead(n,0.5)>=Config.Catch.MinLead) end
+ -- 노을 · 행운 테이블은 보물 폭발 확률이 커진다
+ local rolls={}
+ local function tryOnce(phase,lucky)
+  local rr,q=makeRound();rr.pot=100;rr.surgeMiss=0;rr.gameTable.model:SetAttribute("Lucky",lucky)
+  rr.random={NextNumber=function() return 0.09 end,NextInteger=function(_,lo) return lo end}
+  local hit;withPhase(phase,function() hit=rr:_rollSurge(q) end);return hit~=nil
+ end
+ assert(not tryOnce("day",false),"9% roll misses on a normal day (5%+1.2%)");assert(tryOnce("dusk",false),"dusk doubles the chance");assert(tryOnce("day",true),"lucky table doubles the chance")
+ -- 노을 + 행운이 겹쳐도 확률은 BoostedMaxChance 를 넘지 않는다
+ local rr,q=makeRound();rr.pot=100;rr.surgeMiss=200;rr.gameTable.model:SetAttribute("Lucky",true)
+ rr.random={NextNumber=function() return Config.Pot.Surge.BoostedMaxChance+0.01 end,NextInteger=function(_,lo) return lo end}
+ withPhase("dusk",function() assert(rr:_rollSurge(q)==nil,"boosted chance is capped") end)
+end)
+check("tutorial round: the newcomer's first pirate is slower and wider",function()
+ local r,p1=makeRound();local normal;r:_beginCatch(p1,2);normal=r.catch.window
+ local r2,q1=makeRound();r2.tutorialPlayer=q1;r2:_beginCatch(q1,2)
+ assert(r2.catch.window>normal*1.5 and math.abs((r2.catch.opensAt-r2.catch.startedAt)-Config.Tutorial.Lead)<1e-6)
+ r2.catchesUsed[q1]=1;r2.resolving=false;r2:_beginCatch(q1,6);assert(r2.catch.window<normal,"only the first catch is easy")
+end)
+check("round settled signal carries winner, elimination order and catches",function() withScheduler(function()
+ local got=nil
+ local r,t=makeTable(3,"Standard4",16,true)
+ local conn=Round.__settled:Connect(function(info) got=info end)
+ assert(runUntil(function() return playing(t) and not r.resolving end))
+ local order=r:GetParticipants();r.catchesUsed[order[1]]=2
+ r:_eliminate(order[2]);assert(runUntil(function() return playing(t) and not r.resolving end))
+ r:_eliminate(order[3]);assert(runUntil(function() return t.state=="RoundEnding" end))
+ conn:Disconnect()
+ assert(got and got.winner==order[1] and got.credited==order[1]);assert(got.outOrder[1]==order[2] and got.outOrder[2]==order[3])
+ assert(got.catches[order[1]]==2 and not got.practice)
+ assert(t.model:GetAttribute("PredictOpen")==false,"prediction closes at the end")
+end) end)
+check("prediction: spectators pick once early, correct picks pay with a daily cap",function()
+ local Predict=loadModule("PredictionService")
+ local r,p1,p2=makeRound();local spectator=player(41);Profiles:_load(spectator)
+ local t=r.gameTable;t.model:SetAttribute("PredictOpen",true);t.state="Playing"
+ assert(Predict:Validate(p1,t,r,p2.UserId),"participants cannot predict")
+ assert(Predict:Validate(spectator,t,r,999999),"must pick a living participant")
+ assert(Predict:Validate(spectator,t,r,p2.UserId)==nil)
+ Predict.byTable[t]={roundId=r.roundId,picks={[spectator]=p2.UserId}}
+ assert(Predict:Validate(spectator,t,r,p1.UserId),"one pick per round")
+ t.model:SetAttribute("PredictOpen",false);assert(Predict:Validate(player(42),t,r,p2.UserId),"closed after the first lap")
+ local d=Profiles:Get(spectator);local before=d.coins
+ Predict:OnSettled({gameTable=t,roundId=r.roundId,winner=p2,roster={p1,p2}})
+ assert(d.coins==before+math.min(Config.Prediction.MaxCoins,Config.Prediction.BaseCoins+2*Config.Prediction.PerPlayer));assert(d.predictWins==1)
+ d.predictCount=Config.Prediction.DailyCap;d.predictDay=Utility.today();before=d.coins
+ Predict.byTable[t]={roundId=r.roundId,picks={[spectator]=p2.UserId}}
+ Predict:OnSettled({gameTable=t,roundId=r.roundId,winner=p2,roster={p1,p2}})
+ assert(d.coins==before and d.predictWins==2,"cap reached: counts but no coins")
+end)
+check("tournament: placements, catch points, forfeit resets and a 4-round series pays out",function()
+ local Tour=loadModule("TournamentService")
+ local a,b,c,dd=player(51),player(52),player(53),player(54);for _,q in ipairs({a,b,c,dd}) do Profiles:_load(q) end
+ local places=Tour.placements({credited=a,outOrder={dd,c,b}});assert(places[a]==1 and places[b]==2 and places[c]==3 and places[dd]==4)
+ assert(Tour.pointsFor(1,5,false)==10+Config.Tournament.CatchPointCap);assert(Tour.pointsFor(2,0,true)==3);assert(Tour.pointsFor(nil,3)==0)
+ local gt={config={Tournament=true}}
+ local coins=Profiles:Get(a).coins
+ for round=1,4 do Tour:OnSettled({gameTable=gt,credited=a,roster={a,b},outOrder={b},forfeited={},catches={[a]=1}},round) end
+ assert(Tour.series[a]==nil and Profiles:Get(a).bestSeries==44 and Profiles:Get(a).coins>=coins+44*Config.Tournament.CoinsPerPoint)
+ assert(Profiles:Get(a).achievements.tourney34 and a:GetAttribute("Title")=="토너먼트 챔피언")
+ Tour:OnSettled({gameTable=gt,credited=c,roster={c,dd},outOrder={},forfeited={[dd]=true},catches={}},10)
+ assert(Tour.series[dd]==nil and Tour.series[c].rounds==1,"leaver's series breaks")
+ Tour:OnSettled({gameTable={config={}},credited=c,roster={c},outOrder={},forfeited={},catches={}},11);assert(Tour.series[c].rounds==1,"other tables do not count")
+ Tour:OnSettled({gameTable=gt,practice=true,credited=c,roster={c},outOrder={},forfeited={},catches={}},12);assert(Tour.series[c].rounds==1,"practice rounds do not count")
+ Tour:OnSettled({gameTable=gt,credited=c,roster={c},outOrder={},forfeited={},catches={}},12+Config.Tournament.SeriesTimeout+1);assert(Tour.series[c].rounds==1,"series times out and restarts")
+end)
+check("kraken raid: HP, slam blocking, victory rewards and escape",function()
+ local World=loadModule("WorldService")
+ World._cue={FireAllClients=function(_,kind,data) World.lastCue={kind,data} end,FireClient=function() end}
+ local a,b=player(61),player(62);Profiles:_load(a);Profiles:_load(b)
+ World:_startRaid(now,now+100);assert(World:IsRaidActive() and worldAttrs.RaidActive==true)
+ local max=World.raid.max;assert(max==Config.Raid.BaseHP+Config.Raid.HPPerPlayer*math.max(1,#services.Players.list))
+ local slam=World:_slam(now);assert(World.lastCue[1]=="Slam" and slam.at==now+Config.Raid.SlamWindup)
+ assert(#World:ActiveSlams()==1)
+ World:Damage(a,"slam",slam.id);assert(slam.blockedAt==now and World.lastCue[1]=="SlamBlocked");assert(World.raid.hp==max-Config.Raid.BlockDamage)
+ World:Damage(b,"eye");assert(World.raid.hp==max-Config.Raid.BlockDamage-Config.Raid.EyeDamage)
+ local ca,cb=Profiles:Get(a).coins,Profiles:Get(b).coins
+ World.raid.hp=1;World:Damage(a,"arm");assert(not World:IsRaidActive() and worldAttrs.RaidResult=="victory")
+ assert(Profiles:Get(a).coins==ca+math.min(Config.Raid.WinCoinsCap,Config.Raid.WinCoins+2*Config.Raid.CoinsPerHit));assert(Profiles:Get(a).raidWins==1)
+ assert(Profiles:Get(b).coins==cb+Config.Raid.WinCoins+Config.Raid.CoinsPerHit)
+ assert(World:Damage(a,"arm")==0,"no damage after the raid")
+ World.raid=nil;World:_startRaid(now,now+5);World:Damage(b,"arm");cb=Profiles:Get(b).coins
+ now=now+6;World:_raidTick(now);assert(worldAttrs.RaidResult=="escaped" and Profiles:Get(b).coins==cb+Config.Raid.EscapeCoins)
+end)
+check("voyage clock starts a raid in the storm and ends it at dawn",function()
+ local World=loadModule("WorldService")
+ World._cue={FireAllClients=function() end,FireClient=function() end}
+ World.scale=1;World.raid=nil;World.phase=nil;World.lap=-1
+ local stormStart=240+90+180+150
+ World.origin=now-(stormStart+1);World:Tick(now);assert(worldAttrs.WorldPhase=="storm" and Config.World.current.id=="storm")
+ assert(not World:IsRaidActive(),"raid waits for the start delay");now=now+Config.Raid.StartDelay;World:Tick(now);assert(World:IsRaidActive())
+ local slams=0;for _=1,40 do now=now+1;World:Tick(now) end;for _ in pairs(World.slams) do slams=slams+1 end;assert(slams>0,"slams happen")
+ now=now+140;World:Tick(now);assert(worldAttrs.WorldPhase=="dawn" and not World:IsRaidActive() and worldAttrs.RaidResult=="escaped")
+ -- 다음 폭풍에서 새 습격이 다시 열린다
+ now=now+712;World:Tick(now);assert(worldAttrs.WorldPhase=="storm");now=now+Config.Raid.StartDelay+1;World:Tick(now);assert(World:IsRaidActive(),"next storm raids again")
+ Config.World.current=nil
+end)
+check("lucky table is picked daily and skips tournament tables",function()
+ local seen={};for _,day in ipairs({"2026-09-01","2026-09-02","2026-09-03","2026-09-04"}) do seen[loadModule("WorldService").luckyIndex(day,9)]=true end
+ local n=0;for _ in pairs(seen) do n=n+1 end;assert(n>=2,"different days pick different tables")
+ assert(loadModule("WorldService").luckyIndex("x",0)==0)
+end)
+check("cannon coins stop at the daily cap but hits still count",function()
+ local Cannon=loadModule("CannonService");local q=player(71);Profiles:_load(q);local d=Profiles:Get(q)
+ local coins=d.coins;assert(Cannon:_payHit(q,2)==2 and d.coins==coins+2 and d.cannonHits==1)
+ d.cannonCoins=Config.Cannon.DailyCoinCap-1;assert(Cannon:_payHit(q,4)==1);assert(Cannon:_payHit(q,4)==0 and d.cannonHits==3)
+ d.cannonDay="1999-01-01";assert(Cannon:_payHit(q,2)==2,"a new day resets the cap")
+end)
+check("booster pass raises the winner's pot, crew wins build the crewmate title",function()
+ local q,friend=player(81),player(82);Profiles:_load(q);Profiles:_load(friend);local d=Profiles:Get(q)
+ -- 퀘스트 · 업적 보상이 섞이지 않게 잠깐 끈다
+ local aq,ca=Profiles._advanceQuests,Profiles._checkAchievements;Profiles._advanceQuests=function() end;Profiles._checkAchievements=function() end
+ d.streak=0;local before=d.coins;Profiles:RecordRound({typeName="Standard4"},{q},q,{},{},100)
+ local plain=d.coins-before
+ q:SetAttribute("Booster",true);d.streak=0;before=d.coins;Profiles:RecordRound({typeName="Standard4"},{q},q,{},{},100)
+ local boosted=d.coins-before;Profiles._advanceQuests,Profiles._checkAchievements=aq,ca
+ assert(boosted-plain==math.floor(100*Config.Products.GamePasses.Booster.potBonus+0.5),"booster pays 10% more pot");assert(Profiles:PotScale(q)==1+Config.Products.GamePasses.Booster.potBonus)
+ q:SetAttribute("Booster",nil)
+ for i=1,5 do Profiles:RecordRound({typeName="Standard4"},{q,friend},q,{},{[q]=0.1},0) end
+ assert(d.crewWins==5 and d.achievements.crew5 and q:GetAttribute("Title")=="선원 동료")
+ Profiles:RecordRound({typeName="Standard4"},{q},q,{},{[q]=0.1},0,{practice=true});assert(d.crewWins==5,"practice rounds do not count")
+end)
+check("season-limited motion is not free and cannot be bought with coins",function()
+ local skin=Config.findSkin("Stab","storm_strike");assert(skin.season and not Config.isFreeSkin(skin))
+ local q=player(83);Profiles:_load(q);assert(not Profiles:Get(q).owned.Stab.storm_strike)
+ local found=false;for _,tier in ipairs(Release.Season.Tiers) do if tier.kind=="Stab" and tier.skin=="storm_strike" then found=true end end;assert(found,"granted by the season track")
+end)
+check("friend invite pays both once, inviter capped per day",function()
+ local ReleaseService=loadModule("ReleaseService");ReleaseService.state={FireClient=function() end}
+ local host=player(91);Profiles:_load(host)
+ local function newcomer(id)
+  local q=player(id);Profiles:_load(q);q.GetJoinData=function() return {ReferredByPlayerId=91} end;return q
+ end
+ local n1=newcomer(92);local hc,nc=Profiles:Get(host).coins,Profiles:Get(n1).coins
+ ReleaseService:referral(n1)
+ assert(Profiles:Get(host).coins==hc+Config.Referral.InviterCoins and Profiles:Get(n1).coins==nc+Config.Referral.NewcomerCoins)
+ ReleaseService:referral(n1);assert(Profiles:Get(host).coins==hc+Config.Referral.InviterCoins,"only once")
+ Profiles:Get(host).inviteCount=Config.Referral.DailyCap;hc=Profiles:Get(host).coins
+ local n2=newcomer(93);ReleaseService:referral(n2);assert(Profiles:Get(host).coins==hc,"inviter cap")
+ local self=newcomer(94);self.GetJoinData=function() return {ReferredByPlayerId=94} end;local sc=Profiles:Get(self).coins;ReleaseService:referral(self);assert(Profiles:Get(self).coins==sc,"no self-referral")
+end)
+
 local Ship=loadModule("ShipLayout")
 check("all ten tables fit the ship with chair clearance",function()
  local total=0

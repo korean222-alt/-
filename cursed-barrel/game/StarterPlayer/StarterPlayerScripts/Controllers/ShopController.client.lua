@@ -268,6 +268,7 @@ local function drawShop()
 	local order = 0
 	order = premiumRow(order, state.starter, "robux", "starter")
 	order = premiumRow(order, state.vip, "vip", "vip")
+	order = premiumRow(order, state.booster, "pass", "Booster")
 	for _, entry in ipairs(state.catalog[currentKind] or {}) do
 		order += 1
 		local row = makeRow(order,78)
@@ -282,6 +283,8 @@ local function drawShop()
 			detail = "VIP 패스 전용"
 		elseif entry.pack then
 			detail = "스타터 팩 전용"
+		elseif entry.season then
+			detail = "시즌 보상 (항해 탭)"
 		elseif entry.robux > 0 and entry.price <= 0 then
 			detail = ("R$ %d"):format(entry.robux)
 		else
@@ -310,6 +313,10 @@ local function drawShop()
 			equip.Activated:Connect(function()
 				shopRequest:FireServer("equip", entry.kind, entry.id)
 			end)
+		elseif entry.season then
+			local badge = textButton(row, "시즌 보상", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Panel, PALETTE.Dim)
+			badge.AutoButtonColor = false
+			badge.Active = false
 		elseif entry.vip or entry.pack then
 			-- 코인으로 살 수 없다. 해당 상품으로 안내한다.
 			local offer = entry.vip and state.vip or state.starter

@@ -441,6 +441,14 @@ tutorialLine("     나오기 전에 누르면 탈락! 잡을수록 점점 빨라
 tutorialLine("4.  안전하면 「한 번 더」로 보너스 코인", 172)
 tutorialLine("5.  마지막 생존자가 현상금을 가져갑니다", 196)
 tutorialLine("바닥 화살표를 따라가면 빈 자리가 나옵니다", 222, Color3.fromRGB(168, 152, 128))
+-- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
+button(tutorial, "연습 한 판", UDim2.new(1, -196, 1, -34), UDim2.fromOffset(92, 26), function()
+	tutorial.Visible = false
+	local r = remotes:FindFirstChild("VoyageRequest")
+	if r then
+		r:FireServer("practice")
+	end
+end)
 button(tutorial, "알겠어요", UDim2.new(1, -96, 1, -34), UDim2.fromOffset(84, 26), function()
 	tutorial.Visible = false
     local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
@@ -569,8 +577,12 @@ local function leaveStage()
 		grade:Destroy()
 		grade = nil
 	end
+	-- Phase 12 : 하늘(시간 · 밝기)은 WorldController 가 항해 시계대로 맡는다. 안개 값만 되돌린다.
+	local weatherOwned = Lighting:GetAttribute("WeatherOwned") == true
 	for _, key in ipairs(lightingKeys) do
-		Lighting[key] = originalLighting[key]
+		if not weatherOwned or key == "FogColor" or key == "FogStart" or key == "FogEnd" then
+			Lighting[key] = originalLighting[key]
+		end
 	end
 	for _, a in ipairs(atmospheres) do
 		a.Parent = Lighting
@@ -931,6 +943,16 @@ local function stab(model, index, own, tension, userId, styleId)
 					end
 					if not final then
 						return
+					end
+					if plan.style == "bolt" and not reduced then
+						-- 번개 한 줄기가 칼을 따라 내리꽂힌다
+						local bolt = makePart(fx, "StabBolt", Vector3.new(0.35, 12, 0.35), CFrame.new(slot.Position + Vector3.new(0, 6, 0)), plan.color or cream)
+						bolt.Material = Enum.Material.Neon
+						Tween:Create(bolt, TweenInfo.new(0.3), { Transparency = 1, Size = Vector3.new(0.05, 12, 0.05) }):Play()
+						Debris:AddItem(bolt, 0.35)
+						if own then
+							blink(Color3.fromRGB(220, 235, 255), 0.35)
+						end
 					end
 					if hit.power >= 1.4 and not reduced then
 						-- 강한 모션은 충격 고리가 한 겹 더 퍼진다

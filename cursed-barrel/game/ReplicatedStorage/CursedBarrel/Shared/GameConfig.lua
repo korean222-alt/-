@@ -90,6 +90,11 @@ GameConfig.TableAttributes = {
 	PotCarry = "PotCarry", -- 이번 판 현상금 중 지난 판에서 넘어온 몫
 	Practice = "Practice", -- AI 선원이 함께 앉은 연습 판인가 (보상이 줄고 승수 · 랭킹에 들어가지 않는다)
 
+	-- Phase 12
+	Lucky = "Lucky", -- 오늘의 행운 테이블 (보물 폭발 확률 2배)
+	PredictOpen = "PredictOpen", -- 관전자가 "누가 살아남을까" 예측을 할 수 있는 동안 true
+	Tutorial = "Tutorial", -- 처음 온 사람의 연습 판 (AI 와 함께, 잡기가 조금 쉽다)
+
 	-- Phase 7 : 이 테이블에 적용 중인 통 스킨 (앉은 사람들 중에서 서버가 하나를 고른다)
 	BarrelSkinId = "BarrelSkinId",
 	BarrelSkinOwnerId = "BarrelSkinOwnerId",
@@ -139,6 +144,11 @@ GameConfig.PlayerAttributes = {
 	Loaded = "ProfileLoaded", -- 저장된 자료를 다 읽었는가
 	VIP = "VIP", -- Phase 10: VIP 게임패스를 가지고 있는가 (서버만 쓴다)
 	LoginStreak = "LoginStreak", -- Phase 10: 연속 출석 일수
+	Booster = "Booster", -- Phase 12: 현상금 부스터 게임패스 (서버만 쓴다)
+	Title = "Title", -- Phase 12: 머리 위 칭호 (선원 동료 · 크라켄 사냥꾼 · 토너먼트 챔피언)
+	CannonId = "CannonId", -- Phase 12: 지금 잡고 있는 대포 (없으면 nil)
+	TourneyRounds = "TourneyRounds", -- Phase 12: 토너먼트 시리즈에서 치른 판 수 (0~4)
+	TourneyScore = "TourneyScore", -- Phase 12: 토너먼트 시리즈 점수
 }
 
 --------------------------------------------------
@@ -215,6 +225,12 @@ GameConfig.Remotes = {
 
 	-- Phase 10 : 배짱 ("한 번 더")
 	Brave = "BraveRequest", -- 클라이언트 → 서버 (테이블 모델)
+
+	-- Phase 12
+	WorldCue = "WorldCue", -- 서버 → 모두 (날씨 바뀜 · 크라켄 습격 · 내려치기)
+	CannonRequest = "CannonRequest", -- 클라이언트 → 서버 (발사 방향 · 내리기)
+	CannonCue = "CannonCue", -- 서버 → 모두 (포탄 연출 · 맞았는지)
+	Predict = "PredictRequest", -- 관전자 → 서버 (누가 살아남을지)
 }
 
 -- 서버가 거절할 때 클라이언트에 보여 줄 문구
@@ -235,6 +251,7 @@ GameConfig.RejectMessages = {
 	SabotageCooldown = "아직 다시 쓸 수 없습니다",
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
+	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
 }
 
 --------------------------------------------------
@@ -378,6 +395,7 @@ GameConfig.Pot = {
 		Chance = 0.05,
 		PityStep = 0.012,
 		MaxChance = 0.3,
+		BoostedMaxChance = 0.5, -- Phase 12 : 노을 · 행운 테이블로 커져도 이 이상은 안 된다
 		Tiers = {
 			{ id = "pouch", name = "금화 주머니", weight = 70, add = 45 },
 			{ id = "chest", name = "보물 상자", weight = 25, add = 90, mult = 1.5 },
@@ -419,9 +437,11 @@ function GameConfig.catchWindow(catchCount, aliveCount, slotsLeft, personal)
 end
 
 -- 해적이 튀어나오기까지의 기본 시간 (흔들기 전). 잡을수록 짧아진다.
-function GameConfig.catchLead(personal)
+-- scale (Phase 12) : 항해 시계의 배율 (밤 0.9). 그래도 MinLead 아래로는 내려가지 않는다.
+function GameConfig.catchLead(personal, scale)
 	local catch = GameConfig.Catch
-	return math.max(catch.MinLead or 0.85, catch.Lead * (catch.LeadDecay or 1) ^ math.max(0, personal or 0))
+	local lead = catch.Lead * (catch.LeadDecay or 1) ^ math.max(0, personal or 0) * (tonumber(scale) or 1)
+	return math.max(catch.MinLead or 0.85, lead)
 end
 
 --------------------------------------------------
@@ -647,6 +667,8 @@ GameConfig.Skins = {
 		{ id = "flourish", name = "단검 저글링", rarity = "epic", price = 3600, style = "flourish", color = Color3.fromRGB(196, 130, 255) },
 		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 0, robux = 79, style = "slam", color = Color3.fromRGB(255, 132, 62) },
 		{ id = "dragon_dive", name = "용의 급강하", rarity = "legend", price = 8000, style = "dive", color = Color3.fromRGB(68, 240, 218) },
+		-- Phase 12 : 시즌 한정 (시즌 보상으로만 받는다 · 상점에서 살 수 없다)
+		{ id = "storm_strike", name = "폭풍의 일격", rarity = "legend", price = 0, season = true, style = "bolt", color = Color3.fromRGB(170, 210, 255) },
 	},
 }
 
@@ -666,7 +688,7 @@ end
 
 -- 기본으로 처음부터 가지고 있는 스킨 (가격 0 이고 로벅스 · VIP · 묶음 전용이 아닌 것)
 function GameConfig.isFreeSkin(skin)
-	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux and not skin.vip and not skin.pack
+	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux and not skin.vip and not skin.pack and not skin.season
 end
 
 --------------------------------------------------
@@ -833,6 +855,14 @@ GameConfig.Products = {
 			coinBonus = 0.2, -- 게임에서 버는 코인 +20% (퀘스트 · 업적 · 출석 보상에는 붙지 않는다)
 			skin = "Knife/vip_cutlass",
 			blurb = "게임 코인 +20% · 전용 칼 「VIP 선장의 곡도」 · 머리 위 VIP 표시",
+			attribute = "VIP",
+		},
+		-- Phase 12 : 현상금 부스터. 내가 이긴 판의 현상금이 늘어난다. (판정 · 확률에는 영향 없음)
+		Booster = {
+			id = "booster", name = "현상금 부스터", robux = 149, gamePassId = 0,
+			potBonus = 0.1, -- 내가 가져가는 현상금 +10%
+			blurb = "내가 이긴 판의 현상금 +10% · 금화가 더 크게 쏟아지는 승리 연출",
+			attribute = "Booster",
 		},
 	},
 }
@@ -854,6 +884,10 @@ GameConfig.Quests = {
 		-- Phase 10
 		{ id = "brave3", text = "배짱으로 3번 더 찌르고 살아남기", metric = "bravePicks", goal = 3, reward = 200 },
 		{ id = "perfect2", text = "해적을 완벽하게 2번 잡기", metric = "perfectCatches", goal = 2, reward = 220 },
+		-- Phase 12
+		{ id = "cannon10", text = "대포로 크라켄을 10번 맞히기", metric = "cannonHits", goal = 10, reward = 160 },
+		{ id = "raid1", text = "크라켄 습격 물리치기에 참여하기", metric = "raidWins", goal = 1, reward = 200 },
+		{ id = "predict2", text = "관전하며 생존자 2번 맞히기", metric = "predictWins", goal = 2, reward = 150 },
 	},
 }
 
@@ -869,6 +903,11 @@ GameConfig.Achievements = {
 	-- Phase 10
 	{ id = "brave25", text = "배짱으로 25번 살아남기", metric = "bravePicks", goal = 25, reward = 900 },
 	{ id = "perfect20", text = "완벽한 잡기 20회", metric = "perfectCatches", goal = 20, reward = 1100 },
+	-- Phase 12 (title 이 있으면 머리 위 칭호가 생긴다)
+	{ id = "cannon100", text = "대포로 크라켄 100번 맞히기", metric = "cannonHits", goal = 100, reward = 800 },
+	{ id = "raid10", text = "크라켄 습격 10번 물리치기", metric = "raidWins", goal = 10, reward = 2000, title = "크라켄 사냥꾼" },
+	{ id = "crew5", text = "친구 · 파티와 같은 판에서 5번 우승", metric = "crewWins", goal = 5, reward = 900, title = "선원 동료" },
+	{ id = "tourney34", text = "토너먼트 시리즈 34점 이상", metric = "bestSeries", goal = 34, reward = 2500, title = "토너먼트 챔피언" },
 }
 
 --------------------------------------------------
@@ -1146,5 +1185,223 @@ for _, list in ipairs({GameConfig.Skins.Knife,GameConfig.Skins.Barrel,GameConfig
  end
 end
 GameConfig.TableTypeByName.Table_H = "PartyCards6"
+
+--------------------------------------------------
+-- Phase 12 : 승리 · 탈락 연출 추가 (전부 모양일 뿐이다)
+--------------------------------------------------
+for _, skin in ipairs({
+	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 1800, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
+	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 3600, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 4200, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
+	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 0, robux = 99, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
+}) do
+	table.insert(GameConfig.Skins.Victory, skin)
+end
+for _, skin in ipairs({
+	{ id = "ink_burst", name = "먹물 폭발", rarity = "rare", price = 1600, fx = { theme = "kraken", emit = Color3.fromRGB(96, 50, 130) } },
+	{ id = "ember_ash", name = "잿더미", rarity = "epic", price = 3400, fx = { theme = "phoenix", emit = Color3.fromRGB(255, 120, 50) } },
+	{ id = "frost_shatter", name = "얼음 파편", rarity = "epic", price = 3400, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+}) do
+	table.insert(GameConfig.Skins.Elimination, skin)
+end
+table.insert(GameConfig.Products.Skins, { id = "skin_storm_victory", skin = "Victory/storm_lord", robux = 99, productId = 0 })
+
+--------------------------------------------------
+-- Phase 12 : 시간과 날씨 (항해 시계)
+--
+-- 서버가 15분마다 한 바퀴 도는 시계를 돌린다. 단계마다 하늘 · 안개 · 비 · 번개와 판 규칙이 바뀐다.
+--   낮 → 노을 → 밤 → 안개 → 폭풍(크라켄 습격) → 새벽 → 낮 …
+-- mods (판 규칙. RoundService 가 읽는다)
+--   pot          : 현상금이 쌓이는 배율
+--   surge        : 보물 폭발 확률 배율
+--   lead         : 해적이 튀어나오기까지 시간 배율 (작을수록 빨리 나온다. MinLead 아래로는 안 내려간다)
+--   extraPirate  : 통 안의 해적 수 추가
+--   fog          : 칼 고르는 창의 번호가 안개에 가려진다 (내 화면에서만. 누르는 자리는 그대로)
+-- ★ 서버마다 시작 시각을 흔들어 둔다. 여러 서버가 한꺼번에 습격을 맞지 않는다.
+--------------------------------------------------
+GameConfig.World = {
+	Enabled = true,
+	Transition = 10, -- 하늘이 바뀌는 데 걸리는 시간(초)
+	-- Studio 에서 빨리 보고 싶으면 이 값을 줄인다. (0.2 면 한 바퀴 3분)
+	StudioTimeScale = 1,
+	-- Studio 에서 특정 단계부터 보고 싶으면 id 를 적는다. (예: "storm")
+	StudioStartPhase = nil,
+	Phases = {
+		{ id = "day", name = "낮", icon = "☀", duration = 240, blurb = "평온한 항해", mods = {} },
+		{ id = "dusk", name = "노을", icon = "🌇", duration = 90, blurb = "황금 시간 · 보물 폭발 2배", mods = { surge = 2 } },
+		{ id = "night", name = "밤", icon = "🌙", duration = 180, blurb = "현상금 +25% · 해적이 더 빨리 나온다", mods = { pot = 1.25, lead = 0.9 } },
+		{ id = "fog", name = "안개", icon = "🌫", duration = 150, blurb = "자리 번호가 안개에 가려진다 · 현상금 +25%", mods = { pot = 1.25, fog = true } },
+		{ id = "storm", name = "폭풍", icon = "⛈", duration = 180, blurb = "크라켄 습격! · 현상금 2배 · 해적 +1", mods = { pot = 2, extraPirate = 1, raid = true } },
+		{ id = "dawn", name = "새벽", icon = "🌅", duration = 60, blurb = "폭풍이 지나간다", mods = {} },
+	},
+
+	-- 단계별 하늘. (WorldController 가 부드럽게 옮겨 간다)
+	Sky = {
+		day = { Ambient = Color3.fromRGB(122, 120, 116), OutdoorAmbient = Color3.fromRGB(154, 158, 168), Brightness = 2.8, ClockTime = 14.3, Exposure = 0,
+			Density = 0.26, Offset = 0.1, AirColor = Color3.fromRGB(226, 226, 220), Decay = Color3.fromRGB(150, 165, 185), Glare = 0, Haze = 0.6,
+			Tint = Color3.fromRGB(255, 252, 246), Saturation = 0.1, Contrast = 0.06, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(26, 58, 78) },
+		dusk = { Ambient = Color3.fromRGB(132, 98, 82), OutdoorAmbient = Color3.fromRGB(176, 124, 102), Brightness = 2.2, ClockTime = 17.9, Exposure = 0.1,
+			Density = 0.32, Offset = 0.12, AirColor = Color3.fromRGB(255, 190, 150), Decay = Color3.fromRGB(180, 110, 90), Glare = 0.6, Haze = 1.4,
+			Tint = Color3.fromRGB(255, 226, 200), Saturation = 0.15, Contrast = 0.08, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(58, 52, 70) },
+		night = { Ambient = Color3.fromRGB(44, 52, 76), OutdoorAmbient = Color3.fromRGB(48, 60, 94), Brightness = 1.2, ClockTime = 0.2, Exposure = 0.35,
+			Density = 0.36, Offset = 0.1, AirColor = Color3.fromRGB(110, 130, 170), Decay = Color3.fromRGB(40, 50, 80), Glare = 0, Haze = 1.2,
+			Tint = Color3.fromRGB(200, 215, 255), Saturation = -0.15, Contrast = 0.12, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(12, 24, 40) },
+		fog = { Ambient = Color3.fromRGB(74, 80, 88), OutdoorAmbient = Color3.fromRGB(94, 102, 114), Brightness = 1.4, ClockTime = 3.2, Exposure = 0.25,
+			Density = 0.62, Offset = 0.25, AirColor = Color3.fromRGB(170, 180, 190), Decay = Color3.fromRGB(120, 130, 140), Glare = 0, Haze = 3.4,
+			Tint = Color3.fromRGB(225, 232, 240), Saturation = -0.3, Contrast = 0.04, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(34, 44, 52) },
+		storm = { Ambient = Color3.fromRGB(40, 44, 56), OutdoorAmbient = Color3.fromRGB(52, 58, 76), Brightness = 0.9, ClockTime = 4.5, Exposure = 0.3,
+			Density = 0.5, Offset = 0.2, AirColor = Color3.fromRGB(90, 100, 110), Decay = Color3.fromRGB(30, 40, 50), Glare = 0, Haze = 2.6,
+			Tint = Color3.fromRGB(205, 225, 220), Saturation = -0.25, Contrast = 0.18, Rain = 1, Lightning = 1, Sea = Color3.fromRGB(14, 30, 36) },
+		dawn = { Ambient = Color3.fromRGB(112, 98, 112), OutdoorAmbient = Color3.fromRGB(150, 130, 150), Brightness = 1.8, ClockTime = 6.6, Exposure = 0.1,
+			Density = 0.3, Offset = 0.1, AirColor = Color3.fromRGB(255, 200, 190), Decay = Color3.fromRGB(120, 110, 150), Glare = 0.4, Haze = 1.2,
+			Tint = Color3.fromRGB(255, 236, 230), Saturation = 0.05, Contrast = 0.06, Rain = 0.15, Lightning = 0, Sea = Color3.fromRGB(40, 52, 72) },
+	},
+	current = nil, -- 서버의 WorldService 가 지금 단계를 적어 둔다 (서버 전용)
+}
+
+function GameConfig.findPhase(id)
+	for _, phase in ipairs(GameConfig.World.Phases) do
+		if phase.id == id then
+			return phase
+		end
+	end
+	return GameConfig.World.Phases[1]
+end
+
+function GameConfig.worldCycleLength()
+	local total = 0
+	for _, phase in ipairs(GameConfig.World.Phases) do
+		total += phase.duration
+	end
+	return total
+end
+
+-- 시계가 elapsed 초 흘렀을 때의 단계. (단계, 그 단계 안에서 지난 초, 단계 길이, 몇 번째 바퀴)
+function GameConfig.worldPhaseAt(elapsed)
+	local cycle = GameConfig.worldCycleLength()
+	local e = math.max(0, tonumber(elapsed) or 0)
+	local lap = math.floor(e / cycle)
+	local into = e - lap * cycle
+	for _, phase in ipairs(GameConfig.World.Phases) do
+		if into < phase.duration then
+			return phase, into, phase.duration, lap
+		end
+		into -= phase.duration
+	end
+	local last = GameConfig.World.Phases[#GameConfig.World.Phases]
+	return last, last.duration, last.duration, lap
+end
+
+-- 지금 판 규칙. 서버에서는 WorldService 가 current 를 적고, 클라이언트는 workspace Attribute 를 읽는다.
+function GameConfig.worldMods()
+	if not GameConfig.World.Enabled then
+		return {}
+	end
+	local phase = GameConfig.World.current
+	if not phase then
+		local ok, id = pcall(function()
+			return workspace:GetAttribute("WorldPhase")
+		end)
+		phase = ok and id and GameConfig.findPhase(id) or nil
+	end
+	return (phase and phase.mods) or {}
+end
+
+--------------------------------------------------
+-- Phase 12 : 크라켄 습격 (폭풍 단계에 온다)
+--
+-- 크라켄이 다리로 갑판을 내려친다. 대포로 다리 · 눈을 맞히면 체력이 깎이고, 0 이 되면 물러난다.
+-- 내려치기 직전의 다리를 맞히면 내려치기를 막는다. (체력이 크게 깎인다)
+-- ★ 내려치기는 전부 연출이다. 사람을 밀거나 다치게 하지 않는다. 테이블 게임도 멈추지 않는다.
+-- ★ 내려치는 자리(SlamZones)는 테이블 · 의자 · 대포 · 계단을 피해 뱃전 쪽에 둔다.
+--------------------------------------------------
+GameConfig.Raid = {
+	Enabled = true,
+	StartDelay = 8, -- 폭풍이 시작되고 이만큼 뒤에 습격이 시작된다
+	EndBefore = 6, -- 폭풍이 끝나기 이만큼 전에 습격이 끝난다 (못 물리치면 크라켄이 떠난다)
+	BaseHP = 60,
+	HPPerPlayer = 18, -- 서버 인원 1명마다 체력 추가
+	HitDamage = 1, -- 다리 약점
+	EyeDamage = 3, -- 눈
+	BlockDamage = 4, -- 내려치기 직전의 다리
+	SlamEvery = { 5, 8 }, -- 내려치기 간격(초, 이 사이에서 무작위)
+	SlamWindup = 1.6, -- 다리를 치켜들고 있는 시간 (이때 맞히면 막는다)
+	SlamLinger = 0.9, -- 갑판에 닿은 채로 있는 시간
+	SlamRetract = 1.2,
+	SlamInset = 9, -- 갑판에서 뱃전 안쪽으로 이만큼 들어온 자리를 친다
+	SlamZones = {
+		{ side = -1, z = 76 }, { side = -1, z = 23 }, { side = -1, z = -20 },
+		{ side = 1, z = 74 }, { side = 1, z = 30 }, { side = 1, z = -28 },
+	},
+	WinCoins = 60, -- 물리치면 참여한 사람 모두에게
+	CoinsPerHit = 3, -- 맞힌 횟수만큼 더
+	WinCoinsCap = 150,
+	EscapeCoins = 15, -- 못 물리쳐도 한 번이라도 맞힌 사람에게
+}
+
+--------------------------------------------------
+-- Phase 12 : 대포 미니게임
+-- 뱃전의 대포 8문. 다가가서 E(모바일은 탭)로 잡고, 크라켄 다리의 빛나는 약점이나 눈을 누르면 쏜다.
+-- 평소에는 적은 코인(하루 상한), 습격 때는 크라켄 체력을 깎는다.
+--------------------------------------------------
+GameConfig.Cannon = {
+	Enabled = true,
+	Cooldown = 1.4,
+	Range = 200,
+	MaxAngle = 80, -- 대포가 바깥을 보는 방향에서 이만큼까지만 돌릴 수 있다
+	PromptDistance = 10,
+	LeaveDistance = 16, -- 대포에서 이보다 멀어지면 자동으로 내린다
+	IdleTimeout = 90, -- 이만큼 안 쏘면 자동으로 내린다
+	CoinsPerHit = 2,
+	EyeCoins = 4,
+	DailyCoinCap = 100, -- 평소 대포로 벌 수 있는 하루 코인
+	TargetRadius = 4.4, -- 다리 약점 판정 반지름
+	EyeRadius = 4.2,
+	SlamRadius = 5.5,
+}
+
+--------------------------------------------------
+-- Phase 12 : 관전 예측 · 연습 판 · 토너먼트 · 친구 초대 · 행운의 테이블
+--------------------------------------------------
+GameConfig.Prediction = {
+	Enabled = true,
+	BaseCoins = 15,
+	PerPlayer = 5, -- 참가 인원 1명마다 더
+	MaxCoins = 40,
+	DailyCap = 10, -- 하루에 보상을 받는 적중 횟수
+}
+
+GameConfig.Tutorial = {
+	Enabled = true,
+	WindowScale = 1.6, -- 연습 판에서 처음 온 사람의 잡기 창 배율
+	Lead = 1.8, -- 연습 판에서는 해적이 나오는 시간을 흔들지 않고 이 값으로 둔다
+	BotFillDelay = 1, -- 연습 판은 AI 가 곧바로 앉는다
+}
+
+GameConfig.Tournament = {
+	Enabled = true,
+	SeriesLength = 4, -- 이만큼 연달아 치른 판의 점수를 더한다
+	Placement = { 10, 6, 4, 2, 1, 1 }, -- 1등(생존) · 2등 · 3등 …
+	CatchPoint = 1, -- 이번 판에 잡은 해적 1번마다
+	CatchPointCap = 3,
+	CoinsPerPoint = 5, -- 시리즈를 마치면 점수 × 이 값
+	SeriesTimeout = 900, -- 이만큼(초) 토너먼트 판을 안 하면 시리즈가 끊긴다
+	StoreName = "CursedBarrel_Tournament_v1", -- 시즌 id 가 뒤에 붙는다
+	BoardRows = 10,
+}
+
+GameConfig.Referral = {
+	Enabled = true,
+	InviterCoins = 200,
+	NewcomerCoins = 150,
+	DailyCap = 5, -- 초대한 사람이 하루에 받을 수 있는 횟수
+}
+
+GameConfig.Lucky = {
+	Enabled = true,
+	SurgeScale = 2,
+}
+
+GameConfig.TableTypeByName.Table_J = "Tournament4"
 
 return GameConfig

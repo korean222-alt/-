@@ -63,6 +63,13 @@ Phase 11 에서 바뀐 규칙 (요청하신 것)
   · 기권승은 승리 보상과 현상금을 절반 받는다. 남은 절반은 이 테이블의 다음 판으로 이월된다.
   · 보물 폭발 : 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
   · AI 선원 : BotService 가 앉힌 AI 도 사람과 같은 규칙으로 차례를 치른다. AI 가 낀 판은 연습 판이다.
+
+Phase 12 에서 더한 것
+  · 항해 시계의 판 규칙 (GameConfig.worldMods) : 현상금 배율 · 보물 폭발 배율 · 해적이 나오는 속도 · 해적 추가
+  · 오늘의 행운 테이블 : 보물 폭발 확률 2배
+  · 연습 판(Tutorial) : 처음 온 사람의 첫 해적은 창이 넓고 나오는 시간이 일정하다
+  · 관전 예측 창(PredictOpen) · 탈락 순서(outOrder) · 판이 끝났다는 신호(RoundSettled)
+    → PredictionService · TournamentService 가 이 신호를 듣는다
 ]]
 
 local Players = game:GetService("Players")
@@ -97,6 +104,9 @@ local braveRemote = ensureRemote(GameConfig.Remotes.Brave)
 local CATCH = GameConfig.Catch
 local BRAVE = GameConfig.Brave
 local POT = GameConfig.Pot
+
+-- Phase 12 : 판이 끝날 때마다 한 번 (정산이 끝난 뒤). 관전 예측 · 토너먼트가 듣는다.
+local RoundSettled = Utility.Signal.new()
 
 local TABLE_ATTR = GameConfig.TableAttributes
 local SEAT_ATTR = GameConfig.SeatAttributes
@@ -282,6 +292,7 @@ function Round:_resetRoundAttributes()
 	self:_set(TABLE_ATTR.WinForfeit, false)
 	self:_set(TABLE_ATTR.PotCarry, self.carry or 0)
 	self:_set(TABLE_ATTR.Practice, false)
+	self:_set(TABLE_ATTR.PredictOpen, false)
 	self:_clearBraveOffer()
 	self:_writeSeatOrder()
 end
@@ -364,7 +375,11 @@ end
 
 -- 이 테이블에 숨어 있어야 하는 해적 수. 좌석이 많으면 늘어난다.
 function Round:_targetPirateCount()
-	return TableConfig.getDangerCount(self.gameTable.typeName, #self.gameTable:GetSeats())
+	local base = TableConfig.getDangerCount(self.gameTable.typeName, #self.gameTable:GetSeats())
+	-- Phase 12 : 폭풍(크라켄 습격) 동안 해적이 늘어난다. 통에 고를 자리는 넉넉히 남긴다.
+	local extra = math.max(0, math.floor(tonumber(GameConfig.worldMods().extraPirate) or 0))
+	local slots = TableConfig.getSlotCount(self.gameTable.typeName)
+	return math.clamp(base + extra, 1, math.max(1, math.floor(slots / 3)))
 end
 
 -- 아직 아무도 꽂지 않은 자리 중에서 "살아 있는" 해적이 몇 마리인지.
@@ -519,6 +534,17 @@ function Round:_beginRound()
 	self.pirateOuts = 0
 	self.pot = 0
 	self.surgeMiss = 0
+	self.outOrder = {} -- Phase 12 : 해적에게 탈락한 순서 (토너먼트 순위)
+	-- Phase 12 : 연습 판이면 그 사람의 첫 해적은 쉽다
+	self.tutorialPlayer = nil
+	local tutorialId = self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+	if tutorialId and tutorialId ~= 0 then
+		for _, p in ipairs(participants) do
+			if p.UserId == tutorialId then
+				self.tutorialPlayer = p
+			end
+		end
+	end
 	-- Phase 11 : AI 선원이 한 명이라도 끼면 연습 판이다. (_rewardScale 이 이 값을 본다)
 	self.practice = false
 	for _, p in ipairs(participants) do
@@ -572,6 +598,7 @@ function Round:_beginRound()
 	self:_set(TABLE_ATTR.LastPickSafe, true)
 	self:_set(TABLE_ATTR.BraveLevel, 0)
 	self:_set(TABLE_ATTR.Practice, self.practice)
+	self:_set(TABLE_ATTR.PredictOpen, GameConfig.Prediction.Enabled == true)
 	self:_clearBraveOffer()
 	self:_addPot(POT.Base)
 	-- Phase 11 : 지난 판에서 넘어온 현상금을 얹는다. (이미 그때의 배율이 들어가 있다)
@@ -907,6 +934,10 @@ function Round:_resolvePick(player, slotIndex, source)
 	self.resolving = true
 	self.picks = (self.picks or 0) + 1
 	self.turnToken += 1 -- 이번 턴의 제한 시간 타이머를 무효로 만든다
+	-- Phase 12 : 한 바퀴를 돌면 관전 예측을 닫는다 (결과가 뻔해진 뒤에는 받지 않는다)
+	if self.picks >= math.max(2, self.startingCount or 2) then
+		self:_set(TABLE_ATTR.PredictOpen, false)
+	end
 
 	-- 해적을 밟았으면 그 자리의 해적은 여기서 소모된다.
 	-- (칼이 꽂혀 다시 고를 수 없는 자리이므로 명단에 남겨두면 숫자가 어긋난다)
@@ -1006,7 +1037,7 @@ function Round:_addPot(amount)
 	if not POT.Enabled then
 		return
 	end
-	local add = math.floor((tonumber(amount) or 0) * self:_rewardScale())
+	local add = math.floor((tonumber(amount) or 0) * self:_rewardScale() * (tonumber(GameConfig.worldMods().pot) or 1))
 	self.pot = math.clamp((self.pot or 0) + add, 0, POT.Cap)
 	self:_set(TABLE_ATTR.Pot, self.pot)
 end
@@ -1018,7 +1049,13 @@ function Round:_rollSurge(player)
 		return nil
 	end
 	self.surgeMiss = (self.surgeMiss or 0) + 1
-	local chance = math.min(surge.MaxChance, surge.Chance + surge.PityStep * self.surgeMiss)
+	-- Phase 12 : 노을(황금 시간)과 오늘의 행운 테이블은 확률이 커진다
+	local boost = tonumber(GameConfig.worldMods().surge) or 1
+	if GameConfig.Lucky.Enabled and self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.Lucky) == true then
+		boost *= GameConfig.Lucky.SurgeScale
+	end
+	local cap = boost > 1 and math.max(surge.MaxChance, tonumber(surge.BoostedMaxChance) or surge.MaxChance) or surge.MaxChance
+	local chance = math.min(cap, surge.MaxChance * boost, (surge.Chance + surge.PityStep * self.surgeMiss) * boost)
 	if self.random:NextNumber() >= chance then
 		return nil
 	end
@@ -1138,7 +1175,13 @@ function Round:_beginCatch(player, slotIndex)
 	-- 잡을 때마다(personal) 창이 좁아지고, 해적이 더 빨리 튀어나온다.
 	local window = GameConfig.catchWindow(self.catchCount, #self.participants, self:_freeSlotCount(), personal)
 	-- 창이 열리는 순간을 조금씩 흔든다. 클라이언트는 opensAt 에 맞춰 연출하므로 화면과 어긋나지 않는다.
-	local lead = GameConfig.catchLead(personal) + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
+	-- Phase 12 : 밤에는 해적이 더 빨리 나온다 (MinLead 아래로는 안 내려간다)
+	local lead = GameConfig.catchLead(personal, GameConfig.worldMods().lead) + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
+	-- Phase 12 : 연습 판에서 처음 온 사람의 첫 해적은 넉넉하다
+	if self.tutorialPlayer == player and personal == 0 and GameConfig.Tutorial.Enabled then
+		window *= GameConfig.Tutorial.WindowScale
+		lead = GameConfig.Tutorial.Lead
+	end
 	local startedAt = GameConfig.now()
 	local opensAt = startedAt + lead
 
@@ -1431,6 +1474,7 @@ function Round:_eliminate(player)
 	if index then
 		table.remove(self.participants, index)
 		self.pirateOuts = (self.pirateOuts or 0) + 1
+		table.insert(self.outOrder or {}, player)
 	else
 		index = self.turnIndex
 	end
@@ -1572,6 +1616,27 @@ function Round:_declareWinner(player)
 		bot = botWinner or nil,
 		practice = self.practice or nil,
 	})
+	self:_set(TABLE_ATTR.PredictOpen, false)
+
+	-- Phase 12 : 관전 예측 · 토너먼트 · 연습 판 마무리가 이 신호를 듣는다.
+	RoundSettled:Fire({
+		gameTable = gameTable,
+		roundId = self.roundId,
+		winner = player,
+		credited = credited,
+		halfWinner = halfWinner,
+		botWinner = botWinner,
+		practice = self.practice == true,
+		roster = table.clone(self.roundRoster or {}),
+		outOrder = table.clone(self.outOrder or {}),
+		forfeited = table.clone(self.forfeited or {}),
+		catches = table.clone(self.catchesUsed or {}),
+		tutorialPlayer = self.tutorialPlayer,
+	})
+	-- 연습 판을 끝까지 했다 (이기든 지든)
+	if self.tutorialPlayer and not GameConfig.isBot(self.tutorialPlayer) and not (self.forfeited or {})[self.tutorialPlayer] then
+		ProfileService:MarkTutorialDone(self.tutorialPlayer)
+	end
 
 	self:_set(TABLE_ATTR.CurrentTurnUserId, 0)
 	self:_set(TABLE_ATTR.CurrentTurnName, "")
@@ -1614,8 +1679,14 @@ function Round:_resetTable()
 	self.pot = 0
 	self.picks = 0
 	self.pirateOuts = 0
+	self.outOrder = {}
 	self.turnIndex = 0
 	self.startingCount = 0
+	-- Phase 12 : 연습 판은 한 판으로 끝난다
+	if self.tutorialPlayer then
+		self:_set(TABLE_ATTR.Tutorial, 0)
+		self.tutorialPlayer = nil
+	end
 	self.barrelCycle = 0
 	self.resolving = false
 	self.catch = nil
@@ -1845,6 +1916,7 @@ RoundService._cleaner = Utility.Cleaner.new()
 RoundService._started = false
 RoundService._selectLimiter = Utility.RateLimiter.new(GameConfig.SelectCooldown)
 RoundService._braveLimiter = Utility.RateLimiter.new(0.3)
+RoundService.RoundSettled = RoundSettled -- Phase 12
 
 function RoundService:_attach(gameTable)
 	if self._rounds[gameTable] or gameTable.destroyed then

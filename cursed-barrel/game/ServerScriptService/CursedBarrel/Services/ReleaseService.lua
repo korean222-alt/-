@@ -11,6 +11,7 @@ local FX=require(Shared.PremiumFX)
 local Profiles=require(script.Parent.ProfileService)
 local Tables=require(script.Parent.TableService)
 local Rounds=require(script.Parent.RoundService)
+local Bots=require(script.Parent.BotService)
 local Service={parties={},invites={},badgePending={},badgeDone={},limits=Utility.RateLimiter.new(0.25)}
 local function remote(name)
  local r=RS.CursedBarrel.Remotes:FindFirstChild(name)
@@ -109,6 +110,7 @@ function Service:onRequest(player,action,a,b,c,d,e)
  elseif action=="afk" and typeof(a)=="boolean" then
   player:SetAttribute("AFK",a);if a then local t=Tables:GetTableOfPlayer(player);if t then t:RemovePlayer(player) end end
  elseif action=="rejoin" then message=self:rejoin(player,a) and "참가했습니다 / Joined" or "테이블이 대기 상태일 때 가까이에서 눌러 주세요 / Join a nearby waiting table"
+ elseif action=="practice" then local _,why=Bots:SeatForPractice(player);message=why
  elseif action=="card" then
   local t=typeof(a)=="Instance" and Tables:GetTableFromModel(a)
   local r=t and Rounds:GetRound(t)
@@ -117,6 +119,25 @@ function Service:onRequest(player,action,a,b,c,d,e)
   end
  else return end
  self:sync(player,message)
+end
+-- Phase 12 : 친구 초대 보상. 초대 링크로 처음 들어온 사람과 초대한 사람이 같은 서버에 있으면 둘 다 받는다.
+-- (한 사람을 두 번 초대해도 한 번만 · 초대한 사람은 하루 GameConfig.Referral.DailyCap 번까지)
+function Service:referral(player)
+ local R=Config.Referral;if not R or not R.Enabled then return end
+ local ok,join=pcall(player.GetJoinData,player)
+ local refId=ok and typeof(join)=="table" and tonumber(join.ReferredByPlayerId) or 0
+ if not refId or refId<=0 or refId==player.UserId then return end
+ local newcomer=Profiles:Get(player);local inviter=Players:GetPlayerByUserId(refId);local host=inviter and Profiles:Get(inviter)
+ if not newcomer or not host or newcomer.referralClaimed or (newcomer.games or 0)>0 then return end
+ local key=tostring(player.UserId)
+ if host.referrals[key] then return end
+ local today=Utility.today()
+ if host.inviteDay~=today then host.inviteDay=today;host.inviteCount=0 end
+ newcomer.referralClaimed=true;newcomer.coins+=R.NewcomerCoins;Profiles:_touch(player)
+ self:sync(player,("친구의 초대로 오셨네요! 환영 선물 +%d 코인"):format(R.NewcomerCoins))
+ if host.inviteCount>=R.DailyCap then return end
+ host.referrals[key]=true;host.inviteCount+=1;host.coins+=R.InviterCoins;Profiles:_touch(inviter)
+ self:sync(inviter,("%s 님이 초대를 받고 왔습니다! +%d 코인"):format(player.DisplayName,R.InviterCoins))
 end
 function Service:badges(player,p)
  self.badgePending[player]=self.badgePending[player] or {};self.badgeDone[player]=self.badgeDone[player] or {}
@@ -163,6 +184,11 @@ function Service:Start()
  local joinedAt={}
  local function join(p)
   joinedAt[p]=os.clock()
+  -- Phase 12 : 자료를 다 읽은 뒤 친구 초대 보상을 확인한다
+  task.spawn(function()
+   for _=1,60 do if p.Parent~=Players or p:GetAttribute("ProfileLoaded")==true then break end;task.wait(0.5) end
+   if p.Parent==Players then pcall(self.referral,self,p) end
+  end)
   task.spawn(function()
    for _,other in ipairs(Players:GetPlayers()) do
     if other~=p then

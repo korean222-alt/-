@@ -30,13 +30,15 @@ local function distanceToSegment(p, a, b)
 end
 
 local times = { false, 0, 0.7, 1.9, 3.1, 4.4, 5.6, 7.3, 8.8, 10.2, 12.9, 15.5, 19.1 }
+-- Phase 12 : 폭풍(1.6) · 습격(2.2) 때 더 크게 날뛰어도 배를 뚫지 않는다
+for _, amp in ipairs({ 1, 1.6, 2.2 }) do
 for _, arm in ipairs(K.Arms) do
 	for _, quality in ipairs({ "High", "Low" }) do
 		local count = K.Samples[quality]
 		for _, t in ipairs(times) do
-			local samples = K.sample(arm, t or nil, count)
+			local samples = K.sample(arm, t or nil, count, amp)
 			expect(#samples == count, arm.name .. " sample count")
-			local where = ("%s %s t=%s"):format(arm.name, quality, tostring(t))
+			local where = ("%s %s t=%s amp=%.1f"):format(arm.name, quality, tostring(t), amp)
 			for index, s in ipairs(samples) do
 				local p, r = s.p, s.r
 				local ax = math.abs(p.X)
@@ -97,6 +99,7 @@ for _, arm in ipairs(K.Arms) do
 		end
 	end
 end
+end
 
 -- 머리는 배와 떨어져 있다
 local head = K.Head
@@ -108,6 +111,90 @@ local eyeY = head.center.Y + head.eyeRise
 expect(eyeY - head.eye / 2 > K.SeaY - 1.5, "kraken eyes are above the water")
 local eyeDistance = math.sqrt(head.eyeSpread ^ 2 + head.eyeRise ^ 2 + head.eyeForward ^ 2)
 expect(math.abs(eyeDistance - (head.mantle / 2 - 1)) < 1, ("kraken eyes sit on the head surface (%.2f)"):format(eyeDistance))
+
+--------------------------------------------------
+-- Phase 12 : 습격 때 갑판을 내려치는 다리 · 대포 과녁
+--------------------------------------------------
+local T = require({ __name = "KrakenTargets" })
+local zones = {
+	{ side = -1, z = 76 }, { side = -1, z = 23 }, { side = -1, z = -20 },
+	{ side = 1, z = 74 }, { side = 1, z = 30 }, { side = 1, z = -28 },
+}
+for index, zone in ipairs(zones) do
+	local slam = { id = index, side = zone.side, z = zone.z, at = 100, windup = 1.6, linger = 0.9, retract = 1.2, inset = 9 }
+	local hit = T.slamPoints(slam)
+	-- 내려치는 자리는 테이블 · 대포 · 계단 · 통로에서 떨어져 있다
+	for name, pos in pairs(Ship.Tables) do
+		local dx, dz = hit.X - pos[1], hit.Z - pos[2]
+		expect(math.sqrt(dx * dx + dz * dz) > 16, ("slam %d lands too close to %s"):format(index, name))
+	end
+	for _, cz in ipairs(Ship.CannonZ) do
+		expect(math.abs(hit.Z - cz) > 10, ("slam %d lands on a cannon (z %d)"):format(index, cz))
+	end
+	expect(not (hit.Z < -60 and hit.Z > -106), ("slam %d lands on the stairs"):format(index))
+	expect(math.abs(hit.X) > 44, ("slam %d reaches into the walkway"):format(index))
+	expect(math.abs(hit.Y - (Ship.DeckY + 0.7)) < 0.01, ("slam %d lands on the deck"):format(index))
+	-- 시간 순서 : 나오기 전 nil → 치켜듦 → 내려침(정확히 그 자리) → 갑판 위 → 물러남 → 사라짐
+	expect(T.slamTip(slam, 100 - 1.7) == nil, "slam hidden before windup")
+	local tip, phase = T.slamTip(slam, 100 - 1.0)
+	expect(tip ~= nil and phase == "rise" and tip.Y > 8, "slam rises")
+	tip, phase = T.slamTip(slam, 100 - 0.0001)
+	expect(phase == "strike" and (tip - hit).Magnitude < 0.2, "slam strikes the hit point")
+	tip, phase = T.slamTip(slam, 100.4)
+	expect(phase == "rest" and (tip - hit).Magnitude < 0.5, "slam rests on deck")
+	tip, phase = T.slamTip(slam, 101.5)
+	expect(phase == "retract", "slam retracts")
+	expect(T.slamTip(slam, 103) == nil, "slam gone after retract")
+	-- 등뼈 : 뿌리는 물속, 끝은 tip, 테이블과 떨어져 있다
+	for _, when in ipairs({ 98.6, 99.3, 99.9, 100.4, 101.2, 102 }) do
+		local t2 = T.slamTip(slam, when)
+		if t2 then
+			local spine = T.slamSpine(slam, t2, 14)
+			expect(spine[1].Y < K.SeaY, "slam spine root under water")
+			expect((spine[14] - t2).Magnitude < 1e-6, "slam spine ends at tip")
+			for _, p in ipairs(spine) do
+				for name, pos in pairs(Ship.Tables) do
+					local dx, dz = p.X - pos[1], p.Z - pos[2]
+					expect(math.sqrt(dx * dx + dz * dz) > 15, ("slam spine near %s at %.1f"):format(name, when))
+				end
+			end
+		end
+	end
+	-- 막을 수 있는 때 : 치켜든 동안만
+	expect(T.slamBlockable(slam, 99.0) and not T.slamBlockable(slam, 100.01) and not T.slamBlockable(slam, 98.3), "slam block window")
+	local blocked = { id = index, side = zone.side, z = zone.z, at = 100, windup = 1.6, linger = 0.9, retract = 1.2, inset = 9, blockedAt = 99.2 }
+	local recoil, how = T.slamTip(blocked, 99.4)
+	expect(how == "recoil" and recoil.Y > 10, "blocked slam recoils")
+	expect(T.slamTip(blocked, 101) == nil, "blocked slam sinks and never lands")
+end
+
+-- 대포 과녁 : 대포에서 약점을 겨누면 맞고, 하늘로 쏘면 빗나간다
+for _, amp in ipairs({ 1, 2.2 }) do
+	for _, target in ipairs(T.armTargets(12.3, amp)) do
+		local side = target.pos.X < 0 and -1 or 1
+		local best, bestDistance = nil, math.huge
+		for _, cz in ipairs(Ship.CannonZ) do
+			local muzzle = Vector3.new(side * 53.2, 3.2, cz)
+			local d = (target.pos - muzzle).Magnitude
+			if d < bestDistance then
+				best, bestDistance = muzzle, d
+			end
+		end
+		local dir = T.unit(target.pos - best)
+		local hitInfo = T.findHit(best, dir, 12.3, { amp = amp })
+		expect(hitInfo ~= nil, ("cannon can hit arm %d"):format(target.index))
+		local up = T.findHit(best, Vector3.new(0, 1, 0), 12.3, { amp = amp })
+		expect(up == nil, "shooting at the sky misses")
+	end
+end
+for _, eye in ipairs(T.eyeTargets(5, 0)) do
+	local muzzle = Vector3.new(-53.2, 3.2, -85)
+	local hitInfo = T.findHit(muzzle, T.unit(eye.pos - muzzle), 5, {})
+	expect(hitInfo ~= nil and hitInfo.kind == "eye" or (hitInfo and hitInfo.kind == "arm"), "port stern cannon can reach the eyes")
+	expect(eye.pos.Y > K.SeaY, "eyes above water")
+end
+local splash = T.splashPoint(Vector3.new(53, 3, 0), T.unit(Vector3.new(1, -0.1, 0)), 200)
+expect(math.abs(splash.Y - K.SeaY) < 0.01 and splash.X > 53, "missed shots splash into the sea")
 
 print(("KRAKEN CHECKS: %d run, %d failed"):format(checks, failures))
 if failures > 0 then

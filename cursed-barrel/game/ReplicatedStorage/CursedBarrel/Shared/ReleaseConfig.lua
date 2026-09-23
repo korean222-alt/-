@@ -1,12 +1,34 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "11.0.0-deadly-treasure"
+C.Version = "12.0.0-kraken-storm"
 C.StudioSolo = false
 C.FriendBonus = 0.10 -- one verified friend in the same round, non-stacking
 C.PartyBonus = 0.05
 C.AFKTimeouts = 3
-C.Badges = { first_win = 0, win10 = 0, win50 = 0, catch50 = 0, catch250 = 0, streak3 = 0, streak7 = 0, games100 = 0 }
-C.Audio = { Lobby = 0, Match = 0, Dragon = 0, Impact = 0, Win = 0 } -- licensed owner audio IDs
+C.Badges = { first_win = 0, win10 = 0, win50 = 0, catch50 = 0, catch250 = 0, streak3 = 0, streak7 = 0, games100 = 0,
+ raid10 = 0, crew5 = 0, tourney34 = 0, cannon100 = 0 } -- Phase 12 : 칭호 업적도 배지로 줄 수 있다 (0 이면 건너뜀)
+-- 음원 ID. 0 이면 Roblox 기본 효과음으로 대신하거나 조용히 둔다. (docs/Phase12_에셋_상품_안내_KO.md 에 찾는 곳이 있다)
+C.Audio = {
+ Lobby = 0, -- 로비 음악 (낮 · 노을 · 새벽, 반복)
+ Match = 0, -- 테이블 게임 중 긴장 음악 (반복)
+ Dragon = 0, -- 해적이 튀어나올 때 비명 · 포효
+ Impact = 0, -- 칼이 꽂히는 소리
+ Win = 0, -- 승리 팡파르
+ -- Phase 12
+ Night = 0, -- 밤 · 안개 로비 음악 (반복)
+ Storm = 0, -- 폭풍 · 크라켄 습격 음악 (반복)
+ Rain = 0, -- 빗소리 (반복)
+ Thunder = 0, -- 천둥
+ KrakenRoar = 0, -- 크라켄 울음 (습격 시작)
+ Slam = 0, -- 다리가 갑판을 내려치는 "쾅"
+ WoodCrack = 0, -- 갑판이 부서지는 소리
+ Cannon = 0, -- 대포 발사
+ Splash = 0, -- 포탄이 바다에 떨어지는 소리
+ Hit = 0, -- 포탄이 크라켄에 맞는 소리
+ Coins = 0, -- 금화 쏟아지는 소리
+ Waves = 0, -- 파도 · 바람 (반복, 배경)
+}
+C.Textures = { Rain = 0 } -- 빗줄기 이미지 (0 이면 기본 입자를 길게 늘여 쓴다)
 C.Branding = {
  -- Exact user-supplied images are in assets/branding, unchanged.
  -- Roblox ImageButton requires a Roblox-uploaded image asset ID, not a local JPEG path.
@@ -27,6 +49,7 @@ C.Season = {
   {xp=100,coins=500}, {xp=250,coins=1000},
   {xp=500,kind="Chair",skin="dragon_throne"},
   {xp=900,kind="Victory",skin="dragon_ascension"},
+  {xp=1300,kind="Stab",skin="storm_strike"}, -- Phase 12 : 시즌 한정 칼 모션
  },
 }
 C.Settings = {music=0.35,sfx=0.65,shake=true,reducedFX=false,quality="Auto",language="Auto",camera=true,wide=true}

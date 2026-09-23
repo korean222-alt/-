@@ -287,6 +287,11 @@ local function flyToWinner(model, data)
 			coin:Destroy()
 		end
 	end
+	-- 현상금 부스터 : 이긴 사람 머리 위로 금화가 한 번 더 쏟아진다
+	local winner = Players:GetPlayerByUserId(data.userId or 0)
+	if winner and winner:GetAttribute("Booster") == true and (data.pot or 0) > 0 then
+		rain(model, "chest")
+	end
 	-- 가져가지 못한 몫은 금화로 다시 쌓인다 (이월)
 	task.delay(0.6, function()
 		if piles[model] == entry then
