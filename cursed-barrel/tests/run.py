@@ -32,3 +32,12 @@ def literal(s):
 module_loader='SOURCES={\n'+',\n'.join('[ '+literal(k)+' ]='+literal(v) for k,v in modules.items())+'}\n'
 harness=(root/'tests/behavior.lua').read_text()
 run(module_loader+harness,'behavior')
+# Phase 13 : every Korean UI string must have an English line (tools/locale/en_*.txt)
+sys.path.insert(0,str(root/'tools'))
+import build_locale
+table=build_locale.load()
+missing=[k for k in build_locale.strings() if k not in table]
+if missing: raise SystemExit('Missing English for: '+', '.join(repr(k) for k in missing[:20]))
+generated=(root/'game/ReplicatedStorage/CursedBarrel/Shared/LocaleData.lua').read_text()
+if any(ko not in generated for ko in list(table)[:5]): raise SystemExit('LocaleData.lua is stale: run python tools/build_locale.py')
+print(f'PASS: English covers all {len(build_locale.strings())} Korean UI strings')

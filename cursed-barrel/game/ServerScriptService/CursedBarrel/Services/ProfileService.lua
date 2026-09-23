@@ -103,6 +103,13 @@ local function defaultProfile()
 		inviteDay = "",
 		inviteCount = 0,
 		referralClaimed = false, -- Phase 12 : 초대받아 온 사람의 환영 선물은 한 번
+		attendCount = 0, -- Phase 13 : 출석판에서 이번 판(7칸)에 받은 칸 수
+		attendDay = "", -- Phase 13 : 마지막으로 출석을 받은 날짜
+		spins = 0, -- Phase 13 : 룰렛 이용권
+		freeSpinDay = "", -- Phase 13 : 오늘 무료 룰렛을 쓴 날짜
+		spinCount = 0, -- Phase 13 : 룰렛을 돌린 횟수 (통계)
+		coinPackBought = false, -- Phase 13 : 코인 충전을 한 번이라도 했는가 (첫 구매 2배)
+		pendingSkin = nil, -- Phase 13 : 로벅스로 사려고 고른 스킨 { kind, id, tier }
 		owned = defaultInventory(),
 		equipped = {
 			Knife = SKINS.Knife[1].id,
@@ -129,7 +136,8 @@ local function migrate(raw)
 	end
 
 	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak",
-		"cannonHits", "raidWins", "predictWins", "crewWins", "bestSeries", "cannonCoins", "predictCount", "inviteCount" }) do
+		"cannonHits", "raidWins", "predictWins", "crewWins", "bestSeries", "cannonCoins", "predictCount", "inviteCount",
+		"attendCount", "spins", "spinCount" }) do
 		local value = tonumber(raw[key])
 		if value and value == value and value < math.huge then
 			profile[key] = math.max(0, math.floor(value))
@@ -141,12 +149,19 @@ local function migrate(raw)
 	end
 	profile.starterBought = raw.starterBought == true
 	-- Phase 12
-	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay" }) do
+	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay", "attendDay", "freeSpinDay" }) do
 		if typeof(raw[key]) == "string" then
 			profile[key] = raw[key]
 		end
 	end
 	profile.referralClaimed = raw.referralClaimed == true
+	-- Phase 13
+	profile.coinPackBought = raw.coinPackBought == true
+	profile.attendCount = math.min(profile.attendCount, #GameConfig.Attendance.Days)
+	if typeof(raw.pendingSkin) == "table" and typeof(raw.pendingSkin.kind) == "string" and typeof(raw.pendingSkin.id) == "string"
+		and typeof(raw.pendingSkin.tier) == "string" then
+		profile.pendingSkin = { kind = raw.pendingSkin.kind, id = raw.pendingSkin.id, tier = raw.pendingSkin.tier }
+	end
 	if typeof(raw.referrals) == "table" then
 		local kept = 0
 		for id, yes in pairs(raw.referrals) do
@@ -283,6 +298,11 @@ local function publish(player, profile)
 	player:SetAttribute(PLAYER_ATTR.Streak, profile.streak)
 	player:SetAttribute(PLAYER_ATTR.BestStreak, profile.bestStreak)
 	player:SetAttribute(PLAYER_ATTR.Loaded, true)
+	-- Phase 13 : 출석판 · 룰렛 알림 점 (버튼 위 빨간 점)
+	local today = Utility.today()
+	player:SetAttribute("Spins", profile.spins or 0)
+	player:SetAttribute("AttendReady", GameConfig.Attendance.Enabled and profile.attendDay ~= today)
+	player:SetAttribute("FreeSpin", GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today)
 	-- Phase 12 : 칭호. 업적 목록의 뒤쪽(더 어려운 것)이 앞선다.
 	local title = ""
 	for _, entry in ipairs(GameConfig.Achievements) do
@@ -731,8 +751,10 @@ function ProfileService:_rollDaily(player, profile)
 			profile.loginStreak = 1
 		end
 		profile.lastLoginDay = day
-		local bonus = GameConfig.dailyBonusFor(profile.loginStreak)
-		profile.coins += bonus
+		-- Phase 13 : 접속 보상은 출석판에서 직접 받는다. (RewardService:ClaimAttendance)
+		if not (GameConfig.Attendance and GameConfig.Attendance.Enabled) then
+			profile.coins += GameConfig.dailyBonusFor(profile.loginStreak)
+		end
 	end
 	profile.daily.bonusTaken = true
 

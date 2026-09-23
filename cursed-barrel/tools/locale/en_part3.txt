@@ -1,0 +1,172 @@
+ 장착	 equipped
+ 모션 장착  ·  칼을 꽂을 때 모두가 봅니다	 motion equipped  ·  everyone sees it when you stab
+ 장착  ·  테이블에서는 등급이 높은 통이 보입니다	 equipped  ·  the table shows the highest-rarity barrel
+누가 살아남을까?\n맞히면 코인 (걸지 않아요)	Who will survive?\nGuess right for coins (no betting)
+예측: %s\n결과를 기다리는 중…	Your pick: %s\nWaiting for the result…
+예측할 수 없습니다	Can't predict
+예측 적중! %s 생존 · +%d 코인	Correct! %s survived · +%d coins
+예측 적중! %s 생존 (오늘 보상은 다 받았어요)	Correct! %s survived (today's rewards are maxed)
+아쉽다! %s 님이 살아남았다	So close! %s survived
+아쉽다! 예측이 빗나갔다	So close! Wrong guess
+의뢰	Quests
+카드	Cards
+항해 / Voyage	Voyage
+관전 종료 / Exit	Exit
+다음 판 / Rejoin	Rejoin
+자료를 불러오는 중…	Loading…
+개인 서버에서도 같은 규칙과 저장을 사용합니다.	Private servers share these rules and saved progress.
+받기	Claim
+시즌: 용의 항로	Season: Dragon Tide
+ 코인	 coins
+같은 판: 친구 +10%, 파티 +5% 코인	Same round: friend +10%, party +5% coins
+ 님의 파티 초대	 invited you to a party
+수락	Accept
+현재 파티	Current party
+나가기	Leave
+파티 초대	Invite to party
+H 테이블에서 각 카드 1회 무료. 내 차례에 칼 고르는 창 위 버튼으로도 씁니다. 봉인한 자리는 다음 사람이 고를 수 없습니다.	Free at table H: one of each card per round, on your turn (also above the slot picker). The sealed slot is blocked for the next player.
+봉인할 슬롯 번호	Slot number to seal
+사용	Use
+음악	Music
+효과음	Effects
+화면 흔들림	Camera shake
+번쩍임·연출 줄이기	Reduce flashes & effects
+테이블 카메라	Table camera
+이펙트 품질	Effect quality
+언어	Language
+자리 비움 (진행 중이면 이탈)	AFK (leaves current round)
+Studio 임시 플레이: 저장·구매 비활성	Studio test play: saving and purchases disabled
+출석 체크	Daily Rewards
+%d일	Day %d
+받기!	Claim!
+내일 또 와요	Come back tomorrow
+👑 VIP 코인 2배 적용 중!  빠진 날이 있어도 이어서 받아요.	👑 VIP double coins active!  Missed days don't reset your board.
+👑 VIP 패스가 있으면 출석 코인 2배!  빠진 날이 있어도 이어서 받아요.	👑 VIP Pass doubles daily coins!  Missed days don't reset your board.
+행운의 룰렛	Lucky Wheel
+확률표 (모든 돌리기 동일)	Odds (same for every spin)
+이용권 +1	+1 ticket
+스킨 (없는 것 중 하나)	Skin (one you don't own)
+돌리기!	Spin!
+🎟 이용권 %d장%s	🎟 %d tickets%s
+  ·  오늘 무료 1회!	  ·  1 free spin today!
+돌아가는 중…	Spinning…
+무료로 돌리기!	Free spin!
+이용권 1장 쓰기	Use 1 ticket
+내일 무료 1회	Free spin tomorrow
+R$ %d · 이용권 %d장	R$ %d · %d tickets
+이용권 판매 준비 중	Tickets coming soon
+🪙 %s 코인!	🪙 %s coins!
+🎟 이용권 +1! 한 번 더!	🎟 +1 ticket! Spin again!
+🎁 스킨 「%s」!	🎁 Skin "%s"!
+출석	Daily
+룰렛	Wheel
++%s 코인%s%s	+%s coins%s%s
+ · 룰렛 이용권 +	 · spin tickets +
+ (VIP 2배)	 (VIP x2)
+상점	Shop
+퀘스트	Quests
+방해	Sabotage
+칼	Knife
+통	Barrel
+해적	Pirate
+모션	Motion
+의자	Chair
+탈락	Elim
+0 코인	0 coins
+준비 중	Coming soon
+코인이 %s 모자라요 · 아래 R$ %d 로 바로 살 수 있어요	You need %s more coins · or buy it now for R$ %d below
+코인이 %s 모자라요	You need %s more coins
+R$ 준비 중	R$ soon
+🔥 오늘의 특가 -%d%%  ·  %s	🔥 Today's deal -%d%%  ·  %s
+%s → %s 코인 · 내일이면 바뀝니다	%s → %s coins · changes tomorrow
+보유 중	Owned
+VIP 패스 전용	VIP Pass only
+스타터 팩 전용	Starter Pack only
+시즌 보상 (항해 탭)	Season reward (Voyage tab)
+🔥 특가 %s 코인	🔥 Deal %s coins
+%s 코인 또는 R$ %d	%s coins or R$ %d
+%s 코인	%s coins
+보기	Preview
+장착	Equip
+시즌 보상	Season reward
+VIP 패스	VIP Pass
+스타터 팩	Starter Pack
+한 테이블에는 통이 하나뿐입니다. 등급이 높은 통이 보이고, 같은 등급이면 레벨이 높은 사람 것이 보입니다.	Each table shows one barrel: the highest rarity wins, and ties go to the higher-level player.
+코인 충전  ·  🎁 첫 충전은 코인 2배!	Get coins  ·  🎁 First top-up gives 2x coins!
+코인 충전	Get coins
+%s  →  %s (2배)	%s  →  %s (2x)
+📅 오늘 출석 보상을 아직 안 받았어요! (%d/7칸) · 왼쪽 아래 출석판	📅 You haven't claimed today's reward! (%d/7) · Daily board at bottom left
+📅 오늘 출석 완료 (%d/7칸) · 내일 또 오세요	📅 Claimed today (%d/7) · come back tomorrow
+오늘의 퀘스트	Today's quests
+%d / %d  ·  %s 코인	%d / %d  ·  %s coins
+받음	Claimed
+오늘 받은 퀘스트가 없습니다. 잠시 뒤 다시 확인해 주세요.	No quests today yet. Check back soon.
+업적	Achievements
+같은 테이블에 앉은 상대만 방해할 수 있습니다. 위험한 자리를 알려주거나 잡기 창을 늘려 주는 물건은 팔지 않습니다.	You can only sabotage players at your table. We never sell items that reveal danger or widen catch windows.
+상대 고르기	Pick a target
+지금은 방해할 상대가 없습니다. 테이블에 앉아 게임이 시작되면 이름이 나옵니다.	No one to sabotage right now. Names appear once your table's game starts.
+고름	Picked
+고르기	Pick
+방해 아이템	Sabotage items
+사용 ×%d	Use ×%d
+먼저 상대를 골라 주세요	Pick a target first
+방해 아이템은 아직 준비 중입니다.	Sabotage items are coming soon.
+퀘스트와 업적	Quests & Achievements
+R$ %d · 상점에서	R$ %d · in the shop
+구매 · %s 코인	Buy · %s coins
+Lv.%d  ·  %d승 %d판  ·  최고 %d연승	Lv.%d  ·  %d wins %d rounds  ·  best streak %d
+게임 시작!	Game on!
+게임 진행 중	Game in progress
+라운드 종료	Round over
+정리하는 중...	Cleaning up...
+나	Me
+%s · %d번 자리 안전!	%s · slot %d is safe!
+%s · %d번 자리에서 탈락!	%s · out on slot %d!
+통: %s (내 것)	Barrel: %s (mine)
+통: %s (%s 님)	Barrel: %s (%s's)
+%d명 참가 · 곧 시작합니다	%d players · starting soon
+칼 %d자루 · 해적 %d마리가 숨어 있습니다	%d knives · %d pirates hiding
+준비!	Ready!
+참가 %d명 · 칼 %d자루	%d players · %d knives
+칼 %d	Knives %d
+생존 %d / %d명 · 해적 %d마리%s%s	%d / %d alive · %d pirates%s%s
+ · 현상금 %d	 · bounty %d
+ · AI 연습 판	 · AI practice
+무승부	Draw
+승리!	Victory!
+기권승	Win by forfeit
+%s 생존 · 상대 기권 (보상 절반)	%s survived · rivals left (half reward)
+%s 승리 · 현상금 일부가 다음 판으로	%s wins · part of the bounty carries over
+내가 마지막까지 살아남았다!	I survived to the end!
+%s 님 우승	%s wins
+남은 참가자가 없습니다	No players left
+정리 중	Cleaning up
+곧 다시 앉을 수 있습니다	You can sit again soon
+빈 테이블 · 앉으면 참가	Empty table · sit to join
+%d명 더 필요 · 곧 AI 선원이 합류	Need %d more · AI crew will join soon
+시작 준비 완료	Ready to start
+칼 %d자루 · 해적 %d마리 · 마지막 한 명이 승리%s	%d knives · %d pirates · last one standing wins%s
+ · 이월 현상금 %d	 · carried bounty %d
+🍀 오늘의 행운 테이블 · 보물 폭발 2배	🍀 Today's lucky table · 2x treasure bursts
+🏆 내 시리즈 %d/4판 · %d점	🏆 My series %d/4 · %d pts
+🏆 4판 연속 점수로 시즌 순위 · AI 없음	🏆 4-round series for the season ranking · no AI
+연습 판 · AI 선원과 함께	Practice · with AI crew
+▶ 내 차례! 자리를 고르세요 (%d/%d)	▶ Your turn! Pick a slot (%d/%d)
+▶ %s 님의 차례 (%d/%d)	▶ %s's turn (%d/%d)
+%s 뒤 테이블이 초기화됩니다	Table resets in %s
+연습 판이에요!  AI 선원 둘과 함께합니다. 처음 해적은 잡기 쉬워요	Practice round!  You're with two AI crew. The first pirate is easy to catch
+③ 해적이 튀어나오면 그때 누르세요!  가짜 손에 속아 먼저 누르면 탈락	③ Tap when the pirate pops out!  Fall for a fake hand and tap early = out
+「한 번 더」를 누르면 보너스 코인!  대신 통이 더 위험해져요	Press "One more" for bonus coins!  But the barrel gets riskier
+① 내 차례!  아래에서 칼 자리를 하나 누르세요 (해적이 숨어 있을 수도)	① Your turn!  Tap a knife slot below (a pirate might be hiding)
+② AI 선원이 고르는 중…  위험한 자리를 뽑으면 해적이 튀어나와요	② AI crew is choosing…  pick a cursed slot and a pirate pops out
+연습 끝!  이제 다른 사람들과 해 보세요 · 오른쪽 위 날씨에 따라 규칙이 바뀌어요	Practice done!  Now play with others · rules change with the weather (top right)
+🐙 크라켄 습격!  체력 %d / %d  ·  %d:%02d	🐙 Kraken raid!  HP %d / %d  ·  %d:%02d
+판을 마치고 뱃전의 대포로 크라켄을 쫓아내세요	Finish your round, then drive the Kraken off with the deck cannons
+뱃전의 대포(E)로 빛나는 약점 · 눈 · 내려치는 다리를 쏘세요	Use a deck cannon (E) to hit glowing weak spots, eyes and slamming tentacles
+🐙 크라켄 습격!  배를 지켜라 — 대포로 쫓아내면 보상	🐙 Kraken raid!  Defend the ship — drive it off with cannons for rewards
+크라켄을 물리쳤다!  +%d 코인	The Kraken is defeated!  +%d coins
+크라켄을 물리쳤다!	The Kraken is defeated!
+크라켄이 바다로 돌아갔다…  참여 보상 +%d	The Kraken slipped back into the sea…  participation +%d
+크라켄이 바다로 돌아갔다…	The Kraken slipped back into the sea…
+내려치기를 막았다!	Slam blocked!
+🏆 토너먼트 시리즈 완료!  %d점 · +%d 코인	🏆 Tournament series complete!  %d pts · +%d coins

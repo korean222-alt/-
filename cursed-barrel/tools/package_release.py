@@ -6,7 +6,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parents[1]
-PLACE = 'output/CursedBarrel_Phase12_Storm.rbxl'
+PLACE = 'output/CursedBarrel_Phase13_Rewards.rbxl'
 
 files = list((root / 'game').rglob('*.lua')) + list((root / 'docs').rglob('*.md'))
 files += list((root / 'assets/audio').glob('*.wav'))
@@ -16,7 +16,7 @@ files += [root / 'tests' / n for n in ('run.py', 'run_luau.py', 'behavior.lua', 
                                        'StudioSmoke.server.lua', 'results.json')]
 files += [root / 'base/CursedBarrel_Phase8.rbxl', root / PLACE]
 
-destination = root / 'output/CursedBarrel_Phase12_Source.zip'
+destination = root / 'output/CursedBarrel_Phase13_Source.zip'
 with ZipFile(destination, 'w', ZIP_DEFLATED) as archive:
     for path in files:
         archive.write(path, path.relative_to(root).as_posix())

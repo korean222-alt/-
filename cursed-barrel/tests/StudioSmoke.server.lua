@@ -48,4 +48,8 @@ local Stab=require(RS.CursedBarrel.Shared.StabMotion)
 check(Config.Catch.MinLead>=(Stab.MaxDuration or 0),"Stab motion (incl. storm_strike) must land before the pirate")
 check(Config.TableTypeByName.Table_J=="Tournament4","Tournament table assignment")
 for _,t in ipairs(Tables:GetAllTables()) do check(t.model:GetAttribute("PredictOpen")~=nil,"Missing table attribute PredictOpen") end
+-- Phase 13 : 출석판 · 룰렛 · 영어
+for _,name in ipairs({"RewardRequest","RewardCue"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
+check(require(Services.RewardService)._started,"RewardService started")
+check(require(RS.CursedBarrel.Shared.Locale).translate("상점")=="Shop","English dictionary loads")
 print("[StudioSmoke] "..assertions.." engine assertions passed. This does not replace multiplayer/device QA.")

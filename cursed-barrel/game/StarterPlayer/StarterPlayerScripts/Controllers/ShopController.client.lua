@@ -49,6 +49,7 @@ local TAB_NAMES = { { "shop", "상점" }, { "quest", "퀘스트" }, { "sabotage"
 local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Stab","모션"},{"Chair","의자"},{"Elimination","탈락"},{"Victory","승리"} }
 
 local state = nil -- 서버가 보내 준 마지막 상태
+local coinAndRobuxButtons -- Phase 13 (아래에서 정의)
 -- 상품 ID 를 아직 넣지 않은 것은 공개 서버에서 숨긴다. Studio 에서는 "준비 중"으로 보여 준다.
 local IN_STUDIO = game:GetService("RunService"):IsStudio()
 local sabotageState = { items = {}, opponents = {}, cooldown = 0 }
@@ -258,6 +259,54 @@ local function premiumRow(order, offer, action, kind)
 	return order
 end
 
+-- Phase 13 : 코인 스킨은 코인으로도, 로벅스로도 산다. (위 : 코인 · 아래 : 로벅스)
+coinAndRobuxButtons = function(row, entry)
+	local affordable = state.coins >= entry.price
+	local coinText = "🪙 " .. Utility.comma(entry.price)
+	local buy = textButton(row, coinText, UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 6),
+		affordable and PALETTE.Row or PALETTE.Panel, affordable and PALETTE.Gold or PALETTE.Dim)
+	buy.Activated:Connect(function()
+		if state.coins >= entry.price then
+			shopRequest:FireServer("buy", entry.kind, entry.id)
+		elseif entry.tierReady then
+			showToast(("코인이 %s 모자라요 · 아래 R$ %d 로 바로 살 수 있어요"):format(Utility.comma(entry.price - state.coins), entry.tierRobux), false)
+		else
+			showToast(("코인이 %s 모자라요"):format(Utility.comma(entry.price - state.coins)), false)
+		end
+	end)
+	if entry.tierRobux > 0 and (entry.tierReady or IN_STUDIO) then
+		local robux = textButton(row, entry.tierReady and ("R$ %d"):format(entry.tierRobux) or "R$ 준비 중",
+			UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 42),
+			entry.tierReady and PALETTE.Robux or PALETTE.Panel, entry.tierReady and Color3.new(1, 1, 1) or PALETTE.Dim)
+		robux.Activated:Connect(function()
+			shopRequest:FireServer("robux", entry.kind, entry.id)
+		end)
+	end
+end
+
+local KIND_NAMES = {}
+for _, entry in ipairs(KINDS) do
+	KIND_NAMES[entry[1]] = entry[2]
+end
+
+-- Phase 13 : 오늘의 특가 한 줄 (상점 맨 위)
+local function dealRow(order)
+	local entry = state.deal
+	if not entry or entry.owned then
+		return order
+	end
+	order += 1
+	local row = makeRow(order, 78)
+	row.BackgroundColor3 = Color3.fromRGB(92, 38, 26)
+	label(row, ("🔥 오늘의 특가 -%d%%  ·  %s"):format(math.floor(GameConfig.DailyDeal.Discount * 100 + 0.5), KIND_NAMES[entry.kind] or entry.kind),
+		UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, 6), 13, PALETTE.Gold)
+	label(row, entry.name, UDim2.new(1, -130, 0, 22), UDim2.fromOffset(12, 26), 15, entry.rarityColor or PALETTE.Cream)
+	label(row, ("%s → %s 코인 · 내일이면 바뀝니다"):format(Utility.comma(entry.originalPrice or entry.price), Utility.comma(entry.price)),
+		UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, 50), 12, PALETTE.Cream)
+	coinAndRobuxButtons(row, entry)
+	return order
+end
+
 local function drawShop()
 	clearList()
 	if not state then
@@ -269,6 +318,7 @@ local function drawShop()
 	order = premiumRow(order, state.starter, "robux", "starter")
 	order = premiumRow(order, state.vip, "vip", "vip")
 	order = premiumRow(order, state.booster, "pass", "Booster")
+	order = dealRow(order)
 	for _, entry in ipairs(state.catalog[currentKind] or {}) do
 		order += 1
 		local row = makeRow(order,78)
@@ -287,6 +337,10 @@ local function drawShop()
 			detail = "시즌 보상 (항해 탭)"
 		elseif entry.robux > 0 and entry.price <= 0 then
 			detail = ("R$ %d"):format(entry.robux)
+		elseif entry.deal then
+			detail = ("🔥 특가 %s 코인"):format(Utility.comma(entry.price))
+		elseif entry.tierRobux > 0 then
+			detail = ("%s 코인 또는 R$ %d"):format(Utility.comma(entry.price), entry.tierRobux)
 		else
 			detail = ("%s 코인"):format(Utility.comma(entry.price))
 		end
@@ -336,14 +390,7 @@ local function drawShop()
 				shopRequest:FireServer("robux", entry.kind, entry.id)
 			end)
 		else
-			local affordable = state.coins >= entry.price
-			local buy = textButton(row, affordable and "구매" or "코인 부족",
-				UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11),
-				affordable and PALETTE.Row or PALETTE.Panel,
-				affordable and PALETTE.Gold or PALETTE.Dim)
-			buy.Activated:Connect(function()
-				shopRequest:FireServer("buy", entry.kind, entry.id)
-			end)
+			coinAndRobuxButtons(row, entry)
 		end
 	end
 
@@ -367,13 +414,18 @@ local function drawShop()
 		order += 1
 		local header = makeRow(order, 28)
 		header.BackgroundTransparency = 1
-		label(header, "코인 충전", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+		label(header, state.firstPurchase and "코인 충전  ·  🎁 첫 충전은 코인 2배!" or "코인 충전",
+			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
 	end
 
 	for _, pack in ipairs(packs) do
 		order += 1
 		local row = makeRow(order, 44)
-		label(row, pack.name, UDim2.fromOffset(240, 20), UDim2.fromOffset(12, 12), 14, PALETTE.Cream)
+		local coinsText = state.firstPurchase and ("%s  →  %s (2배)"):format(pack.name, Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier)) or pack.name
+		label(row, coinsText, UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, pack.bonus and 4 or 12), 14, PALETTE.Cream)
+		if pack.bonus then
+			label(row, "⭐ " .. pack.bonus, UDim2.new(1, -130, 0, 16), UDim2.fromOffset(12, 24), 11, PALETTE.Good)
+		end
 		local buy = textButton(row, pack.ready and ("R$ %d"):format(pack.robux) or "준비 중",
 			UDim2.fromOffset(96, 26), UDim2.new(1, -110, 0, 9),
 			pack.ready and PALETTE.Robux or PALETTE.Panel,
@@ -415,14 +467,13 @@ local function drawQuests()
 	end
 
 	local order = 1
-	-- Phase 10 : 연속 출석
-	local streak = state.loginStreak or 0
-	if streak > 0 then
-		local today = GameConfig.dailyBonusFor(streak)
-		local tomorrow, day = GameConfig.dailyBonusFor(streak + 1)
+	-- Phase 13 : 출석은 왼쪽 아래 출석판에서 받는다
+	local attend = state.attendance
+	if attend then
 		local attendance = makeRow(order, 40)
 		attendance.BackgroundColor3 = Color3.fromRGB(40, 52, 36)
-		label(attendance, ("출석 %d일째 · 오늘 +%s 코인 · 내일(%d일째) 오면 +%s"):format(streak, Utility.comma(today), day, Utility.comma(tomorrow)),
+		label(attendance, attend.ready and ("📅 오늘 출석 보상을 아직 안 받았어요! (%d/7칸) · 왼쪽 아래 출석판"):format(attend.count)
+			or ("📅 오늘 출석 완료 (%d/7칸) · 내일 또 오세요"):format(attend.count == 0 and 7 or attend.count),
 			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Good).TextWrapped = true
 		order += 1
 	end

@@ -38,6 +38,7 @@ local WorldService = require(Services.WorldService)
 local CannonService = require(Services.CannonService)
 local PredictionService = require(Services.PredictionService)
 local TournamentService = require(Services.TournamentService)
+local RewardService = require(Services.RewardService)
 
 -- Relocate whole table models before GameTable caches seat/slot geometry.
 require(Services.ShipLobbyBuilder):Prepare()
@@ -55,10 +56,11 @@ WorldService:Start()
 CannonService:Start()
 PredictionService:Start()
 TournamentService:Start()
+RewardService:Start()
 
 -- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
 task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 12: 날씨 · 크라켄 습격 · 대포 · 예측 · 토너먼트)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 13: 출석판 · 룰렛 · 코인/로벅스 스킨 · 영어)")

@@ -73,7 +73,7 @@ workspace={GetServerTimeNow=function() return now end,GetAttribute=function(_,k)
 local cache={TableService={GetAllTables=function() return {} end,GetTableOfPlayer=function() return nil end},RankingService={RecordRound=function() end}}
 local function loadModule(name,source)
  local parent=node("Services")
- for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry"}) do parent:WaitForChild(n) end
+ for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry","LocaleData","Locale"}) do parent:WaitForChild(n) end
  local env=setmetatable({script={Parent=parent}}, {__index=(getfenv and getfenv(1)) or _G})
  env.require=function(ref)
   local key=type(ref)=="table" and ref.Name or ref
@@ -153,16 +153,16 @@ end)
 check("weekly rollover removes old progress",function()
  local d=Profiles:Get(p);local saved=epoch;epoch=epoch+604800;Profiles:_rollWeekly(d);assert(next(d.weekly.progress)==nil);assert(next(d.weekly.claimed)==nil);epoch=saved;Profiles:_rollWeekly(d)
 end)
-check("daily reward only once per UTC day",function()
+check("login no longer pays coins by itself (Phase 13: claim on the attendance board)",function()
  local d=Profiles:Get(p);local old=d.coins;Profiles:_rollDaily(p,d);Profiles:_rollDaily(p,d);assert(d.coins==old)
  local streak=d.loginStreak
- epoch=epoch+86400;Profiles:_rollDaily(p,d);assert(d.coins==old+Config.dailyBonusFor(streak+1));assert(d.loginStreak==streak+1)
- Profiles:_rollDaily(p,d);assert(d.coins==old+Config.dailyBonusFor(streak+1));epoch=epoch-86400
+ epoch=epoch+86400;Profiles:_rollDaily(p,d);assert(d.coins==old,"attendance is claimed, not automatic");assert(d.loginStreak==streak+1)
+ Profiles:_rollDaily(p,d);assert(d.coins==old);epoch=epoch-86400
 end)
 check("login streak grows day by day, caps at a 7-day cycle and resets after a missed day",function()
  local q=player(21);Profiles:_load(q);local d=Profiles:Get(q);assert(d.loginStreak==1)
  local saved=epoch
- for day=2,8 do epoch=saved+(day-1)*86400;local before=d.coins;Profiles:_rollDaily(q,d);assert(d.loginStreak==day);assert(d.coins-before==Config.dailyBonusFor(day)) end
+ for day=2,8 do epoch=saved+(day-1)*86400;local before=d.coins;Profiles:_rollDaily(q,d);assert(d.loginStreak==day);assert(d.coins==before) end
  assert(Config.dailyBonusFor(7)==700 and Config.dailyBonusFor(8)==Config.dailyBonusFor(1))
  epoch=saved+10*86400;Profiles:_rollDaily(q,d);assert(d.loginStreak==1)
  epoch=saved
@@ -839,6 +839,117 @@ check("friend invite pays both once, inviter capped per day",function()
  Profiles:Get(host).inviteCount=Config.Referral.DailyCap;hc=Profiles:Get(host).coins
  local n2=newcomer(93);ReleaseService:referral(n2);assert(Profiles:Get(host).coins==hc,"inviter cap")
  local self=newcomer(94);self.GetJoinData=function() return {ReferredByPlayerId=94} end;local sc=Profiles:Get(self).coins;ReleaseService:referral(self);assert(Profiles:Get(self).coins==sc,"no self-referral")
+end)
+
+-- Phase 13 : 출석판 · 룰렛 · 코인/로벅스 스킨 · 첫 구매 · 오늘의 특가
+check("attendance: claim once a day, missed days do not reset, 7-day cycle, VIP doubles coins",function()
+ local Reward=loadModule("RewardService");local q=player(131);Profiles:_load(q);local d=Profiles:Get(q)
+ local saved=epoch;local days=Config.Attendance.Days
+ local before=d.coins;local ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==1 and d.coins==before+days[1].coins)
+ assert(not Reward:ClaimAttendance(q),"only once per day")
+ epoch=saved+5*86400;ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==2,"a missed day continues where it stopped")
+ local spins=d.spins
+ for i=3,7 do epoch=saved+(i+5)*86400;ok,r=Reward:ClaimAttendance(q);assert(ok and r.day==i) end
+ assert(d.attendCount==0 and r.full,"after day 7 a new board starts")
+ local wantSpins=0;for i=3,7 do wantSpins=wantSpins+(days[i].spins or 0) end;assert(d.spins==spins+wantSpins)
+ q:SetAttribute("VIP",true);epoch=saved+20*86400;before=d.coins;ok,r=Reward:ClaimAttendance(q)
+ assert(ok and r.day==1 and d.coins==before+days[1].coins*Config.Attendance.VipMultiplier and r.vip)
+ q:SetAttribute("VIP",nil);epoch=saved
+end)
+check("roulette: odds sum to 100%, free once a day then tickets, prizes are granted on the server",function()
+ local Reward=loadModule("RewardService");local q=player(132);Profiles:_load(q);local d=Profiles:Get(q)
+ assert(Config.rouletteTotalWeight()==1000)
+ local function force(x) Reward._random={NextNumber=function() return x end,NextInteger=function(_,lo) return lo end} end
+ force(0.0);local before=d.coins;local ok,r=Reward:Spin(q);assert(ok and r.free and r.id=="c50" and d.coins==before+50)
+ assert(not Reward:Spin(q),"no free spin left and no tickets")
+ d.spins=2;force(0.999);before=d.coins;ok,r=Reward:Spin(q);assert(ok and not r.free and r.id=="jackpot" and d.coins==before+3000 and d.spins==1)
+ -- +1 칸 : 이용권이 다시 생긴다
+ force(0.75);ok,r=Reward:Spin(q);assert(ok and r.kind=="spins" and d.spins==1)
+ -- 스킨 칸 : 아직 없는 싼 코인 스킨
+ force(0.93);ok,r=Reward:Spin(q);assert(ok and r.kind=="skin" and d.owned[r.skinKind][r.skinId]==true)
+ local skin=Config.findSkin(r.skinKind,r.skinId);assert(Config.isCoinSkin(skin) and skin.price<=Config.Roulette.SkinMaxPrice)
+ -- 받을 스킨이 없으면 코인으로
+ for kind,list in pairs(Config.Skins) do if type(list)=="table" and d.owned[kind] then for _,sk in ipairs(list) do if type(sk)=="table" then d.owned[kind][sk.id]=true end end end end
+ d.spins=1;before=d.coins;ok,r=Reward:Spin(q);assert(ok and r.kind=="coins" and d.coins==before+Config.Roulette.SkinFallbackCoins)
+ -- 로벅스 이용권은 PolicyService 확인 전(또는 막힌 나라)에는 팔지 않는다
+ local sent;Reward._cue={FireClient=function(_,_,kind,ok2,msg) sent={kind,ok2,msg} end}
+ Reward:_onRequest(q,"buySpins");assert(sent[1]=="notice" and sent[3]==Config.RejectMessages.PaidRandomRestricted)
+end)
+check("every coin skin can also be bought with Robux through a price-tier product",function()
+ for kind in pairs(Config.Skins.PlayerAttributes) do
+  for _,skin in ipairs(Config.Skins[kind]) do
+   if Config.isCoinSkin(skin) then local tier=Config.skinTierFor(skin.price);assert(tier and skin.price<=tier.maxPrice and tier.refundCoins>=math.min(skin.price,tier.maxPrice),kind.."/"..skin.id) end
+  end
+ end
+ local coinSkins=0;for kind in pairs(Config.Skins.PlayerAttributes) do for _,skin in ipairs(Config.Skins[kind]) do if Config.isCoinSkin(skin) then coinSkins=coinSkins+1 end end end;print("  coin skins buyable with Robux: "..coinSkins)
+ assert(Config.skinTierFor(250).id=="tier_s" and Config.skinTierFor(1800).id=="tier_m" and Config.skinTierFor(4200).id=="tier_l" and Config.skinTierFor(8000).id=="tier_xl" and Config.skinTierFor(11000).id=="tier_xxl")
+ assert(not Config.isCoinSkin(Config.findSkin("Knife","vip_cutlass")) and not Config.isCoinSkin(Config.findSkin("Stab","storm_strike")))
+end)
+check("tier purchase grants the chosen skin once; otherwise refunds coins (never loses a payment)",function()
+ local Shop=loadModule("ShopService");local q=player(133);Profiles:_load(q);local d=Profiles:Get(q)
+ local tier=Config.skinTierFor(Config.findSkin("Knife","gold").price);local saved=tier.productId;tier.productId=424242
+ Shop._limiter=Utility.RateLimiter.new(0);Shop._result={FireClient=function() end}
+ Shop:_onRequest(q,"robux","Knife","gold");tier.productId=saved
+ assert(d.pendingSkin and d.pendingSkin.kind=="Knife" and d.pendingSkin.id=="gold" and d.pendingSkin.tier==tier.id)
+ local kind,got=Shop.grantTier(d,tier);assert(kind=="skin" and d.owned.Knife.gold and d.pendingSkin==nil)
+ local before=d.coins;kind=Shop.grantTier(d,tier);assert(kind=="coins" and d.coins==before+tier.refundCoins,"no pending choice → coins")
+ d.pendingSkin={kind="Knife",id="deep",tier=tier.id};before=d.coins;kind=Shop.grantTier(d,tier)
+ assert(kind=="coins" and not d.owned.Knife.deep and d.coins==before+tier.refundCoins,"a pricier skin cannot ride on a cheaper tier")
+end)
+check("first coin top-up is doubled once",function()
+ local Purchase=cache.PurchaseService or loadModule("PurchaseService");cache.PurchaseService=Purchase
+ local Shop=loadModule("ShopService");local pack=Config.Products.Coins[1];local saved=pack.productId;pack.productId=515151
+ for _,t in ipairs(Config.Products.SkinTiers) do assert((tonumber(t.productId) or 0)==0) end
+ Shop:_registerProducts();pack.productId=saved
+ local handler=Purchase._handlers[515151];Purchase._handlers[515151]=nil
+ local d={coins=0,coinPackBought=false};assert(handler(d)==true and d.coins==pack.coins*2 and d.coinPackBought)
+ handler(d);assert(d.coins==pack.coins*3,"second top-up is normal")
+end)
+check("daily deal: one discounted coin skin per day, charged at the deal price",function()
+ local a,b=Config.dailyDealFor("2026-09-24"),Config.dailyDealFor("2026-09-25")
+ assert(a and a.price<a.original and a.price==math.floor(a.original*0.7/10+0.5)*10)
+ local seen={};for i=1,20 do local deal=Config.dailyDealFor(("2026-10-%02d"):format(i));seen[deal.kind.."/"..deal.id]=true end
+ local n=0;for _ in pairs(seen) do n=n+1 end;assert(n>=4,"the deal rotates")
+ local Shop=loadModule("ShopService");local q=player(134);Profiles:_load(q);local d=Profiles:Get(q)
+ local deal=Config.dailyDealFor(Utility.today());d.coins=deal.price;d.owned[deal.kind][deal.id]=nil
+ local ok=Shop:Buy(q,deal.kind,deal.id);assert(ok and d.coins==0 and d.owned[deal.kind][deal.id])
+end)
+
+check("English: exact, templated, nested and concatenated UI text all become English",function()
+ local L=loadModule("Locale")
+ local cases={
+  {"상점","Shop"},
+  {"Bought 선장의 금검 (-900 coins)",nil},
+  {("%s 구매 완료 (-%s 코인)"):format("선장의 금검","900"),"Bought Captain's Gold Blade (-900 coins)"},
+  {("▶ %s 님의 차례 (%d/%d)"):format("Bob",2,4),"▶ Bob's turn (2/4)"},
+  {"청해룡의 송곳니","Tide Dragon's Fang"},
+  {("🔥 오늘의 특가 -%d%%  ·  %s"):format(30,"칼"),"🔥 Today's deal -30%  ·  Knife"},
+  {("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s%s"):format(5,("  ·  해적 %d마리"):format(2),("  ·  배짱 %d단계"):format(1)),"Pick a slot · 5 slots left  ·  Pirates 2  ·  Daring lv.1"},
+  {"남은 자리 5칸  ·  잡기 2회  ·  해적 1마리  ·  ","Slots left 5  ·  Catches 2  ·  Pirates 1  ·  "},
+  {"🎁\n스킨","🎁\nSkin"},
+  {("%d초"):format(12),"12s"},
+  {"Bob 님이 해적을 잡았습니다!","Bob caught the pirate!"},
+ }
+ for _,c in ipairs(cases) do
+  local out=L.translate(c[1])
+  if c[2] then assert(out==c[2],("%q -> %q (want %q)"):format(c[1],out,c[2])) end
+  assert(not L.hasHangul(out),("Korean left in %q"):format(out))
+ end
+ -- 모든 스킨 이름 · 퀘스트 · 날씨 이름도 영어가 있다
+ for kind in pairs(Config.Skins.PlayerAttributes) do for _,skin in ipairs(Config.Skins[kind]) do assert(not L.hasHangul(L.translate(skin.name)),skin.name) end end
+ for _,q in ipairs(Config.Quests.Pool) do assert(not L.hasHangul(L.translate(q.text)),q.text) end
+ for _,ph in ipairs(Config.World.Phases) do assert(not L.hasHangul(L.translate(ph.name.." · "..ph.blurb))) end
+ assert(L.translate("Hello")=="Hello")
+ -- 사전의 모든 문장을 예시 값으로 채워 번역해 본다 (한글이 남으면 안 된다)
+ local data=loadModule("LocaleData");local count=0
+ for ko in pairs(data) do
+  local sample=ko:gsub("%%%%","\1"):gsub("%%[%-+#0]*%d*%.?%d*([dsf])",function(kind) return kind=="s" and "Bob" or (kind=="f" and "1.5" or "3") end):gsub("\1","%%")
+  local out=L.translate(sample);count=count+1
+  assert(not L.hasHangul(out),("%q -> %q"):format(sample,out))
+ end
+ assert(count>=570)
+ local ko=player(141);ko.LocaleId="ko-kr";assert(L.language(ko)=="ko");ko.LocaleId="en-us";assert(L.language(ko)=="en")
+ ko:SetAttribute("Setting_language","ko");assert(L.language(ko)=="ko")
 end)
 
 local Ship=loadModule("ShipLayout")

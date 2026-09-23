@@ -54,16 +54,23 @@ end
 -- 클라이언트에게 보낼 상태 한 덩어리
 --------------------------------------------------
 
-local function skinEntry(kind, skin, owned, equipped)
+local function skinEntry(kind, skin, owned, equipped, deal)
 	local rarity = GameConfig.rarityOf(skin)
+	-- Phase 13 : 코인 스킨은 로벅스로도 바로 살 수 있다 (가격대별 상품)
+	local tier = GameConfig.isCoinSkin(skin) and GameConfig.skinTierFor(skin.price) or nil
+	local isDeal = deal ~= nil and deal.kind == kind and deal.id == skin.id
 	return {
+		tierRobux = tier and tier.robux or 0,
+		tierReady = tier ~= nil and (tonumber(tier.productId) or 0) > 0,
+		deal = isDeal or nil,
+		originalPrice = isDeal and deal.original or nil,
 		kind = kind,
 		id = skin.id,
 		name = skin.name,
 		rarity = skin.rarity or "common",
 		rarityLabel = rarity.label,
 		rarityColor = rarity.color,
-		price = tonumber(skin.price) or 0,
+		price = isDeal and deal.price or (tonumber(skin.price) or 0),
 		robux = tonumber(skin.robux) or 0,
 		vip = skin.vip == true,
 		pack = skin.pack,
@@ -87,11 +94,12 @@ function ShopService:BuildState(player)
 		return nil
 	end
 
+	local deal = GameConfig.dailyDealFor(Utility.today())
 	local catalog = {}
 	for _, kind in ipairs({ "Knife", "Barrel", "Ghost", "Chair", "Elimination", "Victory", "Stab" }) do
 		local list = {}
 		for _, skin in ipairs(GameConfig.Skins[kind]) do
-			table.insert(list, skinEntry(kind, skin, profile.owned[kind][skin.id] == true, profile.equipped[kind] == skin.id))
+			table.insert(list, skinEntry(kind, skin, profile.owned[kind][skin.id] == true, profile.equipped[kind] == skin.id, deal))
 		end
 		catalog[kind] = list
 	end
@@ -102,8 +110,20 @@ function ShopService:BuildState(player)
 			id = pack.id, name = pack.name, coins = pack.coins,
 			robux = pack.robux, productId = pack.productId,
 			ready = (tonumber(pack.productId) or 0) > 0,
+			bonus = pack.bonus,
 		})
 	end
+
+	-- Phase 13 : 오늘의 특가 한 줄
+	local dealEntry = nil
+	if deal then
+		local skin = GameConfig.findSkin(deal.kind, deal.id)
+		if skin and skin.id == deal.id then
+			dealEntry = skinEntry(deal.kind, skin, profile.owned[deal.kind][skin.id] == true, profile.equipped[deal.kind] == skin.id, deal)
+		end
+	end
+	local today = Utility.today()
+	local spinPack = GameConfig.Roulette.SpinPack
 
 	local vipReady = (tonumber(VIP.gamePassId) or 0) > 0
 	local starterReady = (tonumber(STARTER.productId) or 0) > 0
@@ -111,6 +131,20 @@ function ShopService:BuildState(player)
 	return {
 		coins = profile.coins,
 		loginStreak = profile.loginStreak or 0,
+		-- Phase 13
+		deal = dealEntry,
+		firstPurchase = GameConfig.FirstPurchase.Enabled and not profile.coinPackBought,
+		attendance = {
+			count = profile.attendCount or 0,
+			ready = GameConfig.Attendance.Enabled and profile.attendDay ~= today,
+			vip = player:GetAttribute(PLAYER_ATTR.VIP) == true,
+		},
+		roulette = {
+			spins = profile.spins or 0,
+			free = GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today,
+			restricted = player:GetAttribute("PaidRandomRestricted") == true,
+			pack = { name = spinPack.name, robux = spinPack.robux, spins = spinPack.spins, ready = (tonumber(spinPack.productId) or 0) > 0 },
+		},
 		vip = {
 			name = VIP.name, robux = VIP.robux, blurb = VIP.blurb,
 			owned = player:GetAttribute(PLAYER_ATTR.VIP) == true, ready = vipReady,
@@ -188,6 +222,11 @@ function ShopService:Buy(player, kind, id)
 	end
 
 	local price = tonumber(skin.price) or 0
+	-- Phase 13 : 오늘의 특가
+	local deal = GameConfig.dailyDealFor(Utility.today())
+	if deal and deal.kind == kind and deal.id == id then
+		price = deal.price
+	end
 	if price <= 0 then
 		-- 가격이 없는 스킨은 로벅스 전용이거나 기본 지급품이다.
 		if skin.robux then
@@ -236,7 +275,20 @@ end
 function ShopService:_registerProducts()
 	for _, pack in ipairs(GameConfig.Products.Coins) do
 		PurchaseService:Register(pack.productId, function(profile)
-			profile.coins = profile.coins + pack.coins
+			-- Phase 13 : 첫 코인 충전은 2배
+			local multiplier = 1
+			if GameConfig.FirstPurchase.Enabled and not profile.coinPackBought then
+				multiplier = GameConfig.FirstPurchase.CoinMultiplier
+			end
+			profile.coins = profile.coins + pack.coins * multiplier
+			profile.coinPackBought = true
+			return true
+		end)
+	end
+	-- Phase 13 : 가격대별 "스킨 바로 구매" 상품. 고른 스킨(pendingSkin)을 준다.
+	for _, tier in ipairs(GameConfig.Products.SkinTiers) do
+		PurchaseService:Register(tier.productId, function(profile)
+			ShopService.grantTier(profile, tier)
 			return true
 		end)
 	end
@@ -262,6 +314,23 @@ function ShopService:_registerProducts()
 		profile.starterBought = true
 		return true
 	end)
+end
+
+-- Phase 13 : 가격대 상품 영수증. 고른 스킨이 그 가격대에 맞고 아직 없으면 스킨, 아니면 코인.
+-- (결제는 이미 끝났으므로 무엇이든 반드시 준다. 코인은 그 가격대 스킨을 살 수 있을 만큼)
+function ShopService.grantTier(profile, tier)
+	local pending = profile.pendingSkin
+	profile.pendingSkin = nil
+	if typeof(pending) == "table" and pending.tier == tier.id and profile.owned[pending.kind] then
+		local skin = GameConfig.findSkin(pending.kind, pending.id)
+		if skin and skin.id == pending.id and GameConfig.isCoinSkin(skin) and GameConfig.skinTierFor(skin.price) == tier
+			and not profile.owned[pending.kind][pending.id] then
+			profile.owned[pending.kind][pending.id] = true
+			return "skin", skin
+		end
+	end
+	profile.coins = profile.coins + (tonumber(tier.refundCoins) or 0)
+	return "coins", tier.refundCoins
 end
 
 --------------------------------------------------
@@ -435,6 +504,17 @@ function ShopService:_onRequest(player, action, kind, id)
 			end
 		else
 			productId = self:_robuxProductFor(kind, tostring(id))
+			-- Phase 13 : 코인 스킨이면 가격대 상품으로 판다. 고른 스킨을 먼저 적어 둔다.
+			if productId <= 0 then
+				local skin = GameConfig.findSkin(kind, id)
+				local tier = skin and skin.id == id and GameConfig.isCoinSkin(skin) and GameConfig.skinTierFor(skin.price) or nil
+				if tier and (tonumber(tier.productId) or 0) > 0 then
+					local profile = ProfileService:Get(player)
+					profile.pendingSkin = { kind = kind, id = id, tier = tier.id }
+					ProfileService:_touch(player)
+					productId = tonumber(tier.productId) or 0
+				end
+			end
 		end
 
 		if productId <= 0 then

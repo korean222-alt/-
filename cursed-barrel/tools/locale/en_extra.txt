@@ -1,0 +1,9 @@
+# 이어 붙여 만드는 글자의 조각 (코드에 통째로는 없는 것)
+남은 자리 %d칸	Slots left %d
+잡기 %d회	Catches %d
+해적 %d마리	Pirates %d
+%s 님의 선택을 지켜보세요	%s is choosing, watch closely
+%s 님이 해적을 잡았습니다!	%s caught the pirate!
+%s 님의 파티 초대	%s invited you to a party
+%d 코인	%d coins
+%s 코인	%s coins

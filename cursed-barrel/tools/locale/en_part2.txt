@@ -1,0 +1,202 @@
+지금은 연습 판을 열 수 없습니다	Practice rounds are unavailable right now
+이미 테이블에 앉아 있습니다	You're already seated at a table
+캐릭터가 준비되면 다시 눌러 주세요	Try again once your character has loaded
+빈 테이블이 없습니다. 잠시 뒤 다시 눌러 주세요	No empty table right now. Try again shortly
+연습 판에 앉았습니다. 곧 AI 선원이 옵니다	You're seated for practice. AI crew will join soon
+대포 쏘기	Fire cannon
+크라켄 사냥	Kraken hunt
+대포를 먼저 잡으세요	Man a cannon first
+대포에서 너무 멀어졌습니다	You moved too far from the cannon
+재장전 중	Reloading
+그쪽으로는 쏠 수 없습니다	Can't aim that way
+%s · %d번 자리	%s · Slot %d
+%s  ·  %s  ·  VIP 패스 전용	%s  ·  %s  ·  VIP Pass only
+%s  ·  %s  ·  스타터 팩 전용	%s  ·  %s  ·  Starter Pack only
+%s  ·  %s  ·  기본 지급	%s  ·  %s  ·  Free
+%s  ·  %s  ·  %s 코인	%s  ·  %s  ·  %s coins
+장착 · 구매	Equip · Buy
+지금은 예측을 받지 않습니다	Predictions are closed right now
+테이블을 찾을 수 없습니다	Table not found
+예측 시간이 지났습니다	Too late to predict
+참가 중인 판은 예측할 수 없습니다	You can't predict a round you're playing
+고를 사람을 다시 누르세요	Tap the player again
+지금 살아 있는 참가자를 고르세요	Pick a player who's still in
+이 판은 이미 예측했습니다	You already predicted this round
+저장 데이터를 안전하게 불러오지 못했습니다. 잠시 후 다시 접속해 주세요. / Data unavailable; please rejoin.	Your save couldn't be loaded safely. Please rejoin in a moment.
+데이터 세션이 변경되었습니다. 다시 접속해 주세요.	Your data session changed. Please rejoin.
+자료를 아직 읽지 못했습니다	Still loading your data
+없는 퀘스트입니다	Unknown quest
+이미 받았습니다	Already claimed
+아직 다 하지 못했습니다	Not finished yet
+플레이어 	Player 
+명예의 전당	Hall of Fame
+저주받은 통 · 전체 서버 승리 순위	Cursed Barrel · all-server win ranking
+저주받은 통 · 이 서버 승리 순위	Cursed Barrel · this server's win ranking
+%d위   %s	#%d   %s
+%d승 / %d판	%d wins / %d rounds
+%d승	%d wins
+아직 승자가 없습니다	No winners yet
+0승 / 0판	0 wins / 0 rounds
+접속 %d명 · 불꽃 숫자는 현재 연승	%d online · flame number = current streak
+파티장이 나가 파티가 종료되었습니다 / Party ended	The party leader left, so the party ended
+파티 초대가 왔습니다 / Party invitation	You got a party invitation
+초대를 보냈습니다 / Invitation sent	Invitation sent
+파티가 가득 찼습니다 / Party full	The party is full
+보상 지급 / Reward claimed	Reward claimed
+조건 미달 또는 이미 지급 / Not claimable	Not claimable yet (or already claimed)
+시즌 보상 지급 / Season reward claimed	Season reward claimed
+참가했습니다 / Joined	Joined
+테이블이 대기 상태일 때 가까이에서 눌러 주세요 / Join a nearby waiting table	Stand near a waiting table and try again
+친구의 초대로 오셨네요! 환영 선물 +%d 코인	A friend invited you! Welcome gift +%d coins
+%s 님이 초대를 받고 왔습니다! +%d 코인	%s joined from your invite! +%d coins
+자료를 불러오는 중입니다	Loading your data
+아직 준비 중입니다	Coming soon
+참가자가 모두 자리를 떠남	Everyone left the table
+봉인된 자리입니다 / Sealed slot	That slot is sealed
+위험	Danger
+안전	Safe
+지금은 한 번 더 찌를 수 없습니다	You can't stab again right now
+남은 자리가 너무 적습니다	Too few slots left
+성공	Success
+실패	Failed
+ (기권승)	 (win by forfeit)
+일반 테이블에서는 카드를 쓰지 않습니다	Cards are only used at party-card tables
+지금은 사용할 수 없습니다	Can't use that right now
+이미 사용한 카드입니다	Card already used
+봉인할 빈 자리를 고르세요 (빈 자리 4칸 이상일 때)	Pick an empty slot to seal (needs 4+ empty slots)
+카드 사용 / Card used	Card used
+지금은 쓸 수 없습니다	Can't use that right now
+저장 연결이 필요합니다	Your data must be saved first
+이 아이템은 아직 준비 중입니다	This item is coming soon
+크리에이터 대시보드에서 상품을 만들고 GameConfig.Sabotage.Items 의 productId 에 적어 주세요.	Create the product in the Creator Dashboard and set its productId in GameConfig.Sabotage.Items.
+저장 연결 후 구매할 수 있습니다 / Purchases require saved data	Purchases need your data to be saved first
+%s 을(를) 받았습니다	You got %s
+%s 구매 완료 (-%s 코인)	Bought %s (-%s coins)
+%s 장착	Equipped %s
+ 은(는) 아직 준비 중입니다	 is coming soon
+VIP 패스는 아직 준비 중입니다	The VIP Pass is coming soon
+이미 VIP 입니다	You're already VIP
+스타터 팩은 계정당 한 번만 살 수 있습니다	The Starter Pack can only be bought once per account
+이 상품은 아직 준비 중입니다	This item is coming soon
+퀘스트 완료 · +%s 코인	Quest complete · +%s coins
+ 구매 완료! 이제 코인을 더 법니다	 purchased! You now earn more coins
+ 구매 완료! 이긴 판의 현상금이 늘어납니다	 purchased! Your winning bounties are bigger now
+%d번 자리	Slot %d
+선원 	Sailor 
+🏆 토너먼트 · 시즌 순위 (4판 합계)	🏆 Tournament · season ranking (4-round total)
+아직 기록이 없습니다. 4판을 연달아 해 보세요!	No records yet. Play 4 rounds in a row!
+%2d.  %s   %d점	%2d.  %s   %d pts
+생존 10 · 2등 6 · 3등 4 · 4등 2 · 잡기 +1 (최대 3)	Survive 10 · 2nd 6 · 3rd 4 · 4th 2 · catch +1 (max 3)
+내리기	Leave
+화면을 끌어 돌리고, 빛나는 약점 · 눈을 탭해서 쏘세요	Drag to aim, tap a glowing weak spot or an eye to fire
+A·D 돌리기 · W·S 위아래 · 클릭으로 발사  (빛나는 약점 · 눈 · 치켜든 다리)	A/D turn · W/S up/down · click to fire  (glowing weak spots · eyes · raised tentacles)
+%s 님이 쓰는 중입니다	%s is using this cannon
+누군가	Someone
+막았다!  크라켄 -%d	Blocked!  Kraken -%d
+명중!  크라켄 -%d	Hit!  Kraken -%d
+명중!  +%d 코인	Hit!  +%d coins
+눈에 명중! (오늘 대포 코인은 다 받았어요)	Bullseye! (today's cannon coins are maxed)
+명중! (오늘 대포 코인은 다 받았어요)	Hit! (today's cannon coins are maxed)
+빗나갔다…	Missed…
+칼을 꽂을 자리를 고르세요	Pick a slot for your knife
+한 번 더!	One more!
+넘기기	Pass
+봉인	Seal
+한 번 더!  +%d 코인%s	One more!  +%d coins%s
+봉인 취소	Cancel seal
+봉인할 자리를 누르세요 · 다음 사람은 그 자리를 고를 수 없습니다	Tap a slot to seal · the next player can't pick it
+  ·  해적 %d마리	  ·  Pirates %d
+⚠ 다음 해적은 분노한 해적 · 만나면 탈락 · 남은 자리 %d%s	⚠ Next pirate is enraged · meeting it = out · %d slots left%s
+칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s  ·  ⚡ 잡기 %d회 · 다음 해적은 더 빠르다	Pick a slot · %d slots left%s  ·  ⚡ %d catches · the next pirate is faster
+  ·  배짱 %d단계	  ·  Daring lv.%d
+칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s%s	Pick a slot · %d slots left%s%s
+%s번 자리에 칼을 꽂았습니다	Knife placed in slot %s
+손이 흔들린다! 자리를 잘 노려보세요	Your hands are shaking! Aim carefully
+번호가 뒤섞였다! 누른 자리에 그대로 꽂힙니다	Numbers scrambled! The slot you tap is the one you get
+빈 자리	Open seat
+곧 시작! 빈 자리	Starting soon! Open seat
+%s · %d/%d명 · %d스터드	%s · %d/%d players · %d studs
+효과음: 켜짐	Sound effects: on
+효과음: 꺼짐	Sound effects: off
+놀람 연출: 켜짐	Jump scares: on
+놀람 연출: 꺼짐	Jump scares: off
+테이블 카메라: 켜짐	Table camera: on
+테이블 카메라: 꺼짐	Table camera: off
+화각 넓게: 켜짐	Wide view: on
+화각 넓게: 꺼짐	Wide view: off
+처음이신가요?	New here?
+1.  의자에 다가가 E · 모바일은 탭	1.  Walk up to a chair and press E (tap on mobile)
+2.  내 차례가 오면 아래에서 자리를 고르기	2.  On your turn, pick a slot at the bottom
+3.  저주받은 자리를 뽑으면 해적이 튀어나옵니다	3.  Pick a cursed slot and a pirate pops out
+     고리가 줄어들 때 눌러 잡으면 살아남아요	     Tap while the ring shrinks to catch it and survive
+     나오기 전에 누르면 탈락! 잡을수록 점점 빨라져요	     Tap too early and you're out! It gets faster each catch
+4.  안전하면 「한 번 더」로 보너스 코인	4.  If you're safe, press "One more" for bonus coins
+5.  마지막 생존자가 현상금을 가져갑니다	5.  The last survivor takes the bounty
+바닥 화살표를 따라가면 빈 자리가 나옵니다	Follow the floor arrows to an open seat
+연습 한 판	Practice round
+알겠어요	Got it
+너무 빨랐다!	Too early!
+잡았다!	Caught!
+%s 님이 해적을 잡는 중!%s	%s is catching a pirate!%s
+  (%d단계)	  (lv.%d)
+해적이 튀어나온 뒤에 눌러라!  먼저 누르면 탈락   ·   %d단계 · 창 %.2f초%s	Tap AFTER the pirate pops out!  Too early = out   ·   lv.%d · window %.2fs%s
+ (점점 빨라진다)	 (getting faster)
+완벽! 보너스 코인	Perfect! Bonus coins
+아슬아슬!	Close call!
+  다음 해적은 분노한 해적!	  The next pirate is enraged!
+  다음 해적은 더 빠르다 (%d단계)	  The next pirate is faster (lv.%d)
+잡았다!  	Caught!  
+ 님이 해적을 잡았습니다!	 caught the pirate!
+놓쳤다…	Missed…
+해적이 나오기도 전에 눌렀다…	Tapped before the pirate came out…
+반응하지 못했다…	Too slow…
+분노한 해적은 잡을 수 없다…	The enraged pirate can't be caught…
+  탈락	  Out
+ · 너무 서둘렀다 · 탈락	 · too hasty · out
+ · 탈락	 · out
+%s → %s 방해!	%s sabotaged %s!
+ 님이 먹물을 끼얹었다!	 splashed ink on you!
+ 님의 저주 · 다음 턴이 짧아진다!	 cursed you · your next turn is shorter!
+ 님이 가짜 해적을 보냈다!	 sent a fake pirate!
+ 님의 방해 · 손이 흔들린다!	 made your hands shake!
+ 님의 방해 · 번호가 뒤섞였다!	 scrambled your numbers!
+분노한 해적! 이번엔 잡을 수 없다	Enraged pirate! No catching this one
+ · 분노한 해적!	 · Enraged pirate!
+저주에 걸렸습니다!	Cursed!
+안전!  「한 번 더」로 보너스를 노릴 수 있어요	Safe!  Press "One more" to go for a bonus
+안전!  다음 차례로	Safe!  On to the next turn
+배짱 %d단계!  한 번 더 찌르세요	Daring lv.%d!  Stab once more
+%s 님이 한 번 더 찌릅니다!  (배짱 %d단계)	%s stabs once more!  (Daring lv.%d)
+%s 님의 카드 · %s	%s's card · %s
+%s!  현상금 +%d  (총 %d)	%s!  Bounty +%d  (total %d)
+보물	Treasure
+  ·  %d연승!	  ·  %d-win streak!
+  ·  현상금 %d 코인	  ·  bounty %d coins
+  ·  다음 판 이월 +%d	  ·  +%d carried to the next round
+  ·  AI 연습 판	  ·  AI practice
+이번 판은 승자 없음	No winner this round
+ 승리…	 wins…
+ 생존!  상대가 모두 나가서 보상 절반	 survived!  Everyone else left, so half reward
+ 승리!	 wins!
+저주받은 통  /  	Cursed Barrel  /  
+%d초 후 시작 · 자리를 떠나면 참가가 취소됩니다	Starting in %ds · leaving your seat cancels your entry
+남은 자리 	Slots left 
+칸  ·  	  ·  
+잡기 	Catches 
+회  ·  	  ·  
+해적 	Pirates 
+마리  ·  	  ·  
+최후의 2인  ·  	Final two  ·  
+내 차례! 아래에서 칼 자리를 선택하세요	Your turn! Pick a knife slot below
+ 님의 선택을 지켜보세요	 is choosing, watch closely
+현상금 %d 코인	Bounty %d coins
+다음 해적은 분노한 해적 · 만나면 탈락	Next pirate is enraged · meeting it = out
+잡기 %d회 · 다음 해적 %d단계	%d catches · next pirate lv.%d
+배짱 %d단계	Daring lv.%d
+저주가 깨어납니다…	The curse awakens…
+5초 뒤 새로운 게임이 시작됩니다	A new game starts in 5 seconds
+다른 참가자를 기다리는 중	Waiting for other players
+가까운 의자에서 E · 모바일은 앉기 버튼  |  전시장에서 스킨을 바꿀 수 있어요	Press E at a nearby chair (Sit button on mobile)  |  Change skins at the showroom
+기다려…	Wait…
+지금!	NOW!
+장착 중	Equipped
