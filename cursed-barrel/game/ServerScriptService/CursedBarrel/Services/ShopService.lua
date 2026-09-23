@@ -86,7 +86,7 @@ function ShopService:BuildState(player)
 	end
 
 	local catalog = {}
-	for _, kind in ipairs({ "Knife", "Barrel", "Ghost", "Chair", "Elimination", "Victory" }) do
+	for _, kind in ipairs({ "Knife", "Barrel", "Ghost", "Chair", "Elimination", "Victory", "Stab" }) do
 		local list = {}
 		for _, skin in ipairs(GameConfig.Skins[kind]) do
 			table.insert(list, skinEntry(kind, skin, profile.owned[kind][skin.id] == true, profile.equipped[kind] == skin.id))

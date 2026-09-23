@@ -14,6 +14,7 @@
 	  7. SabotageService — 방해 아이템 (RoundService 가 있어야 한다)
 	  8. LobbyBuilder    — 간판 · 전시장 (ShopService 를 쓴다)
 	  9. MapBuilder      — 항구와 해적선. 무거운 장식이라 마지막에 세운다
+	 10. BotService      — Phase 11 AI 선원. 테이블과 라운드 담당이 다 선 뒤에 켠다
 ]]
 
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -29,6 +30,7 @@ local ShopService = require(Services.ShopService)
 local SabotageService = require(Services.SabotageService)
 local LobbyBuilder = require(Services.LobbyBuilder)
 local MapBuilder = require(Services.MapBuilder)
+local BotService = require(Services.BotService)
 
 -- Relocate whole table models before GameTable caches seat/slot geometry.
 require(Services.ShipLobbyBuilder):Prepare()
@@ -41,10 +43,11 @@ ShopService:Start()
 SabotageService:Start()
 LobbyBuilder:Start()
 require(Services.ReleaseService):Start()
+BotService:Start()
 
 -- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
 task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 10: Kraken · 잡기 1회 · 배짱 · 현상금)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 11: 빨라지는 잡기 · 보물 폭발 · AI 선원 · 칼 모션)")

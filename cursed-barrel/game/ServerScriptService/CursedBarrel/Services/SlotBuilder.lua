@@ -157,8 +157,48 @@ local function buildSlot(folder, spot)
 	handle.Transparency = 1
 
 	knife.PrimaryPart = blade
+	SlotBuilder.ensureDetail(marker)
 
 	return marker
+end
+
+--[[
+	Phase 11 : 칼 장식. 날 광택 · 손잡이 끈 · 폼멜(손잡이 끝 구슬)을 덧붙인다.
+	파일에 이미 저장된 슬롯(예전 칼)에도 붙이도록 따로 둔다. 이미 있으면 건너뛴다.
+	장식도 칼과 똑같이 숨겨졌다가(Transparency 1) 꽂히면 드러난다.
+]]
+local DETAIL_DEFAULTS = {
+	Edge = { color = Color3.fromRGB(236, 240, 244), material = Enum.Material.Metal },
+	Wrap = { color = Color3.fromRGB(38, 26, 20), material = Enum.Material.Fabric },
+	Pommel = { color = Color3.fromRGB(126, 104, 62), material = Enum.Material.Metal },
+	Guard = { color = Color3.fromRGB(126, 104, 62), material = Enum.Material.Metal },
+}
+SlotBuilder.DetailDefaults = DETAIL_DEFAULTS
+
+function SlotBuilder.ensureDetail(slot)
+	local knife = slot and slot:FindFirstChild("Knife")
+	local blade = knife and knife:FindFirstChild("Blade")
+	local handle = knife and knife:FindFirstChild("Handle")
+	if not blade or not handle then
+		return
+	end
+	local hidden = blade.Transparency
+	local function detail(name, size, cf, shape)
+		if knife:FindFirstChild(name) then
+			return
+		end
+		local d = DETAIL_DEFAULTS[name]
+		local part = makePart(name, size, d.color, d.material, knife)
+		if shape then
+			part.Shape = shape
+		end
+		part.CFrame = cf
+		part.Transparency = hidden
+	end
+	-- 날 한쪽을 따라 밝은 날선. 칼날(두께 X, 폭 Y, 길이 Z) 위쪽 가장자리에 붙는다.
+	detail("Edge", Vector3.new(blade.Size.X + 0.02, 0.07, blade.Size.Z * 0.86), blade.CFrame * CFrame.new(0, blade.Size.Y * 0.5 - 0.03, -blade.Size.Z * 0.04))
+	detail("Wrap", Vector3.new(handle.Size.X + 0.03, handle.Size.Y + 0.03, 0.12), handle.CFrame * CFrame.new(0, 0, -0.12))
+	detail("Pommel", Vector3.new(0.34, 0.34, 0.34), handle.CFrame * CFrame.new(0, 0, handle.Size.Z * 0.5 + 0.1), Enum.PartType.Ball)
 end
 
 --------------------------------------------------
@@ -198,6 +238,21 @@ function SlotBuilder.applyKnifeSkin(slot, skin)
 		guard.Transparency = blade.Transparency
 	elseif guard then
 		guard.Color = skin.guard or LAYOUT.HandleColor
+	end
+
+	-- Phase 11 장식도 스킨 색을 따른다.
+	local edge = knife:FindFirstChild("Edge")
+	if edge then
+		edge.Color = (skin.blade or LAYOUT.BladeColor):Lerp(Color3.new(1, 1, 1), 0.45)
+		edge.Material = skin.bladeMaterial == Enum.Material.Neon and Enum.Material.Neon or Enum.Material.Metal
+	end
+	local pommel = knife:FindFirstChild("Pommel")
+	if pommel then
+		pommel.Color = skin.guard or DETAIL_DEFAULTS.Pommel.color
+	end
+	local wrap = knife:FindFirstChild("Wrap")
+	if wrap then
+		wrap.Color = (skin.handle or LAYOUT.HandleColor):Lerp(Color3.new(0, 0, 0), 0.45)
 	end
 
 	-- 빛나는 스킨은 슬롯 주변도 살짝 물들인다.
@@ -286,9 +341,13 @@ function SlotBuilder.resetSlot(slot)
 	for _, part in ipairs(knife:GetChildren()) do
 		if part:IsA("BasePart") then
 			part.Transparency = 1
+			local default = DETAIL_DEFAULTS[part.Name]
 			if part.Name == "Blade" then
 				part.Color = LAYOUT.BladeColor
 				part.Material = Enum.Material.Metal
+			elseif default then
+				part.Color = default.color
+				part.Material = default.material
 			else
 				part.Color = LAYOUT.HandleColor
 				part.Material = Enum.Material.Wood
@@ -336,6 +395,7 @@ function SlotBuilder.ensure(model, count)
 		for _, slot in ipairs(existing) do
 			CollectionService:AddTag(slot, GameConfig.Tags.Slot)
 			ensurePrompt(slot)
+			SlotBuilder.ensureDetail(slot)
 			SlotBuilder.resetSlot(slot)
 		end
 		return existing

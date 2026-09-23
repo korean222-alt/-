@@ -28,6 +28,8 @@
 	  · 파티 카드 버튼 : H 테이블에서 넘기기 · 회전 · 봉인을 이 패널에서 바로 쓴다.
 	                     봉인은 버튼을 누른 뒤 봉인할 자리 번호를 누른다.
 	  · 이번 판의 잡기 기회를 이미 썼으면 머리글이 붉게 경고한다.
+	Phase 11
+	  · 잡은 횟수(= 다음 해적이 얼마나 빠른지)를 머리글에 보여 준다. 다 잡으면 "분노한 해적" 경고.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -523,10 +525,15 @@ local function refresh()
 	local pirateText = (pirates > 0) and ("  ·  해적 %d마리"):format(pirates) or ""
 	local seat = mySeat()
 	local noChance = seat ~= nil and (seat:GetAttribute(SEAT_ATTR.CatchesLeft) or 1) <= 0
+	local level = seat and seat:GetAttribute(SEAT_ATTR.CatchLevel) or 0
 	if noChance then
-		-- 이번 판의 잡기 기회를 이미 썼다. 해적을 만나면 바로 탈락이다.
-		header.Text = ("⚠ 잡기 기회 없음 · 해적을 만나면 탈락 · 남은 자리 %d%s"):format(slotsLeft, pirateText)
+		-- 잡을 만큼 다 잡았다. 다음 해적은 분노한 해적이라 만나면 바로 탈락이다.
+		header.Text = ("⚠ 다음 해적은 분노한 해적 · 만나면 탈락 · 남은 자리 %d%s"):format(slotsLeft, pirateText)
 		header.TextColor3 = PALETTE.Danger
+	elseif level > 0 then
+		-- Phase 11 : 잡을 때마다 다음 해적이 빨라진다. 몇 단계인지 알려 준다.
+		header.Text = ("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s  ·  ⚡ 잡기 %d회 · 다음 해적은 더 빠르다"):format(slotsLeft, pirateText, level)
+		header.TextColor3 = Color3.fromRGB(255, 186, 110)
 	else
 		local brave = currentModel:GetAttribute(TABLE_ATTR.BraveLevel) or 0
 		local braveText = brave > 0 and ("  ·  배짱 %d단계"):format(brave) or ""
@@ -639,6 +646,7 @@ local function bindTable(model)
 		for _, seat in ipairs(seatsFolder:GetDescendants()) do
 			if seat:IsA("Seat") then
 				tableCleaner:add(seat:GetAttributeChangedSignal(SEAT_ATTR.CatchesLeft):Connect(refresh))
+				tableCleaner:add(seat:GetAttributeChangedSignal(SEAT_ATTR.CatchLevel):Connect(refresh))
 			end
 		end
 	end

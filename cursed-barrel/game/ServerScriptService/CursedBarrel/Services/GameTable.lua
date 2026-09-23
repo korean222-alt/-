@@ -7,6 +7,7 @@
 	Phase 3  통 둘레의 칼 슬롯 · 칼 꽂기 연출
 	Phase 7  ★ 통 스킨을 테이블 하나에 하나만 적용한다 (서버가 고른다)
 	Phase 8  ★ TableType 이 요구하는 만큼 의자를 갖춘다 (6인 테이블)
+	Phase 11 ★ AI 선원도 의자에 앉힌다 (BotRegistry 로 몸을 알아본다) · 통에 나뭇결 · 쇠징 장식
 
 	판정(누가 언제 어느 자리를 고를 수 있는가)은 전부 RoundService 가 한다.
 ]]
@@ -23,6 +24,7 @@ local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
 
 local SlotBuilder = require(script.Parent.SlotBuilder)
+local BotRegistry = require(script.Parent.BotRegistry)
 local TableBuilder = require(script.Parent.TableBuilder)
 
 local TABLE_ATTR = GameConfig.TableAttributes
@@ -103,6 +105,9 @@ function GameTable.new(model)
 	end
 
 	self:_setupSlots()
+	pcall(function()
+		self:_decorateBarrel()
+	end)
 	self:_writeTableAttributes()
 	self:_bindSeats()
 	for _, seat in ipairs(self.seats) do
@@ -179,6 +184,8 @@ function GameTable:_collectSeats(seatsFolder)
 	for index, seat in ipairs(self.seats) do
 		seat:SetAttribute(SEAT_ATTR.SeatIndex, index)
 		seat:SetAttribute(SEAT_ATTR.OccupantUserId, 0)
+		seat:SetAttribute(SEAT_ATTR.OccupantName, "")
+		seat:SetAttribute(SEAT_ATTR.OccupantBot, false)
 		seat:SetAttribute(SEAT_ATTR.TurnOrder, 0)
 		seat:SetAttribute(SEAT_ATTR.Alive, false)
 		CollectionService:AddTag(seat, GameConfig.Tags.Seat)
@@ -356,8 +363,13 @@ function GameTable:_onOccupantChanged(seat)
 
 	local character = occupant.Parent
 	local player = character and Players:GetPlayerFromCharacter(character)
+	-- Phase 11 : AI 선원. Players 에는 없지만 BotService 가 명부에 적어 두었다.
+	local bot = (not player) and BotRegistry.fromCharacter(character) or nil
+	if bot then
+		player = bot
+	end
 
-	if not player or player.Parent ~= Players or occupant.Health <= 0 or player:GetAttribute("ProfileLoaded")~=true or player:GetAttribute("AFK")==true then
+	if not player or (not bot and (player.Parent ~= Players or player:GetAttribute("ProfileLoaded")~=true or player:GetAttribute("AFK")==true)) or occupant.Health <= 0 then
 		if previousPlayer then
 			self:_unseat(previousPlayer, seat)
 		end
@@ -401,6 +413,8 @@ function GameTable:_seat(player, seat)
 	self.seatCounter += 1
 	self.seatOrder[player] = self.seatCounter
 	seat:SetAttribute(SEAT_ATTR.OccupantUserId, player.UserId)
+	seat:SetAttribute(SEAT_ATTR.OccupantName, player.DisplayName or player.Name)
+	seat:SetAttribute(SEAT_ATTR.OccupantBot, GameConfig.isBot(player))
 
 	local connections = {}
 	self.occupantConnections[seat] = connections
@@ -438,6 +452,8 @@ function GameTable:_unseat(player, seat)
 	end
 	self.occupantConnections[seat] = nil
 	seat:SetAttribute(SEAT_ATTR.OccupantUserId, 0)
+	seat:SetAttribute(SEAT_ATTR.OccupantName, "")
+	seat:SetAttribute(SEAT_ATTR.OccupantBot, false)
 	seat:SetAttribute(SEAT_ATTR.TurnOrder, 0)
 	seat:SetAttribute(SEAT_ATTR.Alive, false)
 
@@ -535,6 +551,18 @@ end
 
 function GameTable:GetSeatOfPlayer(player)
 	return self.seatOfPlayer[player]
+end
+
+-- 앉아 있는 사람 수 (AI 선원은 빼고)
+function GameTable:GetHumanCount()
+	local count = 0
+	for _, seat in ipairs(self.seats) do
+		local player = self.playerOfSeat[seat]
+		if player and not GameConfig.isBot(player) then
+			count += 1
+		end
+	end
+	return count
 end
 
 -- 비어 있는 좌석 목록. 안내 화살표가 이걸 읽는다.
@@ -693,10 +721,76 @@ function GameTable:_applyBarrelSkin(skin)
 		end
 	end
 
+	-- Phase 11 : 장식도 스킨 색을 따른다.
+	local detail = parts.model:FindFirstChild("BarrelDetail")
+	if detail then
+		local wooden = skin.bodyMaterial == Enum.Material.Wood or skin.bodyMaterial == Enum.Material.WoodPlanks
+		for _, piece in ipairs(detail:GetChildren()) do
+			if piece:IsA("BasePart") then
+				if piece.Name == "StaveSeam" then
+					piece.Color = skin.body:Lerp(Color3.new(0, 0, 0), 0.45)
+					piece.Transparency = (wooden and not skin.ribbed) and 0 or 1
+				elseif piece.Name == "Rivet" then
+					piece.Color = skin.hoop:Lerp(Color3.new(1, 1, 1), 0.2)
+					piece.Material = skin.hoopMaterial == Enum.Material.Neon and Enum.Material.Neon or Enum.Material.Metal
+				end
+			end
+		end
+	end
+
 	SkinFX.applyBarrel(parts.model, skin)
 
 	self.barrelSkin = skin
 	self:SetTableAttribute(TABLE_ATTR.BarrelSkinId, skin.id)
+end
+
+--[[
+	Phase 11 : 통 장식. 나무통의 판자 이음새와 쇠테의 징을 덧붙인다.
+	  · 크기 · 위치를 바꾸지 않는다. (칼 슬롯이 Body 크기에서 계산된다)
+	  · 칼 슬롯과 겹치지 않게 이음새를 슬롯 사이 각도에 둔다.
+	  · 스킨이 바뀌면 _applyBarrelSkin 이 색을 다시 칠한다. 쇠 드럼통(주름 있는 스킨)에서는 이음새를 숨긴다.
+]]
+function GameTable:_decorateBarrel()
+	local parts = self:_barrelParts()
+	if not parts or not parts.body or parts.model:FindFirstChild("BarrelDetail") then
+		return
+	end
+	local body = parts.body
+	if not (body:IsA("Part") and body.Shape == Enum.PartType.Cylinder) then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "BarrelDetail"
+	local radius = body.Size.Y * 0.5
+	local length = body.Size.X
+	local seams = 12
+	for index = 1, seams do
+		local angle = (index - 0.5) / seams * math.pi * 2
+		local seam = Instance.new("Part")
+		seam.Name = "StaveSeam"
+		seam.Size = Vector3.new(length * 0.97, 0.04, 0.07)
+		seam.CFrame = body.CFrame * CFrame.Angles(angle, 0, 0) * CFrame.new(0, radius + 0.005, 0)
+		seam.Material = Enum.Material.Wood
+		Utility.makeDecor(seam)
+		seam.Parent = folder
+	end
+	for _, hoop in ipairs({ parts.hoopLower, parts.hoopUpper }) do
+		if hoop and hoop:IsA("Part") and hoop.Shape == Enum.PartType.Cylinder then
+			local hoopRadius = hoop.Size.Y * 0.5
+			for index = 1, 10 do
+				local angle = index / 10 * math.pi * 2
+				local rivet = Instance.new("Part")
+				rivet.Name = "Rivet"
+				rivet.Shape = Enum.PartType.Ball
+				rivet.Size = Vector3.new(0.16, 0.16, 0.16)
+				rivet.CFrame = hoop.CFrame * CFrame.Angles(angle, 0, 0) * CFrame.new(0, hoopRadius, 0)
+				rivet.Material = Enum.Material.Metal
+				Utility.makeDecor(rivet)
+				rivet.Parent = folder
+			end
+		end
+	end
+	folder.Parent = parts.model
 end
 
 -- 지금 앉아 있는 사람들 중에서 이 테이블의 통 스킨을 고른다.
@@ -708,7 +802,8 @@ function GameTable:RefreshBarrelSkin()
 	local bestPlayer, bestSkin, bestScore = nil, nil, -1
 
 	for _, player in ipairs(self:GetPlayers()) do
-		local skin = GameConfig.findSkin("Barrel", player:GetAttribute(SKIN_ATTR.Barrel))
+		-- AI 선원은 통 스킨을 고르지 않는다. (사람의 통이 보여야 한다)
+		local skin = (not GameConfig.isBot(player)) and GameConfig.findSkin("Barrel", player:GetAttribute(SKIN_ATTR.Barrel)) or nil
 		if skin then
 			local level = player:GetAttribute(PLAYER_ATTR.Level) or GameConfig.levelOf(0, 0)
 			local streak = player:GetAttribute(PLAYER_ATTR.Streak) or 0
@@ -854,7 +949,8 @@ function GameTable:RemovePlayer(player)
 	end
 
 	local humanoid = seat.Occupant
-	if humanoid and Players:GetPlayerFromCharacter(humanoid.Parent) == player then
+	if humanoid and (Players:GetPlayerFromCharacter(humanoid.Parent) == player
+		or (GameConfig.isBot(player) and humanoid.Parent == player.Character)) then
 		humanoid.Sit = false
 	end
 

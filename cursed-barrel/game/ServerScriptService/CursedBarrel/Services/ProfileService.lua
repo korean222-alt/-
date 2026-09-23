@@ -61,7 +61,7 @@ ProfileService.ProfileChanged = Utility.Signal.new() -- (player, profile)
 
 local function defaultInventory()
 	local owned = {}
-	for kind, list in pairs({ Knife = SKINS.Knife, Barrel = SKINS.Barrel, Ghost = SKINS.Ghost, Chair=SKINS.Chair, Elimination=SKINS.Elimination, Victory=SKINS.Victory }) do
+	for kind, list in pairs({ Knife = SKINS.Knife, Barrel = SKINS.Barrel, Ghost = SKINS.Ghost, Chair=SKINS.Chair, Elimination=SKINS.Elimination, Victory=SKINS.Victory, Stab=SKINS.Stab }) do
 		owned[kind] = {}
 		for _, skin in ipairs(list) do
 			if GameConfig.isFreeSkin(skin) then
@@ -95,7 +95,7 @@ local function defaultProfile()
 			Knife = SKINS.Knife[1].id,
 			Barrel = SKINS.Barrel[1].id,
 			Ghost = SKINS.Ghost[1].id,
-            Chair="classic", Elimination="classic", Victory="classic",
+            Chair="classic", Elimination="classic", Victory="classic", Stab="classic",
 		},
 		daily = { date = "", quests = {}, bonusTaken = false },
 		achievements = {}, -- [id] = true (보상을 받은 것)
@@ -476,11 +476,29 @@ function ProfileService:GainScale(player)
 end
 
 -- 라운드가 끝났다. 참가자 전원의 판수가 오르고, 승자는 승수와 연승이 오른다.
--- winner 는 정상 승리일 때만 넘어온다. (기권승이면 nil 이고, 그 사람은 참가자로만 기록된다)
--- pot 은 이번 판의 현상금. 승자가 가져간다.
-function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuses, pot)
+-- winner 는 정상 승리일 때만 넘어온다.
+-- pot 은 이번 판에 승자(또는 기권승한 사람)가 가져가는 현상금. 테이블 배율이 이미 들어가 있다.
+-- options
+--   halfWinner : Phase 11 기권승. 승리 보상의 ForfeitWin.RewardShare 만큼과 pot 을 받는다. 승수 · 연승은 없다.
+--   practice   : Phase 11 AI 선원이 낀 연습 판. 코인은 Bots.RewardScale 만큼, 승수 · 연승은 오르지 않는다.
+function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuses, pot, options)
+	options = options or {}
+	local practice = options.practice == true
+	local halfWinner = options.halfWinner
 	local scale = TableConfig.getRewardScale(gameTable and gameTable.typeName)
+	if practice then
+		scale *= tonumber(GameConfig.Bots and GameConfig.Bots.RewardScale) or 1
+	end
 	local typeName = gameTable and gameTable.typeName
+	local potAmount = math.max(0, tonumber(pot) or 0)
+
+	local function tableQuests(player, profile)
+		if typeName == "Duo2" then
+			self:_advanceQuests(player, profile, "duoGames", 1)
+		elseif typeName == "Party6" or typeName == "PartyCards6" then
+			self:_advanceQuests(player, profile, "partyGames", 1)
+		end
+	end
 
 	for _, player in ipairs(roster or {}) do
 		local profile = self._profiles[player]
@@ -494,43 +512,55 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 				profile.partyGames += 1
 			end
 
-			if player ~= winner then
+			if player ~= winner and player ~= halfWinner then
 				profile.coins += math.floor(ECONOMY.ParticipationReward * scale * (1 + ((bonuses or {})[player] or 0)) * self:GainScale(player))
 				self:_advanceQuests(player, profile, "games", 1)
-				if typeName == "Duo2" then
-					self:_advanceQuests(player, profile, "duoGames", 1)
-				elseif typeName == "Party6" or typeName == "PartyCards6" then
-					self:_advanceQuests(player, profile, "partyGames", 1)
-				end
+				tableQuests(player, profile)
 				self:_checkAchievements(player, profile)
 				self:_touch(player)
 			end
 		end
 	end
 
+	-- Phase 11 : 기권승. 보상 절반 + 받은 몫의 현상금. 승수 · 연승은 오르지 않는다.
+	if halfWinner and halfWinner ~= winner and halfWinner.Parent == Players and not (forfeited and forfeited[halfWinner]) then
+		local profile = self._profiles[halfWinner]
+		if profile then
+			local share = tonumber(GameConfig.ForfeitWin.RewardShare) or 0.5
+			local gain = (1 + ((bonuses or {})[halfWinner] or 0)) * self:GainScale(halfWinner)
+			profile.coins += math.floor(ECONOMY.WinReward * share * scale * gain)
+			profile.coins += math.floor(potAmount * gain)
+			self:_advanceQuests(halfWinner, profile, "games", 1)
+			tableQuests(halfWinner, profile)
+			self:_checkAchievements(halfWinner, profile)
+			self:_touch(halfWinner)
+		end
+	end
+
 	if winner and winner.Parent == Players then
 		local profile = self._profiles[winner]
 		if profile then
-			profile.wins += 1
-			profile.streak += 1
-			profile.bestStreak = math.max(profile.bestStreak, profile.streak)
-			profile.bestStreakToday = math.max(profile.bestStreakToday or 0, profile.streak)
+			if not practice then
+				profile.wins += 1
+				profile.streak += 1
+				profile.bestStreak = math.max(profile.bestStreak, profile.streak)
+				profile.bestStreakToday = math.max(profile.bestStreakToday or 0, profile.streak)
+			end
 
-			local bonusSteps = math.min(profile.streak - 1, ECONOMY.StreakBonusCap)
+			-- 연습 판은 연승이 오르지 않으므로 연승 보너스도 없다.
+			local bonusSteps = practice and 0 or math.min(profile.streak - 1, ECONOMY.StreakBonusCap)
 			local reward = ECONOMY.WinReward + ECONOMY.StreakBonus * math.max(0, bonusSteps)
 			local gain = (1 + ((bonuses or {})[winner] or 0)) * self:GainScale(winner)
 			profile.coins += math.floor(reward * scale * gain)
 			-- 현상금은 이미 테이블 배율이 들어가 있다. (RoundService:_addPot)
-			profile.coins += math.floor(math.max(0, tonumber(pot) or 0) * gain)
+			profile.coins += math.floor(potAmount * gain)
 
 			self:_advanceQuests(winner, profile, "games", 1)
 			self:_advanceQuests(winner, profile, "wins", 1)
-			self:_advanceQuests(winner, profile, "bestStreakToday", 0, profile.streak)
-			if typeName == "Duo2" then
-				self:_advanceQuests(winner, profile, "duoGames", 1)
-			elseif typeName == "Party6" or typeName == "PartyCards6" then
-				self:_advanceQuests(winner, profile, "partyGames", 1)
+			if not practice then
+				self:_advanceQuests(winner, profile, "bestStreakToday", 0, profile.streak)
 			end
+			tableQuests(winner, profile)
 			self:_checkAchievements(winner, profile)
 			self:_touch(winner)
 		end

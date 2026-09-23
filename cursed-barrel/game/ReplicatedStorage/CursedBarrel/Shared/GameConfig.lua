@@ -84,7 +84,11 @@ GameConfig.TableAttributes = {
 	BraveOfferEndsAt = "BraveOfferEndsAt", -- 그 제안이 끝나는 서버 시각
 	BraveLevel = "BraveLevel", -- 지금 차례의 사람이 몇 번째로 더 찌르는 중인지 (0 = 보통 차례)
 	BraveNextReward = "BraveNextReward", -- 한 번 더 찔러 살아남으면 받을 코인
-	WinForfeit = "WinForfeit", -- 이번 승리가 기권승인가 (승리 · 현상금 없음)
+	WinForfeit = "WinForfeit", -- 이번 승리가 기권승인가 (승리 기록 없음 · 보상 절반)
+
+	-- Phase 11
+	PotCarry = "PotCarry", -- 이번 판 현상금 중 지난 판에서 넘어온 몫
+	Practice = "Practice", -- AI 선원이 함께 앉은 연습 판인가 (보상이 줄고 승수 · 랭킹에 들어가지 않는다)
 
 	-- Phase 7 : 이 테이블에 적용 중인 통 스킨 (앉은 사람들 중에서 서버가 하나를 고른다)
 	BarrelSkinId = "BarrelSkinId",
@@ -100,7 +104,10 @@ GameConfig.SeatAttributes = {
 	OccupantUserId = "OccupantUserId", -- 앉아 있는 플레이어 UserId (비었으면 0)
 	TurnOrder = "TurnOrder", -- Phase 2: 이번 라운드의 턴 순서 (0 = 참가자 아님)
 	Alive = "Alive", -- Phase 3: 아직 살아 있는 참가자인가
-	CatchesLeft = "CatchesLeft", -- Phase 10: 이번 판에 남은 잡기 기회 (참가자가 아니면 0)
+	CatchesLeft = "CatchesLeft", -- 이번 판에 앞으로 잡을 수 있는 횟수 (참가자가 아니면 0)
+	CatchLevel = "CatchLevel", -- Phase 11: 이번 판에 이미 잡은 횟수 (클수록 다음 해적이 빠르다)
+	OccupantName = "OccupantName", -- Phase 11: 앉은 사람 이름 (AI 선원은 Players 에 없어서 이걸로 읽는다)
+	OccupantBot = "OccupantBot", -- Phase 11: 앉은 것이 AI 선원인가
 }
 
 --------------------------------------------------
@@ -289,13 +296,18 @@ GameConfig.Ranking = {
 GameConfig.Catch = {
 	Enabled = true,
 
-	-- ★ Phase 10 : 한 판에 한 사람이 잡을 수 있는 횟수.
-	--   Phase 6 에서는 잡을 때마다 해적이 다시 숨고, 매번 잡기 기회가 새로 열렸다.
-	--   창이 넉넉해서 누구나 잡을 수 있었으므로 판이 끝나지 않았다. (제보된 버그)
-	--   이제 한 사람은 한 판에 한 번만 잡을 수 있다. 두 번째로 해적을 만나면 잡기 창 없이 탈락한다.
-	--   인원이 N 명이면 잡기는 많아야 N 번이라 판이 반드시 끝난다.
-	PerPlayer = 1,
-	SpentReveal = 1.4, -- 기회를 다 쓴 사람이 해적을 만났을 때, 해적을 보여주고 탈락시키기까지
+	-- ★ Phase 11 : 해적은 몇 번이든 잡을 수 있다. 대신 잡을 때마다 다음 해적이 빨라진다.
+	--   Phase 10 에서는 한 판에 한 번만 잡게 막았다. (잡는 창이 넉넉해 판이 안 끝나던 제보 때문)
+	--   이번에는 "계속 잡을 수 있지만 점점 빨라지는" 쪽으로 바꾼다.
+	--     · 내가 잡을 때마다 내 다음 창이 PersonalDecay 배로 좁아진다. (0.62 → 0.50 → 0.40 → 0.32 → 0.25 → 0.20초)
+	--     · 해적이 튀어나오기까지의 시간도 LeadDecay 배로 짧아진다. (준비할 틈이 줄어든다)
+	--     · MaxPerPlayer 번을 잡은 사람에게 다음 해적은 "분노한 해적"이다. 잡기 창 없이 탈락한다.
+	--   그래서 인원이 N 명이면 잡기는 많아야 N × MaxPerPlayer 번이고, 판은 반드시 끝난다.
+	MaxPerPlayer = 6,
+	PersonalDecay = 0.8,
+	LeadDecay = 0.86,
+	MinLead = 0.85, -- ★ 칼 꽂는 모션(최대 0.75초)이 끝나기 전에 해적이 나오면 안 된다
+	SpentReveal = 1.4, -- 분노한 해적을 보여주고 탈락시키기까지
 
 	-- 칼이 꽂힌 순간부터 잡기 창이 열릴 때까지.
 	-- 클라이언트는 서버가 보낸 opensAt 에 맞춰 연출하므로 길이가 매번 달라도 화면과 맞는다.
@@ -303,10 +315,14 @@ GameConfig.Catch = {
 	LeadJitter = 0.5, -- 0 ~ 이 값만큼 무작위로 늦춘다. 박자를 외워서 누르는 것을 막는다.
 
 	BaseWindow = 0.62, -- 첫 번째 잡기의 창 길이(초)
-	StepPerCatch = 0.1, -- 이 테이블에서 누군가 잡을 때마다 다음 창이 이만큼 좁아진다 (점점 빨라진다)
-	MinWindow = 0.3, -- ★ 이 아래로는 내리지 않는다. 모바일 터치 왕복이 이 정도다.
+	StepPerCatch = 0.03, -- 이 테이블에서 누군가 잡을 때마다 모두의 창이 이만큼 좁아진다
+	MinWindow = 0.2, -- ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다)
 	DuelScale = 0.85, -- 최후의 2인이면 곱한다
 	LowSlotScale = 0.90, -- 남은 자리가 3칸 이하면 곱한다
+
+	-- ★ Phase 11 : 해적이 나오기 전에 누르면 그 자리에서 실패다. (예전에는 세 번까지 봐줬다)
+	EarlyTolerance = 0.06, -- 시계 오차. 창이 열리기 이만큼 전까지는 "딱 맞춰 누른 것"으로 친다
+	ArmDelay = 0.3, -- 칼을 고른 직후 이 시간 안의 입력은 버린다 (자리 버튼을 두 번 누른 손가락)
 
 	-- 클라이언트가 보낸 "누른 시각"은 MaxLatency 안에서 이미 지연 보정을 받는다.
 	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
@@ -353,7 +369,25 @@ GameConfig.Pot = {
 	PerBravePick = 14, -- 배짱으로 더 찌른 안전한 자리마다 (PerPick 에 더해진다)
 	PerCatch = 16, -- 해적을 잡을 때마다
 	PerPerfect = 10, -- 완벽한 잡기는 더
-	Cap = 500,
+	Cap = 2500,
+
+	-- ★ Phase 11 : 보물 폭발. 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
+	--   안 터질수록 확률이 조금씩 오른다(PityStep). 한 판에 한두 번쯤 터지게 맞췄다.
+	Surge = {
+		Enabled = true,
+		Chance = 0.05,
+		PityStep = 0.012,
+		MaxChance = 0.3,
+		Tiers = {
+			{ id = "pouch", name = "금화 주머니", weight = 70, add = 45 },
+			{ id = "chest", name = "보물 상자", weight = 25, add = 90, mult = 1.5 },
+			{ id = "kraken", name = "크라켄의 보물", weight = 5, add = 150, mult = 2.5 },
+		},
+	},
+
+	-- ★ Phase 11 : 이월. 현상금을 다 가져가지 못한 판(기권승 · 승자 없음 · AI 선원 승리)은
+	--   남은 몫이 이 테이블의 다음 판으로 넘어간다. 판이 거듭될수록 테이블 위 금화가 쌓인다.
+	CarryCap = 1500,
 }
 
 --------------------------------------------------
@@ -364,12 +398,17 @@ GameConfig.Pot = {
 --------------------------------------------------
 GameConfig.ForfeitWin = {
 	MinPicksPerPlayer = 2,
+	-- ★ Phase 11 : 기권승은 승리 보상과 현상금을 절반만 받는다. (승수 · 연승 · 랭킹에는 들어가지 않는다)
+	--   남은 현상금 절반은 이 테이블의 다음 판으로 이월된다.
+	RewardShare = 0.5,
 }
 
 -- 이번 잡기의 창 길이. 서버에서만 호출한다.
-function GameConfig.catchWindow(catchCount, aliveCount, slotsLeft)
+-- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
+function GameConfig.catchWindow(catchCount, aliveCount, slotsLeft, personal)
 	local catch = GameConfig.Catch
-	local window = catch.BaseWindow - catch.StepPerCatch * math.max(0, catchCount)
+	local window = catch.BaseWindow - catch.StepPerCatch * math.max(0, catchCount or 0)
+	window *= (catch.PersonalDecay or 1) ^ math.max(0, personal or 0)
 	if aliveCount and aliveCount <= 2 then
 		window *= catch.DuelScale
 	end
@@ -377,6 +416,12 @@ function GameConfig.catchWindow(catchCount, aliveCount, slotsLeft)
 		window *= catch.LowSlotScale
 	end
 	return math.max(catch.MinWindow, window)
+end
+
+-- 해적이 튀어나오기까지의 기본 시간 (흔들기 전). 잡을수록 짧아진다.
+function GameConfig.catchLead(personal)
+	local catch = GameConfig.Catch
+	return math.max(catch.MinLead or 0.85, catch.Lead * (catch.LeadDecay or 1) ^ math.max(0, personal or 0))
 end
 
 --------------------------------------------------
@@ -416,6 +461,7 @@ GameConfig.Skins = {
 		Knife = "KnifeSkin",
 		Barrel = "BarrelSkin",
 		Ghost = "GhostSkin",
+		Stab = "StabSkin", -- Phase 11 : 칼 꽂는 모션
 	},
 
 	Knife = {
@@ -589,6 +635,19 @@ GameConfig.Skins = {
 			fx = { emit = Color3.fromRGB(150, 110, 255), spark = true, halo = Color3.fromRGB(110, 70, 220), pulse = 2.6 },
 		},
 	},
+
+	-- Phase 11 : 칼 꽂는 모션. 내가 칼을 꽂을 때 테이블의 모두가 이 동작을 본다. (결과에는 영향이 없다)
+	--   style : StabMotion 이 아는 동작 이름
+	--   color : 칼이 지나간 자리에 남는 빛 색
+	Stab = {
+		{ id = "classic", name = "기본 찌르기", rarity = "common", price = 0, style = "classic", color = Color3.fromRGB(226, 216, 190) },
+		{ id = "overhead", name = "내려찍기", rarity = "common", price = 600, style = "overhead", color = Color3.fromRGB(255, 226, 140) },
+		{ id = "triple", name = "세 번 찌르기", rarity = "rare", price = 1500, style = "triple", color = Color3.fromRGB(150, 214, 255) },
+		{ id = "spin", name = "회전 베기", rarity = "rare", price = 1800, style = "spin", color = Color3.fromRGB(120, 255, 214) },
+		{ id = "flourish", name = "단검 저글링", rarity = "epic", price = 3600, style = "flourish", color = Color3.fromRGB(196, 130, 255) },
+		{ id = "ember_slam", name = "잿불 강타", rarity = "legend", price = 0, robux = 79, style = "slam", color = Color3.fromRGB(255, 132, 62) },
+		{ id = "dragon_dive", name = "용의 급강하", rarity = "legend", price = 8000, style = "dive", color = Color3.fromRGB(68, 240, 218) },
+	},
 }
 
 -- id 로 스킨 하나를 찾는다. 없으면 그 종류의 첫 번째(기본)를 돌려준다.
@@ -755,6 +814,7 @@ GameConfig.Products = {
 	Skins = {
 		{ id = "skin_ember_knife", skin = "Knife/ember", robux = 99, productId = 0 },
 		{ id = "skin_ember_ghost", skin = "Ghost/ember", robux = 129, productId = 0 },
+		{ id = "skin_ember_stab", skin = "Stab/ember_slam", robux = 79, productId = 0 },
 	},
 
 	-- Phase 10 : 스타터 팩 (계정당 한 번). 처음 들어온 사람이 가장 많이 사는 묶음이다.
@@ -847,6 +907,41 @@ GameConfig.Wayfinder = {
 	Color = Color3.fromRGB(255, 206, 110),
 	UrgentColor = Color3.fromRGB(120, 255, 214),
 }
+
+--------------------------------------------------
+-- AI 선원 (Phase 11)
+--
+-- 혼자 앉아 기다리는 사람이 있으면, 잠시 뒤 AI 선원이 빈 의자에 앉아 같이 한다.
+-- 사람이 더 오면(MinPlayers 이상) 대기 중인 AI 는 자리를 비켜 준다.
+--
+-- ★ AI 와 함께한 판은 "연습 판"이다.
+--   코인은 RewardScale 만큼만 받고, 승수 · 연승 · 랭킹에는 들어가지 않는다.
+--   (AI 를 상대로 랭킹을 올리는 일을 막는다. 퀘스트 진행은 된다)
+-- ★ AI 는 서버가 조종한다. 통 안의 해적 위치를 AI 도 모른다. 사람과 똑같이 무작위로 고른다.
+--------------------------------------------------
+GameConfig.Bots = {
+	Enabled = true,
+	FillDelay = 6, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다
+	TargetSeated = 3, -- AI 를 채워서 맞출 인원 (좌석이 모자라면 좌석 수 - 1)
+	KeepFreeSeats = 1, -- 사람이 들어올 자리는 항상 남겨 둔다
+	RewardScale = 0.6,
+	ThinkMin = 1.1, -- 자기 차례에 고르기까지 걸리는 시간
+	ThinkMax = 2.8,
+	-- 성격. skill 이 높을수록 해적을 잘 잡고, brave 가 높을수록 "한 번 더"를 자주 누른다.
+	Crew = {
+		{ name = "뼈다귀 잭", skill = 0.45, brave = 0.25, color = Color3.fromRGB(226, 222, 206) },
+		{ name = "외눈 몰리", skill = 0.6, brave = 0.45, color = Color3.fromRGB(150, 226, 255) },
+		{ name = "소금물 샘", skill = 0.5, brave = 0.15, color = Color3.fromRGB(170, 226, 130) },
+		{ name = "갈고리 한스", skill = 0.7, brave = 0.35, color = Color3.fromRGB(255, 196, 120) },
+		{ name = "안개 속 루", skill = 0.4, brave = 0.6, color = Color3.fromRGB(196, 150, 255) },
+		{ name = "녹슨 닻 벤", skill = 0.55, brave = 0.3, color = Color3.fromRGB(255, 150, 130) },
+	},
+}
+
+-- AI 선원인가. (AI 는 Player 가 아니라 BotService 가 만든 표다)
+function GameConfig.isBot(who)
+	return type(who) == "table" and rawget(who, "IsBot") == true
+end
 
 --------------------------------------------------
 -- 테이블 종류 배정 (Phase 8)

@@ -46,7 +46,7 @@ local PALETTE = {
 }
 
 local TAB_NAMES = { { "shop", "상점" }, { "quest", "퀘스트" }, { "sabotage", "방해" } }
-local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Chair","의자"},{"Elimination","탈락"},{"Victory","승리"} }
+local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Stab","모션"},{"Chair","의자"},{"Elimination","탈락"},{"Victory","승리"} }
 
 local state = nil -- 서버가 보내 준 마지막 상태
 -- 상품 ID 를 아직 넣지 않은 것은 공개 서버에서 숨긴다. Studio 에서는 "준비 중"으로 보여 준다.
@@ -290,8 +290,17 @@ local function drawShop()
 		label(row, ("%s  ·  %s"):format(entry.rarityLabel, detail),
 			UDim2.new(1,-178,0,28), UDim2.fromOffset(12, 42), 12, PALETTE.Dim).TextWrapped=true
 
-		local inspect=textButton(row,"3D",UDim2.fromOffset(42,30),UDim2.new(1,-160,0,11),PALETTE.Panel,PALETTE.Gold)
-        inspect.Activated:Connect(function() require(Shared.SkinPreview).show(entry.kind,entry.id) end)
+		-- Phase 11 : 칼 꽂기 모션은 3D 모형 대신 내 캐릭터로 동작을 보여 준다. (내 화면에서만)
+		local isMotion = entry.kind == "Stab"
+		local inspect=textButton(row,isMotion and "보기" or "3D",UDim2.fromOffset(42,30),UDim2.new(1,-160,0,11),PALETTE.Panel,PALETTE.Gold)
+        inspect.Activated:Connect(function()
+			if isMotion then
+				local skin = GameConfig.findSkin("Stab", entry.id)
+				require(Shared.StabMotion).preview(localPlayer.Character, skin and skin.style or "classic")
+			else
+				require(Shared.SkinPreview).show(entry.kind,entry.id)
+			end
+		end)
 		if entry.equipped then
 			local badge = textButton(row, "장착 중", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Panel, PALETTE.Good)
 			badge.AutoButtonColor = false
@@ -713,7 +722,7 @@ local function fitWindow()
  local camera=workspace.CurrentCamera;if not camera then return end
  local width=math.min(620,camera.ViewportSize.X-20)
  window.Size=UDim2.fromOffset(width,math.min(600,camera.ViewportSize.Y-80))
- local columns=width<520 and 3 or 6
+ local columns=width<520 and 4 or 7
  kindRow.Size=UDim2.new(1,-40,0,columns==3 and 60 or 26)
  for i,entry in ipairs(KINDS) do
   local b=kindButtons[entry[1]]

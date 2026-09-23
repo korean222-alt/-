@@ -149,16 +149,23 @@ remotes.PresentationCue.OnClientEvent:Connect(function(event,model,payload)
  if typeof(model)~="Instance" or not model.Parent or typeof(payload)~="table" then return end
  local body=model:FindFirstChild("Body",true);if not body then return end
  local actor=Players:GetPlayerByUserId(payload.userId or 0)
+ -- Phase 11 : AI 선원은 Players 에 없다. 좌석에 적힌 UserId 로 몸을 찾는다.
+ local actorCharacter=actor and actor.Character
+ if not actorCharacter and (payload.userId or 0)<0 then
+  for _,seat in ipairs(model:GetDescendants()) do
+   if seat:IsA("Seat") and seat:GetAttribute("OccupantUserId")==payload.userId and seat.Occupant then actorCharacter=seat.Occupant.Parent;break end
+  end
+ end
  if event=="Pick" and not payload.danger then
-  local skin=Config.findSkin("Knife",actor and actor:GetAttribute("KnifeSkin"))
+  local skin=Config.findSkin("Knife",payload.knife or (actor and actor:GetAttribute("KnifeSkin")))
   if skin and skin.fx and skin.fx.theme then FX.burst(body.Position,skin,"Pick") end
  elseif event=="Win" then
   local skin=Config.findSkin("Victory",payload.skin)
   FX.burst(body.Position,skin,"Win")
-  if actor then
-   local head=actor.Character and actor.Character:FindFirstChild("Head")
+  if actorCharacter then
+   local head=actorCharacter:FindFirstChild("Head")
    if head then
-    local character=actor.Character
+    local character=actorCharacter
     local shoulder=character:FindFirstChild("RightShoulder",true) or character:FindFirstChild("Right Shoulder",true)
     if shoulder and shoulder:IsA("Motor6D") then
      local original=shoulder.C0

@@ -17,6 +17,13 @@
 --     이제 잡는 동안에는 점프(스페이스 · 게임패드 A)가 잡기 입력으로만 쓰이고, 의자에서 일어나지 않습니다.
 --   · 채팅을 치다가 눌린 키가 잡기로 들어가지 않습니다.
 --   · 한 판에 한 번만 잡을 수 있다는 것, 현상금, 배짱("한 번 더")을 화면에 보여 줍니다.
+--
+-- Phase 11 에서 바뀐 것
+--   · 칼 꽂기 모션 스킨 (StabMotion) : 꽂은 사람이 장착한 동작대로 칼과 팔이 움직입니다. AI 선원도 같습니다.
+--   · 해적 등장 : 통이 덜컹거림 → (가끔) 가짜 손 → 뚜껑이 날아가며 섬광 → 입을 벌리고 팔을 뻗은 해적.
+--     해적은 PirateModel 이 매번 새로 만듭니다. (Visuals.CustomPirate 가 있으면 그 모델을 씁니다)
+--   · 해적이 나오기 전에 누르면 바로 탈락입니다. 잡을 때마다 다음 해적이 빨라집니다.
+--   · 보물 폭발 · 이월 · AI 승리 · 기권승 절반 보상을 알려 줍니다.
 
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
@@ -40,7 +47,9 @@ local catchPrompt = remotes:WaitForChild(config.Remotes.CatchPrompt)
 local catchInput = remotes:WaitForChild(config.Remotes.CatchInput)
 local catchResult = remotes:WaitForChild(config.Remotes.CatchResult)
 local sabotageCue = remotes:WaitForChild(config.Remotes.SabotageCue)
-local template = package:WaitForChild("Visuals"):WaitForChild("GhostCaptain")
+local visuals = package:WaitForChild("Visuals")
+local StabMotion = require(package.Shared:WaitForChild("StabMotion"))
+local PirateModel = require(package.Shared:WaitForChild("PirateModel"))
 local SKIN_ATTR = config.Skins.PlayerAttributes
 local TABLE_ATTR = config.TableAttributes
 
@@ -68,7 +77,7 @@ local FRAME = {
 }
 
 -- 해적 클로즈업.
--- ★ 해적이 서는 지점(GhostRise/GhostLunge)은 pirate() 가 쓰는 값과 반드시 같아야 합니다.
+-- ★ 해적이 서는 지점(GhostRise/GhostLunge)은 spawnPirate() 가 쓰는 값과 반드시 같아야 합니다.
 --   이 둘이 어긋나면 카메라가 엉뚱한 허공을 봅니다. (Phase 5 의 증상이 정확히 그것이었습니다)
 local SCARE = {
 	Lead = 0.62, -- 파고들기
@@ -428,7 +437,7 @@ tutorialLine("1.  의자에 다가가 E · 모바일은 탭", 48)
 tutorialLine("2.  내 차례가 오면 아래에서 자리를 고르기", 74)
 tutorialLine("3.  저주받은 자리를 뽑으면 해적이 튀어나옵니다", 100)
 tutorialLine("     고리가 줄어들 때 눌러 잡으면 살아남아요", 124, teal)
-tutorialLine("     단, 한 판에 한 번만! 두 번째 해적은 못 잡습니다", 148, red)
+tutorialLine("     나오기 전에 누르면 탈락! 잡을수록 점점 빨라져요", 148, red)
 tutorialLine("4.  안전하면 「한 번 더」로 보너스 코인", 172)
 tutorialLine("5.  마지막 생존자가 현상금을 가져갑니다", 196)
 tutorialLine("바닥 화살표를 따라가면 빈 자리가 나옵니다", 222, Color3.fromRGB(168, 152, 128))
@@ -741,7 +750,7 @@ end
 	해적 클로즈업.
 
 	★ 고친 핵심
-	  해적이 실제로 서는 지점을 먼저 구합니다.  pirate() 와 같은 식을 씁니다.
+	  해적이 실제로 서는 지점을 먼저 구합니다.  spawnPirate() 와 같은 식을 씁니다.
 	     ghostCenter = 통 중심 + 나를 향한 방향 * GhostLunge + (0, GhostRise, 0)
 	  그리고 해적의 키를 재서, 화면에 다 들어오는 최소 거리를 계산합니다.
 	     needed = (키 + 여백) / (2 * tan(화각/2))
@@ -800,41 +809,53 @@ end
 --------------------------------------------------
 -- 칼 꽂기
 --------------------------------------------------
-local armHome = setmetatable({}, { __mode = "k" })
-local function armThrust(character, windup)
-	if not character then
-		return
+-- 칼을 꽂은 사람의 몸. 사람은 Players 에서, AI 선원은 좌석에 적힌 UserId 로 찾는다.
+local function characterOfUser(model, userId)
+	local picker = Players:GetPlayerByUserId(userId or 0)
+	if picker then
+		return picker.Character
 	end
-	local joint = character:FindFirstChild("RightUpperArm")
-	joint = joint and joint:FindFirstChild("RightShoulder")
-	if not joint then
-		local torso = character:FindFirstChild("Torso")
-		joint = torso and torso:FindFirstChild("Right Shoulder")
-	end
-	if not joint or not joint:IsA("Motor6D") then
-		return
-	end
-	local home = armHome[joint]
-	if not home then
-		home = joint.C0
-		armHome[joint] = home
-	end
-	local raised = home * CFrame.Angles(math.rad(-108), 0, math.rad(-8))
-	local down = home * CFrame.Angles(math.rad(-14), 0, 0)
-	Tween:Create(joint, TweenInfo.new(windup, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C0 = raised }):Play()
-	task.delay(windup + 0.01, function()
-		if joint.Parent then
-			Tween:Create(joint, TweenInfo.new(STAB.Thrust, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { C0 = down }):Play()
+	local seats = model and model:FindFirstChild("Seats")
+	if seats and userId and userId ~= 0 then
+		for _, seat in ipairs(seats:GetDescendants()) do
+			if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == userId and seat.Occupant then
+				return seat.Occupant.Parent
+			end
 		end
-	end)
-	task.delay(windup + 0.45, function()
-		if joint.Parent then
-			Tween:Create(joint, TweenInfo.new(0.3), { C0 = home }):Play()
-		end
-	end)
+	end
+	return nil
 end
 
-local function stab(model, index, own, tension, userId)
+-- 칼날이 지나간 자리에 남는 빛 (모션 스킨 색)
+local function addTrail(copy, color)
+	local blade = copy:FindFirstChild("Blade")
+	if not blade or not color then
+		return
+	end
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0, -0.7)
+	a0.Parent = blade
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, 0, 0.7)
+	a1.Parent = blade
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(color)
+	trail.LightEmission = 1
+	trail.Lifetime = 0.2
+	trail.Transparency = NumberSequence.new(0.2, 1)
+	trail.FaceCamera = true
+	trail.Parent = blade
+end
+
+--[[
+	칼 꽂기 (Phase 11 : 모션 스킨)
+	꽂은 사람이 장착한 모션(StabSkin)대로 칼이 움직이고 팔 · 허리가 따라 움직인다.
+	칼이 닿는 순간마다 충격 고리가 퍼진다. (세 번 찌르기는 작은 고리 둘 + 큰 고리 하나)
+	돌려주는 값 = 칼이 완전히 꽂히기까지 걸리는 시간.
+]]
+local function stab(model, index, own, tension, userId, styleId)
 	local slots = model:FindFirstChild("KnifeSlots")
 	if not slots then
 		return 0
@@ -845,7 +866,9 @@ local function stab(model, index, own, tension, userId)
 			if not source then
 				return 0
 			end
+			local motion = config.findSkin("Stab", styleId) or config.Skins.Stab[1]
 			local windup = own and (STAB.Windup + (STAB.TenseWindup - STAB.Windup) * tension) or STAB.Windup * 0.5
+			local plan = StabMotion.plan(motion.style, windup, motion.color)
 			local copy = source:Clone()
 			copy.Parent = fx
 			local restore = {}
@@ -864,45 +887,70 @@ local function stab(model, index, own, tension, userId)
 					p.CanCollide = false
 				end
 			end
-			local target = copy:GetPivot()
-			local out = slot.CFrame.LookVector
-			local raised = target * CFrame.Angles(math.rad(-38), 0, 0) + out * STAB.Pull + Vector3.new(0, STAB.Lift, 0)
-			animatePivot(copy, target + out * 0.9 + Vector3.new(0, 0.5, 0), raised, windup, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			local picker = Players:GetPlayerByUserId(userId or 0)
-			armThrust(picker and picker.Character, windup)
+			if plan.style ~= "classic" and not reduced then
+				addTrail(copy, plan.color)
+			end
+
+			local ctx = { target = copy:GetPivot(), look = slot.CFrame.LookVector, center = center(model) }
+			copy:PivotTo(StabMotion.knifeAt(plan, 0, ctx))
+			StabMotion.playBody(characterOfUser(model, userId), plan)
 			if own then
 				sound("tick", 1.5 + 0.4 * tension, 0.12)
 			end
-			task.delay(windup, function()
+
+			local started = os.clock()
+			local follow
+			follow = Run.RenderStepped:Connect(function()
 				if not copy.Parent then
+					follow:Disconnect()
 					return
 				end
-				animatePivot(copy, raised, target, STAB.Thrust, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+				local t = os.clock() - started
+				if t >= plan.total then
+					copy:PivotTo(ctx.target)
+					follow:Disconnect()
+					return
+				end
+				copy:PivotTo(StabMotion.knifeAt(plan, t, ctx))
 			end)
-			task.delay(windup + STAB.Thrust, function()
-				if not copy.Parent then
-					return
-				end
-				shockRing(slot.CFrame, gold)
-				burst(slot.Position, gold, reduced and 4 or 8)
-				if own then
-					sound("pick", 1.55, 0.3)
-					if not reduced then
-						shakeUntil = math.max(shakeUntil, os.clock() + 0.16)
+
+			for i, hit in ipairs(plan.hits) do
+				local final = i == #plan.hits
+				task.delay(hit.t, function()
+					if not copy.Parent then
+						return
 					end
-				end
-				task.delay(STAB.Settle, function()
-					for p, value in pairs(restore) do
-						if p.Parent then
-							p.LocalTransparencyModifier = value
+					local color = (final and plan.style == "classic") and gold or (plan.color or gold)
+					shockRing(slot.CFrame, color)
+					burst(slot.Position, color, reduced and 4 or math.floor(6 + 6 * hit.power))
+					if own then
+						sound("pick", final and 1.55 or 2.1, final and 0.3 or 0.14)
+						if not reduced and final then
+							shakeUntil = math.max(shakeUntil, os.clock() + 0.12 + 0.06 * hit.power)
 						end
 					end
-					if copy.Parent then
-						copy:Destroy()
+					if not final then
+						return
 					end
+					if hit.power >= 1.4 and not reduced then
+						-- 강한 모션은 충격 고리가 한 겹 더 퍼진다
+						task.delay(0.06, function()
+							shockRing(slot.CFrame * CFrame.new(0, 0, -0.2), gold)
+						end)
+					end
+					task.delay(STAB.Settle, function()
+						for p, value in pairs(restore) do
+							if p.Parent then
+								p.LocalTransparencyModifier = value
+							end
+						end
+						if copy.Parent then
+							copy:Destroy()
+						end
+					end)
 				end)
-			end)
-			return windup + STAB.Thrust
+			end
+			return plan.total
 		end
 	end
 	return 0
@@ -914,74 +962,321 @@ end
 -- ★ 서는 지점은 SCARE.GhostRise / GhostLunge 를 씁니다.
 --   카메라(closeShot)가 같은 값으로 바라보기 때문에 둘을 따로 고치면 안 됩니다.
 --------------------------------------------------
-local ghostLive = nil
-local function pirate(model, own, fake)
-	local pos = center(model)
-	if not pos then
+local ghostLive = nil -- 지금 잡기 중인 진짜 해적 (결과가 오면 물러나거나 달려든다)
+
+local function outBack(x)
+	local c1, c3 = 1.9, 2.9
+	return 1 + c3 * (x - 1) ^ 3 + c1 * (x - 1) ^ 2
+end
+
+-- 이 테이블 통의 뚜껑. (서버 것이다. 내 화면에서만 잠깐 흔들거나 숨긴다)
+local function lidOf(model)
+	local barrel = model and model:FindFirstChild("Barrel")
+	local lid = barrel and barrel:FindFirstChild("Lid")
+	return (lid and lid:IsA("BasePart")) and lid or nil
+end
+
+local lidBusy = setmetatable({}, { __mode = "k" }) -- [lid] = { home, joltUntil }
+-- 뚜껑의 제자리. 게임 전(대기 · 카운트다운)에 본 자리를 기억한다.
+-- 서버가 뚜껑을 튕기는 중에(위험 자리 연출) 잰 자리를 제자리로 믿으면, 뚜껑이 공중에 남을 수 있다.
+local lidRest = setmetatable({}, { __mode = "k" })
+local function restOf(model, lid)
+	local rest = lidRest[lid]
+	if rest then
+		return rest
+	end
+	local state = model:GetAttribute(TABLE_ATTR.State)
+	if state ~= "Playing" and state ~= "Starting" then
+		lidRest[lid] = lid.CFrame
+		return lid.CFrame
+	end
+	return nil
+end
+
+-- 해적이 나오기 전 : 통이 덜컹거린다. 점점 세진다.
+local function rattle(model, fromClock, toClock)
+	local lid = lidOf(model)
+	if not lid or reduced or toClock - fromClock < 0.25 then
 		return
 	end
+	task.delay(math.max(0, fromClock - os.clock()), function()
+		if not lid.Parent or lidBusy[lid] then
+			return
+		end
+		local home = restOf(model, lid) or lid.CFrame
+		lidBusy[lid] = { home = home }
+		local knock = 0
+		local conn
+		conn = Run.RenderStepped:Connect(function()
+			local now = os.clock()
+			if now >= toClock or not lid.Parent then
+				conn:Disconnect()
+				-- 뚜껑이 날아가지 않았으면(연출을 줄였거나 분노한 해적) 원래 자리로 돌려놓는다.
+				if lid.Parent and lidBusy[lid] and lidBusy[lid].home == home and lid.LocalTransparencyModifier < 1 then
+					lid.CFrame = home
+					lidBusy[lid] = nil
+				end
+				return
+			end
+			local busy = lidBusy[lid]
+			if not busy or busy.home ~= home then
+				conn:Disconnect()
+				return
+			end
+			local a = math.clamp((now - fromClock) / math.max(0.01, toClock - fromClock), 0, 1)
+			local amp = 0.04 + 0.22 * a * a
+			local jolt = (busy.joltUntil or 0) > now and 0.45 or 0
+			lid.CFrame = home * CFrame.new(0, math.abs(math.sin(now * 38)) * amp + jolt, 0)
+				* CFrame.Angles(math.sin(now * 51) * amp * 0.35, 0, math.cos(now * 47) * amp * 0.35)
+			if now > knock then
+				knock = now + 0.32 - 0.2 * a
+				sound("heart", 0.5 + 0.3 * a, 0.08 + 0.12 * a)
+			end
+		end)
+	end)
+end
 
-	local ghost = template:Clone()
+-- 가짜 손 : 뚜껑 틈으로 뼈 손이 튀어나왔다가 들어간다. 여기에 속아 누르면 "너무 빨랐다".
+local function feint(model, atClock)
+	local top = lidTop(model)
+	if not top or reduced then
+		return
+	end
+	task.delay(math.max(0, atClock - os.clock()), function()
+		local skin = config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost)) or {}
+		local hand = Instance.new("Model")
+		hand.Name = "FeintHand"
+		local palm = makePart(hand, "Palm", Vector3.new(0.6, 0.5, 0.6), CFrame.new(), skin.skin or teal)
+		palm.Shape = Enum.PartType.Ball
+		palm.Material = Enum.Material.Neon
+		hand.PrimaryPart = palm
+		for f = -1, 1 do
+			local bone = makePart(hand, "Finger", Vector3.new(0.1, 0.55, 0.1), CFrame.new(f * 0.18, 0.45, 0) * CFrame.Angles(0, 0, math.rad(f * 12)), Color3.fromRGB(240, 236, 220))
+			bone.Material = Enum.Material.SmoothPlastic
+		end
+		hand.Parent = fx
+		local side = facing(top) * 0.6
+		local low = CFrame.new(top + side - Vector3.new(0, 0.6, 0))
+		local high = CFrame.new(top + side + Vector3.new(0, 1.25, 0)) * CFrame.Angles(0, 0, math.rad(-15))
+		animatePivot(hand, low, high, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		sound("pick", 0.55, 0.22)
+		local lid = lidOf(model)
+		if lid and lidBusy[lid] then
+			-- 뚜껑이 한 번 크게 들썩인다 (덜컹거리는 쪽이 이 값을 보고 들어 올린다)
+			lidBusy[lid].joltUntil = os.clock() + 0.14
+		end
+		task.delay(0.22, function()
+			if hand.Parent then
+				animatePivot(hand, hand:GetPivot(), low, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			end
+		end)
+		Debris:AddItem(hand, 0.45)
+	end)
+end
+
+-- 뚜껑이 날아가고 섬광이 터진다. 진짜 뚜껑은 잠깐 숨겼다가 되돌린다.
+local function blowLid(model, hold)
+	local lid = lidOf(model)
+	local top = lidTop(model)
+	if top then
+		local flashBall = makePart(fx, "Burst", Vector3.new(1, 1, 1), CFrame.new(top), Color3.fromRGB(210, 255, 240))
+		flashBall.Shape = Enum.PartType.Ball
+		flashBall.Material = Enum.Material.Neon
+		flashBall.Transparency = 0.1
+		local light = Instance.new("PointLight")
+		light.Brightness = 9
+		light.Range = 22
+		light.Color = Color3.fromRGB(150, 255, 220)
+		light.Parent = flashBall
+		Tween:Create(flashBall, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(7, 7, 7), Transparency = 1 }):Play()
+		Tween:Create(light, TweenInfo.new(0.4), { Brightness = 0 }):Play()
+		Debris:AddItem(flashBall, 0.45)
+
+		local mist = makePart(fx, "Mist", Vector3.new(0.2, 0.2, 0.2), CFrame.new(top), cream)
+		mist.Transparency = 1
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(120, 255, 214), Color3.fromRGB(40, 60, 70))
+		emitter.Size = NumberSequence.new(1.2, 4)
+		emitter.Transparency = NumberSequence.new(0.3, 1)
+		emitter.Lifetime = NumberRange.new(0.6, 1.1)
+		emitter.Speed = NumberRange.new(6, 12)
+		emitter.SpreadAngle = Vector2.new(60, 60)
+		emitter.Rate = 0
+		emitter.Parent = mist
+		emitter:Emit(reduced and 8 or 28)
+		Debris:AddItem(mist, 1.4)
+	end
+	if not lid then
+		return
+	end
+	local busy = lidBusy[lid]
+	local home = (busy and busy.home) or restOf(model, lid) or lid.CFrame
+	lidBusy[lid] = { home = home }
+	local flying = lid:Clone()
+	flying.Anchored = true
+	flying.CanCollide = false
+	flying.CanQuery = false
+	flying.CanTouch = false
+	flying:ClearAllChildren()
+	flying.Parent = fx
+	lid.LocalTransparencyModifier = 1
+	local away = facing(lid.Position) * -2.5
+	local goal = CFrame.new(home.Position + Vector3.new(away.X, 6.5, away.Z)) * home.Rotation * CFrame.Angles(math.rad(150), 0, math.rad(40))
+	Tween:Create(flying, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = goal }):Play()
+	task.delay(0.35, function()
+		Tween:Create(flying, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+	end)
+	Debris:AddItem(flying, 0.8)
+	task.delay(hold, function()
+		if lid.Parent then
+			lid.CFrame = home
+			lid.LocalTransparencyModifier = 0
+		end
+		if lidBusy[lid] and lidBusy[lid].home == home then
+			lidBusy[lid] = nil
+		end
+	end)
+end
+
+--[[
+	해적 (Phase 11)
+	kind
+	  "real" : 잡기 중인 진짜 해적. 결과가 오면 물러나거나(잡힘) 달려든다(탈락).
+	  "rage" : 분노한 해적. 잡을 수 없다. 튀어나오자마자 달려든다.
+	  "fake" : 방해 아이템 "해적의 포효". 잠깐 나왔다 사라진다.
+	자세는 매 프레임 PirateModel:pose 로 잡는다. 서는 지점은 SCARE.GhostRise / GhostLunge 와 같다.
+]]
+local function spawnPirate(model, own, kind)
+	local pos = center(model)
+	if not pos then
+		return nil
+	end
+	kind = kind or "real"
 	local skin = config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost))
+	local rig = PirateModel.new(skin, visuals)
+	rig.model.Parent = fx
 	if skin then
-		local byName = {
-			Coat = skin.coat, CollarL = skin.coat, CollarR = skin.coat, Arm = skin.coat,
-			SpectralHead = skin.skin, GhostHand = skin.skin, MistTail = skin.skin, Cuff = skin.skin,
-			HatBrim = skin.hat, HatCrown = skin.hat, Belt = skin.hat, EyePatch = skin.hat,
-			HatBand = skin.accent, Buckle = skin.accent, Eye = skin.accent, Grin = skin.accent,
-		}
-		for _, p in ipairs(ghost:GetDescendants()) do
-			if p:IsA("BasePart") and byName[p.Name] then
-				p.Color = byName[p.Name]
+		SkinFX.applyGhost(rig.model, skin)
+	end
+	rig:adopt(CFrame.new())
+	ghostHeight = rig.height or SCARE.GhostFallback
+	if kind == "rage" then
+		for _, item in ipairs(rig.items) do
+			if item.part.Name == "Eye" or item.part.Name == "Claw" or item.part.Name == "Socket" then
+				item.part.Color = Color3.fromRGB(255, 60, 50)
+				item.part.Material = Enum.Material.Neon
 			end
 		end
-	end
-
-	for _, p in ipairs(ghost:GetDescendants()) do
-		if p:IsA("BasePart") then
-			p.CanCollide = false
-			p.CanTouch = false
-			p.CanQuery = false
-			p.CastShadow = false
-		end
-	end
-
-	ghost.Parent = fx
-
-	-- 해적의 실제 키를 재서 카메라가 쓸 값으로 남깁니다.
-	-- (closeShot 이 "화면에 다 들어오는 최소 거리"를 이 값으로 계산합니다)
-	local ok, _, boxSize = pcall(ghost.GetBoundingBox, ghost)
-	if ok and boxSize and boxSize.Y > 1 then
-		ghostHeight = boxSize.Y
-	end
-
-	if skin then
-		SkinFX.applyGhost(ghost, skin)
 	end
 
 	local direction = facing(pos)
 	local base = CFrame.lookAt(pos, pos + direction)
 	local lunge = (own and not reduced) and SCARE.GhostLunge or 0
-	animatePivot(ghost, base * CFrame.new(0, -2, 0), base * CFrame.new(0, SCARE.GhostRise, -lunge), 0.3)
-	burst(pos + Vector3.new(0, 2, 0), (skin and skin.aura) or teal, reduced and 8 or 20)
+	local ghost = { rig = rig, state = "erupt", bornAt = os.clock(), kind = kind, stateAt = os.clock(), fade = 0 }
 
-	if not fake then
-		ghostLive = ghost
+	local function place(y, forward, pose)
+		rig:pose(base * CFrame.new(0, y, -forward), pose)
 	end
+	place(-2.4, 0, { reach = 0, jaw = 0 })
 
-	-- 클로즈업이 끝날 때까지는 남아 있어야 합니다. (Phase 5 에서는 1.3초 만에 사라졌습니다)
-	local life = fake and 1.6 or (SCARE.Hold + SCARE.Release + 1.1)
-	task.delay(life - 0.45, function()
-		if not ghost.Parent then
+	local conn
+	conn = Run.RenderStepped:Connect(function()
+		if not rig.model.Parent then
+			conn:Disconnect()
 			return
 		end
-		for _, p in ipairs(ghost:GetDescendants()) do
-			if p:IsA("BasePart") then
-				Tween:Create(p, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+		local now = os.clock()
+		local t = now - ghost.bornAt
+		local s = now - ghost.stateAt
+		local rise = SCARE.GhostRise
+		if ghost.state == "caught" then
+			-- 붙잡혀 통 속으로 끌려 들어간다
+			local a = math.clamp(s / 0.3, 0, 1)
+			place(rise + (-3 - rise) * a * a, lunge * (1 - a), { lean = 10 * (1 - a), reach = 0.8 * (1 - a), jaw = 0.6, spread = 30 * a, sway = 20 * a })
+			rig:fade(a * 0.7)
+			if a >= 1 then
+				ghost.state = "gone"
+			end
+		elseif ghost.state == "lunge" then
+			-- 달려든다 (카메라 쪽으로)
+			local a = math.clamp(s / 0.22, 0, 1)
+			local e = 1 - (1 - a) ^ 3
+			place(rise - 0.4 * e, lunge + 2.6 * e, { lean = 16 + 22 * e, reach = 1, jaw = 1, claw = 25 * e, nod = -12 * e })
+			if s > 0.55 then
+				rig:fade(math.clamp((s - 0.55) / 0.4, 0, 1))
+			end
+			if s > 1 then
+				ghost.state = "gone"
+			end
+		elseif ghost.state == "fading" then
+			local a = math.clamp(s / 0.4, 0, 1)
+			place(rise + 0.5 * a, lunge, { lean = 8, reach = 0.6, jaw = 0.3 })
+			rig:fade(a)
+			if a >= 1 then
+				ghost.state = "gone"
+			end
+		elseif ghost.state == "gone" then
+			conn:Disconnect()
+			rig:Destroy()
+			return
+		elseif t < 0.2 then
+			-- 튀어나온다 (위로 치솟았다가 살짝 되돌아온다)
+			local a = t / 0.2
+			local y = -2.4 + (rise + 2.4) * outBack(a)
+			place(y, lunge * a, { lean = 28 * a, reach = a, jaw = a, spread = 40 * (1 - a), nod = -15 * a })
+		elseif t < 0.5 then
+			local a = (t - 0.2) / 0.3
+			place(rise, lunge, { lean = 28 - 14 * a, reach = 1 - 0.2 * a, jaw = 1 - 0.45 * a, nod = -15 + 15 * a, claw = 20 * a })
+		else
+			-- 떠 있다. 몸이 출렁이고 턱이 딱딱거린다.
+			local bob = math.sin(t * 5.2) * 0.18
+			place(rise + bob, lunge, {
+				lean = 12 + math.sin(t * 3.1) * 3,
+				reach = 0.78 + math.sin(t * 6.3) * 0.08,
+				jaw = 0.35 + 0.25 * math.abs(math.sin(t * 13)),
+				claw = 12 + math.sin(t * 9) * 10,
+				sway = math.sin(t * 4) * 10,
+				nod = math.sin(t * 2.4) * 4,
+			})
+			if kind == "fake" and t > 1.1 then
+				ghost.state, ghost.stateAt = "fading", now
+			elseif kind == "rage" and t > 0.75 then
+				ghost.state, ghost.stateAt = "lunge", now
 			end
 		end
+		-- 너무 오래 남지 않게 (결과가 끝내 오지 않아도 사라진다)
+		if t > SCARE.Hold + SCARE.Release + 2.4 and ghost.state ~= "gone" and ghost.state ~= "fading" then
+			ghost.state, ghost.stateAt = "fading", now
+		end
 	end)
-	Debris:AddItem(ghost, life)
+
+	burst(pos + Vector3.new(0, 2, 0), (skin and skin.aura) or teal, reduced and 8 or 22)
+	if kind == "real" then
+		ghostLive = ghost
+	end
+	return ghost
+end
+
+local function setGhostState(ghost, state)
+	if ghost and ghost.rig and ghost.rig.model.Parent and ghost.state ~= "gone" then
+		ghost.state = state
+		ghost.stateAt = os.clock()
+	end
+end
+
+-- 튀어나오는 순간 한꺼번에 : 뚜껑 폭발 · 섬광 · 비명 · 흔들림
+local function erupt(model, own, kind)
+	blowLid(model, SCARE.Hold + SCARE.Release + 1.2)
+	local ghost = spawnPirate(model, own, kind)
+	if own then
+		sound("danger", kind == "rage" and 0.5 or 0.72, 0.34)
+		sound("riser", 1.6, 0.12)
+		blink(kind == "rage" and red or ((config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost)) or {}).aura or teal), 0.6)
+		if not reduced then
+			shakeUntil = os.clock() + 0.55
+		end
+	end
 	return ghost
 end
 
@@ -1044,6 +1339,7 @@ local function endCatchUI()
 end
 
 local lastTapAt = 0
+local eruptKind = setmetatable({}, { __mode = "k" }) -- [테이블] = 곧 튀어나올 해적의 종류
 function sendCatch()
 	if not catch or not catch.mine or catch.sent then
 		return
@@ -1053,19 +1349,22 @@ function sendCatch()
 		return
 	end
 	lastTapAt = os.clock()
-	local now = workspace:GetServerTimeNow()
-	if now < catch.opensAt then
-		catch.early = (catch.early or 0) + 1
-		catchText.Text = "아직!"
-		catchText.TextColor3 = red
-		catchInput:FireServer(catch.model, now)
+	-- 칼 자리를 고른 손가락이 한 번 더 눌린 것은 버립니다. (서버도 같은 시간만큼 버립니다)
+	if os.clock() < (catch.armUntil or 0) then
 		return
 	end
+	local now = workspace:GetServerTimeNow()
 	catch.sent = true
+	catchButton.Active = false
 	catchInput:FireServer(catch.model, now)
+	if now < catch.opensAt - (config.Catch.EarlyTolerance or 0) then
+		-- ★ Phase 11 : 해적이 나오기 전에 눌렀다. 서버가 실패로 판정합니다.
+		catchText.Text = "너무 빨랐다!"
+		catchText.TextColor3 = red
+		return
+	end
 	catchText.Text = "잡았다!"
 	catchText.TextColor3 = teal
-	catchButton.Active = false
 end
 
 catchButton.Activated:Connect(sendCatch)
@@ -1077,7 +1376,7 @@ Input.InputBegan:Connect(function(input, processed)
 	if processed or Input:GetFocusedTextBox() then
 		return
 	end
-	-- 게임패드 스틱을 살짝 건드린 것은 누른 것으로 치지 않는다. ("너무 서둘렀다" 오판 방지)
+	-- 게임패드 스틱을 살짝 건드린 것은 누른 것으로 치지 않는다. ("너무 빨랐다" 오판 방지)
 	local stick = input.KeyCode == Enum.KeyCode.Thumbstick1 or input.KeyCode == Enum.KeyCode.Thumbstick2
 	if input.UserInputType == Enum.UserInputType.Keyboard
 		or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -1088,7 +1387,7 @@ Input.InputBegan:Connect(function(input, processed)
 end)
 
 catchPrompt.OnClientEvent:Connect(function(model, data)
-	if typeof(model) ~= "Instance" then
+	if typeof(model) ~= "Instance" or typeof(data) ~= "table" then
 		return
 	end
 	dangerPending[model] = nil
@@ -1097,6 +1396,7 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	-- 서버 시계를 내 시계로 옮깁니다.
 	local offset = os.clock() - workspace:GetServerTimeNow()
 	local opensLocal = data.opensAt + offset
+	local level = tonumber(data.level) or 1
 
 	-- 클로즈업이 "들이닥치는" 순간과 창이 열리는 순간을 맞춥니다.
 	if not reduced then
@@ -1109,21 +1409,28 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	lastTable = model
 	holdUntil = math.max(holdUntil, opensLocal + SCARE.Hold + SCARE.Release + 1.6)
 
+	-- ★ Phase 11 : 나오기 전 — 통이 덜컹거리고, 가끔 가짜 손이 튀어나왔다 들어간다.
+	--   가짜 손에 속아 누르면 "너무 빨랐다"로 탈락이다. 잡을수록(단계가 오를수록) 더 자주 속인다.
+	local rattleFrom = os.clock() + 0.75
+	rattle(model, rattleFrom, opensLocal)
+	local lead = opensLocal - os.clock()
+	if lead > 0.95 and math.random() < math.min(0.75, 0.3 + 0.12 * (level - 1)) then
+		feint(model, os.clock() + math.max(0.8, lead - 0.35 - math.random() * 0.25))
+	end
+
 	task.delay(math.max(0, opensLocal - os.clock() - SCARE.Lead), function()
 		sound("riser", 0.75, 0.18)
 	end)
+	eruptKind[model] = "real"
 	task.delay(math.max(0, opensLocal - os.clock()), function()
-		pirate(model, true)
-		sound("danger", 0.72, 0.3)
-		blink((config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost)) or {}).aura or teal, 0.55)
-		if not reduced then
-			shakeUntil = os.clock() + 0.5
-		end
+		local kind = eruptKind[model] or "real"
+		eruptKind[model] = nil
+		erupt(model, true, kind)
 	end)
 
 	if not data.mine then
 		task.delay(math.max(0, opensLocal - os.clock()), function()
-			announce((data.name or "") .. " 님이 해적을 잡는 중!", gold, 1.2)
+			announce(("%s 님이 해적을 잡는 중!%s"):format(data.name or "", level > 1 and ("  (%d단계)"):format(level) or ""), gold, 1.2)
 		end)
 		return
 	end
@@ -1132,13 +1439,14 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 		model = model, mine = true, sent = false,
 		opensAt = data.opensAt, window = data.window,
 		opensLocal = opensLocal, index = data.index or 1,
+		level = level, max = data.max,
+		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
 	}
 	catchGui.Visible = true
 	catchButton.Active = true
 	catchText.Text = ""
-	local onlyOnce = (tonumber(config.Catch.PerPlayer) or 1) <= 1
-	catchHint.Text = ("고리가 닫힐 때 잡아라!   아무 키 · 화면 탭   ·   %s (창 %.2f초)")
-		:format(onlyOnce and "한 판에 한 번뿐인 기회" or "잡기 기회", data.window or 0)
+	catchHint.Text = ("해적이 튀어나온 뒤에 눌러라!  먼저 누르면 탈락   ·   %d단계 · 창 %.2f초%s")
+		:format(level, data.window or 0, level > 1 and " (점점 빨라진다)" or "")
 	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
 	setSeatLock(true, opensLocal + (data.window or 0.6) + 4)
 	-- 게임패드로 칼 자리 버튼이 선택돼 있으면 A 가 그 버튼으로 먹힌다. 잡기 입력이 되도록 선택을 푼다.
@@ -1159,30 +1467,37 @@ catchResult.OnClientEvent:Connect(function(model, data)
 
 	if data.success then
 		local grade_ = data.perfect and "완벽! 보너스 코인" or "아슬아슬!"
-		-- 잡으면 통 안에 해적이 새로 숨습니다. 그리고 이번 판에는 더 잡을 수 없습니다.
-		local tail = (data.catchesLeft or 0) <= 0 and "  다음 해적은 못 잡는다!" or "  계속 갑니다"
+		-- 잡으면 통 안에 해적이 새로 숨고, 이 사람의 다음 해적은 더 빨라진다.
+		local tail
+		if (data.catchesLeft or 0) <= 0 then
+			tail = "  다음 해적은 분노한 해적!"
+		else
+			tail = ("  다음 해적은 더 빠르다 (%d단계)"):format((data.level or 1) + 1)
+		end
 		announce(mine and ("잡았다!  " .. grade_ .. tail) or ((data.name or "") .. " 님이 해적을 잡았습니다!"), teal, 2)
 		blink(teal, 0.35)
 		sound("win", 1.4, 0.3)
-		-- 해적이 통으로 되돌아갑니다.
-		if ghostLive and ghostLive.Parent then
-			local pos = center(model)
-			if pos then
-				animatePivot(ghostLive, ghostLive:GetPivot(), CFrame.new(pos) * CFrame.new(0, -2.5, 0), 0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-			end
-		end
+		-- 해적이 통으로 끌려 들어갑니다.
+		setGhostState(ghostLive, "caught")
 	else
 		local reason = data.reason
-		local why = (reason == "late" and "놓쳤다…") or (reason == "panic" and "너무 서둘렀다…")
+		local why = (reason == "late" and "놓쳤다…") or (reason == "early" and "해적이 나오기도 전에 눌렀다…")
 			or (reason == "timeout" and "반응하지 못했다…")
-			or (reason == "spent" and "두 번째 해적은 피할 수 없다…") or "놓쳤다…"
-		announce(mine and (why .. "  탈락") or ((data.name or "") .. " · 탈락"), red, 1.8)
+			or (reason == "spent" and "분노한 해적은 잡을 수 없다…") or "놓쳤다…"
+		announce(mine and (why .. "  탈락") or ((data.name or "") .. (reason == "early" and " · 너무 서둘렀다 · 탈락" or " · 탈락")), red, 1.8)
 		blink(red, 0.4)
 		sound("danger", 0.6, 0.3)
+		-- 해적이 달려든다. (먼저 눌러서 아직 안 나왔다면, 나오자마자 달려든다)
+		if eruptKind[model] then
+			eruptKind[model] = "rage"
+		else
+			setGhostState(ghostLive, "lunge")
+		end
 		if not reduced then
 			shakeUntil = os.clock() + 0.45
 		end
 	end
+	ghostLive = nil
 end)
 
 --------------------------------------------------
@@ -1222,7 +1537,7 @@ sabotageCue.OnClientEvent:Connect(function(model, data)
 		announce(from .. " 님이 가짜 해적을 보냈다!", red, 1.4)
 		local target = model or lastTable or tableOfCharacter()
 		if target then
-			pirate(target, true, true)
+			spawnPirate(target, true, "fake")
 			sound("danger", 0.8, 0.28)
 			blink(red, 0.4)
 			if not reduced then
@@ -1253,9 +1568,9 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 
 	if kind == "Pick" then
 		local tension = own and tensionOf(model) or 0
-		local hitAt = stab(model, data.slot, own, tension, data.userId)
+		local hitAt = stab(model, data.slot, own, tension, data.userId, data.stab)
 		if data.danger and data.catchable == false then
-			-- ★ Phase 10 : 이미 이번 판의 잡기 기회를 쓴 사람이 또 해적을 만났다. 잡기 창은 열리지 않는다.
+			-- ★ Phase 11 : 잡을 만큼 다 잡은 사람이 또 해적을 만났다. 분노한 해적이라 잡기 창은 열리지 않는다.
 			local popAt = os.clock() + hitAt + 0.1
 			if own then
 				lastTable = model
@@ -1268,15 +1583,13 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 					}
 				end
 			end
+			if own then
+				rattle(model, os.clock() + 0.75, popAt)
+			end
 			task.delay(math.max(0, popAt - os.clock()), function()
-				pirate(model, own)
+				erupt(model, own, "rage")
 				if own then
-					sound("danger", 0.6, 0.32)
-					blink(red, 0.45)
-					if not reduced then
-						shakeUntil = os.clock() + 0.5
-					end
-					announce(data.userId == player.UserId and "두 번째 해적! 이번엔 잡을 수 없다" or ((data.name or "") .. " · 두 번째 해적!"), red, 1.4)
+					announce(data.userId == player.UserId and "분노한 해적! 이번엔 잡을 수 없다" or ((data.name or "") .. " · 분노한 해적!"), red, 1.4)
 				end
 			end)
 		elseif data.danger then
@@ -1291,13 +1604,8 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 					return
 				end
 				dangerPending[model] = nil
-				pirate(model, own)
+				erupt(model, own, "rage")
 				if own then
-					sound("danger", 0.72, 0.3)
-					blink(teal, 0.5)
-					if not reduced then
-						shakeUntil = os.clock() + 0.45
-					end
 					announce(data.userId == player.UserId and "저주에 걸렸습니다!" or (data.name .. " · 탈락"), red)
 				end
 			end)
@@ -1321,20 +1629,37 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			local names = { skip = "한 번 넘기기", rotate = "통 회전", seal = "슬롯 봉인" }
 			announce(("%s 님의 카드 · %s"):format(data.name or "", names[data.card] or tostring(data.card)), Color3.fromRGB(196, 150, 255), 1.6)
 		end
+	elseif kind == "Surge" then
+		-- Phase 11 : 보물 폭발. 금화 비는 TreasureController 가 뿌린다.
+		if own then
+			local big = data.tier == "kraken"
+			announce(("%s!  현상금 +%d  (총 %d)"):format(data.name or "보물", data.amount or 0, data.pot or 0),
+				big and Color3.fromRGB(196, 130, 255) or gold, big and 2.6 or 1.8)
+			for i, pitch in ipairs(big and { 1, 1.2, 1.45, 1.7 } or { 1.3, 1.6 }) do
+				task.delay((i - 1) * 0.1, function()
+					sound("win", pitch, 0.22)
+				end)
+			end
+			blink(gold, big and 0.45 or 0.25)
+		end
 	elseif kind == "Win" then
 		burst(pos + Vector3.new(0, 3, 0), gold, reduced and 10 or 28)
 		if own then
 			local streakText = (data.streak and data.streak >= 2) and ("  ·  %d연승!"):format(data.streak) or ""
 			local potText = (data.pot and data.pot > 0) and ("  ·  현상금 %d 코인"):format(data.pot) or ""
+			local carryText = (data.carry and data.carry > 0) and ("  ·  다음 판 이월 +%d"):format(data.carry) or ""
+			local practiceText = data.practice and "  ·  AI 연습 판" or ""
 			local text
 			if data.userId == 0 then
-				text = "이번 판은 승자 없음"
+				text = "이번 판은 승자 없음" .. carryText
+			elseif data.bot then
+				text = (data.name or "AI") .. " 승리…" .. carryText
 			elseif data.forfeit then
-				text = data.name .. " 생존!  상대가 모두 나가서 승리 기록은 없습니다"
+				text = data.name .. " 생존!  상대가 모두 나가서 보상 절반" .. potText .. carryText
 			else
-				text = data.name .. " 승리!" .. streakText .. potText
+				text = data.name .. " 승리!" .. streakText .. potText .. practiceText
 			end
-			announce(text, gold, data.forfeit and 2.4 or 1.8)
+			announce(text, data.bot and red or gold, (data.forfeit or data.bot) and 2.4 or 1.8)
 			blink(gold, 0.3)
 			for i, pitch in ipairs({ 1, 1.25, 1.5 }) do
 				task.delay((i - 1) * 0.15, function()
@@ -1372,6 +1697,13 @@ Run.Heartbeat:Connect(function()
 	local seated = tableOfCharacter()
 	if seated and tutorial.Visible then
 		tutorial.Visible = false
+	end
+	-- 앉아서 기다리는 동안 뚜껑의 제자리를 기억해 둔다. (덜컹거림 · 폭발 뒤에 돌려놓을 자리)
+	if seated then
+		local lid = lidOf(seated)
+		if lid then
+			restOf(seated, lid)
+		end
 	end
 	local candidate = seated
  local watching=player:GetAttribute("SpectateTableId")
@@ -1415,8 +1747,7 @@ Run.Heartbeat:Connect(function()
 			end
 		elseif current == "Playing" then
 			local id = model:GetAttribute(TABLE_ATTR.CurrentTurnUserId)
-			local target = Players:GetPlayerByUserId(id or 0)
-			highlight.Adornee = target and target.Character
+			highlight.Adornee = characterOfUser(model, id)
 			local mine = id == player.UserId
 			local duel = (model:GetAttribute(TABLE_ATTR.TurnCount) or 0) == 2
 			local left = model:GetAttribute(TABLE_ATTR.SlotsRemaining) or 0
@@ -1437,7 +1768,12 @@ Run.Heartbeat:Connect(function()
 			local mySeat = seatOf(model)
 			if mySeat and (mySeat:GetAttribute(config.SeatAttributes.TurnOrder) or 0) > 0 then
 				local left = mySeat:GetAttribute(config.SeatAttributes.CatchesLeft) or 0
-				table.insert(parts, left > 0 and ("내 잡기 기회 %d번"):format(left) or "잡기 기회 없음 · 해적을 만나면 탈락")
+				local level = mySeat:GetAttribute(config.SeatAttributes.CatchLevel) or 0
+				if left <= 0 then
+					table.insert(parts, "다음 해적은 분노한 해적 · 만나면 탈락")
+				elseif level > 0 then
+					table.insert(parts, ("잡기 %d회 · 다음 해적 %d단계"):format(level, level + 1))
+				end
 			end
 			local brave = model:GetAttribute(TABLE_ATTR.BraveLevel) or 0
 			if brave > 0 then
@@ -1557,8 +1893,8 @@ Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, f
 		catchRing.Size = UDim2.fromOffset(320 + wait * 420, 320 + wait * 420)
 		ringStroke.Color = gold
 		ringStroke.Transparency = 0.15 + wait * 0.5
-		if catchText.Text == "" then
-			catchText.Text = "…"
+		if catchText.Text == "" or catchText.Text == "…" then
+			catchText.Text = "기다려…"
 		end
 		catchText.TextColor3 = cream
 	elseif not catch.sent then
@@ -1661,6 +1997,12 @@ player:GetAttributeChangedSignal(SKIN_ATTR.Knife):Connect(function()
 	local skin = config.findSkin("Knife", player:GetAttribute(SKIN_ATTR.Knife))
 	if skin then
 		announce(skin.name .. " 장착", gold, 1.2)
+	end
+end)
+player:GetAttributeChangedSignal(SKIN_ATTR.Stab):Connect(function()
+	local skin = config.findSkin("Stab", player:GetAttribute(SKIN_ATTR.Stab))
+	if skin then
+		announce(skin.name .. " 모션 장착  ·  칼을 꽂을 때 모두가 봅니다", gold, 1.6)
 	end
 end)
 player:GetAttributeChangedSignal(SKIN_ATTR.Barrel):Connect(function()

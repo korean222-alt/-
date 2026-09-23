@@ -22,11 +22,14 @@ for _,t in ipairs(Tables:GetAllTables()) do
  end
 end
 for _,name in ipairs({"VoyageRequest","VoyageState","SelectSlot","ShopRequest","ShopResult","CatchInput","CatchResult","PresentationCue","BraveRequest"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
--- Phase 10 : 한 판에 한 번만 잡는다 (0 이면 잡기 자체가 없고, 너무 크면 판이 끝나지 않는다)
-check(Config.Catch.PerPlayer==1,"Catch.PerPlayer must be 1 for release")
+-- Phase 11 : 잡을수록 빨라지고, MaxPerPlayer 번 뒤에는 분노한 해적이 나온다 (너무 크면 판이 길어진다)
+check(Config.Catch.MaxPerPlayer>=2 and Config.Catch.MaxPerPlayer<=10,"Catch.MaxPerPlayer out of range")
+check(Config.Catch.PersonalDecay<1,"Catches must get faster")
+check(Config.Catch.MinLead>=0.8,"Stab motion must land before the pirate")
+check(not Config.Bots.Enabled or require(game.ServerScriptService.CursedBarrel.Services.BotService)._started,"BotService started")
 check(Config.Catch.Grace<=0.15,"Catch grace too generous")
 for _,t in ipairs(Tables:GetAllTables()) do
- for _,attr in ipairs({"Pot","BraveOfferUserId","WinForfeit"}) do check(t.model:GetAttribute(attr)~=nil,"Missing table attribute "..attr) end
+ for _,attr in ipairs({"Pot","BraveOfferUserId","WinForfeit","PotCarry","Practice"}) do check(t.model:GetAttribute(attr)~=nil,"Missing table attribute "..attr) end
 end
 for _,obj in ipairs(workspace:GetDescendants()) do
  if obj.Name=="Plank" or obj.Name=="Gangplank" then check(obj.CanCollide,"Ship walkway must be collidable") end

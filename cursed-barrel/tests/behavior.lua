@@ -276,34 +276,51 @@ end)
 check("dead turn timer cannot act after a successful pick",function()
  local r,p1=makeRound();r:_resolvePick(p1,1,"click");local token=r.turnToken;r:_onTurnTimeout(p1);assert(r.turnToken==token)
 end)
-check("early spam catch and late catch fail",function()
+check("one early tap fails at once; the pick's own double tap is ignored",function()
  local r,p1=makeRound();r:_beginCatch(p1,2)
- local success=nil;r._resolveCatch=function(_,result) success=result end
- r:HandleCatchInput(p1,now);r:HandleCatchInput(p1,now);r:HandleCatchInput(p1,now);assert(success==false)
- r.catch.earlyTaps=0;success=nil;now=r.catch.opensAt+r.catch.window+Config.Catch.Grace+1;r:HandleCatchInput(p1,now);assert(success==false)
+ local success,why=nil,nil;r._resolveCatch=function(_,result,reason) success=result;why=reason end
+ r:HandleCatchInput(p1,now);assert(success==nil,"tap inside ArmDelay is ignored")
+ now=now+Config.Catch.ArmDelay+0.05;assert(now<r.catch.opensAt-Config.Catch.EarlyTolerance)
+ r:HandleCatchInput(p1,now);assert(success==false and why=="early","first early tap fails")
+end)
+check("late catch fails and a tap within the clock tolerance counts as on time",function()
+ local r,p1=makeRound();r:_beginCatch(p1,2)
+ local success,why=nil,nil;r._resolveCatch=function(_,result,reason) success=result;why=reason end
+ now=r.catch.opensAt+r.catch.window+Config.Catch.Grace+1;r:HandleCatchInput(p1,now);assert(success==false and why=="late")
+ local r2,q1=makeRound();r2:_beginCatch(q1,2);success=nil
+ r2._resolveCatch=function(self,result) success=result;self.acc=self.catch.accuracy end
+ now=r2.catch.opensAt-Config.Catch.EarlyTolerance*0.5;r2:HandleCatchInput(q1,now);assert(success==true and r2.acc==1)
 end)
 check("valid catch is accepted inside server window",function()
  local r,p1=makeRound();r:_beginCatch(p1,2);now=r.catch.opensAt+0.1;local success=nil
  r._resolveCatch=function(_,result) success=result end;r:HandleCatchInput(p1,now);assert(success==true)
 end)
-check("a catch uses up the player's one chance for the round",function()
- local r,p1,p2=makeRound();assert(r:_catchesLeft(p1)==Config.Catch.PerPlayer)
- r:_beginCatch(p1,2);assert(r.catchesUsed[p1]==1 and r:_catchesLeft(p1)==0);assert(r:_catchesLeft(p2)==1)
- assert(r.gameTable:GetSeats()[1]:GetAttribute("CatchesLeft")==0,"seat shows no chance left")
+check("every catch speeds up that player's next pirate (window and lead)",function()
+ local r,p1,p2=makeRound();assert(r:_catchesLeft(p1)==Config.Catch.MaxPerPlayer)
+ r:_beginCatch(p1,2);local w1=r.catch.window;local lead1=r.catch.opensAt-r.catch.startedAt
+ assert(r.catchesUsed[p1]==nil,"opening a window does not use a catch");now=r.catch.opensAt+0.05;r:HandleCatchInput(p1,now)
+ assert(r.catchesUsed[p1]==1 and r:_catchesLeft(p1)==Config.Catch.MaxPerPlayer-1);assert(r:_catchesLeft(p2)==Config.Catch.MaxPerPlayer)
+ assert(r.gameTable:GetSeats()[1]:GetAttribute("CatchLevel")==1,"seat shows the catch level")
+ r.resolving=false;r:_beginCatch(p1,6);local w2=r.catch.window;local lead2=r.catch.opensAt-r.catch.startedAt
+ assert(w2<w1*0.85,"window shrinks: "..w1.." -> "..w2);assert(lead2<lead1,"pirate comes out sooner")
+ local personalOnly=Config.catchWindow(0,4,10,3);assert(personalOnly<Config.catchWindow(0,4,10,2))
 end)
-check("second pirate for the same player opens no catch window and eliminates",function()
- local r,p1,p2=makeRound();r.catchesUsed[p1]=1;local before=#delayed
+check("after MaxPerPlayer catches the next pirate is enraged: no window, eliminated",function()
+ local r,p1,p2=makeRound();r.catchesUsed[p1]=Config.Catch.MaxPerPlayer;local before=#delayed
  r:_beginCatch(p1,2);assert(r.catch and r.catch.spent,"spent catch record");assert(r.catch.opensAt==math.huge)
  local token=r.catch.token;r:HandleCatchInput(p1,now);r:HandleCatchInput(p1,now);r:HandleCatchInput(p1,now);assert(r.catch and r.catch.token==token,"taps are ignored")
  assert(#delayed==before+1);delayed[#delayed]()
  assert(r.catch==nil);assert(not r.isParticipant[p1],"eliminated");assert(r.pirateOuts==1)
  local payload=services.ReplicatedStorage.CursedBarrel.Remotes.CatchResult.last[2];assert(payload.reason=="spent" and payload.success==false)
 end)
-check("catch window shrinks with every catch at the table and never below the minimum",function()
+check("catch window shrinks with every catch and never below the minimum",function()
  local last=math.huge
- for n=0,12 do local w=Config.catchWindow(n,4,10);assert(w<=last);assert(w>=Config.Catch.MinWindow);last=w end
+ for n=0,12 do local w=Config.catchWindow(n,4,10,n);assert(w<=last);assert(w>=Config.Catch.MinWindow);last=w end
  assert(Config.catchWindow(0,4,10)>Config.catchWindow(1,4,10))
  assert(Config.Catch.Grace<=0.15,"late grace must stay small")
+ for n=0,10 do assert(Config.catchLead(n)>=Config.Catch.MinLead) end
+ assert(Config.Catch.MinLead>=0.8,"the stab motion (<=0.75s) must land before the pirate")
+ assert(Config.Catch.MaxPerPlayer>=2 and Config.Catch.MaxPerPlayer<=10)
 end)
 
 --------------------------------------------------
@@ -327,11 +344,20 @@ local function rng(seed)
  return function() state=(state*1103515245+12345)%2147483648;return state/2147483648 end
 end
 -- 좌석 · 슬롯 · 인원 변화를 흉내 내는 테이블. RemovePlayer 는 진짜처럼 RosterChanged 를 쏜다.
-local function makeTable(n,typeName,slotCount,loadProfiles)
+-- AI 선원 흉내. RoundService 가 쓰는 만큼만 갖춘 표 (BotService.Bot 과 같은 모양)
+local botId=0
+local function makeBot(skill,brave)
+ botId=botId+1
+ local attrs={}
+ return {IsBot=true,UserId=-botId,Name="AI_"..botId,DisplayName="AI "..botId,skill=skill or 0.5,brave=brave or 0.3,
+  GetAttribute=function(_,k) return attrs[k] end,SetAttribute=function(_,k,v) attrs[k]=v end}
+end
+local function makeTable(n,typeName,slotCount,loadProfiles,botCount)
  local players={};local seats={};local seatOf={};local playerOf={}
- for i=1,n do
-  nextId=nextId+1;local q=player(nextId);players[i]=q
-  if loadProfiles then Profiles:_load(q) end
+ for i=1,n+(botCount or 0) do
+  local q
+  if i<=n then nextId=nextId+1;q=player(nextId);if loadProfiles then Profiles:_load(q) end else q=makeBot() end
+  players[i]=q
   local seat=node("Seat"..i);seat.Position=Vector3.new(0,0,0);seats[i]=seat;seatOf[q]=seat;playerOf[seat]=q
  end
  local t={model=node("Table"),state="Waiting",config=table.clone(TableConfig.Types[typeName]),typeName=typeName,tableId="sim",destroyed=false}
@@ -360,6 +386,9 @@ local function makeTable(n,typeName,slotCount,loadProfiles)
  function t:RemovePlayer(q)
   local seat=seatOf[q];if not seat then return false end
   seatOf[q]=nil;playerOf[seat]=nil;self.RosterChanged:Fire(self,q,false);return true
+ end
+ function t:_testSeat(q,seat)
+  assert(not playerOf[seat],"seat taken");seatOf[q]=seat;playerOf[seat]=q;self.RosterChanged:Fire(self,q,true)
  end
  local r=Round.new(t)
  return r,t,players,used
@@ -391,7 +420,7 @@ check("leaving during an elimination pause does not skip the next player",functi
  assert(runUntil(function() return playing(t) and not r.resolving end))
  local order=r:GetParticipants();local a,b,c=order[1],order[2],order[3]
  table.clear(r.dangerSlots);assert(r:HandlePick(a,1,"test")==nil);assert(runUntil(function() return not r.resolving end))
- assert(r:GetCurrentPlayer()==b);r.catchesUsed[b]=1;table.clear(r.dangerSlots);r.dangerSlots[2]=true
+ assert(r:GetCurrentPlayer()==b);r.catchesUsed[b]=Config.Catch.MaxPerPlayer;table.clear(r.dangerSlots);r.dangerSlots[2]=true
  assert(r:HandlePick(b,2,"test")==nil);assert(runUntil(function() return not r.isParticipant[b] end),"B eliminated")
  t:RemovePlayer(a)
  assert(runUntil(function() return playing(t) and not r.resolving end));assert(r:GetCurrentPlayer()==c,"C must be next")
@@ -437,13 +466,25 @@ check("brave offer stops at the chain limit and when the barrel is nearly empty"
  assert(r:HandlePick(a,15,"test")==nil);assert(r.braveOffer==nil,"one slot left: no offer")
 end) end)
 
-check("forfeit win (opponent leaves at once) gives no win, streak or pot",function() withScheduler(function()
+check("forfeit win pays half the win reward and half the pot; the other half carries over",function() withScheduler(function()
  local r,t,players=makeTable(2,"Standard4",16,true)
  assert(runUntil(function() return playing(t) and not r.resolving end))
- local a,b=r.participants[1],r.participants[2];local pa=Profiles:Get(a);local wins,games,streak=pa.wins,pa.games,pa.streak
+ local a,b=r.participants[1],r.participants[2];local pa=Profiles:Get(a);local wins,games,streak,coins=pa.wins,pa.games,pa.streak,pa.coins
+ local pot=r.pot;assert(pot>0)
  t:RemovePlayer(b);assert(t.state=="RoundEnding")
  assert(t.model:GetAttribute("WinForfeit")==true);assert(pa.wins==wins and pa.streak==streak);assert(pa.games==games+1)
+ local share=Config.ForfeitWin.RewardShare;local half=math.floor(pot*share)
+ assert(pa.coins==coins+math.floor(Config.Economy.WinReward*share)+half,("half reward: got %d, expected %d"):format(pa.coins-coins,math.floor(Config.Economy.WinReward*share)+half))
+ assert(r.carry==pot-half,"the rest of the pot carries over")
+ local payload=services.ReplicatedStorage.CursedBarrel.Remotes.PresentationCue.last
+ assert(payload[1]=="Win" and payload[3].forfeit and payload[3].pot==half and payload[3].carry==pot-half)
  local pb=Profiles:Get(b);assert(pb.games==0,"the leaver gets no completion")
+ -- 다음 판은 이월된 금액을 얹고 시작한다
+ local c=player(nextId+1);nextId=nextId+1
+ assert(runUntil(function() return t.state=="Waiting" end))
+ local seat;for _,x in ipairs(t:GetSeats()) do if not t:GetPlayerOfSeat(x) then seat=x end end;t:_testSeat(c,seat)
+ assert(runUntil(function() return playing(t) end));assert(r.pot>=Config.Pot.Base+(pot-half),"carried pot is added");assert(r.carry==0)
+ assert(t.model:GetAttribute("PotCarry")==pot-half)
 end) end)
 
 check("pirate elimination gives a full win with pot",function() withScheduler(function()
@@ -451,7 +492,7 @@ check("pirate elimination gives a full win with pot",function() withScheduler(fu
  assert(runUntil(function() return playing(t) and not r.resolving end))
  local a,b=r.participants[1],r.participants[2];table.clear(r.dangerSlots)
  assert(r:HandlePick(a,1,"test")==nil);assert(runUntil(function() return not r.resolving end))
- r.catchesUsed[b]=1;table.clear(r.dangerSlots);r.dangerSlots[2]=true
+ r.catchesUsed[b]=Config.Catch.MaxPerPlayer;table.clear(r.dangerSlots);r.dangerSlots[2]=true
  local pa=Profiles:Get(a);local wins,coins=pa.wins,pa.coins;local pot=r.pot;assert(pot>0)
  assert(r:HandlePick(b,2,"test")==nil);assert(runUntil(function() return t.state=="RoundEnding" end))
  assert(t.model:GetAttribute("WinForfeit")==false);assert(pa.wins==wins+1);assert(pa.coins>=coins+pot+Config.Economy.WinReward)
@@ -483,14 +524,16 @@ check("new profile fields survive a save and reload",function()
  assert(d.bravePicks==4 and d.perfectCatches==2 and d.starterBought==true and d.loginStreak>=1)
 end)
 
-local function simulate(trials,seed,catchRate,leaveRate)
+local function simulate(trials,seed,catchRate,leaveRate,withBots)
  local random=rng(seed)
  local stats={rounds=0,catches=0,eliminated=0,brave=0,forfeits=0,cards=0,maxCatch=0,maxPicks=0}
  for trial=1,trials do
   local typeName=({"Standard4","Duo2","Party6","Blitz4","PartyCards6"})[trial%5+1]
   local preset=TableConfig.Types[typeName]
   local n=math.max(2,math.min(preset.SeatCount,2+trial%preset.SeatCount))
-  local r,t,players,used=makeTable(n,typeName,preset.KnifeSlots,trial%4==0)
+  local bots=0
+  if withBots then bots=math.max(1,n-1);n=1 end
+  local r,t,players,used=makeTable(n,typeName,preset.KnifeSlots,trial%4==0,bots)
   local started=false;local ended=false;local handled={}
   for iteration=1,6000 do
    if t.state=="Playing" then started=true end
@@ -498,16 +541,16 @@ local function simulate(trials,seed,catchRate,leaveRate)
    if playing(t) then
     -- 참가자 명단과 표가 서로 맞는지
     for _,q in ipairs(r.participants) do assert(r.isParticipant[q]) end
-    for q,used in pairs(r.catchesUsed) do assert(used<=Config.Catch.PerPlayer,"catch limit exceeded");if used>stats.maxCatch then stats.maxCatch=used end end
+    for q,used in pairs(r.catchesUsed) do assert(used<=Config.Catch.MaxPerPlayer,"catch limit exceeded");if used>stats.maxCatch then stats.maxCatch=used end end
     assert(r.turnIndex>=0 and r.turnIndex<=#r.participants)
     local cur=r:GetCurrentPlayer()
-    if r.catch and not r.catch.spent and not r.catch.resolved and not handled[r.catch] then
+    if r.catch and not r.catch.spent and not r.catch.resolved and not handled[r.catch] and not Config.isBot(r.catch.player) then
      handled[r.catch]=true
      if random()<catchRate then now=r.catch.opensAt+0.05;r:HandleCatchInput(r.catch.player,now);stats.catches=stats.catches+1 end
-    elseif r.braveOffer and not handled[r.braveOffer] then
+    elseif r.braveOffer and not handled[r.braveOffer] and not Config.isBot(r.braveOffer.player) then
      handled[r.braveOffer]=true
      if random()<0.5 then now=now+0.3;if r:AcceptBrave(r.braveOffer.player) then stats.brave=stats.brave+1 end end
-    elseif cur and not r.resolving then
+    elseif cur and not r.resolving and not Config.isBot(cur) then
      now=now+0.3
      if typeName=="PartyCards6" and random()<0.15 then
       local cards={"skip","rotate","seal"};local free=t:GetFreeSlotIndices()
@@ -520,33 +563,117 @@ local function simulate(trials,seed,catchRate,leaveRate)
      end
     end
     if random()<leaveRate and #r.participants>0 then
-     local leaver=r.participants[1+math.floor(random()*#r.participants)];t:RemovePlayer(leaver);stats.forfeits=stats.forfeits+1
+     local leaver=r.participants[1+math.floor(random()*#r.participants)]
+     if not Config.isBot(leaver) then t:RemovePlayer(leaver);stats.forfeits=stats.forfeits+1 end
     end
+    if withBots then assert(r.practice,"bot rounds are practice rounds") end
    end
    if not step() then break end
   end
   assert(ended,("round did not end (%s, %d players)"):format(typeName,n))
   stats.rounds=stats.rounds+1;stats.eliminated=stats.eliminated+(r.pirateOuts or 0)
+  local winner=t.model:GetAttribute("WinnerUserId") or 0
+  if winner<0 then stats.botWins=(stats.botWins or 0)+1 elseif winner>0 then stats.humanWins=(stats.humanWins or 0)+1 end
   if (r.picks or 0)>stats.maxPicks then stats.maxPicks=r.picks end
   table.clear(queue)
  end
  return stats
 end
 
-check("randomized full rounds always end (catch limit, brave, cards, leavers)",function() withScheduler(function()
+check("randomized full rounds always end (escalating catches, brave, cards, leavers)",function() withScheduler(function()
  local stats=simulate(160,20260922,0.75,0.01)
- assert(stats.maxCatch==1);assert(stats.eliminated>0 and stats.brave>0 and stats.cards>0)
+ assert(stats.maxCatch>=2 and stats.maxCatch<=Config.Catch.MaxPerPlayer);assert(stats.eliminated>0 and stats.brave>0 and stats.cards>0)
  print(("  simulated %d rounds · catches %d · pirate outs %d · brave %d · cards %d · leavers %d · longest %d picks"):format(stats.rounds,stats.catches,stats.eliminated,stats.brave,stats.cards,stats.forfeits,stats.maxPicks))
 end) end)
 
 check("reported bug: even if everyone always catches, every round still ends",function() withScheduler(function()
  local stats=simulate(120,77,1.0,0)
- assert(stats.rounds==120 and stats.maxCatch==1)
- -- 한 판은 잡기 없이는 끝나지 않는다: 인원수만큼 잡은 뒤에는 다음 해적이 반드시 탈락시킨다.
+ assert(stats.rounds==120 and stats.maxCatch==Config.Catch.MaxPerPlayer)
+ -- 한 사람이 MaxPerPlayer 번 잡은 뒤에는 다음 해적이 반드시 탈락시킨다. 그래서 판은 끝난다.
  assert(stats.maxPicks<400,"rounds must stay short, got "..stats.maxPicks)
  print(("  perfect catchers: %d rounds · catches %d · pirate outs %d · longest %d picks"):format(stats.rounds,stats.catches,stats.eliminated,stats.maxPicks))
 end) end)
 
+--------------------------------------------------
+-- Phase 11 : 보물 폭발 · 이월 · AI 선원
+--------------------------------------------------
+check("treasure surge: pouch adds, kraken multiplies, pity resets",function()
+ local r,p1=makeRound();r.pot=100;r.surgeMiss=5
+ local rolls={0,0};r.random={NextNumber=function() return table.remove(rolls,1) or 0 end,NextInteger=function(_,lo) return lo end}
+ local tier=r:_rollSurge(p1);assert(tier and tier.id=="pouch");assert(r.pot==100+math.floor(45*TableConfig.getRewardScale("PartyCards6")));assert(r.surgeMiss==0)
+ local cue=services.ReplicatedStorage.CursedBarrel.Remotes.PresentationCue.last;assert(cue[1]=="Surge" and cue[3].amount>0 and cue[3].pot==r.pot)
+ r.pot=200;rolls={0,0.999};tier=r:_rollSurge(p1);assert(tier.id=="kraken" and r.pot==500)
+ r.pot=Config.Pot.Cap-10;rolls={0,0.999};r:_rollSurge(p1);assert(r.pot==Config.Pot.Cap,"surge respects the cap")
+ rolls={0.99};local before=r.pot;assert(r:_rollSurge(p1)==nil and r.pot==before and r.surgeMiss==1,"a miss raises pity only")
+end)
+check("surge chance grows with pity but stays capped",function()
+ local S=Config.Pot.Surge;assert(S.Chance<S.MaxChance)
+ assert(S.Chance+S.PityStep*100>S.MaxChance,"pity reaches the cap");local w=0;for _,t in ipairs(S.Tiers) do w=w+t.weight end;assert(w>0)
+end)
+check("carry-over is capped and a round where everyone leaves carries the whole pot",function()
+ local r=makeRound();r.carry=Config.Pot.CarryCap-5;r:_carryOver(100);assert(r.carry==Config.Pot.CarryCap)
+ local r2=makeRound();r2.pot=77;r2.settled=false;r2.countdownToken=1;r2.gameTable.ClearSeatFlags=function() end;r2.gameTable.RefreshBarrelSkin=function() end
+ r2:_finishRound("test");assert(r2.carry==77)
+end)
+check("AI crew cannot be sabotaged and are not listed as opponents",function()
+ local r,p1,p2=makeRound();local bot=makeBot();table.insert(r.participants,bot);r.isParticipant[bot]=true
+ local ok,why=r:CanSabotage(p1,bot);assert(not ok and why==Config.RejectMessages.NoTarget)
+ for _,o in ipairs(r:GetOpponents(p1)) do assert(not Config.isBot(o)) end;assert(#r:GetOpponents(p1)==1)
+end)
+check("AI takes its own turn, picks a free slot and its catches use the server rules",function() withScheduler(function()
+ local r,t,players=makeTable(1,"Standard4",16,true,2)
+ assert(runUntil(function() return playing(t) and not r.resolving end));assert(r.practice and t.model:GetAttribute("Practice")==true)
+ local human=players[1];local picks=0;local seen=0
+ for _=1,400 do
+  if t.state~="Playing" then break end
+  local cur=r:GetCurrentPlayer()
+  if cur==human and not r.resolving and not r.catch then table.clear(r.dangerSlots);r._ensureDanger=function() end;now=now+0.3;assert(r:HandlePick(human,t:GetFreeSlotIndices()[1],"t")==nil) end
+  if cur and Config.isBot(cur) then seen=seen+1 end
+  if not step() then break end
+  picks=r.picks
+ end
+ assert(seen>0 and picks>1,"AI took turns")
+end) end)
+check("solo player + AI: every round ends; AI are practice rounds with reduced pay and no win record",function() withScheduler(function()
+ local stats=simulate(60,4242,0.7,0.005,true)
+ assert(stats.rounds==60);assert((stats.botWins or 0)>0 and (stats.humanWins or 0)>0,"both sides can win")
+ print(("  solo+AI: %d rounds · AI wins %d · human wins %d · longest %d picks"):format(stats.rounds,stats.botWins or 0,stats.humanWins or 0,stats.maxPicks))
+end) end)
+check("practice win pays reduced coins and never touches wins, streak or ranking",function() withScheduler(function()
+ local r,t,players=makeTable(1,"Standard4",16,true,1)
+ assert(runUntil(function() return playing(t) and not r.resolving end))
+ local human,bot=players[1],players[2];local pa=Profiles:Get(human);local wins,streak,coins=pa.wins,pa.streak,pa.coins
+ local ranked="none";local old=cache.RankingService.RecordRound;cache.RankingService.RecordRound=function(_,_,_,winner) ranked=winner end
+ local pot=r.pot;r:_eliminate(bot)
+ assert(runUntil(function() return t.state=="RoundEnding" end));cache.RankingService.RecordRound=old
+ assert(pa.wins==wins and pa.streak==streak,"no win record vs AI");assert(ranked==nil,"no ranking vs AI")
+ local expected=math.floor(Config.Economy.WinReward*Config.Bots.RewardScale)+pot
+ assert(pa.coins-coins==expected,("practice pay %d, expected %d"):format(pa.coins-coins,expected))
+ assert(pot<=math.ceil(Config.Pot.Base*Config.Bots.RewardScale)+Config.Pot.PerPick,"pot is scaled too")
+end) end)
+check("if the human leaves, an AI-only table closes at once and half the pot carries over",function() withScheduler(function()
+ local r,t,players=makeTable(1,"Standard4",16,true,2)
+ assert(runUntil(function() return playing(t) end));local pot=r.pot
+ t:RemovePlayer(players[1]);assert(t.state=="RoundEnding","closed immediately")
+ assert((t.model:GetAttribute("WinnerUserId") or 0)<0,"an AI is shown as the winner");assert(r.carry==math.floor(pot*0.5))
+end) end)
+check("stab motions are cosmetic skins with a free default and a robux item",function()
+ assert(Config.Skins.PlayerAttributes.Stab=="StabSkin");assert(Config.Skins.Stab[1].id=="classic" and Config.isFreeSkin(Config.Skins.Stab[1]))
+ local robux=0;for _,skin in ipairs(Config.Skins.Stab) do assert(skin.style and skin.color);if skin.robux then robux=robux+1 end end;assert(robux>=1)
+ local q=player(34);Profiles:_load(q);local d=Profiles:Get(q);assert(d.owned.Stab.classic and d.equipped.Stab=="classic");assert(not d.owned.Stab.ember_slam)
+end)
+
+check("every stab motion lands before the pirate can appear",function()
+ local Stab=loadModule("StabMotion")
+ for _,skin in ipairs(Config.Skins.Stab) do
+  for _,w in ipairs({0.05,0.1,0.2,0.42,1}) do
+   local plan=Stab.plan(skin.style,w);assert(plan.style==skin.style,"unknown style "..skin.style)
+   assert(plan.total<=Stab.MaxDuration,("%s %.2f takes %.3f"):format(skin.style,w,plan.total))
+   for i=2,#plan.hits do assert(plan.hits[i].t>plan.hits[i-1].t) end
+  end
+ end
+ assert(Stab.MaxDuration<Config.Catch.MinLead)
+end)
 local Ship=loadModule("ShipLayout")
 check("all ten tables fit the ship with chair clearance",function()
  local total=0

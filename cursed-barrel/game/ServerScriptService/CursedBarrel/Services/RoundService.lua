@@ -52,6 +52,17 @@
 	  · 기권승 : 상대가 전부 스스로 나가서 이긴 짧은 판은 승리 · 연승 · 현상금을 주지 않는다.
 	  · 누가 나가는 순간에 다음 차례가 한 명 건너뛰던 문제, 칼이 다 떨어진 통으로 턴이 시작되던 문제를 고쳤다.
 	  · 봉인 카드가 "다음 사람"의 선택까지 유지된다. (전에는 봉인한 사람이 고르는 순간 풀려서 쓸모가 없었다)
+
+───────────────────────────────────────────────
+Phase 11 에서 바뀐 규칙 (요청하신 것)
+
+  · 해적은 몇 번이든 잡을 수 있다. 대신 내가 잡을 때마다 내 다음 해적이 빨라진다.
+    (창이 좁아지고, 튀어나오기까지의 시간도 짧아진다) GameConfig.Catch.MaxPerPlayer 번을 잡은 사람의
+    다음 해적은 "분노한 해적"이라 잡을 수 없다. 그래서 판은 여전히 반드시 끝난다.
+  · 해적이 나오기 전에 누르면 그 자리에서 실패다. (칼을 고른 직후 0.3초 안의 입력은 버린다)
+  · 기권승은 승리 보상과 현상금을 절반 받는다. 남은 절반은 이 테이블의 다음 판으로 이월된다.
+  · 보물 폭발 : 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
+  · AI 선원 : BotService 가 앉힌 AI 도 사람과 같은 규칙으로 차례를 치른다. AI 가 낀 판은 연습 판이다.
 ]]
 
 local Players = game:GetService("Players")
@@ -136,6 +147,8 @@ function Round.new(gameTable)
 	self.braveLevel = 0 -- 지금 차례의 사람이 몇 번째로 더 찌르는 중인지
 	self.braveOffer = nil -- { player, token } "한 번 더" 제안
 	self.pot = 0
+	self.carry = 0 -- Phase 11 : 다음 판으로 넘어갈 현상금 (테이블에 남는다)
+	self.practice = false -- Phase 11 : AI 선원이 낀 연습 판인가
 	self.picks = 0 -- 이번 판에 꽂힌 칼 수
 	self.pirateOuts = 0 -- 이번 판에 해적에게 탈락한 사람 수 (스스로 나간 사람은 세지 않는다)
 	self.afk = {}
@@ -221,15 +234,29 @@ function Round:_writeSeatOrder()
 		if seat:GetAttribute(SEAT_ATTR.CatchesLeft) ~= left then
 			seat:SetAttribute(SEAT_ATTR.CatchesLeft, left)
 		end
+		local level = (player and alive) and (self.catchesUsed[player] or 0) or 0
+		if seat:GetAttribute(SEAT_ATTR.CatchLevel) ~= level then
+			seat:SetAttribute(SEAT_ATTR.CatchLevel, level)
+		end
 	end
 end
 
--- 이 사람이 이번 판에 아직 해적을 잡을 수 있는 횟수
+-- 이 사람이 이번 판에 앞으로 해적을 잡을 수 있는 횟수 (Phase 11 : 잡을 때마다 빨라지다가 끝에는 막힌다)
 function Round:_catchesLeft(player)
 	if not CATCH.Enabled then
 		return 0
 	end
-	return math.max(0, (tonumber(CATCH.PerPlayer) or 1) - (self.catchesUsed[player] or 0))
+	return math.max(0, (tonumber(CATCH.MaxPerPlayer) or 1) - (self.catchesUsed[player] or 0))
+end
+
+-- 아직 살아 있는 참가자 중에 사람이 있는가 (AI 끼리만 남으면 판을 접는다)
+function Round:_hasHuman()
+	for _, participant in ipairs(self.participants) do
+		if not GameConfig.isBot(participant) then
+			return true
+		end
+	end
+	return false
 end
 
 function Round:_resetRoundAttributes()
@@ -253,6 +280,8 @@ function Round:_resetRoundAttributes()
 	self:_set(TABLE_ATTR.Pot, 0)
 	self:_set(TABLE_ATTR.BraveLevel, 0)
 	self:_set(TABLE_ATTR.WinForfeit, false)
+	self:_set(TABLE_ATTR.PotCarry, self.carry or 0)
+	self:_set(TABLE_ATTR.Practice, false)
 	self:_clearBraveOffer()
 	self:_writeSeatOrder()
 end
@@ -489,6 +518,14 @@ function Round:_beginRound()
 	self.picks = 0
 	self.pirateOuts = 0
 	self.pot = 0
+	self.surgeMiss = 0
+	-- Phase 11 : AI 선원이 한 명이라도 끼면 연습 판이다. (_rewardScale 이 이 값을 본다)
+	self.practice = false
+	for _, p in ipairs(participants) do
+		if GameConfig.isBot(p) then
+			self.practice = true
+		end
+	end
     for _, p in ipairs(participants) do
         self.cards[p]={skip=true,rotate=true,seal=true}
         local bonus=0
@@ -534,8 +571,17 @@ function Round:_beginRound()
 	self:_set(TABLE_ATTR.LastPickName, "")
 	self:_set(TABLE_ATTR.LastPickSafe, true)
 	self:_set(TABLE_ATTR.BraveLevel, 0)
+	self:_set(TABLE_ATTR.Practice, self.practice)
 	self:_clearBraveOffer()
 	self:_addPot(POT.Base)
+	-- Phase 11 : 지난 판에서 넘어온 현상금을 얹는다. (이미 그때의 배율이 들어가 있다)
+	local carry = math.max(0, math.floor(self.carry or 0))
+	self.carry = 0
+	if POT.Enabled and carry > 0 then
+		self.pot = math.clamp((self.pot or 0) + carry, 0, POT.Cap)
+		self:_set(TABLE_ATTR.Pot, self.pot)
+	end
+	self:_set(TABLE_ATTR.PotCarry, carry)
 	self:_writeSeatOrder()
 
 	-- 3) 상태를 Starting 으로. 이 순간부터 빈 의자에도 앉을 수 없다.
@@ -569,9 +615,19 @@ function Round:_beginRound()
 end
 
 -- 승자 없이 라운드를 접는다. (참가자가 전부 사라진 경우)
+-- Phase 11 : 아무도 가져가지 못한 현상금은 다음 판으로 이월된다.
 function Round:_finishRound(reason)
 	GameConfig.log(("%s 라운드 정리 (%s)"):format(self.gameTable.tableId, tostring(reason)))
+	if not self.settled and (self.pot or 0) > 0 then
+		self:_carryOver(self.pot)
+	end
 	self:_resetTable()
+end
+
+function Round:_carryOver(amount)
+	local add = math.max(0, math.floor(tonumber(amount) or 0))
+	self.carry = math.min(tonumber(POT.CarryCap) or 0, (self.carry or 0) + add)
+	return add
 end
 
 --------------------------------------------------
@@ -654,6 +710,79 @@ function Round:_beginTurn(index, braveContinue)
 	end
 
 	GameConfig.log(("%s 턴 %d/%d · %s"):format(self.gameTable.tableId, index, count, player.Name))
+
+	if GameConfig.isBot(player) and self.gameTable.state == STATES.Playing then
+		self:_botThink(player, token)
+	end
+end
+
+--------------------------------------------------
+-- AI 선원 (Phase 11)
+--
+-- AI 도 통 안을 모른다. 봉인되지 않은 빈 자리 중에서 무작위로 고른다.
+-- 잡기는 성격(skill)과 이번 창 길이로 성공 확률을 정하고, 실제 입력과 같은 길(HandleCatchInput)로 넣는다.
+--------------------------------------------------
+
+function Round:_botThink(bot, token)
+	local config = GameConfig.Bots
+	local delay = config.ThinkMin + self.random:NextNumber() * math.max(0, config.ThinkMax - config.ThinkMin)
+	task.delay(delay, function()
+		if self.destroyed or token ~= self.turnToken or self.resolving then
+			return
+		end
+		if self.gameTable.destroyed or self.gameTable.state ~= STATES.Playing then
+			return
+		end
+		if self.participants[self.turnIndex] ~= bot then
+			return
+		end
+		local choices = {}
+		for _, slotIndex in ipairs(self.gameTable:GetFreeSlotIndices()) do
+			if slotIndex ~= self.sealed then
+				table.insert(choices, slotIndex)
+			end
+		end
+		local slotIndex = Utility.pickRandom(choices, self.random)
+		if slotIndex then
+			self.afk[bot] = 0
+			self:_resolvePick(bot, slotIndex, "bot")
+		end
+	end)
+end
+
+function Round:_botBrave(bot, token, level)
+	local nerve = tonumber(bot.brave) or 0.3
+	if self.random:NextNumber() >= nerve * (1 - 0.25 * level) then
+		return
+	end
+	task.delay(0.7 + self.random:NextNumber() * 0.6, function()
+		if self.destroyed or not self.braveOffer or self.braveOffer.token ~= token then
+			return
+		end
+		self:AcceptBrave(bot)
+	end)
+end
+
+-- 이번 잡기에 AI 가 누를 시각을 정한다. 창이 좁을수록 성공 확률이 떨어진다.
+function Round:_botCatch(bot, catch)
+	local skill = tonumber(bot.skill) or 0.5
+	local chance = math.clamp(skill + (catch.window - 0.45) * 1.6, 0.08, 0.92)
+	local tapAt
+	if self.random:NextNumber() < chance then
+		tapAt = catch.opensAt + catch.window * (0.15 + self.random:NextNumber() * 0.7)
+	elseif self.random:NextNumber() < 0.35 then
+		-- 겁먹고 먼저 누른다 (사람도 가장 많이 하는 실수)
+		tapAt = math.max(catch.startedAt + CATCH.ArmDelay + 0.05, catch.opensAt - 0.15 - self.random:NextNumber() * 0.3)
+	else
+		tapAt = catch.opensAt + catch.window + CATCH.Grace + 0.08 + self.random:NextNumber() * 0.3
+	end
+	local token = catch.token
+	task.delay(math.max(0, tapAt - GameConfig.now()), function()
+		if self.destroyed or token ~= self.catchToken then
+			return
+		end
+		self:HandleCatchInput(bot, GameConfig.now())
+	end)
 end
 
 -- 제한 시간 안에 고르지 못했다. 서버가 남은 자리 중 하나를 대신 고른다.
@@ -791,6 +920,9 @@ function Round:_resolvePick(player, slotIndex, source)
 		slot = slotIndex, danger = isDanger, userId = player.UserId, name = player.DisplayName or player.Name,
 		catchable = self:_catchesLeft(player) > 0,
 		brave = self.braveLevel,
+		bot = GameConfig.isBot(player) or nil,
+		stab = player:GetAttribute(GameConfig.Skins.PlayerAttributes.Stab) or "classic",
+		knife = player:GetAttribute(GameConfig.Skins.PlayerAttributes.Knife),
 	})
 	self:_set(TABLE_ATTR.SlotsRemaining, self:_freeSlotCount())
 	self:_set(TABLE_ATTR.LastPickSlot, slotIndex)
@@ -812,6 +944,7 @@ function Round:_resolvePick(player, slotIndex, source)
 	-- 안전. 작은 보상을 주고, 잠깐 결과를 보여준 뒤 다음 사람 차례로 넘어간다.
 	ProfileService:Award(player, ECONOMY.SurviveTurnReward * self:_rewardScale(), "safePicks")
 	self:_addPot(POT.PerPick)
+	self:_rollSurge(player)
 
 	-- 배짱으로 더 찌른 자리에서 살아남았다. 단계만큼 바로 보상한다.
 	local level = self.braveLevel or 0
@@ -830,6 +963,9 @@ function Round:_resolvePick(player, slotIndex, source)
 		self:_set(TABLE_ATTR.BraveNextReward, self:_braveReward(level + 1))
 		self:_set(TABLE_ATTR.BraveOfferEndsAt, GameConfig.now() + TIMING.ResultHold)
 		self:_set(TABLE_ATTR.BraveOfferUserId, player.UserId)
+		if GameConfig.isBot(player) then
+			self:_botBrave(player, token, level)
+		end
 	end
 
 	task.delay(TIMING.ResultHold, function()
@@ -875,6 +1011,52 @@ function Round:_addPot(amount)
 	self:_set(TABLE_ATTR.Pot, self.pot)
 end
 
+-- Phase 11 : 보물 폭발. 안전한 자리를 뽑을 때마다 굴린다. 안 터질수록 확률이 오른다.
+function Round:_rollSurge(player)
+	local surge = POT.Surge
+	if not (POT.Enabled and surge and surge.Enabled) then
+		return nil
+	end
+	self.surgeMiss = (self.surgeMiss or 0) + 1
+	local chance = math.min(surge.MaxChance, surge.Chance + surge.PityStep * self.surgeMiss)
+	if self.random:NextNumber() >= chance then
+		return nil
+	end
+	self.surgeMiss = 0
+
+	local total = 0
+	for _, tier in ipairs(surge.Tiers) do
+		total += tier.weight
+	end
+	local roll = self.random:NextNumber() * total
+	local chosen = surge.Tiers[#surge.Tiers]
+	for _, tier in ipairs(surge.Tiers) do
+		roll -= tier.weight
+		if roll < 0 then
+			chosen = tier
+			break
+		end
+	end
+
+	local before = self.pot or 0
+	local target = before + math.floor((chosen.add or 0) * self:_rewardScale())
+	if chosen.mult then
+		target = math.max(target, math.floor(before * chosen.mult))
+	end
+	self.pot = math.clamp(target, 0, POT.Cap)
+	self:_set(TABLE_ATTR.Pot, self.pot)
+
+	presentation:FireAllClients("Surge", self.gameTable.model, {
+		tier = chosen.id,
+		name = chosen.name,
+		amount = self.pot - before,
+		pot = self.pot,
+		userId = player and player.UserId or 0,
+	})
+	GameConfig.log(("%s 보물 폭발 · %s · 현상금 %d → %d"):format(self.gameTable.tableId, chosen.name, before, self.pot))
+	return chosen
+end
+
 -- 결과를 보여주는 동안 "한 번 더"를 눌렀다. 같은 사람이 곧바로 다시 고른다.
 function Round:AcceptBrave(player)
 	local offer = self.braveOffer
@@ -907,7 +1089,11 @@ function Round:AcceptBrave(player)
 end
 
 function Round:_rewardScale()
-	return TableConfig.getRewardScale(self.gameTable.typeName)
+	local scale = TableConfig.getRewardScale(self.gameTable.typeName)
+	if self.practice then
+		scale *= tonumber(GameConfig.Bots.RewardScale) or 1
+	end
+	return scale
 end
 
 --------------------------------------------------
@@ -924,21 +1110,22 @@ function Round:_beginCatch(player, slotIndex)
 
 	self.catchToken += 1
 	local token = self.catchToken
+	local personal = self.catchesUsed[player] or 0
 
-	-- ★ Phase 10 : 이번 판의 잡기 기회를 이미 썼다. 해적은 이번엔 잡히지 않는다.
+	-- ★ Phase 11 : 이미 MaxPerPlayer 번을 잡았다. 이번 해적은 "분노한 해적"이라 잡히지 않는다.
 	--   잡기 창을 열지 않고, 해적이 튀어나오는 연출이 끝날 즈음 탈락시킨다.
 	if self:_catchesLeft(player) <= 0 then
 		self.catch = {
 			token = token,
 			player = player,
 			slot = slotIndex,
+			startedAt = GameConfig.now(),
 			opensAt = math.huge,
 			window = 0,
-			earlyTaps = 0,
 			resolved = false,
 			spent = true,
 		}
-		GameConfig.log(("%s · %s 잡기 기회 없음 → 탈락"):format(gameTable.tableId, player.Name))
+		GameConfig.log(("%s · %s 분노한 해적 (잡기 %d회) → 탈락"):format(gameTable.tableId, player.Name, personal))
 		task.delay(CATCH.SpentReveal, function()
 			if self.destroyed or token ~= self.catchToken then
 				return
@@ -948,49 +1135,57 @@ function Round:_beginCatch(player, slotIndex)
 		return
 	end
 
-	-- 기회는 잡기 창이 열리는 순간 쓴 것으로 친다. (놓쳐도 어차피 탈락이다)
-	self.catchesUsed[player] = (self.catchesUsed[player] or 0) + 1
-	self:_writeSeatOrder()
-
-	local window = GameConfig.catchWindow(self.catchCount, #self.participants, self:_freeSlotCount())
+	-- 잡을 때마다(personal) 창이 좁아지고, 해적이 더 빨리 튀어나온다.
+	local window = GameConfig.catchWindow(self.catchCount, #self.participants, self:_freeSlotCount(), personal)
 	-- 창이 열리는 순간을 조금씩 흔든다. 클라이언트는 opensAt 에 맞춰 연출하므로 화면과 어긋나지 않는다.
-	local lead = CATCH.Lead + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
-	local opensAt = GameConfig.now() + lead
+	local lead = GameConfig.catchLead(personal) + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
+	local startedAt = GameConfig.now()
+	local opensAt = startedAt + lead
 
 	self.catch = {
 		token = token,
 		player = player,
 		slot = slotIndex,
+		startedAt = startedAt,
 		opensAt = opensAt,
 		window = window,
-		earlyTaps = 0,
+		level = personal + 1,
 		resolved = false,
 	}
 
 	-- 잡아야 하는 사람에게만 창 길이를 보낸다.
-	catchPrompt:FireClient(player, gameTable.model, {
-		mine = true,
-		opensAt = opensAt,
-		window = window,
-		index = self.catchCount + 1,
-		slot = slotIndex,
-	})
+	if not GameConfig.isBot(player) then
+		catchPrompt:FireClient(player, gameTable.model, {
+			mine = true,
+			opensAt = opensAt,
+			window = window,
+			index = self.catchCount + 1,
+			level = personal + 1,
+			max = CATCH.MaxPerPlayer,
+			slot = slotIndex,
+		})
+	end
 
 	-- 나머지는 "누가 잡으려 한다"만 안다. 창 길이는 알려주지 않는다.
 	for _, other in ipairs(self.participants) do
-		if other ~= player then
+		if other ~= player and not GameConfig.isBot(other) then
 			catchPrompt:FireClient(other, gameTable.model, {
 				mine = false,
 				opensAt = opensAt,
 				userId = player.UserId,
 				name = player.DisplayName or player.Name,
+				level = personal + 1,
 				slot = slotIndex,
 			})
 		end
 	end
 
-	GameConfig.log(("%s · %s 잡기 시작 (%d번째 · 창 %.2f초)")
-		:format(gameTable.tableId, player.Name, self.catchCount + 1, window))
+	GameConfig.log(("%s · %s 잡기 시작 (%d번째 · 이 사람 %d단계 · 창 %.2f초)")
+		:format(gameTable.tableId, player.Name, self.catchCount + 1, personal + 1, window))
+
+	if GameConfig.isBot(player) then
+		self:_botCatch(player, self.catch)
+	end
 
 	-- 응답이 없어도 판이 멈추지 않도록 서버가 끝을 낸다.
 	task.delay(lead + window + CATCH.Timeout, function()
@@ -1020,12 +1215,18 @@ function Round:HandleCatchInput(player, tappedAt)
 	claimed = math.clamp(claimed, now - CATCH.MaxLatency, now)
 
 	if claimed < catch.opensAt then
-		-- 창이 열리기 전에 누른 것. 한두 번은 봐주고, 계속 두들기면 실패로 본다.
-		catch.earlyTaps += 1
-		if catch.earlyTaps >= 3 then
-			self:_resolveCatch(false, "panic")
+		-- 칼을 고른 바로 그 손가락이 한 번 더 눌린 것은 버린다.
+		if claimed < (catch.startedAt or 0) + (tonumber(CATCH.ArmDelay) or 0) then
+			return
 		end
-		return
+		-- 시계 오차만큼은 "딱 맞춰 누른 것"으로 친다.
+		if claimed >= catch.opensAt - (tonumber(CATCH.EarlyTolerance) or 0) then
+			claimed = catch.opensAt
+		else
+			-- ★ Phase 11 : 해적이 나오기 전에 눌렀다. 그 자리에서 실패다.
+			self:_resolveCatch(false, "early")
+			return
+		end
 	end
 
 	local limit = catch.opensAt + catch.window + CATCH.Grace
@@ -1056,6 +1257,11 @@ function Round:_resolveCatch(success, reason)
 	if success and not gameTable.destroyed and gameTable.state == STATES.Playing then
 		armed = self:_armDanger(CATCH.ArmOnCatch)
 	end
+	-- Phase 11 : 잡은 횟수는 성공했을 때만 오른다. 그만큼 이 사람의 다음 해적이 빨라진다.
+	if success then
+		self.catchesUsed[player] = (self.catchesUsed[player] or 0) + 1
+		self:_writeSeatOrder()
+	end
 
 	local perfect = success and (catch.accuracy or 0) >= (CATCH.PerfectAccuracy or 1)
 
@@ -1070,8 +1276,10 @@ function Round:_resolveCatch(success, reason)
 		-- 통 안에 아직 몇 마리가 있는지까지만 알린다. 어느 자리인지는 보내지 않는다.
 		pirates = self:_liveDangerCount(),
 		rearmed = armed > 0,
-		-- 이 사람은 이번 판에 더 잡을 수 없다 (다음 해적은 곧 탈락)
+		-- 앞으로 몇 번 더 잡을 수 있는지 (0 이면 다음 해적은 분노한 해적)
 		catchesLeft = self:_catchesLeft(player),
+		level = self.catchesUsed[player] or 0,
+		bot = GameConfig.isBot(player) or nil,
 	})
 
 	GameConfig.log(("%s · %s 잡기 %s (%s) · 남은 해적 %d마리")
@@ -1141,6 +1349,10 @@ function Round:CanSabotage(actor, target)
 	if actor == target then
 		return false, REJECT.NoTarget
 	end
+	-- AI 선원에게는 쓸 수 없다. (로벅스를 허공에 쓰게 두지 않는다)
+	if GameConfig.isBot(target) then
+		return false, REJECT.NoTarget
+	end
 	if GameConfig.Sabotage.TargetMustBeAlive and not self.isParticipant[target] then
 		return false, REJECT.NoTarget
 	end
@@ -1172,7 +1384,7 @@ function Round:ApplySabotage(actor, target, item)
 		fromName = actor.DisplayName or actor.Name,
 	})
 	for _, other in ipairs(self.participants) do
-		if other ~= target then
+		if other ~= target and not GameConfig.isBot(other) then
 			sabotageCue:FireClient(other, self.gameTable.model, {
 				id = item.id,
 				mine = false,
@@ -1192,7 +1404,7 @@ end
 function Round:GetOpponents(player)
 	local list = {}
 	for _, other in ipairs(self.participants) do
-		if other ~= player then
+		if other ~= player and not GameConfig.isBot(other) then
 			table.insert(list, other)
 		end
 	end
@@ -1238,7 +1450,7 @@ function Round:_eliminate(player)
 	presentation:FireAllClients("Eliminate",gameTable.model,{userId=player.UserId,skin=player:GetAttribute("EliminationSkin") or "classic"})
  -- 탈락자는 자리에서 일어난다.
 	gameTable:RemovePlayer(player)
- local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+ local root=(not GameConfig.isBot(player)) and player.Character and player.Character:FindFirstChild("HumanoidRootPart")
  local body=gameTable.model:FindFirstChild("Body",true)
  if root and body then
   local direction=root.Position-body.Position
@@ -1259,6 +1471,11 @@ function Round:_eliminate(player)
 		end
 
 		if #self.participants <= 1 then
+			self:_declareWinner(self.participants[1])
+			return
+		end
+		-- Phase 11 : 사람이 모두 떨어지고 AI 만 남았다. 더 볼 사람이 없으니 AI 의 승리로 접는다.
+		if not self:_hasHuman() then
 			self:_declareWinner(self.participants[1])
 			return
 		end
@@ -1297,16 +1514,32 @@ function Round:_declareWinner(player)
 	self:_clearBraveOffer()
 	local gameTable = self.gameTable
 
-	-- ★ Phase 10 : 기권승은 승리로 기록하지 않는다. 참가 기록과 참가 보상만 받는다.
-	local fullWin = player ~= nil and self:_isFullWin()
+	-- ★ Phase 10 : 기권승은 승리로 기록하지 않는다.
+	-- ★ Phase 11 : 대신 승리 보상과 현상금을 절반 받는다. 남은 현상금은 다음 판으로 이월된다.
+	--             AI 가 이기면 현상금 절반이 이월된다. (AI 는 코인을 받지 않는다)
+	local botWinner = player ~= nil and GameConfig.isBot(player)
+	local fullWin = player ~= nil and not botWinner and self:_isFullWin()
 	local credited = fullWin and player or nil
-	local pot = credited and (self.pot or 0) or 0
+	local halfWinner = (player ~= nil and not botWinner and not fullWin) and player or nil
+	local share = tonumber(GameConfig.ForfeitWin.RewardShare) or 0.5
 
-	self:_set(TABLE_ATTR.WinForfeit, player ~= nil and not fullWin)
+	local potTotal = math.max(0, math.floor(self.pot or 0))
+	local paid, carried = 0, 0
+	if credited then
+		paid = potTotal
+	elseif halfWinner then
+		paid = math.floor(potTotal * share)
+		carried = self:_carryOver(potTotal - paid)
+	else
+		carried = self:_carryOver(botWinner and math.floor(potTotal * 0.5) or potTotal)
+	end
+
+	self:_set(TABLE_ATTR.WinForfeit, halfWinner ~= nil)
 	if player then
 		self:_set(TABLE_ATTR.WinnerUserId, player.UserId)
 		self:_set(TABLE_ATTR.WinnerName, player.DisplayName or player.Name)
-		GameConfig.log(("%s 라운드 %d 승자: %s%s"):format(gameTable.tableId, self.roundId, player.Name, fullWin and "" or " (기권승)"))
+		GameConfig.log(("%s 라운드 %d 승자: %s%s"):format(gameTable.tableId, self.roundId, player.Name,
+			(botWinner and " (AI)") or (fullWin and "") or " (기권승)"))
 	else
 		self:_set(TABLE_ATTR.WinnerUserId, 0)
 		self:_set(TABLE_ATTR.WinnerName, "")
@@ -1314,9 +1547,13 @@ function Round:_declareWinner(player)
 	end
 
 	-- 기록과 보상 (Phase 7 : 승자뿐 아니라 참가자 전원의 판수가 저장된다)
-	ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, pot)
-	RankingService:RecordRound(gameTable, self.roundRoster or {}, credited)
-	if player then
+	ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, paid, {
+		halfWinner = halfWinner,
+		practice = self.practice == true,
+	})
+	-- 연습 판(AI 동석)의 승리는 랭킹에 넣지 않는다.
+	RankingService:RecordRound(gameTable, self.roundRoster or {}, (not self.practice) and credited or nil)
+	if player and not botWinner then
 		task.spawn(function()
 			local analytics = game:GetService("AnalyticsService")
 			pcall(analytics.LogCustomEvent, analytics, player, "RoundDuration", os.clock() - (self.roundStartedAt or os.clock()), { mode = gameTable.typeName })
@@ -1326,11 +1563,14 @@ function Round:_declareWinner(player)
 	presentation:FireAllClients("Win", gameTable.model, {
 		userId = player and player.UserId or 0,
 		name = player and (player.DisplayName or player.Name) or "",
-		streak = credited and (credited:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
+		streak = (credited and not self.practice) and (credited:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
 		skin = player and player:GetAttribute("VictorySkin") or "classic",
 		duration = os.clock() - (self.roundStartedAt or os.clock()),
-		forfeit = player ~= nil and not fullWin,
-		pot = pot,
+		forfeit = halfWinner ~= nil,
+		pot = paid,
+		carry = carried,
+		bot = botWinner or nil,
+		practice = self.practice or nil,
 	})
 
 	self:_set(TABLE_ATTR.CurrentTurnUserId, 0)
@@ -1458,6 +1698,12 @@ function Round:RemoveParticipant(player)
 	ProfileService:BreakStreak(player)
 
 	if count == 1 then
+		self:_declareWinner(self.participants[1])
+		return true
+	end
+
+	-- Phase 11 : 사람이 모두 나가고 AI 만 남았다.
+	if count > 1 and not self:_hasHuman() then
 		self:_declareWinner(self.participants[1])
 		return true
 	end

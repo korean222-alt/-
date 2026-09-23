@@ -332,8 +332,9 @@ local function updateBoard(entry)
 		statusColor = pickColor or PALETTE.Cream
 		-- 몇 마리인지만 보여준다. 어느 자리인지는 클라이언트가 알 방법이 없다.
 		local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
-		infoText = ("생존 %d / %d명 · 해적 %d마리%s"):format(alive, math.max(started, alive), pirates,
-			pot > 0 and (" · 현상금 %d"):format(pot) or "")
+		infoText = ("생존 %d / %d명 · 해적 %d마리%s%s"):format(alive, math.max(started, alive), pirates,
+			pot > 0 and (" · 현상금 %d"):format(pot) or "",
+			model:GetAttribute(TABLE_ATTR.Practice) == true and " · AI 연습 판" or "")
 	elseif state == STATES.RoundEnding then
 		local winnerName = model:GetAttribute(TABLE_ATTR.WinnerName) or ""
 		local winnerId = model:GetAttribute(TABLE_ATTR.WinnerUserId) or 0
@@ -344,7 +345,9 @@ local function updateBoard(entry)
 		local forfeit = model:GetAttribute(TABLE_ATTR.WinForfeit) == true
 		if forfeit and winnerId ~= 0 then
 			entry.count.Text = "기권승"
-			statusText, statusColor = ("%s 생존 · 상대 기권 (기록 없음)"):format(winnerId == localPlayer.UserId and "나" or winnerName), PALETTE.Dim
+			statusText, statusColor = ("%s 생존 · 상대 기권 (보상 절반)"):format(winnerId == localPlayer.UserId and "나" or winnerName), PALETTE.Dim
+		elseif winnerId < 0 then
+			statusText, statusColor = ("%s 승리 · 현상금 일부가 다음 판으로"):format(winnerName), PALETTE.Dim
 		elseif winnerId == localPlayer.UserId then
 			statusText, statusColor = "내가 마지막까지 살아남았다!", PALETTE.Mine
 		elseif winnerId ~= 0 then
@@ -364,11 +367,13 @@ local function updateBoard(entry)
 		if seated == 0 then
 			statusText, statusColor = "빈 테이블 · 앉으면 참가", PALETTE.Cream
 		elseif seated < minPlayers then
-			statusText, statusColor = ("%d명 더 필요"):format(minPlayers - seated), PALETTE.Cream
+			statusText, statusColor = ("%d명 더 필요 · 곧 AI 선원이 합류"):format(minPlayers - seated), PALETTE.Cream
 		else
 			statusText, statusColor = "시작 준비 완료", PALETTE.Ready
 		end
-		infoText = ("칼 %d자루 · 해적 %d마리 · 마지막 한 명이 승리"):format(slotCount, dangerHint(model))
+		local carry = model:GetAttribute(TABLE_ATTR.PotCarry) or 0
+		infoText = ("칼 %d자루 · 해적 %d마리 · 마지막 한 명이 승리%s"):format(slotCount, dangerHint(model),
+			carry > 0 and (" · 이월 현상금 %d"):format(carry) or "")
 	end
 
 	entry.status.Text = statusText
