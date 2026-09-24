@@ -9,6 +9,9 @@ local process = require("@lune/process")
 local Instance, Vector3, CFrame, Color3, Enum = roblox.Instance, roblox.Vector3, roblox.CFrame, roblox.Color3, roblox.Enum
 local game = roblox.deserializePlace(fs.readFile(process.args[1]))
 local NOLIB = process.args[2] == "nolib"
+-- Studio 3D 가져오기는 조각을 세로축으로 180° 돌려 넣는다 (Phase 16 파일의 CursedBarrelModels 로 확인).
+-- "straight" 를 주면 돌리지 않은 경우도 검사한다.
+local STRAIGHT = process.args[2] == "straight"
 local workspace = game:GetService("Workspace")
 
 -------------------------------------------------- engine polyfills
@@ -187,10 +190,13 @@ local Shared = game.ReplicatedStorage.CursedBarrel.Shared
 local SkinCatalog = requireModule(Shared.SkinMeshCatalog)
 local library = Instance.new("Model")
 library.Name = "CursedBarrelSkins"
+local IMPORT_OFFSET = Vector3.new(-70.3, -63.6, -86.0)
 for name, info in SkinCatalog.Pieces do
 	local mp = Instance.new("MeshPart")
 	mp.Name = name
 	mp.Size = info.size
+	local c = info.center
+	mp.CFrame = CFrame.new(IMPORT_OFFSET + (STRAIGHT and c or Vector3.new(-c.X, c.Y, -c.Z)))
 	mp.Parent = library
 end
 if not NOLIB then library.Parent = workspace end
@@ -208,6 +214,8 @@ end
 
 local MeshKit = requireModule(Shared.MeshKit)
 local GameConfig = requireModule(Shared.GameConfig)
+local stage0 = Instance.new("Folder")
+stage0.Parent = workspace
 check("MeshKit.adopt moves both libraries", function()
 	MeshKit.adopt()
 	if NOLIB then assert(not MeshKit.has("Pirate"), "phantom library"); return end
@@ -216,6 +224,24 @@ check("MeshKit.adopt moves both libraries", function()
 	for _, asset in { "Knife_dagger", "Knife_fang", "Pirate", "DragonCoil", "DragonRing", "Petal", "RuneRing", "KrakenCapsule", "BarrelDecor_dragon", "Cask", "Drum" } do
 		assert(MeshKit.has(asset), "missing asset " .. asset)
 	end
+end)
+
+local function turned(cf)
+	-- 180° 돌림이면 LookVector 가 (0,0,1)
+	return cf.LookVector.Z > 0.99
+end
+check("import rotation detected (models file from the real place)", function()
+	assert(turned(MeshKit.fixOf("CB_Kraken_Mantle")), "Phase 16 models import is turned 180 but not detected")
+	local part = MeshKit.place("CB_KrakenRest_Starboard_Quarter_Skin", nil, { parent = stage0 })
+	assert(turned(part.CFrame), "rest leg not turned back")
+end)
+check("import rotation detected (skins file)", function()
+	if NOLIB then return end
+	assert(turned(MeshKit.fixOf("SK_Pirate_Coat")) == not STRAIGHT, "skins fix wrong")
+	local base = CFrame.new(3, 4, 5) * CFrame.Angles(0.3, 0.2, 0.1)
+	local part = MeshKit.place("SK_Knife_dagger_Blade", base, {})
+	local rel = base:ToObjectSpace(part.CFrame)
+	assert(turned(rel) == not STRAIGHT, "knife piece rotation wrong")
 end)
 
 check("barrel prices -20%", function()

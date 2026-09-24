@@ -204,7 +204,7 @@ def dress(kind, s, objs, rank):
                              ext.z * 0.9, size * 0.07, seed=rank * 3)
     if rank >= 3:
         extra += C.scatter_cards("Orb", "orb.png", col, 3.0, {3: 6, 4: 9, 5: 12}[rank], c, max(ext.x, ext.y) * 0.9, ext.z, size * 0.05, seed=rank * 7)
-    if rank >= 4 and kind != "Knife":
+    if rank >= 4 and kind == "Ghost":
         ring = X.rune_ring("ThumbRing", C.mat_glow("RingGlow", acc, 5.0), R=max(ext.x, ext.y) * 0.75)
         ring.location = (c.x, c.y, lo.z + 0.02)
         extra.append(ring)
