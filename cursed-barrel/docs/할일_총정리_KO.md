@@ -20,7 +20,7 @@
 ## 1. Studio에서 열고 블렌더 모델 가져오기 · Publish
 
 1. Roblox Studio에서 `CursedBarrel_Phase16_Lobby.rbxl` 을 엽니다.
-2. **홈 → 3D 가져오기(Import 3D)** → `assets/models/CursedBarrelModels.fbx` → **"단일 메시로 가져오기" 끄기** → 가져오기.
+2. **홈 → 3D 가져오기(Import 3D)** → `assets/models/CursedBarrelModels.fbx` → **파일 지오메트리 → "배율 조정 값" 을 `0.01` 로 · "메시 병합" 은 끔** → 가져오기.
    - Workspace 에 `CursedBarrelModels` 가 생기면 그대로 둡니다. (게임이 켜질 때 알아서 보관함으로 옮기고 제자리에 놓습니다)
    - 새 통 · 드럼 · 대포 · 크라켄(누운 다리 포함)이 이 모델로 바뀝니다. 안 하면 예전 모양으로 돌아갑니다.
 3. (해적 모델을 쓸 경우) 다른 파일에 넣어 둔 `CustomPirate` 모델을 이 파일로 옮깁니다.

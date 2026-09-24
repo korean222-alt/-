@@ -58,7 +58,7 @@ Place: `output/CursedBarrel_Phase16_Lobby.rbxl` (이 파일을 여세요. Phase 
 ## 해 주실 것
 
 1. Studio 에서 `CursedBarrel_Phase16_Lobby.rbxl` 열기
-2. (Phase 15 에서 안 하셨으면) 블렌더 모델 가져오기: 홈 → 3D 가져오기 → `assets/models/CursedBarrelModels.fbx` → "단일 메시로 가져오기" 끄기 → 가져오기
+2. (Phase 15 에서 안 하셨으면) 블렌더 모델 가져오기: 홈 → 3D 가져오기 → `assets/models/CursedBarrelModels.fbx` → **파일 지오메트리 → "배율 조정 값" 을 `0.01` 로 · "메시 병합" 은 끔** → 가져오기
 3. **그룹 ID 를 `C.GroupId` 에** (파란 드럼 보상에 필요) · (선택) 돈 그림 9장 올리고 ID 를 `C.Images.Money` 에
 4. Play 로 확인 (아래) → 게시
 
