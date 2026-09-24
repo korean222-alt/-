@@ -43,3 +43,18 @@
 🎁 스타터	🎁 Starter
 </s>  2배!	</s>  x2!
 🔥 오늘의 특가 · %s	🔥 Today's Deal · %s
+# Phase 16.1 : 그룹 가입 보상 (서버가 가입을 확인)
+👥 그룹 가입 보상이에요 (스폰 옆 파란 드럼)	👥 This is the group reward (blue drum next to spawn)
+%s  ·  %s  ·  👥 그룹 가입 보상	%s  ·  %s  ·  👥 Group reward
+👥 그룹 가입 보상	👥 Group Reward
+👍 게임 좋아요도 부탁해요!	👍 Please like the game too!
+잠시 뒤 다시 눌러 주세요	Please try again in a moment
+그룹 가입 보상	Group Reward
+👥 그룹 가입하고 받기	👥 Join the group & claim
+ReleaseConfig.GroupId 에 그룹 번호를 넣어 주세요	Set ReleaseConfig.GroupId to your group ID
+곧 열려요!	Coming soon!
+그룹에 가입하면 바로 받아요 (가입을 확인해요)\n👍 게임 좋아요도 부탁해요!	Join the group to claim it right away (we check!)\n👍 Please like the game too!
+그룹에 가입해야 받을 수 있어요	You need to join the group first
+준비 중이에요	Not ready yet
+👥 그룹 보상	👥 Group reward
+스폰 옆 파란 드럼에서 그룹에 가입하면 받아요!	Join the group at the blue drum next to spawn!

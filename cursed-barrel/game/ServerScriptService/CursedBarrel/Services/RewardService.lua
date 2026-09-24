@@ -148,13 +148,44 @@ end
 --------------------------------------------------
 
 --------------------------------------------------
--- Phase 16 : 게임 좋아요 보상 (파란 철제 드럼)
+-- Phase 16 : 그룹 가입 보상 (파란 철제 드럼)
+--   Phase 16.1 : "사람을 믿지 말고 확인" → 서버가 그룹 가입을 직접 확인한 사람에게만 준다.
+--     · Roblox 는 게임 서버가 "이 사람이 좋아요를 눌렀는지" 알 수 있는 방법을 주지 않는다
+--       (좋아요 기록은 그 사람 본인 로그인으로만 볼 수 있고, 게임 서버는 roblox.com 에 요청할 수 없다).
+--       사진 속 게임들도 실제로 확인하는 것은 그룹 가입뿐이다. 좋아요는 "부탁"으로만 적는다.
+--     · 그룹 ID(ReleaseConfig.GroupId)가 없으면 확인할 것이 없으니 주지 않는다 ("notready").
 --------------------------------------------------
 
--- 이 그룹 가입도 확인한다 (ReleaseConfig.GroupId, 0 이면 좋아요만)
 local function groupId()
 	local ok, release = pcall(require, Shared:WaitForChild("ReleaseConfig"))
 	return ok and tonumber(release.GroupId) or 0
+end
+RewardService.groupId = groupId
+
+-- 그룹에 들어 있는가. IsInGroup 은 한 서버에서 처음 물어본 값을 기억하므로(방금 가입해도 false),
+-- 아니라고 하면 GetGroupsAsync 로 한 번 더 확인한다. 둘 다 실패하면 nil (잠시 뒤 다시).
+function RewardService.isMember(player, group)
+	local okCached, cached = pcall(function()
+		return player:IsInGroup(group)
+	end)
+	if okCached and cached then
+		return true
+	end
+	local okFresh, groups = pcall(function()
+		return game:GetService("GroupService"):GetGroupsAsync(player.UserId)
+	end)
+	if okFresh and typeof(groups) == "table" then
+		for _, info in ipairs(groups) do
+			if tonumber(info.Id) == group then
+				return true
+			end
+		end
+		return false
+	end
+	if okCached then
+		return false
+	end
+	return nil
 end
 
 function RewardService:ClaimLike(player)
@@ -170,13 +201,14 @@ function RewardService:ClaimLike(player)
 		return false, "이미 받았어요 ✔"
 	end
 	local group = groupId()
-	if group > 0 then
-		local ok, inGroup = pcall(function()
-			return player:IsInGroup(group)
-		end)
-		if ok and not inGroup then
-			return false, "group"
-		end
+	if group <= 0 then
+		return false, "notready"
+	end
+	local member = RewardService.isMember(player, group)
+	if member == nil then
+		return false, "잠시 뒤 다시 눌러 주세요"
+	elseif not member then
+		return false, "group"
 	end
 	profile.likeClaimed = true
 	ProfileService:Grant(player, like.Kind, like.Skin) -- 저장 표시까지 한다

@@ -352,7 +352,10 @@ codeBox.FocusLost:Connect(function(enter)
 	end
 end)
 
-local likeWin = UIKit.window(gui, { name = "LikeReward", title = "좋아요 보상", theme = "blue", icon = "👍", size = Vector2.new(600, 360) })
+-- Phase 16.1 : 그룹 가입을 서버가 직접 확인하고 준다 (좋아요는 Roblox 가 게임에 알려 주지 않아서 "부탁"만 한다)
+local GROUP = tonumber(Release.GroupId) or 0
+local IN_STUDIO = game:GetService("RunService"):IsStudio()
+local likeWin = UIKit.window(gui, { name = "LikeReward", title = "그룹 가입 보상", theme = "blue", icon = "👥", size = Vector2.new(600, 360) })
 local likeView = Instance.new("ViewportFrame")
 likeView.Name = "Drum"
 likeView.Size = UDim2.fromOffset(210, 230)
@@ -402,22 +405,52 @@ likeSide.Position = UDim2.fromOffset(230, 0)
 likeSide.Size = UDim2.new(1, -232, 1, 0)
 likeSide.Parent = likeWin.body
 text(likeSide, "파란 철제 드럼 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 6), 30, UIKit.Colors.Blue)
-local likeHow = text(likeSide, "게임 페이지에서 👍 좋아요를 눌러 주세요", UDim2.new(1, 0, 0, 64), UDim2.fromOffset(0, 54), 22, COLORS.Cream)
-local likeButton = button(likeSide, "👍 눌렀어요! 받기", UDim2.new(1, -4, 0, 64), UDim2.fromOffset(0, 136), "blue")
+local likeHow = text(likeSide, "", UDim2.new(1, 0, 0, 74), UDim2.fromOffset(0, 50), 21, COLORS.Cream)
+local likeButton = button(likeSide, "👥 그룹 가입하고 받기", UDim2.new(1, -4, 0, 64), UDim2.fromOffset(0, 136), "blue")
 local likeResult = text(likeSide, "", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 210), 22, COLORS.Gold)
+local likeBusy = false
 local function drawLike()
 	local claimed = player:GetAttribute("LikeClaimed") == true
-	likeButton.Text = claimed and "받았어요 ✔" or "👍 눌렀어요! 받기"
-	UIKit.setTheme(likeButton, claimed and "grey" or "blue")
-	likeButton.Active = not claimed
-	likeHow.Text = claimed and "고마워요! 통 스킨에서 장착할 수 있어요" or "게임 페이지에서 👍 좋아요를 눌러 주세요"
+	local ready = GROUP > 0
+	if claimed then
+		likeButton.Text = "받았어요 ✔"
+		likeHow.Text = "고마워요! 통 스킨에서 장착할 수 있어요"
+	elseif not ready then
+		likeButton.Text = "준비 중"
+		likeHow.Text = IN_STUDIO and "ReleaseConfig.GroupId 에 그룹 번호를 넣어 주세요" or "곧 열려요!"
+	else
+		likeButton.Text = "👥 그룹 가입하고 받기"
+		likeHow.Text = "그룹에 가입하면 바로 받아요 (가입을 확인해요)\n👍 게임 좋아요도 부탁해요!"
+	end
+	local active = ready and not claimed and not likeBusy
+	UIKit.setTheme(likeButton, active and "blue" or "grey")
+	likeButton.Active = active
 end
 likeButton.Activated:Connect(function()
-	if player:GetAttribute("LikeClaimed") == true then
+	if likeBusy or GROUP <= 0 or player:GetAttribute("LikeClaimed") == true then
 		return
 	end
+	likeBusy = true
 	likeResult.Text = "…"
-	rewardRequest:FireServer("like")
+	drawLike()
+	task.spawn(function()
+		-- 아직 안 들어갔으면 Roblox 그룹 가입 창을 띄운다. 가입했는지는 서버가 다시 확인한다
+		local okMember, member = pcall(function()
+			return player:IsInGroup(GROUP)
+		end)
+		if not (okMember and member) then
+			pcall(function()
+				game:GetService("GroupService"):PromptJoinAsync(GROUP)
+			end)
+		end
+		rewardRequest:FireServer("like")
+		task.delay(3, function()
+			if likeBusy then
+				likeBusy = false
+				drawLike()
+			end
+		end)
+	end)
 end)
 local function openLike()
 	drawLike()
@@ -564,24 +597,16 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 			Sfx.play("Coins", { volume = 0.9 })
 			shopRequest:FireServer("sync")
 		elseif result == "group" then
-			-- 그룹 가입이 필요하다 : 가입 창을 띄우고, 가입하면 다시 받아 본다
-			likeResult.Text = "그룹에 가입하면 받을 수 있어요"
+			likeResult.Text = "그룹에 가입해야 받을 수 있어요"
 			likeResult.TextColor3 = COLORS.Red
-			local group = tonumber(Release.GroupId) or 0
-			if group > 0 then
-				task.spawn(function()
-					local okPrompt = pcall(function()
-						game:GetService("GroupService"):PromptJoinAsync(group)
-					end)
-					if okPrompt and player:IsInGroup(group) then
-						rewardRequest:FireServer("like")
-					end
-				end)
-			end
+		elseif result == "notready" then
+			likeResult.Text = "준비 중이에요"
+			likeResult.TextColor3 = COLORS.Red
 		else
 			likeResult.Text = tostring(result)
 			likeResult.TextColor3 = COLORS.Red
 		end
+		likeBusy = false
 		drawLike()
 	end
 end)

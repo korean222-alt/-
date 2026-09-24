@@ -1176,16 +1176,26 @@ check("Blender models: catalog is complete and the game falls back without them"
 end)
 -- Phase 16
 Font=Font or {new=function() return {} end,fromEnum=function() return {} end}
-check("like reward: blue drum once per account, equipped, cannot be bought",function()
+check("group reward: blue drum only after the server confirms group membership, once, equipped, not sold",function()
  local Reward=loadModule("RewardService");local Shop=loadModule("ShopService")
  local q=player(161);Profiles:_load(q);local d=Profiles:Get(q)
  assert(not d.owned.Barrel.blue_drum,"new players do not own it")
  d.coins=10^7;local ok,why=Shop:Buy(q,"Barrel","blue_drum");assert(not ok and why==Config.RejectMessages.LikeOnly,"buy: "..tostring(why))
+ local saved=Release.GroupId
+ Release.GroupId=0;local okNo,whyNo=Reward:ClaimLike(q);assert(not okNo and whyNo=="notready","no group id: nothing to verify, nothing given")
+ Release.GroupId=4242
+ local member=false
+ rawset(q,"IsInGroup",function(_,id) return member and id==4242 end)
+ local groups={};services.GroupService=services.GroupService or node("GroupService")
+ rawset(services.GroupService,"GetGroupsAsync",function() return groups end)
+ local okOut,whyOut=Reward:ClaimLike(q);assert(not okOut and whyOut=="group","not a member: refused");assert(not d.owned.Barrel.blue_drum)
+ groups={{Id=4242,Name="crew"}} -- IsInGroup is cached false, the fresh list says joined
  local okLike,info=Reward:ClaimLike(q);assert(okLike and info.id=="blue_drum","claim: "..tostring(info))
  assert(d.owned.Barrel.blue_drum,"owned");assert(d.likeClaimed,"flag");assert(d.equipped.Barrel=="blue_drum","equipped")
  assert(q:GetAttribute("LikeClaimed")==true,"the pedestal prompt reads this")
  local again=Reward:ClaimLike(q);assert(not again,"only once")
  assert(Profiles:Save(q,"like"));assert(storage.u_161.likeClaimed==true,"saved")
+ Release.GroupId=saved
 end)
 check("codes: case-insensitive, once per account; developer code only for developers and keeps them off the rankings",function()
  local Codes=loadModule("CodeService")

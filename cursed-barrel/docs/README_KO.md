@@ -40,6 +40,9 @@ python3 tools/blender/roulette_preview.py      # 룰렛 판 미리보기
   - 룰렛: RouletteWheel (3D 판 · 금테 · 전구 · 칸 그림 · 3D 바늘, 카메라를 굴려 돌린다).
   - 휴대폰: UIKit.autoScale (버튼 줄 · 코인), 창을 실제 화면에 맞춤 + 상점 flexHeight, 오른쪽 줄을 점프 버튼 위로, 휴대폰은 가까운 등불 14개만.
   - 검사 110개 (좋아요 · 코드 · 랭킹 판 · 문 자리 · 돈 그림 조각 추가).
+- 16.1.0:
+  - 파란 드럼 보상은 서버가 그룹 가입을 직접 확인한 사람에게만 (IsInGroup + GetGroupsAsync). 좋아요는 게임 서버가 확인할 수 없어 "부탁"으로만 적는다. `C.GroupId` 가 비면 받을 수 없다.
+  - 룰렛 판을 평면(2D)으로: 고른 빛(음영 · 그림자 없음), 기울인 3D 그림을 빼고 큰 금액 글자 + 똑바로 선 돈 그림, 아래쪽 글자는 뒤집어 바로 읽히게.
 - 15.0.0 Kraken:
   - 바다 구조(RescueService): 물에 빠지면 가까운 갑판으로 건짐, 부활이 안 오면 LoadCharacter, FallenPartsDestroyHeight -140.
   - Blender 모델(MeshKit · MeshCatalog · `assets/models/CursedBarrelModels.fbx`): 나무 통 · 철제 드럼 · 대포 · 크라켄 머리 · 다리 마디 · 빨판, 배 위에 누운 크라켄 다리 3개(KrakenLayout.Resting · 겹침 검사). 모델이 없으면 예전 파트 모양.

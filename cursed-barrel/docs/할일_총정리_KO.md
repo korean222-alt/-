@@ -173,7 +173,7 @@ Roulette =
 ShopImage =
 (선택) 돈 그림: cash= cash2= cash3= coins= chest= vault= gift= crown= potion=
 
-[그룹 — 선택] (좋아요 보상 때 가입 확인)
+[그룹 — 파란 드럼 보상에 필요] (그룹 페이지 주소의 숫자)
 GroupId =
 
 [소리]

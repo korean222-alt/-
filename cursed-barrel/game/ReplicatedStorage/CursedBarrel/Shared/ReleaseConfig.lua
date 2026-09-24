@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "16.0.0"
+C.Version = "16.1.0"
 C.StudioSolo = false
 C.FriendBonus = 0.10 -- one verified friend in the same round, non-stacking
 C.PartyBonus = 0.05
@@ -43,7 +43,7 @@ C.Meshes = {
 -- Phase 14 : UI 그림 ID (0 이면 코드로 그린 것을 쓴다)
 --   Pattern : 창 머리띠에 깔리는 무늬 타일 (assets/ui/pattern_tile.png 를 올린 ID)
 C.UIImages = { Pattern = 0 }
--- Phase 16 : 그룹 ID. 넣으면 "좋아요 보상"을 받을 때 그룹 가입도 확인한다 (가입 창을 띄워 준다). 0 이면 좋아요만.
+-- Phase 16.1 : 그룹 ID (그룹 페이지 주소의 숫자). 스폰 옆 파란 드럼은 서버가 이 그룹 가입을 확인한 사람에게만 준다. 0 이면 아무도 못 받는다.
 C.GroupId = 0
 -- Phase 13 : 버튼 이미지 ID. 0 이면 코드로 그린 나무 버튼을 쓴다.
 --   Attendance : assets/branding/attendance_button.png 을 올린 이미지 ID (출석판 버튼)

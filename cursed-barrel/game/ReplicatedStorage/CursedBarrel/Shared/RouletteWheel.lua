@@ -5,11 +5,12 @@
 	진짜 3D 판을 ViewportFrame 안에 세운다. 그림을 올릴 필요가 없다.
 	  · 칸마다 선명한 색 부채꼴 (삼각형 여러 장으로 둥글게) · 칸 사이 금색 칸막이
 	  · 두꺼운 금테 + 짙은 나무 뒷판 + 테두리를 따라 반짝이는 전구 16개
-	  · 가운데 금색 축 · 칸마다 돈 그림(MoneyIcon) 또는 선물 상자 · 칸 이름 글자
+	  · 가운데 금색 축 · 칸마다 큰 금액 글자 + 돈 그림(MoneyIcon) 또는 선물 상자
+	  · Phase 16.1 : 평면(2D)처럼 보이게 고른 빛만 쓴다 (음영 · 그림자 없음). 기울인 3D 그림은 뺐다
 	  · 위쪽에 고정된 빨간 3D 바늘
 
 	돌리기는 판을 움직이지 않고 카메라를 굴린다 (파트 수백 개를 매 프레임 옮기지 않는다 · 휴대폰에서도 가볍다).
-	칸 이름 글자는 화면 위에 따로 얹고, 돌아간 각도만큼 자리 · 기울기를 맞춘다.
+	칸 글자 · 그림은 화면 위에 따로 얹고, 돌아간 각도만큼 자리(글자는 기울기도)를 맞춘다.
 
 	RouletteWheel.new(parent, segments, pixels) → wheel
 	  wheel.frame            : 판 전체 (Frame)
@@ -134,9 +135,11 @@ function RouletteWheel.new(parent, segments, pixels)
 	view.Name = "Wheel3D"
 	view.BackgroundTransparency = 1
 	view.Size = UDim2.fromScale(1, 1)
-	view.Ambient = Color3.fromRGB(200, 200, 210)
-	view.LightColor = Color3.fromRGB(255, 250, 235)
-	view.LightDirection = Vector3.new(-0.35, -0.55, -1)
+	-- 평면(2D) 느낌 : 빛 방향 없이 고른 빛만. 음영 · 그림자가 없어 칸 색이 그대로 선명하다
+	--   (ViewportFrame 은 원래 그림자를 그리지 않는다)
+	view.Ambient = Color3.fromRGB(255, 255, 255)
+	view.LightColor = Color3.fromRGB(0, 0, 0)
+	view.LightDirection = Vector3.new(0, 0, -1)
 	view:SetAttribute("NoStyle", true)
 	view.Parent = frame
 	self.view = view
@@ -172,14 +175,6 @@ function RouletteWheel.new(parent, segments, pixels)
 		-- 칸막이
 		local edge = onWheel(from, RADIUS * 0.5, 0.35)
 		part(model, "Divider", Vector3.new(0.26, RADIUS, 0.3), CFrame.new(edge) * CFrame.Angles(0, 0, -math.rad(from)), GOLD, Enum.Material.SmoothPlastic)
-		-- 칸 그림 (돈 · 선물)
-		local icon = MoneyIcon.model(iconFor(segments[index]))
-		local _, size = icon:GetBoundingBox()
-		icon:ScaleTo(3.1 / math.max(size.X, size.Y, size.Z))
-		local center = (index - 1) * self.step
-		-- 37도 : 돈 그림을 그린 방향(앞 위, MoneyIcon 의 VIEW_DIRECTION)이 카메라를 보게
-		icon:PivotTo(CFrame.new(onWheel(center, RADIUS * 0.74, 1.2)) * CFrame.Angles(0, 0, -math.rad(center)) * CFrame.Angles(math.rad(37), 0, 0))
-		icon.Parent = model
 	end
 
 	-- 전구
@@ -203,12 +198,13 @@ function RouletteWheel.new(parent, segments, pixels)
 
 	-- 칸 이름 (화면 위 글자)
 	self.labels = {}
+	self.icons = {}
 	for index, segment in ipairs(segments) do
 		local label = Instance.new("TextLabel")
 		label.Name = "Label" .. index
 		label.BackgroundTransparency = 1
 		label.AnchorPoint = Vector2.new(0.5, 0.5)
-		label.Size = UDim2.fromScale(0.2, 0.085)
+		label.Size = UDim2.fromScale(0.19, 0.078)
 		label.FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json", Enum.FontWeight.Bold)
 		label.TextScaled = true
 		label.TextColor3 = Color3.new(1, 1, 1)
@@ -221,6 +217,10 @@ function RouletteWheel.new(parent, segments, pixels)
 		stroke.Color = Color3.fromRGB(30, 16, 12)
 		stroke.Parent = label
 		self.labels[index] = label
+		-- 칸 그림 (돈 · 선물). 판과 함께 돌지만 늘 똑바로 서 있다
+		self.icons[index] = MoneyIcon.view(frame, iconFor(segment), {
+			name = "Icon" .. index, size = UDim2.fromScale(0.12, 0.12), anchor = Vector2.new(0.5, 0.5), zIndex = 3,
+		})
 	end
 
 	-- 바늘 (위에 고정 · 판과 함께 돌지 않는다)
@@ -230,8 +230,8 @@ function RouletteWheel.new(parent, segments, pixels)
 	pin.AnchorPoint = Vector2.new(0.5, 0)
 	pin.Position = UDim2.new(0.5, 0, 0, -pixels * 0.06)
 	pin.Size = UDim2.fromScale(0.2, 0.2)
-	pin.Ambient = Color3.fromRGB(210, 200, 200)
-	pin.LightDirection = Vector3.new(-0.3, -0.6, -1)
+	pin.Ambient = Color3.fromRGB(255, 255, 255)
+	pin.LightColor = Color3.fromRGB(0, 0, 0)
 	pin.ZIndex = 4
 	pin:SetAttribute("NoStyle", true)
 	pin.Parent = frame
@@ -280,8 +280,15 @@ function RouletteWheel:setRotation(degrees)
 	for index, label in ipairs(self.labels) do
 		local angle = (index - 1) * self.step + degrees
 		local a = math.rad(angle)
-		label.Position = UDim2.fromScale(0.5 + math.sin(a) * 0.2, 0.5 - math.cos(a) * 0.2)
-		label.Rotation = angle
+		-- 금액 글자는 바깥쪽(판 둘레 가까이)에 반지름 방향으로, 그림은 안쪽 밝은 띠 위에
+		label.Position = UDim2.fromScale(0.5 + math.sin(a) * 0.325, 0.5 - math.cos(a) * 0.325)
+		-- 아래쪽 반에 있는 글자는 뒤집어서 늘 바로 읽히게 ("900" 이 "006" 으로 보이지 않게)
+		local turned = angle % 360
+		label.Rotation = (turned > 90 and turned < 270) and angle + 180 or angle
+		local icon = self.icons[index]
+		if icon then
+			icon.Position = UDim2.fromScale(0.5 + math.sin(a) * 0.19, 0.5 - math.cos(a) * 0.19)
+		end
 	end
 end
 

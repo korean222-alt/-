@@ -262,7 +262,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
-	LikeOnly = "👍 게임 좋아요 보상이에요 (스폰 옆 파란 드럼)",
+	LikeOnly = "👥 그룹 가입 보상이에요 (스폰 옆 파란 드럼)",
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -593,7 +593,7 @@ GameConfig.Skins = {
 		},
 		-- Phase 13 : 파란 철제 드럼 (진짜 200리터 드럼처럼 : 광택 파란 페인트 · 굴림 테 두 줄 · 위아래 주름 · 뚜껑 마개 둘)
 		{
-			-- Phase 16 : 게임에 좋아요를 누르면 받는 보상 (상점에서는 팔지 않는다 · 스폰 옆 받침대에서 받는다)
+			-- Phase 16 : 그룹 가입 보상 (상점에서는 팔지 않는다 · 스폰 옆 받침대에서 받는다)
 			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 0, reward = "like",
 			body = Color3.fromRGB(26, 70, 178), bodyMaterial = Enum.Material.SmoothPlastic, reflectance = 0.16,
 			hoop = Color3.fromRGB(34, 84, 196), hoopMaterial = Enum.Material.SmoothPlastic,
@@ -1575,9 +1575,9 @@ GameConfig.Roulette = {
 	},
 }
 
--- Phase 16 : 게임 좋아요 보상. 스폰 옆 받침대에서 받는다 (계정당 한 번).
---   Roblox 는 좋아요를 눌렀는지 알려 주지 않는다 → 누르고 왔다고 하면 믿고 준다.
---   ReleaseConfig.GroupId 를 넣으면 그 그룹 가입도 확인한다 (가입 창을 띄워 준다).
+-- Phase 16 : 그룹 가입 보상 (스폰 옆 받침대 · 계정당 한 번). 이름은 예전 그대로 LikeReward.
+--   Phase 16.1 : 서버가 그룹 가입을 직접 확인한 사람에게만 준다 (ReleaseConfig.GroupId 필요).
+--   좋아요는 Roblox 가 게임에 알려 주지 않아서 확인할 수 없다 → 받침대에는 "좋아요도 부탁해요" 로만 적는다.
 GameConfig.LikeReward = {
 	Enabled = true,
 	Kind = "Barrel",

@@ -431,8 +431,8 @@ local function skinButton(f, entry, x, width)
 	elseif entry.season then
 		cardButton(f, "시즌 보상", "grey", x, width).Active = false
 	elseif entry.reward == "like" then
-		cardButton(f, "👍 좋아요 보상", "blue", x, width).Activated:Connect(function()
-			showToast("스폰 옆 파란 드럼에서 받을 수 있어요!", true)
+		cardButton(f, "👥 그룹 보상", "blue", x, width).Activated:Connect(function()
+			showToast("스폰 옆 파란 드럼에서 그룹에 가입하면 받아요!", true)
 		end)
 	elseif entry.vip or entry.pack then
 		local offer = entry.vip and state.vip or state.starter
@@ -838,7 +838,7 @@ local function refreshPedestal(pedestal)
 	elseif entry.pack then
 		prompt.ActionText = "스타터 팩 전용"
 	elseif entry.reward == "like" then
-		prompt.ActionText = "👍 좋아요 보상"
+		prompt.ActionText = "👥 그룹 가입 보상"
 	elseif entry.robux > 0 and entry.price <= 0 then
 		prompt.ActionText = ("R$ %d"):format(entry.robux)
 	else

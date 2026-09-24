@@ -315,7 +315,7 @@ local function priceText(skin)
 		return ("%s  ·  %s  ·  스타터 팩 전용"):format(skin.name, rarity.label)
 	end
 	if skin.reward == "like" then
-		return ("%s  ·  %s  ·  👍 좋아요 보상"):format(skin.name, rarity.label)
+		return ("%s  ·  %s  ·  👥 그룹 가입 보상"):format(skin.name, rarity.label)
 	end
 	if skin.robux then
 		return ("%s  ·  %s  ·  R$ %d"):format(skin.name, rarity.label, skin.robux)
@@ -433,8 +433,9 @@ function LobbyBuilder:_buildShowcase()
 end
 
 --------------------------------------------------
--- Phase 16 : 스폰 옆 좋아요 보상 받침대 (파란 철제 드럼이 빙글빙글)
---   누르면 각자 화면(RewardController)이 "좋아요 눌렀어요!" 창을 띄운다. 주는 것은 RewardService:ClaimLike.
+-- Phase 16 : 스폰 옆 그룹 가입 보상 받침대 (파란 철제 드럼이 빙글빙글)
+--   누르면 각자 화면(RewardController)이 창을 띄우고 Roblox 그룹 가입 창을 연다.
+--   주는 것은 RewardService:ClaimLike (서버가 그룹 가입을 직접 확인한다).
 --------------------------------------------------
 
 function LobbyBuilder:_buildLikeReward()
@@ -477,7 +478,7 @@ function LobbyBuilder:_buildLikeReward()
 	-- 멀리서도 보이는 머리 위 글자 (항상 보는 사람 쪽)
 	local sign = Instance.new("BillboardGui")
 	sign.Name = "LikeSign"
-	sign.Size = UDim2.fromScale(9, 3.4)
+	sign.Size = UDim2.fromScale(10, 4.2)
 	sign.StudsOffsetWorldSpace = Vector3.new(0, 7.6, 0)
 	sign.MaxDistance = 110
 	sign.LightInfluence = 0
@@ -498,8 +499,9 @@ function LobbyBuilder:_buildLikeReward()
 		stroke.Parent = label
 		return label
 	end
-	line("👍 좋아요 보상", 0, 0.58, Color3.fromRGB(255, 255, 255))
-	line("파란 철제 드럼 무료!", 0.6, 0.4, Color3.fromRGB(120, 200, 255))
+	line("👥 그룹 가입 보상", 0, 0.5, Color3.fromRGB(255, 255, 255))
+	line("파란 철제 드럼 무료!", 0.52, 0.28, Color3.fromRGB(120, 200, 255))
+	line("👍 게임 좋아요도 부탁해요!", 0.8, 0.2, Color3.fromRGB(255, 226, 120))
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LikeReward"
