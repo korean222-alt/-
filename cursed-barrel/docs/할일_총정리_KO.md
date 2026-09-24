@@ -23,9 +23,14 @@
 2. **홈 → 3D 가져오기(Import 3D)** → `assets/models/CursedBarrelModels.fbx` → **"단일 메시로 가져오기" 끄기** → 가져오기.
    - Workspace 에 `CursedBarrelModels` 가 생기면 그대로 둡니다. (게임이 켜질 때 알아서 보관함으로 옮기고 제자리에 놓습니다)
    - 새 통 · 드럼 · 대포 · 크라켄(누운 다리 포함)이 이 모델로 바뀝니다. 안 하면 예전 모양으로 돌아갑니다.
-3. **파일 → Roblox에 게시(Publish to Roblox)** 를 누릅니다.
+3. (해적 모델을 쓸 경우) 다른 파일에 넣어 둔 `CustomPirate` 모델을 이 파일로 옮깁니다.
+   - 그 파일을 열고 탐색기에서 `ReplicatedStorage > CursedBarrel > Visuals > CustomPirate` 오른쪽 클릭 → **복사**
+   - 이 파일의 `ReplicatedStorage > CursedBarrel > Visuals` 오른쪽 클릭 → **안에 붙여넣기**
+   - 모델 안에 `Script` · `LocalScript` 가 있으면 지웁니다 (게임이 켜질 때도 자동으로 지웁니다)
+   - 이 모델은 **기본 해적**에만 쓰입니다. 코인으로 산 다른 해적 스킨은 제 모습 그대로입니다
+4. **파일 → Roblox에 게시(Publish to Roblox)** 를 누릅니다.
    - 상품을 만들려면 게임이 한 번은 게시돼 있어야 합니다. 비공개 상태로 두어도 됩니다.
-4. **게임 설정 → 보안 → "Studio에서 API 서비스 사용"** 을 켭니다. (저장 · 순위판을 Studio에서 확인할 수 있게)
+5. **게임 설정 → 보안 → "Studio에서 API 서비스 사용"** 을 켭니다. (저장 · 순위판을 Studio에서 확인할 수 있게)
 
 ## 2. Play로 확인할 것 (체크하면서)
 
@@ -58,6 +63,7 @@
 3. 목록의 그림 위 **⋯ → Copy Asset ID** 로 숫자를 복사합니다.
 
 ⚠️ 가격은 아래 표와 **똑같이** 적어 주세요. (상점에 보이는 숫자와 실제 결제 가격이 같아야 합니다)
+- **이 표가 기준입니다** (게임 코드 `GameConfig.lua` 와 같은 값). 다른 문서의 예전 사본과 다르면 이 표를 따르세요.
 
 **개발자 상품 6개**
 

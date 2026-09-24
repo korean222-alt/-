@@ -57,6 +57,25 @@ for _, asset in ipairs({ "Cannon", "Cask", "Drum", "KrakenPieces" }) do
 	end
 end
 
+-- Phase 16.2 : Creator Store 에서 받아 넣은 해적 모델(Visuals.CustomPirate) 안의 스크립트를 지운다.
+--   무료 모델에는 몰래 도는 스크립트(백도어)가 숨어 있는 경우가 있다. 모양만 쓰면 되므로 스크립트는 필요 없다.
+do
+	local visuals = game:GetService("ReplicatedStorage").CursedBarrel:FindFirstChild("Visuals")
+	local custom = visuals and visuals:FindFirstChild("CustomPirate")
+	if custom then
+		local removed = 0
+		for _, item in ipairs(custom:GetDescendants()) do
+			if item:IsA("LuaSourceContainer") then
+				item:Destroy()
+				removed += 1
+			end
+		end
+		if removed > 0 then
+			warn(("[CursedBarrel] CustomPirate 안의 스크립트 %d개를 지웠습니다. Studio 에서도 지워 두세요."):format(removed))
+		end
+	end
+end
+
 -- Relocate whole table models before GameTable caches seat/slot geometry.
 require(Services.ShipLobbyBuilder):Prepare()
 ProfileService:Start()

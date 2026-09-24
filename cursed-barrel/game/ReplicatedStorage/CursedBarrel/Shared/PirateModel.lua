@@ -9,7 +9,8 @@
 
 	★ 직접 만든(또는 Creator Store 에서 받은) 모델을 쓰고 싶다면
 	  ReplicatedStorage > CursedBarrel > Visuals 안에 "CustomPirate" 라는 이름의 Model 로 넣으면 된다.
-	  그러면 이 코드 대신 그 모델을 쓴다. (PrimaryPart 를 몸통 가운데에 두고, 정면이 -Z 를 보게 둘 것)
+	  그러면 기본 해적(저주받은 선장)은 이 코드 대신 그 모델을 쓴다. (PrimaryPart 를 몸통 가운데에 두고, 정면이 -Z 를 보게 둘 것)
+	  다른 해적 스킨은 자기 색 · 모양 그대로다. (모델에 AllSkins = true 속성을 달면 모든 스킨에 쓴다)
 	  그 경우 턱 · 팔 움직임은 없고 몸 전체만 움직인다.
 
 	좌표 약속 (Phase4Controller 의 카메라가 이 값을 믿는다)
@@ -42,10 +43,24 @@ function PirateModel.new(skin, visuals)
 	self.items = {} -- { part, group, rest, base }
 	self.custom = false
 
+	-- Phase 16.2 : 넣어 둔 모델(CustomPirate)은 기본 해적(첫 번째 해적 스킨)에만 쓴다.
+	--   예전에는 모든 해적 스킨이 그 모델 하나로 보여서, 코인으로 산 해적 스킨이 전부 똑같아졌다.
+	--   모든 스킨에 쓰고 싶으면 CustomPirate 모델에 AllSkins = true 속성(Attribute)을 단다.
 	local custom = visuals and visuals:FindFirstChild("CustomPirate")
-	if custom and custom:IsA("Model") then
+	local defaultSkin = skin == nil or skin.id == nil or skin.id == "captain"
+	if custom and custom:IsA("Model") and (defaultSkin or custom:GetAttribute("AllSkins") == true) then
 		self.model = custom:Clone()
 		self.custom = true
+		for _, p in ipairs(self.model:GetDescendants()) do
+			-- 받은 모델 안의 스크립트는 지운다 (무료 모델에 숨은 스크립트가 있는 경우가 있다)
+			if p:IsA("LuaSourceContainer") then
+				p:Destroy()
+			elseif p:IsA("Humanoid") then
+				-- 머리 위 이름 · 체력 막대를 숨긴다
+				p.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+				p.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+			end
+		end
 		for _, p in ipairs(self.model:GetDescendants()) do
 			if p:IsA("BasePart") then
 				p.Anchored = true
