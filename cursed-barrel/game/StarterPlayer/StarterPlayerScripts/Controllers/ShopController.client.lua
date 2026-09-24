@@ -46,7 +46,6 @@ local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Stab","모
 local RARITY_THEME = { common = "grey", rare = "blue", epic = "purple", legend = "gold", mythic = "red" }
 
 local state = nil -- 서버가 보내 준 마지막 상태
-local coinAndRobuxButtons -- Phase 13 (아래에서 정의)
 -- 상품 ID 를 아직 넣지 않은 것은 공개 서버에서 숨긴다. Studio 에서는 "준비 중"으로 보여 준다.
 local IN_STUDIO = game:GetService("RunService"):IsStudio()
 local sabotageState = { items = {}, opponents = {}, cooldown = 0 }
@@ -90,9 +89,19 @@ launcher.Position = UDim2.new(0, 14, 0.42, 3 * 74 / 2 + 22 + 24)
 launcher.Size = UDim2.fromOffset(260, 64)
 launcher.BackgroundTransparency = 1
 launcher.Parent = gui
+-- Phase 16 : 휴대폰에서는 왼쪽 버튼 줄과 함께 줄어들고, 줄어든 버튼 줄 바로 아래에 붙는다
+local launcherScale = UIKit.autoScale(launcher)
+local function placeLauncher()
+	local s = UIKit.screenScale()
+	launcher.Position = UDim2.new(0, 14, 0.42, math.floor((3 * 74 / 2 + 22 + 24) * s))
+end
+placeLauncher()
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(placeLauncher)
+end
 
-local coinIcon = UIKit.label(launcher, { text = "🪙", size = UDim2.fromOffset(52, 52), position = UDim2.fromOffset(0, 0), textSize = 44, stroke = 2.5 })
-coinIcon.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+-- Phase 16 : 코인 옆 돈 묶음 그림 (사진 속 게임처럼)
+require(Shared:WaitForChild("MoneyIcon")).view(launcher, "cash", { size = UDim2.fromOffset(58, 58), position = UDim2.fromOffset(-4, -4) })
 local coinLabel = UIKit.label(launcher, {
 	text = "0", size = UDim2.new(1, -58, 0, 44), position = UDim2.fromOffset(56, 2),
 	textSize = 38, color = PALETTE.Gold, stroke = 4, alignX = Enum.TextXAlignment.Left,
@@ -115,58 +124,11 @@ end
 localPlayer:GetAttributeChangedSignal("QuestReady"):Connect(refreshQuestDot)
 refreshQuestDot()
 
--- Phase 15 : 상점 줄마다 어떤 스킨인지 작은 3D 그림 (동작 · 연출 스킨은 아이콘)
-local SkinPreview = require(Shared:WaitForChild("SkinPreview"))
-local THUMB_ICONS = { Stab = "🗡", Victory = "🏆", Elimination = "💥" }
-local function thumbnail(row, kind, id)
-	local skin = GameConfig.findSkin(kind, id)
-	if not skin or skin.id ~= id then
-		return nil
-	end
-	local frame = Instance.new("ViewportFrame")
-	frame.Name = "Thumb"
-	frame.Size = UDim2.fromOffset(78, 78)
-	frame.Position = UDim2.fromOffset(20, 9)
-	frame.BackgroundColor3 = UIKit.Colors.BodyDark
-	frame.BackgroundTransparency = 0.15
-	frame.Ambient = Color3.fromRGB(175, 182, 205)
-	frame.LightColor = Color3.fromRGB(255, 238, 210)
-	frame.LightDirection = Vector3.new(-1, -1.2, -0.8)
-	frame.ZIndex = row.ZIndex + 1
-	frame.Parent = row
-	UIKit.corner(frame, 12)
-	local icon = THUMB_ICONS[kind]
-	if icon then
-		local color = (skin.fx and skin.fx.emit) or skin.color
-		if color then
-			frame.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.5)
-		end
-		local label = UIKit.label(frame, { text = icon, size = UDim2.fromScale(1, 1), textSize = 44, stroke = 2, zIndex = frame.ZIndex + 1 })
-		label.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
-		return frame
-	end
-	local world = Instance.new("WorldModel")
-	world.Parent = frame
-	local ok, model = pcall(SkinPreview.build, kind, skin, world)
-	if not ok or not model then
-		return frame
-	end
-	local box, size = model:GetBoundingBox()
-	local camera = Instance.new("Camera")
-	camera.FieldOfView = 30
-	camera.Parent = frame
-	frame.CurrentCamera = camera
-	local radius = math.max(size.X, size.Y, size.Z) * 0.5
-	local distance = radius / math.tan(math.rad(15)) * 1.05 + 0.4
-	camera.CFrame = CFrame.lookAt(box.Position + Vector3.new(0.6, 0.38, 0.9).Unit * distance, box.Position)
-	return frame
-end
-
 --------------------------------------------------
 -- 본 화면
 --------------------------------------------------
 
-local shopWindow = UIKit.window(gui, { name = "Window", title = "상점", theme = "green", icon = "🛒", size = Vector2.new(680, 500) })
+local shopWindow = UIKit.window(gui, { name = "Window", title = "상점", theme = "green", icon = "🛒", size = Vector2.new(860, 580), flexHeight = true })
 local window = shopWindow.frame
 local windowTitle = shopWindow.title
 windowTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -192,22 +154,6 @@ local toast = UIKit.label(window, {
 	name = "Toast", text = "", size = UDim2.new(1, -40, 0, 30), position = UDim2.new(0.5, 0, 1, -10),
 	anchor = Vector2.new(0.5, 1), textSize = 22, color = PALETTE.Good, stroke = 3.5, zIndex = 20,
 })
-
--- 종류 탭 (칼 · 통 · 해적 …) — 상점 화면에서만 쓴다
-local kindRow = Instance.new("Frame")
-kindRow.Name = "Kinds"
-kindRow.Position = UDim2.fromOffset(20, 78)
-kindRow.Size = UDim2.new(1, -40, 0, 38)
-kindRow.BackgroundTransparency = 1
-kindRow.Parent = window
-
-local kindButtons = {}
-for index, entry in ipairs(KINDS) do
-	kindButtons[entry[1]] = UIKit.button(kindRow, {
-		text = entry[2], size = UDim2.fromOffset(84, 36), position = UDim2.fromOffset((index - 1) * 90, 0),
-		theme = "grey", textSize = 18,
-	})
-end
 
 local scroller = Instance.new("ScrollingFrame")
 scroller.Name = "List"
@@ -276,52 +222,188 @@ end
 -- 상점 그리기
 --------------------------------------------------
 
--- VIP 패스 · 스타터 팩 한 줄. 이미 가졌으면 그리지 않는다.
-local function premiumRow(order, offer, action, kind)
-	-- 상품 ID 를 아직 넣지 않았으면 공개 서버에서는 줄 자체를 숨긴다. (Studio 에서는 "준비 중"으로 보인다)
-	if not offer or offer.owned or not (offer.ready or IN_STUDIO) then
-		return order
-	end
-	order += 1
-	local row = makeRow(order, 84, action == "vip" and "gold" or (kind == "Booster" and "orange" or "teal"))
-	label(row, "★ " .. offer.name, UDim2.new(1, -190, 0, 32), UDim2.fromOffset(24, 8), 24, PALETTE.Gold)
-	label(row, offer.blurb or "", UDim2.new(1, -190, 0, 30), UDim2.fromOffset(24, 44), 17, PALETTE.Cream)
-	local buy = textButton(row, offer.ready and ("R$ %d"):format(offer.robux) or "준비 중",
-		UDim2.fromOffset(150, 52), UDim2.new(1, -166, 0.5, -26), offer.ready and "robux" or "grey")
-	buy.Activated:Connect(function()
-		shopRequest:FireServer(action, kind, kind)
-	end)
-	return order
+-- Phase 16 : 상점은 왼쪽 큰 분류 버튼 + 오른쪽 그림 카드 칸 (인기 게임 상점처럼)
+--   카드마다 : 이름 · 큰 그림(스킨 3D · 돈 그림) · 등급 · 값 버튼. 그림을 누르면 크게 돌려 본다.
+local MoneyIcon = require(Shared:WaitForChild("MoneyIcon"))
+
+local CATEGORIES = {
+	{ id = "featured", icon = "⭐", name = "추천", theme = "gold" },
+	{ id = "coins", icon = "💵", name = "코인", theme = "green" },
+	{ id = "Knife", icon = "🗡", name = "칼", theme = "blue" },
+	{ id = "Barrel", icon = "🛢", name = "통", theme = "blue" },
+	{ id = "Ghost", icon = "👻", name = "해적", theme = "teal" },
+	{ id = "Stab", icon = "🤺", name = "모션", theme = "purple" },
+	{ id = "Chair", icon = "🪑", name = "의자", theme = "purple" },
+	{ id = "Elimination", icon = "💥", name = "탈락", theme = "red" },
+	{ id = "Victory", icon = "🏆", name = "승리", theme = "orange" },
+}
+currentKind = "featured"
+
+local shopArea = Instance.new("Frame")
+shopArea.Name = "ShopArea"
+shopArea.BackgroundTransparency = 1
+shopArea.Position = UDim2.fromOffset(14, 76)
+shopArea.Size = UDim2.new(1, -28, 1, -118)
+shopArea.Parent = window
+
+local categoryList = Instance.new("ScrollingFrame")
+categoryList.Name = "Categories"
+categoryList.BackgroundTransparency = 1
+categoryList.BorderSizePixel = 0
+categoryList.Size = UDim2.new(0, 108, 1, 0)
+categoryList.ScrollBarThickness = 0
+categoryList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+categoryList.CanvasSize = UDim2.new()
+categoryList.Parent = shopArea
+local categoryLayout = Instance.new("UIListLayout")
+categoryLayout.Padding = UDim.new(0, 14)
+categoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+categoryLayout.SortOrder = Enum.SortOrder.LayoutOrder
+categoryLayout.Parent = categoryList
+local categoryPad = Instance.new("UIPadding")
+categoryPad.PaddingTop = UDim.new(0, 6)
+categoryPad.PaddingBottom = UDim.new(0, 12)
+categoryPad.Parent = categoryList
+
+local grid = Instance.new("ScrollingFrame")
+grid.Name = "Cards"
+grid.BackgroundTransparency = 1
+grid.BorderSizePixel = 0
+grid.Position = UDim2.fromOffset(120, 0)
+grid.Size = UDim2.new(1, -120, 1, 0)
+grid.ScrollBarThickness = 8
+grid.ScrollBarImageColor3 = PALETTE.Gold
+grid.CanvasSize = UDim2.new()
+grid.Parent = shopArea
+
+local kindButtons = {}
+for index, entry in ipairs(CATEGORIES) do
+	local b = UIKit.iconButton(categoryList, { name = "Category_" .. entry.id, icon = entry.icon, caption = entry.name, theme = "grey", order = index, size = 84 })
+	kindButtons[entry.id] = b
 end
 
--- Phase 13 : 스킨은 코인으로만 산다. 코인이 모자라면 아래에 "충전" 버튼이 생긴다.
--- (모자란 만큼을 채우는 가장 작은 코인 묶음을 권한다. 누르면 그 묶음의 로벅스 구매창)
-coinAndRobuxButtons = function(row, entry)
-	local affordable = state.coins >= entry.price
-	local buy = textButton(row, "🪙 " .. Utility.comma(entry.price), UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10),
-		affordable and "gold" or "grey")
-	buy.Activated:Connect(function()
-		if state.coins >= entry.price then
-			shopRequest:FireServer("buy", entry.kind, entry.id)
+-- 카드 칸 크기 (창 기준 크기. 작은 화면에서는 창 전체가 함께 줄어든다)
+local CARD_W, CARD_H, GAP = 160, 222, 12
+local COLUMNS = 4
+
+local function clearGrid()
+	for _, child in ipairs(grid:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+end
+
+-- 카드를 왼쪽 위부터 차례로 놓는다. span = 2 인 카드는 두 칸을 차지한다.
+local flowColumn, flowRow = 0, 0
+local function resetFlow()
+	flowColumn, flowRow = 0, 0
+end
+local function card(span, themeName)
+	span = math.clamp(span or 1, 1, COLUMNS)
+	if flowColumn + span > COLUMNS then
+		flowColumn = 0
+		flowRow += 1
+	end
+	local t = UIKit.theme(themeName or "grey")
+	local f = Instance.new("Frame")
+	f.Name = "Card"
+	f.Size = UDim2.fromOffset(span * CARD_W + (span - 1) * GAP, CARD_H)
+	f.Position = UDim2.fromOffset(flowColumn * (CARD_W + GAP) + 10, flowRow * (CARD_H + GAP) + 16)
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
+	f.Parent = grid
+	UIKit.gradient(f, t[1]:Lerp(UIKit.Colors.Body, 0.3), t[2]:Lerp(UIKit.Colors.BodyDark, 0.5), 90)
+	UIKit.corner(f, 14)
+	UIKit.outline(f, 3.5)
+	UIKit.gloss(f, 12)
+	flowColumn += span
+	grid.CanvasSize = UDim2.fromOffset(0, (flowRow + 1) * (CARD_H + GAP) + 28)
+	return f
+end
+local function nextRow()
+	if flowColumn > 0 then
+		flowColumn = 0
+		flowRow += 1
+	end
+end
+
+local function cardTitle(f, text, color, x, width)
+	return UIKit.label(f, {
+		name = "Title", text = text, size = UDim2.new(0, width or (f.Size.X.Offset - 12), 0, 30), position = UDim2.fromOffset(x or 6, 6),
+		textSize = 21, color = color or UIKit.Colors.White, stroke = 2.5, scaled = true, zIndex = f.ZIndex + 2,
+	})
+end
+
+local function cardButton(f, text, themeName, x, width)
+	return UIKit.button(f, {
+		text = text, size = UDim2.fromOffset(width or (f.Size.X.Offset - 16), 46), position = UDim2.new(0, x or 8, 1, -54),
+		theme = themeName, textSize = 21, zIndex = f.ZIndex + 2,
+	})
+end
+
+-- 스킨 그림 (3D). 동작 · 연출 스킨은 아이콘. 누르면 크게 돌려 본다.
+local SkinPreview = require(Shared:WaitForChild("SkinPreview"))
+local THUMB_ICONS = { Stab = "🗡", Victory = "🏆", Elimination = "💥" }
+local function skinImage(parent, kind, id, size, position)
+	local skin = GameConfig.findSkin(kind, id)
+	if not skin or skin.id ~= id then
+		return nil
+	end
+	local frame = Instance.new("ViewportFrame")
+	frame.Name = "Thumb"
+	frame.Size = size
+	frame.Position = position
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.BackgroundColor3 = UIKit.Colors.BodyDark
+	frame.BackgroundTransparency = 0.35
+	frame.Ambient = Color3.fromRGB(175, 182, 205)
+	frame.LightColor = Color3.fromRGB(255, 238, 210)
+	frame.LightDirection = Vector3.new(-1, -1.2, -0.8)
+	frame.ZIndex = parent.ZIndex + 1
+	frame:SetAttribute("NoStyle", true)
+	frame.Parent = parent
+	UIKit.corner(frame, 12)
+	local tap = Instance.new("TextButton")
+	tap.Name = "Inspect"
+	tap.BackgroundTransparency = 1
+	tap.Text = ""
+	tap.Size = UDim2.fromScale(1, 1)
+	tap.ZIndex = frame.ZIndex + 3
+	tap:SetAttribute("NoStyle", true)
+	tap.Parent = frame
+	tap.Activated:Connect(function()
+		if kind == "Stab" then
+			require(Shared.StabMotion).preview(localPlayer.Character, skin.style or "classic")
 		else
-			showToast(("🪙 %s 부족"):format(Utility.comma(entry.price - state.coins)), false)
+			SkinPreview.show(kind, id)
 		end
 	end)
-	if affordable then
-		return
+	local icon = THUMB_ICONS[kind]
+	if icon then
+		local color = (skin.fx and skin.fx.emit) or skin.color
+		if color then
+			frame.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.45)
+			frame.BackgroundTransparency = 0.1
+		end
+		local l = UIKit.label(frame, { text = icon, size = UDim2.fromScale(1, 1), textSize = 64, stroke = 2, zIndex = frame.ZIndex + 1 })
+		l.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+		return frame
 	end
-	local shortfall = entry.price - state.coins
-	local pack = GameConfig.coinPackFor(shortfall, not IN_STUDIO)
-	if not pack then
-		return
+	local world = Instance.new("WorldModel")
+	world.Parent = frame
+	local ok, model = pcall(SkinPreview.build, kind, skin, world)
+	if not ok or not model then
+		return frame
 	end
-	local ready = (tonumber(pack.productId) or 0) > 0
-	local topUp = textButton(row, ready and ("충전 R$ %d"):format(pack.robux) or "충전 준비 중",
-		UDim2.fromOffset(150, 30), UDim2.new(1, -166, 0, 56), ready and "robux" or "grey")
-	topUp.Activated:Connect(function()
-		showToast(("🪙 %s  (R$ %d)"):format(Utility.comma(pack.coins), pack.robux), true)
-		shopRequest:FireServer("robux", "coins", pack.id)
-	end)
+	local box, extent = model:GetBoundingBox()
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = frame
+	frame.CurrentCamera = camera
+	local radius = math.max(extent.X, extent.Y, extent.Z) * 0.5
+	local distance = radius / math.tan(math.rad(15)) * 1.05 + 0.4
+	camera.CFrame = CFrame.lookAt(box.Position + Vector3.new(0.6, 0.38, 0.9).Unit * distance, box.Position)
+	return frame
 end
 
 local KIND_NAMES = {}
@@ -329,124 +411,190 @@ for _, entry in ipairs(KINDS) do
 	KIND_NAMES[entry[1]] = entry[2]
 end
 
--- Phase 13 : 오늘의 특가 한 줄 (상점 맨 위)
-local function dealRow(order)
-	local entry = state.deal
-	if not entry or entry.owned then
-		return order
-	end
-	order += 1
-	local row = makeRow(order, 96, "red")
-	UIKit.tag(row, ("-%d%%"):format(math.floor(GameConfig.DailyDeal.Discount * 100 + 0.5)), UIKit.Colors.Gold)
-	label(row, ("🔥 오늘의 특가  ·  %s"):format(KIND_NAMES[entry.kind] or entry.kind), UDim2.new(1, -190, 0, 26), UDim2.fromOffset(24, 10), 18, PALETTE.Gold)
-	label(row, entry.name, UDim2.new(1, -190, 0, 30), UDim2.fromOffset(24, 38), 24, entry.rarityColor or PALETTE.Cream)
-	local old = label(row, ("%s"):format(Utility.comma(entry.originalPrice or entry.price)), UDim2.new(1, -190, 0, 20), UDim2.fromOffset(24, 68), 16, PALETTE.Dim)
-	old.Text = "<s>" .. old.Text .. "</s>"
-	old.RichText = true
-	coinAndRobuxButtons(row, entry)
-	return order
+local redrawShop
+local function jumpToCoins(shortfall)
+	showToast(("🪙 %s 부족 · 코인 충전"):format(Utility.comma(shortfall)), false)
+	currentKind = "coins"
+	task.defer(function()
+		redrawShop()
+	end)
 end
 
-local function drawShop()
-	clearList()
-	if not state then
-		label(makeRow(1), "…", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(24, 0), 20, PALETTE.Dim)
-		return
-	end
-
-	local order = 0
-	order = premiumRow(order, state.starter, "robux", "starter")
-	order = premiumRow(order, state.vip, "vip", "vip")
-	order = premiumRow(order, state.booster, "pass", "Booster")
-	order = dealRow(order)
-	for _, entry in ipairs(state.catalog[currentKind] or {}) do
-		order += 1
-		local row = makeRow(order, 96, RARITY_THEME[entry.rarity or "common"] or "grey")
-		thumbnail(row, entry.kind, entry.id)
-
-		label(row, entry.name, UDim2.new(1, -350, 0, 34), UDim2.fromOffset(108, 10), 24, UIKit.Colors.White)
-		-- 등급만 짧게 (설명 줄은 두지 않는다)
-		local rarity = label(row, entry.rarityLabel or "", UDim2.new(1, -350, 0, 24), UDim2.fromOffset(108, 50), 18, entry.rarityColor or PALETTE.Dim)
-		if entry.deal and not entry.owned then
-			rarity.Text = rarity.Text .. "  🔥"
-		end
-
-		-- Phase 11 : 칼 꽂기 모션은 3D 모형 대신 내 캐릭터로 동작을 보여 준다. (내 화면에서만)
-		local isMotion = entry.kind == "Stab"
-		local inspect = textButton(row, isMotion and "▶" or "3D", UDim2.fromOffset(62, 40), UDim2.new(1, -240, 0, 10), "purple")
-		inspect.Activated:Connect(function()
-			if isMotion then
-				local skin = GameConfig.findSkin("Stab", entry.id)
-				require(Shared.StabMotion).preview(localPlayer.Character, skin and skin.style or "classic")
+-- 스킨 카드 아래 버튼 : 장착 중 · 장착 · 코인 · 로벅스 · VIP · 스타터 · 시즌 · 좋아요
+local function skinButton(f, entry, x, width)
+	if entry.equipped then
+		cardButton(f, "장착 중", "teal", x, width).Active = false
+	elseif entry.owned then
+		cardButton(f, "장착", "blue", x, width).Activated:Connect(function()
+			shopRequest:FireServer("equip", entry.kind, entry.id)
+		end)
+	elseif entry.season then
+		cardButton(f, "시즌 보상", "grey", x, width).Active = false
+	elseif entry.reward == "like" then
+		cardButton(f, "👍 좋아요 보상", "blue", x, width).Activated:Connect(function()
+			showToast("스폰 옆 파란 드럼에서 받을 수 있어요!", true)
+		end)
+	elseif entry.vip or entry.pack then
+		local offer = entry.vip and state.vip or state.starter
+		local ready = offer and offer.ready and not offer.owned
+		cardButton(f, entry.vip and "👑 VIP" or "🎁 스타터", ready and "robux" or "grey", x, width).Activated:Connect(function()
+			if entry.vip then
+				shopRequest:FireServer("vip", "vip", "vip")
 			else
-				require(Shared.SkinPreview).show(entry.kind, entry.id)
+				shopRequest:FireServer("robux", "starter", "starter")
 			end
 		end)
-		if entry.equipped then
-			local badge = textButton(row, "장착 중", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "teal")
-			badge.Active = false
-		elseif entry.owned then
-			local equip = textButton(row, "장착", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "blue")
-			equip.Activated:Connect(function()
-				shopRequest:FireServer("equip", entry.kind, entry.id)
-			end)
-		elseif entry.season then
-			local badge = textButton(row, "시즌 보상", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "grey")
-			badge.Active = false
-		elseif entry.vip or entry.pack then
-			-- 코인으로 살 수 없다. 해당 상품으로 안내한다.
-			local offer = entry.vip and state.vip or state.starter
-			local ready = offer and offer.ready and not offer.owned
-			local buy = textButton(row, entry.vip and "VIP 패스" or "스타터 팩", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10),
-				ready and "robux" or "grey")
-			buy.Activated:Connect(function()
-				if entry.vip then
-					shopRequest:FireServer("vip", "vip", "vip")
-				else
-					shopRequest:FireServer("robux", "starter", "starter")
-				end
-			end)
-		elseif entry.robux > 0 and entry.price <= 0 then
-			local buy = textButton(row, ("R$ %d"):format(entry.robux), UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "robux")
-			buy.Activated:Connect(function()
-				shopRequest:FireServer("robux", entry.kind, entry.id)
-			end)
-		else
-			coinAndRobuxButtons(row, entry)
-		end
-	end
-
-	-- 코인 묶음
-	local packs = {}
-	for _, pack in ipairs(state.coinPacks or {}) do
-		if pack.ready or IN_STUDIO then
-			table.insert(packs, pack)
-		end
-	end
-	if #packs > 0 then
-		order += 1
-		headerRow(order, state.firstPurchase and "🪙 코인 충전  ·  🎁 첫 충전 2배!" or "🪙 코인 충전")
-	end
-
-	for _, pack in ipairs(packs) do
-		order += 1
-		-- Phase 13 : 영화관 팝콘처럼 "대"를 크게 · 금색으로
-		local row = makeRow(order, pack.highlight and 92 or 74, pack.highlight and "gold" or "green")
-		if pack.badge then
-			UIKit.tag(row, pack.badge, pack.highlight and UIKit.Colors.Gold or UIKit.Colors.Cream).Size = UDim2.fromOffset(150, 30)
-		end
-		local coinsText = ("🪙 %s"):format(Utility.comma(pack.coins))
-		if state.firstPurchase then
-			coinsText = ("🪙 %s → %s"):format(Utility.comma(pack.coins), Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier))
-		end
-		label(row, coinsText, UDim2.new(1, -200, 1, 0), UDim2.fromOffset(24, 0), pack.highlight and 30 or 24,
-			pack.highlight and PALETTE.Gold or UIKit.Colors.White)
-		local buy = textButton(row, pack.ready and ("R$ %d"):format(pack.robux) or "준비 중",
-			UDim2.fromOffset(150, 48), UDim2.new(1, -166, 0.5, -24), pack.ready and "robux" or "grey")
-		buy.Activated:Connect(function()
-			shopRequest:FireServer("robux", "coins", pack.id)
+	elseif entry.robux > 0 and entry.price <= 0 then
+		cardButton(f, ("R$ %d"):format(entry.robux), "robux", x, width).Activated:Connect(function()
+			shopRequest:FireServer("robux", entry.kind, entry.id)
+		end)
+	else
+		local affordable = state.coins >= entry.price
+		cardButton(f, "🪙 " .. Utility.comma(entry.price), affordable and "gold" or "grey", x, width).Activated:Connect(function()
+			if state.coins >= entry.price then
+				shopRequest:FireServer("buy", entry.kind, entry.id)
+			else
+				jumpToCoins(entry.price - state.coins)
+			end
 		end)
 	end
+end
+
+local function skinCard(entry)
+	local f = card(1, RARITY_THEME[entry.rarity or "common"] or "grey")
+	cardTitle(f, entry.name, UIKit.Colors.White)
+	skinImage(f, entry.kind, entry.id, UDim2.fromOffset(CARD_W - 28, 112), UDim2.new(0.5, 0, 0, 40))
+	local rarity = UIKit.label(f, {
+		text = (entry.rarityLabel or "") .. ((entry.deal and not entry.owned) and "  🔥" or ""), size = UDim2.new(1, -12, 0, 20),
+		position = UDim2.fromOffset(6, 154), textSize = 17, color = entry.rarityColor or PALETTE.Dim, stroke = 2, zIndex = f.ZIndex + 2,
+	})
+	rarity.Name = "Rarity"
+	skinButton(f, entry)
+	return f
+end
+
+local PACK_ICONS = { "cash", "cash2", "cash3", "chest", "vault" }
+local function coinCard(pack, index)
+	local f = card(1, pack.highlight and "gold" or "green")
+	local amount = state.firstPurchase and pack.coins * GameConfig.FirstPurchase.CoinMultiplier or pack.coins
+	cardTitle(f, "🪙 " .. Utility.comma(amount), pack.highlight and PALETTE.Gold or UIKit.Colors.White)
+	MoneyIcon.view(f, PACK_ICONS[index] or "cash3", { size = UDim2.fromOffset(CARD_W - 20, 118), position = UDim2.new(0.5, 0, 0, 36), anchor = Vector2.new(0.5, 0), spin = pack.highlight })
+	if state.firstPurchase then
+		local old = UIKit.label(f, { text = "<s>" .. Utility.comma(pack.coins) .. "</s>  2배!", rich = true, size = UDim2.new(1, -12, 0, 20),
+			position = UDim2.fromOffset(6, 154), textSize = 17, color = PALETTE.Gold, stroke = 2, zIndex = f.ZIndex + 2 })
+		old.Name = "Double"
+	end
+	if pack.badge then
+		local tag = UIKit.tag(f, pack.badge, pack.highlight and PALETTE.Gold or UIKit.Colors.Cream)
+		tag.Size = UDim2.fromOffset(130, 28)
+	end
+	cardButton(f, pack.ready and ("R$ %d"):format(pack.robux) or "준비 중", pack.ready and "robux" or "grey").Activated:Connect(function()
+		shopRequest:FireServer("robux", "coins", pack.id)
+	end)
+	return f
+end
+
+-- 추천 칸의 넓은 카드 (VIP · 스타터 · 부스터 · 오늘의 특가)
+local function wideCard(themeName, title, blurb, image, buttonText, buttonTheme, onClick)
+	local f = card(2, themeName)
+	local w = f.Size.X.Offset
+	local art = Instance.new("Frame")
+	art.Name = "Art"
+	art.BackgroundTransparency = 1
+	art.Size = UDim2.fromOffset(150, 150)
+	art.Position = UDim2.fromOffset(8, 30)
+	art.ZIndex = f.ZIndex + 1
+	art.Parent = f
+	image(art)
+	cardTitle(f, title, PALETTE.Gold, 10, w - 20)
+	UIKit.label(f, { name = "Blurb", text = blurb or "", size = UDim2.new(0, w - 176, 0, 96), position = UDim2.fromOffset(166, 44),
+		textSize = 19, color = PALETTE.Cream, wrap = true, alignX = Enum.TextXAlignment.Left, alignY = Enum.TextYAlignment.Top, stroke = 2, zIndex = f.ZIndex + 2 })
+	local b = cardButton(f, buttonText, buttonTheme, 166, w - 176)
+	if onClick then
+		b.Activated:Connect(onClick)
+	else
+		b.Active = false
+	end
+	return f
+end
+
+local function premiumCard(offer, action, kind, themeName, icon)
+	-- 상품 ID 를 아직 넣지 않았으면 공개 서버에서는 숨긴다. (Studio 에서는 "준비 중"으로 보인다)
+	if not offer or offer.owned or not (offer.ready or IN_STUDIO) then
+		return
+	end
+	wideCard(themeName, "★ " .. offer.name, offer.blurb, function(art)
+		MoneyIcon.view(art, icon, { size = UDim2.fromScale(1, 1), spin = true })
+	end, offer.ready and ("R$ %d"):format(offer.robux) or "준비 중", offer.ready and "robux" or "grey", function()
+		shopRequest:FireServer(action, kind, kind)
+	end)
+end
+
+local function dealCard()
+	local entry = state.deal
+	if not entry or entry.owned then
+		return
+	end
+	local off = math.floor(GameConfig.DailyDeal.Discount * 100 + 0.5)
+	local f = card(2, "red")
+	local w = f.Size.X.Offset
+	UIKit.tag(f, ("-%d%%"):format(off), PALETTE.Gold)
+	cardTitle(f, ("🔥 오늘의 특가 · %s"):format(KIND_NAMES[entry.kind] or entry.kind), PALETTE.Gold, 10, w - 20)
+	skinImage(f, entry.kind, entry.id, UDim2.fromOffset(150, 150), UDim2.fromOffset(83, 36))
+	UIKit.label(f, { name = "Name", text = entry.name, size = UDim2.new(0, w - 176, 0, 34), position = UDim2.fromOffset(166, 50),
+		textSize = 24, color = entry.rarityColor or PALETTE.Cream, alignX = Enum.TextXAlignment.Left, scaled = true, zIndex = f.ZIndex + 2 })
+	UIKit.label(f, { name = "Old", text = "<s>🪙 " .. Utility.comma(entry.originalPrice or entry.price) .. "</s>", rich = true,
+		size = UDim2.new(0, w - 176, 0, 24), position = UDim2.fromOffset(166, 92), textSize = 19, color = PALETTE.Dim,
+		alignX = Enum.TextXAlignment.Left, zIndex = f.ZIndex + 2 })
+	skinButton(f, entry, 166, w - 176)
+end
+
+local shownKind = nil
+redrawShop = function()
+	-- 분류를 바꿀 때만 맨 위로 (사고 나서 다시 그릴 때는 보던 자리 그대로)
+	local keepScroll = shownKind == currentKind
+	shownKind = currentKind
+	local scroll = grid.CanvasPosition
+	clearGrid()
+	resetFlow()
+	for id, b in pairs(kindButtons) do
+		UIKit.setTheme(b, id == currentKind and "gold" or "grey")
+	end
+	if not state then
+		UIKit.label(grid, { text = "…", size = UDim2.fromOffset(200, 40), position = UDim2.fromOffset(10, 10), textSize = 24 })
+		return
+	end
+	if currentKind == "featured" then
+		dealCard()
+		premiumCard(state.starter, "robux", "starter", "teal", "gift")
+		premiumCard(state.vip, "vip", "vip", "gold", "crown")
+		premiumCard(state.booster, "pass", "Booster", "orange", "potion")
+		nextRow()
+	end
+	if currentKind == "featured" or currentKind == "coins" then
+		local index = 0
+		for i, pack in ipairs(state.coinPacks or {}) do
+			if pack.ready or IN_STUDIO then
+				index += 1
+				coinCard(pack, i)
+			end
+		end
+		if index == 0 and currentKind == "coins" then
+			UIKit.label(grid, { text = "준비 중", size = UDim2.fromOffset(300, 40), position = UDim2.fromOffset(10, 10), textSize = 24, color = PALETTE.Dim })
+		end
+	else
+		for _, entry in ipairs(state.catalog[currentKind] or {}) do
+			skinCard(entry)
+		end
+	end
+	grid.CanvasPosition = keepScroll and scroll or Vector2.zero
+end
+
+for id, b in pairs(kindButtons) do
+	b.Activated:Connect(function()
+		currentKind = id
+		redrawShop()
+	end)
 end
 
 --------------------------------------------------
@@ -611,14 +759,10 @@ local TAB_TITLES = { shop = { "상점", "🛒", "green" }, quest = { "퀘스트"
 
 local function redraw()
 	windowCoins.Text = state and ("🪙 %s"):format(Utility.comma(state.coins)) or ""
-	kindRow.Visible = currentTab == "shop"
-	local top = currentTab == "shop" and (kindRow.Size.Y.Offset > 40 and 170 or 126) or 82
-	scroller.Position = UDim2.fromOffset(20, top)
-	scroller.Size = UDim2.new(1, -40, 1, -top - 16)
-
-	for kind, button in pairs(kindButtons) do
-		UIKit.setTheme(button, kind == currentKind and "gold" or "grey")
-	end
+	shopArea.Visible = currentTab == "shop"
+	scroller.Visible = currentTab ~= "shop"
+	scroller.Position = UDim2.fromOffset(20, 82)
+	scroller.Size = UDim2.new(1, -40, 1, -128)
 
 	local titleInfo = TAB_TITLES[currentTab] or TAB_TITLES.shop
 	windowTitle.Text = titleInfo[1]
@@ -628,7 +772,7 @@ local function redraw()
 	end
 	UIKit.gradient(shopWindow.header, UIKit.theme(titleInfo[3])[1]:Lerp(Color3.new(1, 1, 1), 0.18), UIKit.theme(titleInfo[3])[2], 90)
 	if currentTab == "shop" then
-		drawShop()
+		redrawShop()
 	elseif currentTab == "quest" then
 		drawQuests()
 	else
@@ -655,12 +799,6 @@ end
 for name, button in pairs(tabButtons) do
 	button.Activated:Connect(function()
 		openTab(name)
-	end)
-end
-for kind, button in pairs(kindButtons) do
-	button.Activated:Connect(function()
-		currentKind = kind
-		redraw()
 	end)
 end
 closeButton.Activated:Connect(function()
@@ -699,6 +837,8 @@ local function refreshPedestal(pedestal)
 		prompt.ActionText = "VIP 패스 전용"
 	elseif entry.pack then
 		prompt.ActionText = "스타터 팩 전용"
+	elseif entry.reward == "like" then
+		prompt.ActionText = "👍 좋아요 보상"
 	elseif entry.robux > 0 and entry.price <= 0 then
 		prompt.ActionText = ("R$ %d"):format(entry.robux)
 	else
@@ -759,23 +899,11 @@ task.defer(function()
 	shopRequest:FireServer("sync")
 end)
 
--- 작은 화면에서는 종류 탭을 두 줄로 나눈다 (창 크기는 UIKit 가 화면에 맞춰 줄인다)
+-- 작은 화면에서는 창 전체를 화면에 맞춰 줄인다 (UIKit.window 의 fit)
 local function fitWindow()
-	local camera = workspace.CurrentCamera
-	if not camera then
-		return
-	end
-	local columns = camera.ViewportSize.X < 700 and 4 or 7
-	kindRow.Size = UDim2.new(1, -40, 0, columns == 4 and 80 or 38)
-	for i, entry in ipairs(KINDS) do
-		local b = kindButtons[entry[1]]
-		b.Size = UDim2.new(1 / columns, -6, 0, 36)
-		b.Position = UDim2.new(((i - 1) % columns) / columns, 0, 0, math.floor((i - 1) / columns) * 42)
-	end
 	if window.Visible then
 		shopWindow.scale.Scale = shopWindow.fit()
 	end
-	redraw()
 end
 fitWindow()
 if workspace.CurrentCamera then
@@ -793,10 +921,9 @@ localPlayer:GetAttributeChangedSignal("Coins"):Connect(function()
 		})
 		TweenService:Create(reward, TweenInfo.new(1.1), { Position = UDim2.fromOffset(60, -70), TextTransparency = 1 }):Play()
 		game:GetService("Debris"):AddItem(reward, 1.2)
-		local pop = launcher:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-		pop.Parent = launcher
-		pop.Scale = 1.12
-		TweenService:Create(pop, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		local base = UIKit.screenScale()
+		launcherScale.Scale = base * 1.12
+		TweenService:Create(launcherScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
 	end
 	previousCoins = now
 end)

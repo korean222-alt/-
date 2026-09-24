@@ -108,6 +108,9 @@ local function defaultProfile()
 		freeSpinDay = "", -- Phase 13 : 오늘 무료 룰렛을 쓴 날짜
 		spinCount = 0, -- Phase 13 : 룰렛을 돌린 횟수 (통계)
 		coinPackBought = false, -- Phase 13 : 코인 충전을 한 번이라도 했는가 (첫 구매 2배)
+		likeClaimed = false, -- Phase 16 : 게임 좋아요 보상(파란 철제 드럼)을 받았는가 (계정당 한 번)
+		codes = {}, -- Phase 16 : [코드] = true (한 번만 쓰는 코드)
+		devTester = false, -- Phase 16 : 개발자 시험 코드를 쓴 계정 (랭킹에 올리지 않는다)
 		owned = defaultInventory(),
 		equipped = {
 			Knife = SKINS.Knife[1].id,
@@ -146,6 +149,16 @@ local function migrate(raw)
 		profile.lastLoginDay = math.floor(lastDay)
 	end
 	profile.starterBought = raw.starterBought == true
+	-- Phase 16
+	profile.likeClaimed = raw.likeClaimed == true
+	profile.devTester = raw.devTester == true
+	if typeof(raw.codes) == "table" then
+		for code, used in pairs(raw.codes) do
+			if used == true and typeof(code) == "string" and #code <= 40 then
+				profile.codes[code] = true
+			end
+		end
+	end
 	-- Phase 12
 	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay", "attendDay", "freeSpinDay" }) do
 		if typeof(raw[key]) == "string" then
@@ -310,6 +323,7 @@ local function publish(player, profile)
 		end
 	end
 	player:SetAttribute("QuestReady", questReady)
+	player:SetAttribute("LikeClaimed", profile.likeClaimed == true) -- Phase 16 : 좋아요 보상 받침대 글자
 	local voyageReady = 0
 	local weekly = profile.weekly
 	if weekly then

@@ -81,4 +81,4 @@ task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 15: Blender 모델 · 최후의 1인 · 라운드 · 바다 구조)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 16: 명예의 문 랭킹 · 좋아요 보상 · 코드 · 새 상점 · 룰렛)")

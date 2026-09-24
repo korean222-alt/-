@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "15.0.0"
+C.Version = "16.0.0"
 C.StudioSolo = false
 C.FriendBonus = 0.10 -- one verified friend in the same round, non-stacking
 C.PartyBonus = 0.05
@@ -43,10 +43,14 @@ C.Meshes = {
 -- Phase 14 : UI 그림 ID (0 이면 코드로 그린 것을 쓴다)
 --   Pattern : 창 머리띠에 깔리는 무늬 타일 (assets/ui/pattern_tile.png 를 올린 ID)
 C.UIImages = { Pattern = 0 }
+-- Phase 16 : 그룹 ID. 넣으면 "좋아요 보상"을 받을 때 그룹 가입도 확인한다 (가입 창을 띄워 준다). 0 이면 좋아요만.
+C.GroupId = 0
 -- Phase 13 : 버튼 이미지 ID. 0 이면 코드로 그린 나무 버튼을 쓴다.
 --   Attendance : assets/branding/attendance_button.png 을 올린 이미지 ID (출석판 버튼)
 --   Roulette   : assets/branding/roulette_button.png 을 올린 이미지 ID (룰렛 버튼)
-C.Images = { Attendance = 0, Roulette = 0 } -- 빗줄기 이미지 (0 이면 기본 입자를 길게 늘여 쓴다)
+C.Images = { Attendance = 0, Roulette = 0 }
+-- Phase 16 : 돈 모양 그림 ID (assets/ui/money/*.png 를 올린 ID). 0 이면 같은 모양의 작은 3D 모형이 대신 보인다.
+C.Images.Money = { cash = 0, cash2 = 0, cash3 = 0, coins = 0, chest = 0, vault = 0, gift = 0, crown = 0, potion = 0 } -- 빗줄기 이미지 (0 이면 기본 입자를 길게 늘여 쓴다)
 C.Branding = {
  -- Exact user-supplied images are in assets/branding, unchanged.
  -- Roblox ImageButton requires a Roblox-uploaded image asset ID, not a local JPEG path.

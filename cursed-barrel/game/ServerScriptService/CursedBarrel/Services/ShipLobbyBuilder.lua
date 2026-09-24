@@ -73,7 +73,8 @@ function S:archive(lobby)
  local old=ServerStorage:FindFirstChild("Phase8_LobbyBackup")
  if not old then old=Instance.new("Folder");old.Name="Phase8_LobbyBackup";old.Parent=ServerStorage end
  -- 설명 게시판(Instructions)은 치운다. 게임 방법은 첫 접속 카드 한 장으로 충분하다.
- local keep={Deck=true,HarborSea=true,RankingBoard=true,LobbySpawn=true,ShopDisplay=true}
+ -- Phase 16 : 예전 선실 앞 랭킹판(RankingBoard)도 치운다. 랭킹은 스폰 앞 "명예의 문" 나무판자 셋이 보여 준다.
+ local keep={Deck=true,HarborSea=true,LobbySpawn=true,ShopDisplay=true}
  for _,obj in ipairs(lobby:GetChildren()) do if not keep[obj.Name] and obj.Name~="PlayableGalleon" then obj.Parent=old end end
  local deck=lobby:FindFirstChild("Deck")
  if deck then deck.Transparency=1;deck.CanCollide=false;deck.CanQuery=false;deck.CanTouch=false end
@@ -193,10 +194,6 @@ function S:cabin(root,lobby)
   segment(cabin,"CabinLampChain",Vector3.new(x,12,L.CabinFront+2),Vector3.new(x,11.3,L.CabinFront+2),0.07,iron,false)
   light(cabin,Vector3.new(x,10.6,L.CabinFront+2))
  end
- local ranking=lobby:FindFirstChild("RankingBoard")
- if ranking then ranking.CFrame=CFrame.new(-34,9,-95);ranking.Size=Vector3.new(23,11,0.6) end
- -- The ranking board rests on posts instead of floating in front of the cabin.
- for _,x in ipairs({-43,-25}) do block(cabin,"BoardPost",Vector3.new(0.65,8,0.65),CFrame.new(x,5,-95),wood,true) end
 end
 function S:forecastle(root,lobby)
  local front=group(root,"Forecastle")
@@ -211,10 +208,85 @@ function S:forecastle(root,lobby)
   for _,z in ipairs({113,121,129}) do block(front,"BowRailPost",Vector3.new(0.35,2.7,0.35),CFrame.new(side*17.5,6.85,z),wood,true) end
  end
 end
+-- Phase 16 : 명예의 문. 스폰에서 계단으로 내려가는 입구에 선 나무판자 랭킹판 셋 (연승 · 부자 · 승리)
+--   판마다 세로 판자 여러 장 + 굵은 틀 + 금색 못 + 등불. 글자는 RankingService 가 RankingFace 에 그린다.
+local planks={Color3.fromRGB(112,70,40),Color3.fromRGB(98,60,34),Color3.fromRGB(121,77,44),Color3.fromRGB(104,64,37)}
+function S:hallOfFame(root)
+ local hall=group(root,"HallOfFame")
+ local H=L.HallOfFame
+ local z=H.Z
+ local back=z-0.55 -- 판자 뒷면
+ -- 앞면이 +Z (스폰 쪽) 를 보는 방향
+ local facing=CFrame.Angles(0,math.pi,0)
+ local function nail(pos) local n=block(hall,"Nail",Vector3.new(0.34,0.34,0.34),CFrame.new(pos),gold,false,Enum.Material.Metal);n.Shape=Enum.PartType.Ball end
+ local function board(spec)
+  local w,h=spec.w,spec.h
+  local cy=spec.bottom+h/2
+  local count=math.max(4,math.floor(w/1.7))
+  for i=1,count do
+   local x=spec.x-w/2+(i-0.5)*w/count
+   block(hall,"Plank",Vector3.new(w/count-0.06,h,0.42),CFrame.new(x,cy,back+0.21),planks[i%#planks+1],true,Enum.Material.WoodPlanks)
+  end
+  -- 굵은 틀 (위 · 아래 · 양옆)
+  block(hall,"FrameTop",Vector3.new(w+1.3,0.75,0.8),CFrame.new(spec.x,spec.bottom+h+0.3,back+0.35),dark,false,Enum.Material.Wood)
+  block(hall,"FrameBottom",Vector3.new(w+1.3,0.6,0.8),CFrame.new(spec.x,spec.bottom-0.25,back+0.35),dark,false,Enum.Material.Wood)
+  for _,side in ipairs({-1,1}) do
+   block(hall,"FrameSide",Vector3.new(0.6,h+0.6,0.8),CFrame.new(spec.x+side*(w/2+0.35),cy,back+0.35),dark,false,Enum.Material.Wood)
+   nail(Vector3.new(spec.x+side*(w/2+0.35),spec.bottom+h+0.3,back+0.8))
+   nail(Vector3.new(spec.x+side*(w/2+0.35),spec.bottom-0.25,back+0.8))
+  end
+  -- 글자를 그리는 얇은 면 (보이지 않는 파트 · SurfaceGui 만 보인다)
+  local face=block(hall,"RankingFace",Vector3.new(w-0.2,h-0.2,0.05),CFrame.new(spec.x,cy,back+0.47)*facing,dark,false,Enum.Material.SmoothPlastic)
+  face.Transparency=1
+  face:SetAttribute("Board",spec.id)
+  Tags:AddTag(face,Config.Tags.RankingBoard)
+  return face
+ end
+ local left,center,right=H.Boards[1],H.Boards[2],H.Boards[3]
+ -- 양옆 판 : 땅에 박은 기둥 두 개가 받친다
+ for _,spec in ipairs({left,right}) do
+  board(spec)
+  for _,side in ipairs({-1,1}) do
+   local x=spec.x+side*(spec.w/2+0.35)
+   local top=spec.bottom+spec.h+1.1
+   -- 가운데 쪽 기둥은 들보를 받치는 큰 기둥(ArchPost)이 대신한다
+   if not (center and spec.x*side<0) then
+   block(hall,"GatePost",Vector3.new(0.9,top-H.Base,0.9),CFrame.new(x,(H.Base+top)/2,back-0.2),dark,true,Enum.Material.Wood)
+   block(hall,"PostCap",Vector3.new(1.3,0.35,1.3),CFrame.new(x,top+0.17,back-0.2),gold,false,Enum.Material.Metal)
+   end
+  end
+ end
+ -- 가운데 판 : 계단 입구 위에 가로 들보로 매단다 (아래로 지나다닐 수 있다)
+ if center then
+  board(center)
+  local beamY=center.bottom+center.h+1.5
+  local inner=left.x+left.w/2+0.35 -- 왼쪽 판의 안쪽 기둥 x
+  for _,side in ipairs({-1,1}) do
+   local x=side*math.abs(inner)
+   block(hall,"ArchPost",Vector3.new(0.9,beamY-H.Base+0.4,0.9),CFrame.new(x,(H.Base+beamY+0.4)/2,back-0.2),dark,true,Enum.Material.Wood)
+   segment(hall,"HangRope",Vector3.new(side*(center.w/2-0.8),beamY,back+0.1),Vector3.new(side*(center.w/2-0.8),center.bottom+center.h+0.5,back+0.1),0.16,Color3.fromRGB(150,120,80),false)
+  end
+  block(hall,"ArchBeam",Vector3.new(math.abs(inner)*2+1.6,0.9,1.1),CFrame.new(0,beamY+0.2,back-0.2),dark,false,Enum.Material.Wood)
+  block(hall,"ArchTrim",Vector3.new(math.abs(inner)*2+1.8,0.2,1.2),CFrame.new(0,beamY+0.75,back-0.2),gold,false,Enum.Material.Metal)
+  -- 들보 양 끝 등불
+  for _,side in ipairs({-1,1}) do
+   segment(hall,"LampArm",Vector3.new(side*(math.abs(inner)+0.2),beamY-0.4,back+0.2),Vector3.new(side*(math.abs(inner)+0.2),beamY-0.4,back+1.6),0.16,iron,false)
+   light(hall,Vector3.new(side*(math.abs(inner)+0.2),beamY-1.2,back+1.6),22,1.8)
+  end
+ end
+ -- 바깥 기둥 꼭대기 등불 (판을 비춘다)
+ for _,spec in ipairs({left,right}) do
+  local x=spec.x+(spec.x>0 and 1 or -1)*(spec.w/2+0.35)
+  local top=spec.bottom+spec.h+1.1
+  segment(hall,"LampArm",Vector3.new(x,top-0.6,back+0.2),Vector3.new(x,top-0.6,back+1.5),0.16,iron,false)
+  light(hall,Vector3.new(x,top-1.35,back+1.5),20,1.7)
+ end
+end
 function S:nightLights(root)
  local extra=group(root,"NightLights")
  -- 스폰 단상 (뱃머리 높은 갑판)
- for _,x in ipairs({-12,12}) do for _,z in ipairs({114,127}) do postLight(extra,Vector3.new(x,5.5,z),3.4) end end
+ -- (Phase 16 : 앞쪽 두 개는 "명예의 문" 기둥에 매단 등불로 바뀌었다. 판 앞을 가리지 않게)
+ for _,x in ipairs({-12,12}) do postLight(extra,Vector3.new(x,5.5,127),3.4) end
  -- 뱃머리 끝
  postLight(extra,Vector3.new(0,5.5,129.2),2.6)
  -- 후갑판 (조타륜이 있는 2층) : 조타륜 양옆 · 양쪽 난간 · 선미 끝
@@ -378,7 +450,7 @@ function S:Prepare()
  for _,zone in ipairs(Config.Showcase.Zones) do zone.x=L.Showcase.Centers[zone.kind] end
  local root=Instance.new("Folder");root.Name="PlayableGalleon";root.Parent=lobby
  lightFolder=Instance.new("Folder");lightFolder.Name="ShipLights";lightFolder.Parent=root
- self:hull(root);self:rigging(root);self:lighting(root);self:cabin(root,lobby);self:forecastle(root,lobby);self:nightLights(root);self:props(root)
+ self:hull(root);self:rigging(root);self:lighting(root);self:cabin(root,lobby);self:forecastle(root,lobby);self:hallOfFame(root);self:nightLights(root);self:props(root)
  workspace:SetAttribute("ShipLobbyReady",true)
  print("[CursedBarrel] Playable galleon ready: 10 tables, supported lights, cabin and quarterdeck")
 end

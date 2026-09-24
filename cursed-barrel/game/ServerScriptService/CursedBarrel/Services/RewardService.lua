@@ -147,8 +147,58 @@ end
 -- 요청
 --------------------------------------------------
 
-function RewardService:_onRequest(player, action)
+--------------------------------------------------
+-- Phase 16 : 게임 좋아요 보상 (파란 철제 드럼)
+--------------------------------------------------
+
+-- 이 그룹 가입도 확인한다 (ReleaseConfig.GroupId, 0 이면 좋아요만)
+local function groupId()
+	local ok, release = pcall(require, Shared:WaitForChild("ReleaseConfig"))
+	return ok and tonumber(release.GroupId) or 0
+end
+
+function RewardService:ClaimLike(player)
+	local like = GameConfig.LikeReward
+	if not (like and like.Enabled) then
+		return false, "지금은 받을 수 없어요"
+	end
+	local profile = ProfileService:Get(player)
+	if not profile then
+		return false, "자료를 불러오는 중입니다"
+	end
+	if profile.likeClaimed then
+		return false, "이미 받았어요 ✔"
+	end
+	local group = groupId()
+	if group > 0 then
+		local ok, inGroup = pcall(function()
+			return player:IsInGroup(group)
+		end)
+		if ok and not inGroup then
+			return false, "group"
+		end
+	end
+	profile.likeClaimed = true
+	ProfileService:Grant(player, like.Kind, like.Skin) -- 저장 표시까지 한다
+	if like.AutoEquip then
+		ProfileService:Equip(player, like.Kind, like.Skin)
+	end
+	local skin = GameConfig.findSkin(like.Kind, like.Skin)
+	return true, { skinName = skin and skin.name or like.Skin, kind = like.Kind, id = like.Skin }
+end
+
+function RewardService:_onRequest(player, action, arg)
 	if not self._limiter:check(player.UserId) or typeof(action) ~= "string" then
+		return
+	end
+	if action == "like" then
+		local ok, result = self:ClaimLike(player)
+		self._cue:FireClient(player, "like", ok, result)
+		return
+	elseif action == "code" then
+		local CodeService = require(script.Parent.CodeService)
+		local ok, message, coins = CodeService:Redeem(player, arg)
+		self._cue:FireClient(player, "code", ok, { message = message, coins = coins })
 		return
 	end
 	if action == "attend" then
@@ -177,8 +227,8 @@ function RewardService:Start()
 	end
 	local request = remote(GameConfig.Remotes.Reward)
 	self._cue = remote(GameConfig.Remotes.RewardCue)
-	request.OnServerEvent:Connect(function(player, action)
-		local ok, err = pcall(self._onRequest, self, player, action)
+	request.OnServerEvent:Connect(function(player, action, arg)
+		local ok, err = pcall(self._onRequest, self, player, action, arg)
 		if not ok then
 			warn("[CursedBarrel] 보상 요청 오류: " .. tostring(err))
 		end

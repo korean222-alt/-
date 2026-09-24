@@ -1,0 +1,45 @@
+# Phase 16 : 명예의 문 랭킹 · 좋아요 보상 · 코드 · 상점 카드 · 룰렛 판
+👍 게임 좋아요 보상이에요 (스폰 옆 파란 드럼)	👍 This is the Like reward (blue drum next to spawn)
+🔥 최고 연승	🔥 Best Streak
+💰 전체 부자 순위	💰 Richest Pirates
+🏆 전체 승리	🏆 Most Wins
+승	 wins
+순위	Ranking
+선원 	Pirate 
+첫 번째 주인공이 되어 보세요!	Be the first one here!
+연승	 streak
+%.1f억	%.1f×100M
+%.0억	%.0×100M
+억	×100M
+%.1f만	%.1f×10K
+%.0만	%.0×10K
+만	×10K
+코드를 적어 주세요	Enter a code
+없는 코드예요	That code doesn't exist
+기간이 끝난 코드예요	That code has expired
+이미 쓴 코드예요	You already used that code
+🎉 🪙 %s 코인!	🎉 🪙 %s coins!
+%s  ·  %s  ·  👍 좋아요 보상	%s  ·  %s  ·  👍 Like reward
+👍 좋아요 보상	👍 Like Reward
+파란 철제 드럼 무료!	Free Blue Steel Drum!
+🏆 승리	🏆 Wins
+지금은 받을 수 없어요	Not available right now
+이미 받았어요 ✔	Already claimed ✔
+코드 입력	Enter Code
+확인	OK
+좋아요 보상	Like Reward
+게임 페이지에서 👍 좋아요를 눌러 주세요	Press 👍 Like on the game page
+👍 눌렀어요! 받기	👍 I liked it! Claim
+받았어요 ✔	Claimed ✔
+고마워요! 통 스킨에서 장착할 수 있어요	Thanks! Equip it from the barrel skins
+받음 ✔	Claimed ✔
+코드	Codes
+🎉 「%s」 받았어요! (장착됨)	🎉 Got 「%s」! (equipped)
+그룹에 가입하면 받을 수 있어요	Join the group to claim it
+추천	Featured
+코인	Coins
+🪙 %s 부족 · 코인 충전	🪙 %s short · top up coins
+스폰 옆 파란 드럼에서 받을 수 있어요!	Claim it at the blue drum next to spawn!
+🎁 스타터	🎁 Starter
+</s>  2배!	</s>  x2!
+🔥 오늘의 특가 · %s	🔥 Today's Deal · %s

@@ -26,6 +26,7 @@ local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
 local KnifeModel = require(Shared:WaitForChild("KnifeModel"))
 local BarrelStyle = require(Shared:WaitForChild("BarrelStyle"))
 local MeshKit = require(Shared:WaitForChild("MeshKit")) -- Phase 15 : Blender 통 · 드럼 메시
+local ShipLayout = require(Shared:WaitForChild("ShipLayout")) -- Phase 16 : 좋아요 보상 받침대 자리
 
 local ProfileService = require(script.Parent.ProfileService)
 local ShopService = require(script.Parent.ShopService)
@@ -313,6 +314,9 @@ local function priceText(skin)
 	if skin.pack then
 		return ("%s  ·  %s  ·  스타터 팩 전용"):format(skin.name, rarity.label)
 	end
+	if skin.reward == "like" then
+		return ("%s  ·  %s  ·  👍 좋아요 보상"):format(skin.name, rarity.label)
+	end
 	if skin.robux then
 		return ("%s  ·  %s  ·  R$ %d"):format(skin.name, rarity.label, skin.robux)
 	end
@@ -429,6 +433,86 @@ function LobbyBuilder:_buildShowcase()
 end
 
 --------------------------------------------------
+-- Phase 16 : 스폰 옆 좋아요 보상 받침대 (파란 철제 드럼이 빙글빙글)
+--   누르면 각자 화면(RewardController)이 "좋아요 눌렀어요!" 창을 띄운다. 주는 것은 RewardService:ClaimLike.
+--------------------------------------------------
+
+function LobbyBuilder:_buildLikeReward()
+	local like = GameConfig.LikeReward
+	local spot = ShipLayout.LikeReward
+	local lobby = workspace:FindFirstChild("Lobby")
+	if not (like and like.Enabled and spot and lobby) then
+		return
+	end
+	local skin = GameConfig.findSkin(like.Kind, like.Skin)
+	if not skin or skin.id ~= like.Skin then
+		return
+	end
+	local old = lobby:FindFirstChild("LikeReward")
+	if old then
+		old:Destroy()
+	end
+	local folder = Instance.new("Model")
+	folder.Name = "LikeReward"
+	folder.Parent = lobby
+
+	local deck = ShipLayout.HallOfFame and ShipLayout.HallOfFame.Base or 5.5
+	local x, z = spot.x, spot.z
+	local blue = Color3.fromRGB(60, 150, 255)
+	local pedestal = makeCylinder(folder, "Pedestal", 5.6, 2.2, CFrame.new(x, deck + 1.1, z), Color3.fromRGB(40, 30, 24), Enum.Material.Slate)
+	pedestal.CanCollide = true
+	pedestal.CanQuery = true
+	makeCylinder(folder, "Step", 6.6, 0.4, CFrame.new(x, deck + 0.2, z), Color3.fromRGB(88, 56, 32), Enum.Material.Wood)
+	makeCylinder(folder, "Rim", 5.9, 0.25, CFrame.new(x, deck + 2.15, z), blue, Enum.Material.Neon)
+	local base = CFrame.new(x, deck + 2.45, z)
+	local preview = previewBarrel(skin, folder, base)
+	if preview then
+		CollectionService:AddTag(preview, PREVIEW_TAG)
+		preview:SetAttribute("SkinKind", like.Kind)
+		preview:SetAttribute("SkinId", skin.id)
+		preview:SetAttribute("SpinSpeed", 30)
+		SkinFX.applyPreview(preview, skin, like.Kind)
+	end
+
+	-- 멀리서도 보이는 머리 위 글자 (항상 보는 사람 쪽)
+	local sign = Instance.new("BillboardGui")
+	sign.Name = "LikeSign"
+	sign.Size = UDim2.fromScale(9, 3.4)
+	sign.StudsOffsetWorldSpace = Vector3.new(0, 7.6, 0)
+	sign.MaxDistance = 110
+	sign.LightInfluence = 0
+	sign.Parent = pedestal
+	local function line(text, y, h, color)
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, h)
+		label.Position = UDim2.fromScale(0, y)
+		label.FontFace = Font.new("rbxasset://fonts/families/FredokaOne.json", Enum.FontWeight.Bold)
+		label.TextScaled = true
+		label.Text = text
+		label.TextColor3 = color
+		label.Parent = sign
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2.5
+		stroke.Color = Color3.fromRGB(16, 22, 40)
+		stroke.Parent = label
+		return label
+	end
+	line("👍 좋아요 보상", 0, 0.58, Color3.fromRGB(255, 255, 255))
+	line("파란 철제 드럼 무료!", 0.6, 0.4, Color3.fromRGB(120, 200, 255))
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "LikeReward"
+	prompt.ActionText = "받기"
+	prompt.ObjectText = ""
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 11
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = pedestal
+	CollectionService:AddTag(prompt, GameConfig.Tags.LikeReward)
+end
+
+--------------------------------------------------
 -- 5) 장착 / 구매 처리
 --
 -- 가진 스킨이면 장착, 아니면 구매를 시도한다. 판단은 전부 서버가 한다.
@@ -476,6 +560,7 @@ function LobbyBuilder:Start()
 	self:_removeUnused()
 	self:_buildShowcase()
 	self:_bindEquip()
+	self:_buildLikeReward()
 
 	GameConfig.log("LobbyBuilder 시작 완료")
 end

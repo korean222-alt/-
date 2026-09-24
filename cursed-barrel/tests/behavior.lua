@@ -1045,8 +1045,9 @@ check("skin price ladder: common ~1만, rare ~1.7~6.9만, epic ~13~15만, legend
  assert(by.coins_large.coins>=ranges.rare[2] and by.coins_huge.coins>=ranges.epic[2] and by.coins_vault.coins>=ranges.mythic[1])
  assert(Config.Rarity.mythic.rank>Config.Rarity.legend.rank)
 end)
-check("blue steel drum: coin skin with rolling hoops, ribs, chimes and two bungs on the lid",function()
- local skin=Config.findSkin("Barrel","blue_drum");assert(skin.id=="blue_drum" and skin.price==16900 and Config.isCoinSkin(skin) and skin.drum)
+check("blue steel drum: like-reward skin with rolling hoops, ribs, chimes and two bungs on the lid",function()
+ local skin=Config.findSkin("Barrel","blue_drum");assert(skin.id=="blue_drum" and skin.reward=="like" and skin.drum)
+ assert(not Config.isCoinSkin(skin) and not Config.isFreeSkin(skin),"not sold, not given to everyone")
  local Drum=loadModule("DrumStyle");local length,diameter,top=3.4,3,1.87
  local kinds={};for _,e in ipairs(Drum.layout(length,diameter,top)) do
   kinds[e.kind]=(kinds[e.kind] or 0)+1
@@ -1172,5 +1173,73 @@ check("Blender models: catalog is complete and the game falls back without them"
  for _,asset in ipairs({"Cannon","Cask","Drum","KrakenPieces"}) do assert(Catalog.Assets[asset],asset) end
  assert(not Kit.has("Cannon"),"no imported model -> procedural shapes")
  assert(Kit.barrelAsset({drum=true})=="Drum" and Kit.barrelAsset({})=="Cask")
+end)
+-- Phase 16
+Font=Font or {new=function() return {} end,fromEnum=function() return {} end}
+check("like reward: blue drum once per account, equipped, cannot be bought",function()
+ local Reward=loadModule("RewardService");local Shop=loadModule("ShopService")
+ local q=player(161);Profiles:_load(q);local d=Profiles:Get(q)
+ assert(not d.owned.Barrel.blue_drum,"new players do not own it")
+ d.coins=10^7;local ok,why=Shop:Buy(q,"Barrel","blue_drum");assert(not ok and why==Config.RejectMessages.LikeOnly,"buy: "..tostring(why))
+ local okLike,info=Reward:ClaimLike(q);assert(okLike and info.id=="blue_drum","claim: "..tostring(info))
+ assert(d.owned.Barrel.blue_drum,"owned");assert(d.likeClaimed,"flag");assert(d.equipped.Barrel=="blue_drum","equipped")
+ assert(q:GetAttribute("LikeClaimed")==true,"the pedestal prompt reads this")
+ local again=Reward:ClaimLike(q);assert(not again,"only once")
+ assert(Profiles:Save(q,"like"));assert(storage.u_161.likeClaimed==true,"saved")
+end)
+check("codes: case-insensitive, once per account; developer code only for developers and keeps them off the rankings",function()
+ local Codes=loadModule("CodeService")
+ assert(Codes.normalize("  GNSDL23091 ")=="gnsdl23091" and Codes.normalize("")==nil and Codes.normalize(string.rep("a",40))==nil)
+ local q=player(162);Profiles:_load(q);local d=Profiles:Get(q);local before=d.coins
+ local ok,msg=Codes:Redeem(q,"gnsdl23091");assert(not ok and msg=="없는 코드예요","a normal player cannot use the developer code")
+ assert(d.coins==before and not d.devTester)
+ ok=Codes:Redeem(q,"CursedBarrel");assert(ok and d.coins==before+Codes.Codes.cursedbarrel.coins)
+ ok,msg=Codes:Redeem(q,"cursedbarrel");assert(not ok and msg=="이미 쓴 코드예요")
+ local dev=player(163);Profiles:_load(dev);local dd=Profiles:Get(dev);Codes.DeveloperUserIds={163}
+ q:SetAttribute("VIP",true)
+ local c0=dd.coins;ok=Codes:Redeem(dev,"GNSDL23091");assert(ok and dd.coins==c0+999999 and dd.devTester)
+ ok=Codes:Redeem(dev,"gnsdl23091");assert(ok and dd.coins==c0+2*999999,"repeatable for testing")
+ Codes.DeveloperUserIds={};q:SetAttribute("VIP",nil)
+end)
+check("rankings: three wooden boards (streak · coins · wins), testers hidden, short numbers",function()
+ local Rank=loadModule("RankingService")
+ assert(#Config.Ranking.Boards==3)
+ local ids={};for _,b in ipairs(Config.Ranking.Boards) do ids[b.id]=true end
+ local ship=loadModule("ShipLayout");for _,b in ipairs(ship.HallOfFame.Boards) do assert(ids[b.id],b.id) end
+ Rank._stats={}
+ Rank._stats[1]={name="a",wins=5,games=9,coins=100,bestStreak=2,order=1}
+ Rank._stats[2]={name="b",wins=2,games=3,coins=9000,bestStreak=6,order=2}
+ Rank._stats[3]={name="dev",wins=99,games=99,coins=999999,bestStreak=99,order=3,tester=true}
+ assert(Rank:GetTop(10,"coins")[1].name=="b" and Rank:GetTop(10,"wins")[1].name=="a" and Rank:GetTop(10,"streak")[1].name=="b")
+ assert(#Rank:GetTop(10,"coins")==2,"tester is not listed")
+ assert(Rank.shortNumber(1234)=="1,234" and Rank.shortNumber(123456)=="12.3만" and Rank.shortNumber(120000)=="12만" and Rank.shortNumber(250000000)=="2.5억")
+end)
+check("hall of fame gate and like pedestal leave the stairs, spawn and lamps clear",function()
+ local ship=loadModule("ShipLayout");local H=ship.HallOfFame
+ for _,b in ipairs(H.Boards) do
+  assert(math.abs(b.x)+b.w/2+0.8<=18.05,"posts stay on the raised bow deck (x ±18)")
+  if b.x==0 then assert(b.bottom-H.Base>=6.5,"people walk under the middle board")
+  else assert(math.abs(b.x)-b.w/2>=6.8,"side boards leave the stairs (x ±6) open") end
+ end
+ local like=ship.LikeReward
+ assert(math.abs(like.x)-3.3>=4.5,"not on the spawn pad")
+ for _,lamp in ipairs({{12,127},{-12,127},{0,126}}) do assert(math.sqrt((like.x-lamp[1])^2+(like.z-lamp[2])^2)>4,"clear of lamps and capstan") end
+ assert(math.abs(like.x)+3.3<=17.3 and like.z-3.3>H.Z+1 and like.z+3.3<130)
+end)
+check("money icons: every kind has valid pieces (orthonormal CFrames, real sizes and colors)",function()
+ local Data=loadModule("MoneyIconData");local Icon=loadModule("MoneyIcon")
+ for _,kind in ipairs(Icon.Kinds) do
+  local list=Data[kind];assert(list and #list>0,kind)
+  for _,p in ipairs(list) do
+   assert(p.t=="Block" or p.t=="Cylinder" or p.t=="Ball")
+   assert(#p.s==3 and p.s[1]>0 and p.s[2]>0 and p.s[3]>0 and #p.c==12)
+   local r={{p.c[4],p.c[5],p.c[6]},{p.c[7],p.c[8],p.c[9]},{p.c[10],p.c[11],p.c[12]}}
+   for i=1,3 do
+    assert(math.abs(r[i][1]^2+r[i][2]^2+r[i][3]^2-1)<1e-3,kind.." row length")
+    for j=i+1,3 do assert(math.abs(r[i][1]*r[j][1]+r[i][2]*r[j][2]+r[i][3]*r[j][3])<1e-3,kind.." rows orthogonal") end
+   end
+   for _,c in ipairs(p.k) do assert(c>=0 and c<=255) end
+  end
+ end
 end)
 print("BEHAVIOR CHECKS: "..count.." passed")

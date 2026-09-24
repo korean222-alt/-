@@ -1,6 +1,6 @@
 # 해야 할 일 총정리 — 이 문서 하나만 보시면 됩니다
 
-게임 파일: `output/CursedBarrel_Phase15_Kraken.rbxl`  (이번 변경: [Phase 15](Phase15_크라켄_블렌더_라운드_KO.md))
+게임 파일: `output/CursedBarrel_Phase16_Lobby.rbxl`  (이번 변경: [Phase 16](Phase16_로비_랭킹_상점_KO.md) · 지난 변경: [Phase 15](Phase15_크라켄_블렌더_라운드_KO.md))
 블렌더 모델: `assets/models/CursedBarrelModels.fbx` (1장 2번에서 한 번 가져오기)
 모든 ID는 **숫자만 복사해서 저에게 보내 주시면** 제가 넣고 새 파일을 드립니다. (직접 넣으셔도 됩니다)
 맨 아래 [7장](#7-보내-주실-것--한-번에-복사해서-채우기)에 보내 주실 양식이 한 번에 있습니다.
@@ -19,7 +19,7 @@
 
 ## 1. Studio에서 열고 블렌더 모델 가져오기 · Publish
 
-1. Roblox Studio에서 `CursedBarrel_Phase15_Kraken.rbxl` 을 엽니다.
+1. Roblox Studio에서 `CursedBarrel_Phase16_Lobby.rbxl` 을 엽니다.
 2. **홈 → 3D 가져오기(Import 3D)** → `assets/models/CursedBarrelModels.fbx` → **"단일 메시로 가져오기" 끄기** → 가져오기.
    - Workspace 에 `CursedBarrelModels` 가 생기면 그대로 둡니다. (게임이 켜질 때 알아서 보관함으로 옮기고 제자리에 놓습니다)
    - 새 통 · 드럼 · 대포 · 크라켄(누운 다리 포함)이 이 모델로 바뀝니다. 안 하면 예전 모양으로 돌아갑니다.
@@ -29,8 +29,9 @@
 
 ## 2. Play로 확인할 것 (체크하면서)
 
-- [ ] Phase 15 새 기능: [Phase 15 문서의 Play 체크](Phase15_크라켄_블렌더_라운드_KO.md#play-체크) (바다 구조 · 라운드 · 최후의 1인 · 시점 돌리기 · 창 하나만 · 등불)
-- [ ] 오른쪽 가운데 📅 출석 · 🎡 룰렛 버튼이 보이고, 들어오면 출석판이 한 번 열린다
+- [ ] Phase 16 새 기능: [Phase 16 문서의 Play 체크](Phase16_로비_랭킹_상점_KO.md#play-체크) (나무판자 랭킹 · 좋아요 드럼 · 코드 · 그림 상점 · 룰렛 · 휴대폰)
+- [ ] Phase 15 기능: [Phase 15 문서의 Play 체크](Phase15_크라켄_블렌더_라운드_KO.md#play-체크) (바다 구조 · 라운드 · 최후의 1인 · 시점 돌리기 · 창 하나만 · 등불)
+- [ ] 오른쪽 가운데 📅 출석 · 🎡 룰렛 · 🎟 코드 버튼이 보이고, 들어오면 출석판이 한 번 열린다
 - [ ] 출석 「받기!」 → ✔ 튀어나옴 → 룰렛이 이어서 열림 → 하루 한 번만 돌아감 (확률표 없음)
 - [ ] 상점:
   - 스킨마다 🪙 가격 버튼이 있다
@@ -101,6 +102,7 @@ Studio → **보기 → 에셋 관리자 → 가져오기(Import)** → 파일 �
 | `roulette_button.png` | 🎡 룰렛 버튼 (보내 주신 그림) | `ReleaseConfig.lua` → `C.Images.Roulette` |
 | `shop_button.jpeg` | 상점 버튼 | `ReleaseConfig.lua` → `C.Branding.ShopImage` |
 | `assets/ui/pattern_tile.png` | 창 머리띠 무늬 (선택) | `ReleaseConfig.lua` → `C.UIImages.Pattern` |
+| `assets/ui/money/*.png` 9장 | 돈 그림 (선택 · 안 올려도 같은 모양 3D 가 보임) | `ReleaseConfig.lua` → `C.Images.Money` (파일 이름 = 칸 이름) |
 | `game_profile.jpeg` | 게임 아이콘 | Creator Hub → 게임 → 설정의 아이콘 (ID 필요 없음) |
 | `game_thumbnail.jpeg` | 게임 썸네일 | Creator Hub → 게임 → 설정의 썸네일 (ID 필요 없음) |
 
@@ -169,6 +171,10 @@ Booster =
 Attendance =
 Roulette =
 ShopImage =
+(선택) 돈 그림: cash= cash2= cash3= coins= chest= vault= gift= crown= potion=
+
+[그룹 — 선택] (좋아요 보상 때 가입 확인)
+GroupId =
 
 [소리]
 Slam =

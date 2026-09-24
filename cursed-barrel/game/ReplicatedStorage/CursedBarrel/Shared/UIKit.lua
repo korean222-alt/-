@@ -364,6 +364,45 @@ end
 -- 왼쪽 버튼 줄 (여러 스크립트가 함께 쓴다)
 --------------------------------------------------
 
+--------------------------------------------------
+-- Phase 16 : 휴대폰 화면 맞춤 (플레이어의 80% 가 휴대폰)
+--   화면의 짧은 쪽이 720 이면 1배, 휴대폰(약 360~430)이면 0.62~0.73배.
+--   버튼이 너무 작아지지 않게 0.62 아래로는 줄이지 않는다 (74 → 46 : 손가락으로 누르기 충분한 크기).
+--------------------------------------------------
+function UIKit.screenScale()
+	local camera = workspace.CurrentCamera
+	local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
+	local short = math.min(view.X, view.Y)
+	return math.clamp(0.35 + 0.65 * short / 720, 0.62, 1)
+end
+
+local autoScaled = {}
+local autoConnected = false
+local function refreshAutoScale()
+	local base = UIKit.screenScale()
+	for i = #autoScaled, 1, -1 do
+		local entry = autoScaled[i]
+		if entry.scale.Parent then
+			entry.scale.Scale = base * entry.extra
+		else
+			table.remove(autoScaled, i)
+		end
+	end
+end
+-- object 에 화면 크기를 따라가는 UIScale 을 붙인다. (object 자리 · AnchorPoint 를 기준으로 줄어든다)
+function UIKit.autoScale(object, extra)
+	local scale = object:FindFirstChild("AutoScale") or Instance.new("UIScale")
+	scale.Name = "AutoScale"
+	scale.Parent = object
+	table.insert(autoScaled, { scale = scale, extra = extra or 1 })
+	scale.Scale = UIKit.screenScale() * (extra or 1)
+	if not autoConnected and workspace.CurrentCamera then
+		autoConnected = true
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshAutoScale)
+	end
+	return scale
+end
+
 local hud = nil
 function UIKit.hud()
 	if hud and hud.Parent then
@@ -392,15 +431,17 @@ function UIKit.hud()
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.FillDirectionMaxCells = 2
 		grid.Parent = rail
+		UIKit.autoScale(rail)
 
 		-- Phase 15 : 오른쪽 버튼 줄 (출석 · 룰렛). 인기 게임처럼 매일 받는 보상은 오른쪽에 세로로 둔다.
 		local right = Instance.new("Frame")
 		right.Name = "RightRail"
 		right.BackgroundTransparency = 1
 		right.AnchorPoint = Vector2.new(1, 0.5)
-		right.Position = UDim2.new(1, -14, 0.42, 0)
-		right.Size = UDim2.fromOffset(84, 2 * 74 + 26)
+		right.Position = UDim2.new(1, -14, 0.38, 0) -- 360px 높이 휴대폰에서도 점프 버튼 위에 끝난다
+		right.Size = UDim2.fromOffset(84, 3 * 74 + 2 * 26) -- 출석 · 룰렛 · 코드
 		right.Parent = gui
+		UIKit.autoScale(right)
 		local list = Instance.new("UIListLayout")
 		list.FillDirection = Enum.FillDirection.Vertical
 		list.HorizontalAlignment = Enum.HorizontalAlignment.Right
@@ -503,7 +544,7 @@ function UIKit.window(parent, props)
 	local frame = Instance.new("Frame")
 	frame.Name = props.name or "Window"
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
-	frame.Position = props.position or UDim2.fromScale(0.5, 0.52)
+	frame.Position = props.position or UDim2.fromScale(0.5, 0.5)
 	frame.Size = UDim2.fromOffset(size.X, size.Y)
 	frame.BackgroundColor3 = Color3.new(1, 1, 1)
 	frame.Visible = false
@@ -580,10 +621,25 @@ function UIKit.window(parent, props)
 	local w = { frame = frame, header = header, title = title, close = close, body = body, scale = scale }
 
 	-- 작은 화면에서는 창 전체를 줄인다 (글자 크기는 그대로 비율이 유지된다)
+	-- Phase 16 : 위쪽 Roblox 메뉴 줄을 뺀 실제 화면(ScreenGui.AbsoluteSize)에 맞춘다.
+	--   props.flexHeight 인 창(상점처럼 안이 스크롤되는 창)은 휴대폰에서 너무 작아지지 않게
+	--   minScale(기본 0.72) 까지만 줄이고, 대신 창의 높이를 화면에 맞춰 낮춘다. (글자가 읽힐 크기로 남는다)
 	function w.fit()
-		local camera = workspace.CurrentCamera
-		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-		return math.min(1, (view.X - 24) / size.X, (view.Y - 60) / (size.Y + 40))
+		local area = parent:IsA("GuiBase2d") and parent.AbsoluteSize or Vector2.zero
+		if area.X <= 0 then
+			local camera = workspace.CurrentCamera
+			area = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		end
+		local fit = math.min(1, (area.X - 16) / size.X, (area.Y - 28) / size.Y)
+		if props.flexHeight then
+			local want = math.min(1, (area.X - 16) / size.X, math.max(fit, props.minScale or 0.72))
+			if want > fit then
+				frame.Size = UDim2.fromOffset(size.X, math.floor((area.Y - 28) / want))
+				return want
+			end
+			frame.Size = UDim2.fromOffset(size.X, size.Y)
+		end
+		return fit
 	end
 	function w.open()
 		local target = w.fit()

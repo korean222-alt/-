@@ -83,4 +83,13 @@ if MeshKit.library() then
 else
  print("[StudioSmoke] Blender models not imported yet (assets/models/CursedBarrelModels.fbx) - part-built shapes are used")
 end
+-- Phase 16 : 명예의 문 랭킹판 셋 · 좋아요 보상 받침대 · 코드
+local faces={}
+for _,face in ipairs(game:GetService("CollectionService"):GetTagged(Config.Tags.RankingBoard)) do
+ if face:IsDescendantOf(workspace) then faces[face:GetAttribute("Board") or "?"]=face end
+end
+for _,id in ipairs({"streak","coins","wins"}) do check(faces[id]~=nil and faces[id]:FindFirstChild("RankingGui")~=nil,"Hall of fame board "..id) end
+check(#game:GetService("CollectionService"):GetTagged(Config.Tags.LikeReward)==1,"Like reward pedestal prompt")
+check(require(Services.CodeService).Codes.gnsdl23091~=nil,"Developer test code exists")
+check(not Config.isCoinSkin(Config.findSkin("Barrel","blue_drum")),"Blue drum is the like reward")
 print("[StudioSmoke] "..assertions.." engine assertions passed. This does not replace multiplayer/device QA.")

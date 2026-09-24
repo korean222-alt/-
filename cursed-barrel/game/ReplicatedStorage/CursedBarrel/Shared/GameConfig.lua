@@ -30,6 +30,7 @@ GameConfig.Tags = {
 	SkinPedestal = "CursedBarrel_SkinPedestal", -- Phase 5 : 전시대
 	SkinPreview = "CursedBarrel_SkinPreview", -- Phase 5 : 전시대 위에서 도는 모형
 	Decor = "CursedBarrel_Decor", -- Phase 6 : 장식 (성능 정리 대상)
+	LikeReward = "CursedBarrel_LikeReward", -- Phase 16 : 스폰 옆 좋아요 보상 받침대의 프롬프트
 }
 
 --------------------------------------------------
@@ -261,6 +262,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
+	LikeOnly = "👍 게임 좋아요 보상이에요 (스폰 옆 파란 드럼)",
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -311,6 +313,14 @@ GameConfig.Ranking = {
 	OrderedStoreName = "CursedBarrel_Wins_v2", -- 전 서버 랭킹
 	GlobalRows = 10,
 	GlobalRefresh = 90, -- 전 서버 랭킹을 다시 읽는 간격(초)
+	-- Phase 16 : 스폰 앞 "명예의 문" 나무판자 셋. id 는 ShipLayout.HallOfFame.Boards 의 id 와 같다.
+	--   stat  : 프로필에서 읽는 값 · store : 전 서버 순위를 쌓는 OrderedDataStore
+	Boards = {
+		{ id = "streak", title = "🔥 최고 연승", stat = "bestStreak", store = "CursedBarrel_BestStreak_v1", suffix = "연승", keepMax = true },
+		{ id = "coins", title = "💰 전체 부자 순위", stat = "coins", store = "CursedBarrel_Coins_v1" },
+		{ id = "wins", title = "🏆 전체 승리", stat = "wins", store = "CursedBarrel_Wins_v2", suffix = "승", keepMax = true },
+	},
+	PublishInterval = 120, -- 코인 · 연승을 전 서버 순위에 올리는 간격(초). 바뀐 사람만 쓴다
 }
 
 --------------------------------------------------
@@ -583,7 +593,8 @@ GameConfig.Skins = {
 		},
 		-- Phase 13 : 파란 철제 드럼 (진짜 200리터 드럼처럼 : 광택 파란 페인트 · 굴림 테 두 줄 · 위아래 주름 · 뚜껑 마개 둘)
 		{
-			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 16900,
+			-- Phase 16 : 게임에 좋아요를 누르면 받는 보상 (상점에서는 팔지 않는다 · 스폰 옆 받침대에서 받는다)
+			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 0, reward = "like",
 			body = Color3.fromRGB(26, 70, 178), bodyMaterial = Enum.Material.SmoothPlastic, reflectance = 0.16,
 			hoop = Color3.fromRGB(34, 84, 196), hoopMaterial = Enum.Material.SmoothPlastic,
 			lid = Color3.fromRGB(30, 76, 186), glow = Color3.fromRGB(30, 76, 186), glowMaterial = Enum.Material.SmoothPlastic,
@@ -711,7 +722,7 @@ end
 
 -- 기본으로 처음부터 가지고 있는 스킨 (가격 0 이고 로벅스 · VIP · 묶음 전용이 아닌 것)
 function GameConfig.isFreeSkin(skin)
-	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux and not skin.vip and not skin.pack and not skin.season
+	return skin ~= nil and (tonumber(skin.price) or 0) <= 0 and not skin.robux and not skin.vip and not skin.pack and not skin.season and not skin.reward
 end
 
 --------------------------------------------------
@@ -1465,7 +1476,7 @@ GameConfig.TableTypeByName.Table_J = "Tournament4"
 
 -- 코인으로 살 수 있는 스킨인가 (VIP · 스타터 · 시즌 · 로벅스 전용 · 기본 지급은 아니다)
 function GameConfig.isCoinSkin(skin)
-	return skin ~= nil and (tonumber(skin.price) or 0) > 0 and not skin.vip and not skin.pack and not skin.season
+	return skin ~= nil and (tonumber(skin.price) or 0) > 0 and not skin.vip and not skin.pack and not skin.season and not skin.reward
 end
 
 -- 코인이 shortfall 만큼 모자랄 때 권할 묶음 : 그만큼 채우는 가장 작은 묶음 (다 모자라면 가장 큰 묶음)
@@ -1562,6 +1573,16 @@ GameConfig.Roulette = {
 		{ id = "c3000", kind = "coins", amount = 3000, weight = 15, label = "3000", color = Color3.fromRGB(180, 132, 40) },
 		{ id = "jackpot", kind = "coins", amount = 6000, weight = 5, label = "6000", color = Color3.fromRGB(200, 60, 50) },
 	},
+}
+
+-- Phase 16 : 게임 좋아요 보상. 스폰 옆 받침대에서 받는다 (계정당 한 번).
+--   Roblox 는 좋아요를 눌렀는지 알려 주지 않는다 → 누르고 왔다고 하면 믿고 준다.
+--   ReleaseConfig.GroupId 를 넣으면 그 그룹 가입도 확인한다 (가입 창을 띄워 준다).
+GameConfig.LikeReward = {
+	Enabled = true,
+	Kind = "Barrel",
+	Skin = "blue_drum",
+	AutoEquip = true, -- 받자마자 장착해서 다음 판부터 바로 보인다
 }
 
 -- 신화 스킨은 무지갯빛 반짝임이 하나 더 붙는다 (SkinFX 의 fx.mythic)

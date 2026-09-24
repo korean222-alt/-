@@ -71,6 +71,7 @@ local function skinEntry(kind, skin, owned, equipped, deal)
 		vip = skin.vip == true,
 		pack = skin.pack,
 		season = skin.season == true,
+		reward = skin.reward, -- Phase 16 : "like" (게임 좋아요 보상)
 		owned = owned,
 		equipped = equipped,
 	}
@@ -211,6 +212,9 @@ function ShopService:Buy(player, kind, id)
 	end
 	if skin.season then
 		return false, REJECT.SeasonOnly
+	end
+	if skin.reward then
+		return false, REJECT.LikeOnly
 	end
 
 	local price = tonumber(skin.price) or 0

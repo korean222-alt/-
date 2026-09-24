@@ -38,7 +38,8 @@ local COLORS = {
 	Red = UIKit.Colors.Red,
 	Dim = UIKit.Colors.Dim,
 }
-local ICONS = { coins = "🪙", spin = "🎟", gem = "💎", chest = "🧰" }
+local MoneyIcon = require(Shared:WaitForChild("MoneyIcon"))
+local DAY_ICONS = { "cash", "cash", "cash2", "cash2", "cash3", "cash3", "chest" }
 -- 출석 칸 배경 (사진처럼 칸마다 다른 색)
 local CELL_THEMES = { "green", "green", "blue", "blue", "purple", "purple", "gold" }
 
@@ -80,8 +81,8 @@ for index, reward in ipairs(ATTEND.Days) do
 	UIKit.corner(cell, 12)
 	local glow = UIKit.outline(cell, 3.5)
 	local amountLabel = UIKit.label(cell, { text = Utility.comma(reward.coins), size = UDim2.new(1, -10, 0, 30), position = UDim2.fromOffset(5, 6), textSize = 26, stroke = 3 })
-	local icon = UIKit.label(cell, { text = ICONS[reward.icon] or "🪙", size = UDim2.new(1, 0, 0, 60), position = UDim2.fromOffset(0, 36), textSize = 52, stroke = 2 })
-	icon.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+	-- Phase 16 : 칸마다 돈 모양 그림 (날이 갈수록 돈이 많아지고 7일째는 보물 상자)
+	local icon = MoneyIcon.view(cell, DAY_ICONS[index] or "cash", { size = UDim2.new(1, -16, 0, 66), position = UDim2.fromOffset(8, 34), spin = index == #ATTEND.Days })
 	UIKit.label(cell, { text = ("%d일"):format(index), size = UDim2.new(1, 0, 0, 30), position = UDim2.new(0, 0, 1, -34), textSize = 24, stroke = 3 })
 	local check = UIKit.label(cell, { text = "✔", size = UDim2.fromScale(1, 1), textSize = 84, color = COLORS.Green, stroke = 4, zIndex = 6 })
 	check.Visible = false
@@ -110,7 +111,7 @@ local function drawAttendance()
 	for index, cell in ipairs(cells) do
 		local reward = ATTEND.Days[index]
 		cell.check.Visible = index <= claimed and not (attendance.ready and attendance.count == 0)
-		cell.icon.TextTransparency = cell.check.Visible and 0.6 or 0
+		cell.icon.ImageTransparency = cell.check.Visible and 0.6 or 0
 		cell.glow.Color = index == nextIndex and COLORS.Gold or UIKit.Colors.Outline
 		cell.glow.Thickness = index == nextIndex and 6 or 3.5
 		cell.amount.Text = Utility.comma(math.floor(reward.coins * vipScale))
@@ -146,68 +147,17 @@ end
 
 local roulette = UIKit.window(gui, { name = "Roulette", title = "행운의 룰렛", theme = "orange", icon = "🎡", size = Vector2.new(660, 460) })
 local rouletteWindow, roulettePaper = roulette.frame, roulette.body
-local WHEEL = 340
+local WHEEL = 350
 local wheelHolder = Instance.new("Frame")
-wheelHolder.Position = UDim2.fromOffset(6, 20)
+wheelHolder.Position = UDim2.fromOffset(0, 14)
 wheelHolder.Size = UDim2.fromOffset(WHEEL, WHEEL)
 wheelHolder.BackgroundTransparency = 1
 wheelHolder.Parent = roulettePaper
 
-local wheel = Instance.new("Frame")
-wheel.AnchorPoint = Vector2.new(0.5, 0.5)
-wheel.Position = UDim2.fromScale(0.5, 0.5)
-wheel.Size = UDim2.fromScale(1, 1)
-wheel.BackgroundColor3 = UIKit.Colors.BodyDark
-wheel.Parent = wheelHolder
-UIKit.corner(wheel, UDim.new(0.5, 0))
-UIKit.outline(wheel, 8, COLORS.Gold)
-
+-- Phase 16 : 진짜 3D 룰렛 판 (선명한 칸 · 금테 · 반짝이는 전구 · 돈 그림 · 빨간 바늘). RouletteWheel 참고
 local SEGMENTS = ROULETTE.Segments
 local STEP = 360 / #SEGMENTS
-for index, segment in ipairs(SEGMENTS) do
-	local angle = (index - 1) * STEP
-	-- 칸 사이 칸막이 : 바퀴 크기의 투명 틀을 돌리고, 그 안에 가운데에서 위로 뻗는 선을 둔다
-	local pivot = Instance.new("Frame")
-	pivot.AnchorPoint = Vector2.new(0.5, 0.5)
-	pivot.Position = UDim2.fromScale(0.5, 0.5)
-	pivot.Size = UDim2.fromScale(1, 1)
-	pivot.BackgroundTransparency = 1
-	pivot.Rotation = angle + STEP / 2
-	pivot.Parent = wheel
-	local spoke = Instance.new("Frame")
-	spoke.AnchorPoint = Vector2.new(0.5, 1)
-	spoke.Position = UDim2.fromScale(0.5, 0.5)
-	spoke.Size = UDim2.new(0, 4, 0.5, -4)
-	spoke.BackgroundColor3 = COLORS.Gold
-	spoke.BorderSizePixel = 0
-	spoke.Parent = pivot
-
-	local radius = WHEEL * 0.32
-	local radians = math.rad(angle)
-	local tile = Instance.new("Frame")
-	tile.AnchorPoint = Vector2.new(0.5, 0.5)
-	tile.Position = UDim2.new(0.5, math.sin(radians) * radius, 0.5, -math.cos(radians) * radius)
-	tile.Size = UDim2.fromOffset(74, 54)
-	tile.Rotation = angle
-	tile.BackgroundColor3 = segment.color
-	tile.Parent = wheel
-	UIKit.corner(tile, 10)
-	UIKit.outline(tile, 3)
-	UIKit.gradient(tile, Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 200), 90)
-	local icon = segment.kind == "coins" and "🪙" or ((segment.minPrice or 0) > 700 and "💎" or "🎁")
-	UIKit.label(tile, { text = icon .. "\n" .. segment.label, size = UDim2.fromScale(1, 1), textSize = 17, stroke = 2.5, wrap = true })
-end
-local hub = Instance.new("Frame")
-hub.AnchorPoint = Vector2.new(0.5, 0.5)
-hub.Position = UDim2.fromScale(0.5, 0.5)
-hub.Size = UDim2.fromOffset(72, 72)
-hub.BackgroundColor3 = Color3.new(1, 1, 1)
-hub.Parent = wheelHolder
-UIKit.paint(hub, "gold")
-UIKit.corner(hub, UDim.new(0.5, 0))
-UIKit.outline(hub, 4)
-UIKit.label(hub, { text = "☠", size = UDim2.fromScale(1, 1), textSize = 40, stroke = 3 })
-local pointer = UIKit.label(wheelHolder, { text = "▼", size = UDim2.fromOffset(50, 50), position = UDim2.new(0.5, -25, 0, -36), textSize = 46, color = COLORS.Red, stroke = 4, zIndex = 5 })
+local wheel = require(Shared:WaitForChild("RouletteWheel")).new(wheelHolder, SEGMENTS, WHEEL)
 
 -- 오른쪽 : 안내 한 줄 + 버튼 + 결과 (Phase 15 : 확률표는 걷어냈다)
 local side = Instance.new("Frame")
@@ -216,7 +166,9 @@ side.Size = UDim2.new(1, -(WHEEL + 30), 1, -8)
 side.BackgroundTransparency = 1
 side.Parent = roulettePaper
 text(side, "하루 한 번 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 40), 28, COLORS.Gold)
-text(side, "🪙  🎁  💎", UDim2.new(1, 0, 0, 56), UDim2.fromOffset(0, 92), 40, COLORS.Cream).FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+for i, kind in ipairs({ "cash2", "gift", "chest" }) do
+	MoneyIcon.view(side, kind, { size = UDim2.new(1 / 3, -4, 0, 70), position = UDim2.new((i - 1) / 3, 2, 0, 88), spin = true })
+end
 local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 172), "green")
 local resultLabel = text(side, "", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 250), 24, COLORS.Gold)
 
@@ -274,32 +226,36 @@ local function spinTo(result)
 	local target = (result.index - 1) * STEP
 	-- 칸 안에서 조금 흔들리게 (가운데에만 멈추면 조작처럼 보인다)
 	local jitter = (math.random() - 0.5) * STEP * 0.6
-	local current = wheel.Rotation % 360
-	wheel.Rotation = current
+	local current = wheel.rotation % 360
+	wheel:setRotation(current)
 	local goal = current + 360 * 6 + ((360 - target - jitter) - current) % 360
-	local tween = TweenService:Create(wheel, TweenInfo.new(4.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Rotation = goal })
-	tween:Play()
+	local angle = Instance.new("NumberValue")
+	angle.Value = current
+	local tween = TweenService:Create(angle, TweenInfo.new(4.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Value = goal })
 	-- 칸을 지날 때마다 딸깍
-	task.spawn(function()
-		local last = math.floor(wheel.Rotation / STEP)
-		while tween.PlaybackState == Enum.PlaybackState.Playing do
-			local now = math.floor(wheel.Rotation / STEP)
-			if now ~= last then
-				last = now
-				Sfx.play("Hit", { volume = 0.25, pitch = 2.2 })
-			end
-			task.wait()
+	local last = math.floor((current + STEP / 2) / STEP)
+	local changed = angle.Changed:Connect(function(value)
+		wheel:setRotation(value)
+		local now = math.floor((value + STEP / 2) / STEP)
+		if now ~= last then
+			last = now
+			Sfx.play("Hit", { volume = 0.25, pitch = 2.2 })
 		end
 	end)
+	wheel:setFast(true)
+	tween:Play()
 	tween.Completed:Wait()
+	changed:Disconnect()
+	angle:Destroy()
+	wheel:setRotation(goal)
+	wheel:setFast(false)
 	spinning = false
 	local message, big = resultText(result)
 	resultLabel.Text = message
 	resultLabel.TextColor3 = big and COLORS.Gold or COLORS.Ink
 	Sfx.play("Coins", { volume = big and 1 or 0.6 })
 	if big then
-		pointer.TextSize = 64
-		TweenService:Create(pointer, TweenInfo.new(0.5, Enum.EasingStyle.Elastic), { TextSize = 46 }):Play()
+		wheel:celebrate()
 	end
 	drawRoulette()
 end
@@ -346,6 +302,158 @@ local rouletteButton, rouletteDot = launcher("RouletteButton", "🎡", "룰렛",
 		rouletteWindow.Visible = false
 	else
 		openRoulette()
+	end
+end)
+
+--------------------------------------------------
+-- Phase 16 : 🎟 코드 입력 · 👍 좋아요 보상
+--------------------------------------------------
+
+local codeWin = UIKit.window(gui, { name = "Codes", title = "코드 입력", theme = "teal", icon = "🎟", size = Vector2.new(500, 300) })
+local codeBox = Instance.new("TextBox")
+codeBox.Name = "CodeBox"
+codeBox.Size = UDim2.new(1, -8, 0, 64)
+codeBox.Position = UDim2.fromOffset(4, 14)
+codeBox.BackgroundColor3 = UIKit.Colors.Cream
+codeBox.ClearTextOnFocus = false
+codeBox.PlaceholderText = "코드를 적어 주세요"
+codeBox.PlaceholderColor3 = Color3.fromRGB(140, 130, 120)
+codeBox.Text = ""
+codeBox.TextColor3 = UIKit.Colors.Outline
+codeBox.FontFace = UIKit.font()
+codeBox.TextSize = 30
+codeBox.Parent = codeWin.body
+UIKit.corner(codeBox, 12)
+UIKit.outline(codeBox, 3.5)
+local codeButton = button(codeWin.body, "확인", UDim2.new(1, -8, 0, 62), UDim2.fromOffset(4, 92), "green")
+local codeResult = text(codeWin.body, "", UDim2.new(1, -8, 0, 44), UDim2.fromOffset(4, 162), 24, COLORS.Gold)
+local codeBusy = false
+local function sendCode()
+	if codeBusy then
+		return
+	end
+	local value = codeBox.Text
+	if value:gsub("%s", "") == "" then
+		codeResult.Text = "코드를 적어 주세요"
+		codeResult.TextColor3 = COLORS.Red
+		return
+	end
+	codeBusy = true
+	codeResult.Text = "…"
+	rewardRequest:FireServer("code", value)
+	task.delay(4, function()
+		codeBusy = false
+	end)
+end
+codeButton.Activated:Connect(sendCode)
+codeBox.FocusLost:Connect(function(enter)
+	if enter then
+		sendCode()
+	end
+end)
+
+local likeWin = UIKit.window(gui, { name = "LikeReward", title = "좋아요 보상", theme = "blue", icon = "👍", size = Vector2.new(600, 360) })
+local likeView = Instance.new("ViewportFrame")
+likeView.Name = "Drum"
+likeView.Size = UDim2.fromOffset(210, 230)
+likeView.Position = UDim2.fromOffset(4, 8)
+likeView.BackgroundColor3 = UIKit.Colors.BodyDark
+likeView.Ambient = Color3.fromRGB(170, 180, 205)
+likeView.LightColor = Color3.fromRGB(255, 240, 220)
+likeView.LightDirection = Vector3.new(-1, -1.3, -0.8)
+likeView.Parent = likeWin.body
+UIKit.corner(likeView, 14)
+UIKit.outline(likeView, 3)
+task.spawn(function()
+	local like = GameConfig.LikeReward
+	local skin = like and GameConfig.findSkin(like.Kind, like.Skin)
+	if not skin then
+		return
+	end
+	local world = Instance.new("WorldModel")
+	world.Parent = likeView
+	local ok, model = pcall(function()
+		return require(Shared:WaitForChild("SkinPreview")).build(like.Kind, skin, world)
+	end)
+	if not ok or not model then
+		return
+	end
+	local box, size = model:GetBoundingBox()
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = likeView
+	likeView.CurrentCamera = camera
+	local distance = math.max(size.X, size.Y, size.Z) * 0.5 / math.tan(math.rad(15)) * 1.1 + 0.5
+	local angle = 0
+	camera.CFrame = CFrame.lookAt(box.Position + Vector3.new(0, 0.35, 1).Unit * distance, box.Position)
+	while likeView.Parent do
+		if likeWin.frame.Visible then
+			angle += 0.03
+			camera.CFrame = CFrame.lookAt(box.Position + Vector3.new(math.sin(angle), 0.35, math.cos(angle)).Unit * distance, box.Position)
+			task.wait(1 / 30)
+		else
+			task.wait(0.5)
+		end
+	end
+end)
+local likeSide = Instance.new("Frame")
+likeSide.BackgroundTransparency = 1
+likeSide.Position = UDim2.fromOffset(230, 0)
+likeSide.Size = UDim2.new(1, -232, 1, 0)
+likeSide.Parent = likeWin.body
+text(likeSide, "파란 철제 드럼 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 6), 30, UIKit.Colors.Blue)
+local likeHow = text(likeSide, "게임 페이지에서 👍 좋아요를 눌러 주세요", UDim2.new(1, 0, 0, 64), UDim2.fromOffset(0, 54), 22, COLORS.Cream)
+local likeButton = button(likeSide, "👍 눌렀어요! 받기", UDim2.new(1, -4, 0, 64), UDim2.fromOffset(0, 136), "blue")
+local likeResult = text(likeSide, "", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 210), 22, COLORS.Gold)
+local function drawLike()
+	local claimed = player:GetAttribute("LikeClaimed") == true
+	likeButton.Text = claimed and "받았어요 ✔" or "👍 눌렀어요! 받기"
+	UIKit.setTheme(likeButton, claimed and "grey" or "blue")
+	likeButton.Active = not claimed
+	likeHow.Text = claimed and "고마워요! 통 스킨에서 장착할 수 있어요" or "게임 페이지에서 👍 좋아요를 눌러 주세요"
+end
+likeButton.Activated:Connect(function()
+	if player:GetAttribute("LikeClaimed") == true then
+		return
+	end
+	likeResult.Text = "…"
+	rewardRequest:FireServer("like")
+end)
+local function openLike()
+	drawLike()
+	likeResult.Text = ""
+	likeWin.open()
+end
+
+-- 받침대 프롬프트 (스폰 옆 파란 드럼)
+local CollectionService = game:GetService("CollectionService")
+local function bindLikePrompt(prompt)
+	if not prompt:IsA("ProximityPrompt") then
+		return
+	end
+	local function label()
+		prompt.ActionText = player:GetAttribute("LikeClaimed") == true and "받음 ✔" or "받기"
+	end
+	label()
+	player:GetAttributeChangedSignal("LikeClaimed"):Connect(label)
+	prompt.Triggered:Connect(openLike)
+end
+for _, prompt in ipairs(CollectionService:GetTagged(GameConfig.Tags.LikeReward)) do
+	bindLikePrompt(prompt)
+end
+CollectionService:GetInstanceAddedSignal(GameConfig.Tags.LikeReward):Connect(bindLikePrompt)
+player:GetAttributeChangedSignal("LikeClaimed"):Connect(function()
+	if likeWin.frame.Visible then
+		drawLike()
+	end
+end)
+
+launcher("CodeButton", "🎟", "코드", 0, 5, "teal", function()
+	if codeWin.frame.Visible then
+		codeWin.hide()
+	else
+		codeResult.Text = ""
+		codeWin.open()
 	end
 end)
 
@@ -439,6 +547,42 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 		end
 	elseif kind == "notice" then
 		resultLabel.Text = tostring(result)
+	elseif kind == "code" then
+		codeBusy = false
+		local info = typeof(result) == "table" and result or {}
+		codeResult.Text = tostring(info.message or "")
+		codeResult.TextColor3 = ok and COLORS.Gold or COLORS.Red
+		if ok then
+			codeBox.Text = ""
+			Sfx.play("Coins", { volume = 0.9 })
+			shopRequest:FireServer("sync")
+		end
+	elseif kind == "like" then
+		if ok and typeof(result) == "table" then
+			likeResult.Text = ("🎉 「%s」 받았어요! (장착됨)"):format(tostring(result.skinName))
+			likeResult.TextColor3 = COLORS.Gold
+			Sfx.play("Coins", { volume = 0.9 })
+			shopRequest:FireServer("sync")
+		elseif result == "group" then
+			-- 그룹 가입이 필요하다 : 가입 창을 띄우고, 가입하면 다시 받아 본다
+			likeResult.Text = "그룹에 가입하면 받을 수 있어요"
+			likeResult.TextColor3 = COLORS.Red
+			local group = tonumber(Release.GroupId) or 0
+			if group > 0 then
+				task.spawn(function()
+					local okPrompt = pcall(function()
+						game:GetService("GroupService"):PromptJoinAsync(group)
+					end)
+					if okPrompt and player:IsInGroup(group) then
+						rewardRequest:FireServer("like")
+					end
+				end)
+			end
+		else
+			likeResult.Text = tostring(result)
+			likeResult.TextColor3 = COLORS.Red
+		end
+		drawLike()
 	end
 end)
 

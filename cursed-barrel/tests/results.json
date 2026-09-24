@@ -1,23 +1,23 @@
 {
-  "place": "CursedBarrel_Phase15_Kraken.rbxl",
-  "sha256": "5b316281b7d120a19741d44a1b6edd25fbf75d07f5eb717fd633de028f2beb15",
+  "place": "CursedBarrel_Phase16_Lobby.rbxl",
+  "sha256": "55913a3dfa5c3a856d0d96fd6d19e6b06f6efe9cdd73a9ac15d29ca989480884",
   "original_instances": 1255,
-  "output_instances": 1293,
-  "source_files": 61,
-  "behavior_checks_passed": 105,
+  "output_instances": 1297,
+  "source_files": 65,
+  "behavior_checks_passed": 110,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
-  "luau_compile": "PASS (61 files, luau-compile)",
+  "luau_compile": "PASS (65 files, luau-compile)",
   "native_luau_checks": [
     "[kraken] KRAKEN CHECKS: 2690061 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 105 passed"
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 110 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
   "live_datastore_receipts_assets": "NOT_RUN",
   "test_output": [
-    "PASS: 61 source files parsed by Lua 5.4 after compound-assignment translation",
+    "PASS: 65 source files parsed by Lua 5.4 after compound-assignment translation",
     "PASS rarity lookup does not mutate or duplicate the skin catalog",
     "PASS new profile acquires an atomic session",
     "PASS six inventory categories and defaults",
@@ -115,7 +115,7 @@
     "PASS daily deal: one discounted coin skin per day, charged at the deal price",
     "PASS English: exact, templated, nested and concatenated UI text all become English",
     "PASS skin price ladder: common ~1만, rare ~1.7~6.9만, epic ~13~15만, legend ~25~30만, mythic 49.9만",
-    "PASS blue steel drum: coin skin with rolling hoops, ribs, chimes and two bungs on the lid",
+    "PASS blue steel drum: like-reward skin with rolling hoops, ribs, chimes and two bungs on the lid",
     "PASS buying a legend or mythic skin is announced to the whole server",
     "PASS AI crew fills duo tables and sits down without Seat:Sit",
     "PASS GameTable seats an AI directly, blocks the chair, and frees it again",
@@ -127,7 +127,12 @@
     "PASS quest dot counts finished, unclaimed daily quests",
     "PASS sea rescue: anyone below the waterline is lifted to the nearest deck spot",
     "PASS Blender models: catalog is complete and the game falls back without them",
-    "BEHAVIOR CHECKS: 105 passed",
-    "PASS: English covers all 466 Korean UI strings"
+    "PASS like reward: blue drum once per account, equipped, cannot be bought",
+    "PASS codes: case-insensitive, once per account; developer code only for developers and keeps them off the rankings",
+    "PASS rankings: three wooden boards (streak · coins · wins), testers hidden, short numbers",
+    "PASS hall of fame gate and like pedestal leave the stairs, spawn and lamps clear",
+    "PASS money icons: every kind has valid pieces (orthonormal CFrames, real sizes and colors)",
+    "BEHAVIOR CHECKS: 110 passed",
+    "PASS: English covers all 494 Korean UI strings"
   ]
 }

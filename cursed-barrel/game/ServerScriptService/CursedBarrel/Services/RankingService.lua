@@ -1,13 +1,21 @@
 --[[
-	RankingService  (Phase 3 · Phase 7 에서 전 서버 랭킹이 붙는다)
-	누가 몇 번 이겼는지 세고, 로비의 랭킹판에 그려 넣는다.
+	RankingService  (Phase 3 · Phase 7 전 서버 랭킹 · Phase 16 명예의 문)
+	스폰 앞 "명예의 문" 나무판자 셋에 순위를 그린다.
 
-	두 가지를 보여준다.
-	  · 이 서버 순위   — 지금 이 서버에서 벌어진 일. 바로바로 갱신된다.
-	  · 전체 순위      — OrderedDataStore 에 쌓인 모든 서버의 기록. 90초마다 다시 읽는다.
+	  🔥 최고 연승   — 가장 길게 이어 이긴 판 수 (bestStreak)
+	  💰 전체 부자   — 지금 가진 코인
+	  🏆 전체 승리   — 이긴 판 수
+
+	두 가지 자료를 쓴다.
+	  · 전 서버 순위 — 판마다 OrderedDataStore 하나. 90초마다 다시 읽는다.
+	  · 이 서버 순위 — 저장소를 못 열 때(Studio 에서 API 가 꺼져 있을 때 등)만 대신 보여 준다.
+
+	올리기
+	  · 승리 : 이긴 순간 (예전과 같다)
+	  · 코인 · 연승 : 2분마다 값이 바뀐 사람만 (저장소 쓰기 한도를 아낀다)
+	  · 개발자 시험 코드를 쓴 계정(devTester)은 순위에 올리지 않는다 (999,999 코인이 1등을 차지하지 않게)
 
 	기록 자체는 ProfileService 가 맡는다. 여기서는 세고 그리기만 한다.
-	(Phase 3 에서는 이 파일이 직접 DataStore 에 썼는데, 승자만 저장되고 충돌에도 약했다)
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -26,38 +34,53 @@ local BOARD_TAG = GameConfig.Tags.RankingBoard
 local PLAYER_ATTR = GameConfig.PlayerAttributes
 
 local PALETTE = {
-	Panel = Color3.fromRGB(30, 21, 16),
-	PanelLight = Color3.fromRGB(58, 40, 27),
-	Gold = Color3.fromRGB(226, 178, 86),
-	Cream = Color3.fromRGB(238, 223, 196),
-	Dim = Color3.fromRGB(150, 138, 118),
-	Flame = Color3.fromRGB(255, 146, 70),
-	RowEven = Color3.fromRGB(44, 31, 23),
-	RowOdd = Color3.fromRGB(36, 25, 19),
+	Title = Color3.fromRGB(255, 214, 92),
+	Name = Color3.fromRGB(255, 244, 222),
+	Value = Color3.fromRGB(255, 226, 120),
+	Outline = Color3.fromRGB(34, 20, 12),
+	RowA = Color3.fromRGB(58, 34, 18),
+	RowB = Color3.fromRGB(74, 44, 24),
+	Empty = Color3.fromRGB(214, 190, 150),
+	Medal = { Color3.fromRGB(255, 206, 60), Color3.fromRGB(214, 222, 236), Color3.fromRGB(226, 146, 84) },
 }
+local FONT = Font.new("rbxasset://fonts/families/FredokaOne.json", Enum.FontWeight.Bold)
+
+local BOARDS = {}
+for _, spec in ipairs(RANKING.Boards or {}) do
+	BOARDS[spec.id] = spec
+end
+local DEFAULT_BOARD = "wins"
 
 local RankingService = {}
-RankingService._stats = {} -- [userId] = { name, wins, games, streak, order }
-RankingService._global = {} -- 전 서버 상위 목록
-RankingService._boards = {}
+RankingService._stats = {} -- [userId] = { name, wins, games, streak, bestStreak, coins, order }
+RankingService._global = {} -- [boardId] = { { userId, name, value } }
+RankingService._boards = {} -- [face part] = boardId
+RankingService._stores = {} -- [boardId] = OrderedDataStore | false
+RankingService._published = {} -- [userId] = { [boardId] = 마지막으로 올린 값 }
+RankingService._names = {} -- [userId] = 이름 (한 번만 묻는다)
 RankingService._cleaner = Utility.Cleaner.new()
 RankingService._started = false
 RankingService._orderCounter = 0
-RankingService._ordered = nil
 RankingService._refreshQueued = false
 
 --------------------------------------------------
 -- 이 서버 기록
 --------------------------------------------------
 
+local function isTester(player)
+	local profile = ProfileService:Get(player)
+	return profile ~= nil and profile.devTester == true
+end
+
 local function entryFor(self, player)
 	local entry = self._stats[player.UserId]
 	if not entry then
 		self._orderCounter += 1
-		entry = { name = player.DisplayName or player.Name, wins = 0, games = 0, streak = 0, order = self._orderCounter }
+		entry = { name = player.Name, wins = 0, games = 0, streak = 0, bestStreak = 0, coins = 0, order = self._orderCounter }
 		self._stats[player.UserId] = entry
 	end
-	entry.name = player.DisplayName or player.Name
+	entry.name = player.Name
+	entry.tester = isTester(player)
 	return entry
 end
 
@@ -68,6 +91,7 @@ function RankingService:RecordRound(gameTable, roster, winner)
 			local entry = entryFor(self, player)
 			entry.games += 1
 			entry.streak = player:GetAttribute(PLAYER_ATTR.Streak) or 0
+			entry.bestStreak = math.max(entry.bestStreak, entry.streak)
 		end
 	end
 
@@ -75,7 +99,11 @@ function RankingService:RecordRound(gameTable, roster, winner)
 		local entry = entryFor(self, winner)
 		entry.wins += 1
 		entry.streak = winner:GetAttribute(PLAYER_ATTR.Streak) or 0
-		self:_publishGlobal(winner)
+		entry.bestStreak = math.max(entry.bestStreak, entry.streak)
+		if not entry.tester then
+			local profile = ProfileService:Get(winner)
+			self:_publish(winner.UserId, "wins", profile and profile.wins or entry.wins)
+		end
 		GameConfig.log(("랭킹 기록 · %s 승리 %d회 (%s)")
 			:format(winner.Name, entry.wins, tostring(gameTable and gameTable.tableId)))
 	end
@@ -83,25 +111,29 @@ function RankingService:RecordRound(gameTable, roster, winner)
 	self:Refresh()
 end
 
--- 승리 순 → 판수 적은 순 → 먼저 들어온 순
-function RankingService:GetTop(count)
+-- 이 서버 순위. stat 이 큰 순 → 먼저 들어온 순 (승리는 판수 적은 순을 먼저 본다)
+function RankingService:GetTop(count, boardId)
+	local stat = (BOARDS[boardId or DEFAULT_BOARD] or { stat = "wins" }).stat
 	local list = {}
 	for userId, entry in pairs(self._stats) do
-		table.insert(list, {
-			userId = userId,
-			name = entry.name,
-			wins = entry.wins,
-			games = entry.games,
-			streak = entry.streak or 0,
-			order = entry.order,
-		})
+		if not entry.tester then
+			table.insert(list, {
+				userId = userId,
+				name = entry.name,
+				value = entry[stat] or 0,
+				wins = entry.wins,
+				games = entry.games,
+				streak = entry.streak or 0,
+				order = entry.order,
+			})
+		end
 	end
 
 	table.sort(list, function(a, b)
-		if a.wins ~= b.wins then
-			return a.wins > b.wins
+		if a.value ~= b.value then
+			return a.value > b.value
 		end
-		if a.games ~= b.games then
+		if stat == "wins" and a.games ~= b.games then
 			return a.games < b.games
 		end
 		return a.order < b.order
@@ -115,175 +147,196 @@ function RankingService:GetTop(count)
 end
 
 --------------------------------------------------
--- 전 서버 랭킹 (OrderedDataStore)
+-- 전 서버 랭킹 (판마다 OrderedDataStore 하나)
 --------------------------------------------------
 
-function RankingService:_getOrdered()
+function RankingService:_store(boardId)
 	if not RANKING.UseDataStore then
 		return nil
 	end
-	if self._ordered == nil then
+	local spec = BOARDS[boardId]
+	if not spec then
+		return nil
+	end
+	if self._stores[boardId] == nil then
 		local ok, store = pcall(function()
-			return DataStoreService:GetOrderedDataStore(RANKING.OrderedStoreName)
+			return DataStoreService:GetOrderedDataStore(spec.store)
 		end)
-		self._ordered = ok and store or false
+		self._stores[boardId] = ok and store or false
 		if not ok then
-			warn("[CursedBarrel] 전체 순위를 열 수 없어 이 서버 순위만 보여줍니다.")
+			warn("[CursedBarrel] 전체 순위를 열 수 없어 이 서버 순위만 보여줍니다. (" .. boardId .. ")")
 		end
 	end
-	return self._ordered or nil
+	return self._stores[boardId] or nil
 end
 
--- 우승한 사람의 누적 승수를 전체 순위에 올린다.
-function RankingService:_publishGlobal(player)
-	local store = self:_getOrdered()
-	if not store then
+-- 한 사람의 값을 전 서버 순위에 올린다. 승리 · 연승은 줄어들지 않고, 코인은 지금 값 그대로.
+function RankingService:_publish(userId, boardId, value)
+	local store = self:_store(boardId)
+	local spec = BOARDS[boardId]
+	if not store or not spec then
 		return
 	end
-	local profile = ProfileService:Get(player)
-	local wins = profile and profile.wins or player:GetAttribute(PLAYER_ATTR.Wins) or 0
-
+	value = math.max(0, math.floor(tonumber(value) or 0))
+	local seen = self._published[userId] or {}
+	self._published[userId] = seen
+	if seen[boardId] == value then
+		return
+	end
+	seen[boardId] = value
 	task.spawn(function()
 		local ok, err = pcall(function()
-			store:UpdateAsync(tostring(player.UserId),function(old) return math.max(tonumber(old) or 0,math.floor(wins)) end)
+			if spec.keepMax then
+				store:UpdateAsync(tostring(userId), function(old)
+					return math.max(tonumber(old) or 0, value)
+				end)
+			else
+				store:SetAsync(tostring(userId), value)
+			end
 		end)
 		if not ok then
-			warn("[CursedBarrel] 전체 순위 기록 실패: " .. tostring(err))
+			seen[boardId] = nil
+			warn("[CursedBarrel] 전체 순위 기록 실패 (" .. boardId .. "): " .. tostring(err))
 		end
 	end)
+end
+
+-- 시험 계정은 순위에서 지운다 (예전에 올라가 있었어도)
+function RankingService:_forget(userId)
+	for boardId in pairs(BOARDS) do
+		local store = self:_store(boardId)
+		if store then
+			task.spawn(function()
+				pcall(function()
+					store:RemoveAsync(tostring(userId))
+				end)
+			end)
+		end
+	end
+	self._published[userId] = {}
+end
+
+function RankingService:_nameOf(userId)
+	local cached = self._names[userId]
+	if cached then
+		return cached
+	end
+	local name = "선원 " .. tostring(userId)
+	local ok, fetched = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	if ok and fetched then
+		name = fetched
+		self._names[userId] = fetched
+	end
+	return name
 end
 
 function RankingService:_pullGlobal()
-	local store = self:_getOrdered()
-	if not store then
-		return
-	end
-
-	local ok, pages = pcall(function()
-		return store:GetSortedAsync(false, RANKING.GlobalRows)
-	end)
-	if not ok then
-		return
-	end
-
-	local ok2, page = pcall(function()
-		return pages:GetCurrentPage()
-	end)
-	if not ok2 then
-		return
-	end
-
-	local list = {}
-	for index, row in ipairs(page) do
-		local userId = tonumber(row.key)
-		local name = "플레이어 " .. tostring(row.key)
-		if userId then
-			-- 이름은 캐시가 있으면 바로 오고, 없으면 한 번만 물어본다.
-			local okName, fetched = pcall(function()
-				return Players:GetNameFromUserIdAsync(userId)
+	for boardId in pairs(BOARDS) do
+		local store = self:_store(boardId)
+		if store then
+			local ok, page = pcall(function()
+				return store:GetSortedAsync(false, RANKING.GlobalRows):GetCurrentPage()
 			end)
-			if okName and fetched then
-				name = fetched
+			if ok then
+				local list = {}
+				for index, row in ipairs(page) do
+					local userId = tonumber(row.key) or 0
+					list[index] = { userId = userId, name = userId > 0 and self:_nameOf(userId) or tostring(row.key), value = tonumber(row.value) or 0 }
+				end
+				self._global[boardId] = list
 			end
 		end
-		list[index] = { userId = userId or 0, name = name, wins = tonumber(row.value) or 0 }
 	end
-
-	self._global = list
 	self:Refresh()
 end
 
+-- 코인 · 연승은 모아 두었다가 한 번에 올린다
+function RankingService:_flush()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local profile = ProfileService:Get(player)
+		if profile and not profile.devTester then
+			for boardId, spec in pairs(BOARDS) do
+				if boardId ~= "wins" then
+					self:_publish(player.UserId, boardId, profile[spec.stat])
+				end
+			end
+		end
+	end
+end
+
 --------------------------------------------------
--- 랭킹판 그리기
+-- 판 그리기 (나무판자 위 금색 글씨)
 --------------------------------------------------
 
-local function makeLabel(parent, name, text, color, size, order)
+-- 1,234 · 12.3만 · 1.2억 처럼 짧게
+function RankingService.shortNumber(value)
+	value = math.floor(tonumber(value) or 0)
+	if value >= 100000000 then
+		return (("%.1f억"):format(value / 100000000):gsub("%.0억", "억"))
+	elseif value >= 100000 then
+		return (("%.1f만"):format(value / 10000):gsub("%.0만", "만"))
+	end
+	return Utility.comma(value)
+end
+
+local function outlined(label, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = PALETTE.Outline
+	stroke.Thickness = thickness or 2
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = label
+	return stroke
+end
+
+local function textLabel(parent, name, text, color, size, position, alignX)
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.BackgroundTransparency = 1
 	label.Size = size
-	label.Font = Enum.Font.GothamBold
+	label.Position = position or UDim2.new()
+	label.FontFace = FONT
 	label.Text = text
 	label.TextColor3 = color
 	label.TextScaled = true
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.LayoutOrder = order or 0
+	label.TextXAlignment = alignX or Enum.TextXAlignment.Left
 	label.Parent = parent
 	return label
 end
 
-local function ensureBoardGui(board)
-	local gui = board:FindFirstChild("RankingGui")
-	if not gui then
-		gui = Instance.new("SurfaceGui")
-		gui.Name = "RankingGui"
-		gui.Face = Enum.NormalId.Front
-		gui.LightInfluence = 0
-		gui.PixelsPerStud = 50
-		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		gui.Parent = board
+local function ensureBoardGui(face, spec)
+	local gui = face:FindFirstChild("RankingGui")
+	if gui then
+		return gui:FindFirstChild("Rows")
 	end
+	gui = Instance.new("SurfaceGui")
+	gui.Name = "RankingGui"
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0.35
+	gui.Brightness = 1.4
+	gui.PixelsPerStud = 48
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.MaxDistance = 140
+	gui.Parent = face
 
-	local panel = gui:FindFirstChild("Panel")
-	if not panel then
-		panel = Instance.new("Frame")
-		panel.Name = "Panel"
-		panel.Size = UDim2.fromScale(1, 1)
-		panel.BackgroundColor3 = PALETTE.Panel
-		panel.BackgroundTransparency = 0.05
-		panel.BorderSizePixel = 0
-		panel.Parent = gui
+	local title = textLabel(gui, "Title", spec.title or "순위", PALETTE.Title, UDim2.new(0.94, 0, 0.15, 0), UDim2.fromScale(0.03, 0.02), Enum.TextXAlignment.Center)
+	outlined(title, 3)
 
-		local padding = Instance.new("UIPadding")
-		padding.PaddingTop = UDim.new(0.05, 0)
-		padding.PaddingBottom = UDim.new(0.05, 0)
-		padding.PaddingLeft = UDim.new(0.05, 0)
-		padding.PaddingRight = UDim.new(0.05, 0)
-		padding.Parent = panel
-	end
-
-	local title = panel:FindFirstChild("Title")
-	if not title then
-		title = makeLabel(panel, "Title", "명예의 전당", PALETTE.Gold, UDim2.fromScale(1, 0.13), 0)
-		title.Position = UDim2.fromScale(0, 0)
-		title.TextXAlignment = Enum.TextXAlignment.Center
-	end
-
-	local subtitle = panel:FindFirstChild("Subtitle")
-	if not subtitle then
-		subtitle = makeLabel(panel, "Subtitle", "", PALETTE.Dim, UDim2.fromScale(1, 0.07), 0)
-		subtitle.Position = UDim2.fromScale(0, 0.135)
-		subtitle.Font = Enum.Font.GothamMedium
-		subtitle.TextXAlignment = Enum.TextXAlignment.Center
-	end
-
-	local rows = panel:FindFirstChild("Rows")
-	if not rows then
-		rows = Instance.new("Frame")
-		rows.Name = "Rows"
-		rows.BackgroundTransparency = 1
-		rows.Position = UDim2.fromScale(0, 0.22)
-		rows.Size = UDim2.fromScale(1, 0.72)
-		rows.Parent = panel
-
-		local layout = Instance.new("UIListLayout")
-		layout.Padding = UDim.new(0.012, 0)
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Parent = rows
-	end
-
-	local footer = panel:FindFirstChild("Footer")
-	if not footer then
-		footer = makeLabel(panel, "Footer", "", PALETTE.Dim, UDim2.fromScale(1, 0.055), 0)
-		footer.Position = UDim2.fromScale(0, 0.945)
-		footer.Font = Enum.Font.GothamMedium
-		footer.TextXAlignment = Enum.TextXAlignment.Center
-	end
-
-	return rows, footer, subtitle
+	local rows = Instance.new("Frame")
+	rows.Name = "Rows"
+	rows.BackgroundTransparency = 1
+	rows.Position = UDim2.fromScale(0.03, 0.19)
+	rows.Size = UDim2.fromScale(0.94, 0.79)
+	rows.Parent = gui
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0.008, 0)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = rows
+	return rows
 end
 
-local function buildRow(rows, index, text, wins, highlight, streak)
+local function buildRow(rows, index, entry, spec)
 	local row = rows:FindFirstChild("Row_" .. index)
 	if not row then
 		row = Instance.new("Frame")
@@ -291,71 +344,56 @@ local function buildRow(rows, index, text, wins, highlight, streak)
 		row.Size = UDim2.fromScale(1, 0.092)
 		row.BorderSizePixel = 0
 		row.LayoutOrder = index
+		row.BackgroundColor3 = index % 2 == 0 and PALETTE.RowB or PALETTE.RowA
+		row.BackgroundTransparency = 0.25
 		row.Parent = rows
-
 		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.25, 0)
+		corner.CornerRadius = UDim.new(0.3, 0)
 		corner.Parent = row
 
-		local padding = Instance.new("UIPadding")
-		padding.PaddingLeft = UDim.new(0.02, 0)
-		padding.PaddingRight = UDim.new(0.02, 0)
-		padding.Parent = row
-
-		local playerName = makeLabel(row, "PlayerName", "", PALETTE.Cream, UDim2.fromScale(0.58, 0.8), 0)
-		playerName.Position = UDim2.fromScale(0, 0.1)
-
-		local flame = makeLabel(row, "Streak", "", PALETTE.Flame, UDim2.fromScale(0.16, 0.8), 0)
-		flame.Position = UDim2.fromScale(0.58, 0.1)
-		flame.TextXAlignment = Enum.TextXAlignment.Center
-
-		local score = makeLabel(row, "Score", "", PALETTE.Gold, UDim2.fromScale(0.24, 0.8), 0)
-		score.Position = UDim2.fromScale(0.76, 0.1)
-		score.TextXAlignment = Enum.TextXAlignment.Right
+		local rank = textLabel(row, "Rank", "#" .. index, PALETTE.Name, UDim2.fromScale(0.11, 0.86), UDim2.fromScale(0.01, 0.07), Enum.TextXAlignment.Center)
+		outlined(rank, 1.5)
+		local avatar = Instance.new("ImageLabel")
+		avatar.Name = "Avatar"
+		avatar.BackgroundColor3 = PALETTE.Outline
+		avatar.BackgroundTransparency = 0.3
+		avatar.Size = UDim2.fromScale(0.09, 0.9)
+		avatar.Position = UDim2.fromScale(0.125, 0.05)
+		avatar.Parent = row
+		local aspect = Instance.new("UIAspectRatioConstraint")
+		aspect.AspectRatio = 1
+		aspect.Parent = avatar
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(0.5, 0)
+		round.Parent = avatar
+		outlined(textLabel(row, "PlayerName", "", PALETTE.Name, UDim2.fromScale(0.5, 0.78), UDim2.fromScale(0.235, 0.11)), 1.5)
+		outlined(textLabel(row, "Score", "", PALETTE.Value, UDim2.fromScale(0.26, 0.82), UDim2.fromScale(0.73, 0.09), Enum.TextXAlignment.Right), 1.5)
 	end
 
-	row.BackgroundColor3 = (index % 2 == 0) and PALETTE.RowEven or PALETTE.RowOdd
-	row.BackgroundTransparency = 0.15
-
-	local nameLabel = row:FindFirstChild("PlayerName")
-	local scoreLabel = row:FindFirstChild("Score")
-	local streakLabel = row:FindFirstChild("Streak")
-	if nameLabel then
-		nameLabel.Text = text
-		nameLabel.TextColor3 = highlight and PALETTE.Gold or PALETTE.Cream
+	local medal = PALETTE.Medal[index]
+	row.Rank.TextColor3 = medal or PALETTE.Name
+	row.Avatar.Visible = (entry.userId or 0) > 0
+	if row.Avatar.Visible then
+		row.Avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=48&h=48"):format(entry.userId)
 	end
-	if scoreLabel then
-		scoreLabel.Text = wins
-	end
-	if streakLabel then
-		streakLabel.Text = (streak and streak >= GameConfig.Streak.MinToShow) and ("🔥 " .. streak) or ""
-	end
-
+	row.PlayerName.Text = entry.name or ""
+	row.PlayerName.TextColor3 = medal and PALETTE.Title or PALETTE.Name
+	row.Score.Text = RankingService.shortNumber(entry.value) .. (spec.suffix or "")
 	return row
 end
 
 function RankingService:Refresh()
-	local useGlobal = #self._global > 0
-	local top = useGlobal and self._global or self:GetTop(RANKING.Rows)
-
-	for board in pairs(self._boards) do
-		if board.Parent then
+	for face, boardId in pairs(self._boards) do
+		if face.Parent then
 			local ok, err = pcall(function()
-				local rows, footer, subtitle = ensureBoardGui(board)
-
-				subtitle.Text = "" -- 부제목 없음
-
+				local spec = BOARDS[boardId] or BOARDS[DEFAULT_BOARD] or { id = boardId, stat = "wins", title = "🏆 승리" }
+				local rows = ensureBoardGui(face, spec)
+				local global = self._global[boardId]
+				local top = (global and #global > 0) and global or self:GetTop(RANKING.Rows, boardId)
 				for index = 1, RANKING.Rows do
 					local entry = top[index]
 					if entry then
-						buildRow(
-							rows,
-							index,
-							("%d위   %s"):format(index, entry.name),
-							entry.games and ("%d승 / %d판"):format(entry.wins, entry.games) or ("%d승"):format(entry.wins),
-							index <= 3,
-							entry.streak
-						)
+						buildRow(rows, index, entry, spec)
 					else
 						local row = rows:FindFirstChild("Row_" .. index)
 						if row then
@@ -363,19 +401,20 @@ function RankingService:Refresh()
 						end
 					end
 				end
-
-				if #top == 0 then
-					buildRow(rows, 1, "아직 승자가 없습니다", "0승 / 0판", false, 0)
+				local empty = rows:FindFirstChild("Empty")
+				if #top == 0 and not empty then
+					empty = textLabel(rows, "Empty", "첫 번째 주인공이 되어 보세요!", PALETTE.Empty, UDim2.fromScale(1, 0.14))
+					empty.TextXAlignment = Enum.TextXAlignment.Center
+					outlined(empty, 1.5)
+				elseif #top > 0 and empty then
+					empty:Destroy()
 				end
-
-				footer.Text = ""
 			end)
-
 			if not ok then
 				warn("[CursedBarrel] 랭킹판 갱신 중 오류: " .. tostring(err))
 			end
 		else
-			self._boards[board] = nil
+			self._boards[face] = nil
 		end
 	end
 end
@@ -384,11 +423,12 @@ end
 -- 시작
 --------------------------------------------------
 
-function RankingService:_registerBoard(board)
-	if not board:IsA("BasePart") then
+function RankingService:_registerBoard(face)
+	-- ServerStorage 로 치운 예전 판(태그가 남아 있다)은 그리지 않는다
+	if not face:IsA("BasePart") or not face:IsDescendantOf(workspace) then
 		return
 	end
-	self._boards[board] = true
+	self._boards[face] = face:GetAttribute("Board") or DEFAULT_BOARD
 	self:Refresh()
 end
 
@@ -410,13 +450,19 @@ function RankingService:Start()
 		self._boards[board] = nil
 	end))
 
-	-- 저장된 승수를 읽어 이 서버 순위의 출발점으로 삼는다.
+	-- 저장된 값을 읽어 이 서버 순위의 출발점으로 삼는다.
 	-- ProfileChanged 는 코인이 오를 때마다 오므로, 판을 다시 그리는 것은 한 박자 묶는다.
 	self._cleaner:add(ProfileService.ProfileChanged:Connect(function(player, profile)
 		local entry = entryFor(self, player)
 		entry.wins = math.max(entry.wins, profile.wins)
 		entry.games = math.max(entry.games, profile.games)
 		entry.streak = profile.streak
+		entry.bestStreak = math.max(entry.bestStreak, profile.bestStreak or 0)
+		entry.coins = profile.coins
+		if profile.devTester and not entry.forgotten then
+			entry.forgotten = true
+			self:_forget(player.UserId)
+		end
 
 		if not self._refreshQueued then
 			self._refreshQueued = true
@@ -427,7 +473,17 @@ function RankingService:Start()
 		end
 	end))
 
-	self._cleaner:add(Players.PlayerRemoving:Connect(function()
+	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
+		-- 나가기 전에 마지막 값을 올린다
+		local profile = ProfileService:Get(player)
+		if profile and not profile.devTester then
+			for boardId, spec in pairs(BOARDS) do
+				if boardId ~= "wins" then
+					self:_publish(player.UserId, boardId, profile[spec.stat])
+				end
+			end
+		end
+		self._published[player.UserId] = nil
 		task.defer(function()
 			self:Refresh()
 		end)
@@ -435,11 +491,17 @@ function RankingService:Start()
 
 	self:Refresh()
 
-	-- 전체 순위를 주기적으로 읽는다.
+	-- 전체 순위를 주기적으로 읽고, 코인 · 연승을 주기적으로 올린다.
 	task.spawn(function()
 		while true do
 			self:_pullGlobal()
 			task.wait(RANKING.GlobalRefresh)
+		end
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(RANKING.PublishInterval or 120)
+			self:_flush()
 		end
 	end)
 

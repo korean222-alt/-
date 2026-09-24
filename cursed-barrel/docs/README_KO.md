@@ -1,11 +1,12 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase15_Kraken.rbxl`: 통합 Place. (Phase 15 변경 내용과 할 일: `docs/Phase15_크라켄_블렌더_라운드_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
-- `game`: 61개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
+- `output/CursedBarrel_Phase16_Lobby.rbxl`: 통합 Place. (Phase 16 변경 내용과 할 일: `docs/Phase16_로비_랭킹_상점_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
+- `game`: 65개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
 - `assets/models`: Blender 로 만든 3D 모델 FBX(통 · 드럼 · 대포 · 크라켄 조각 21개)와 미리보기. `tools/blender/build_models.py` 가 만들고 `Shared/MeshCatalog.lua` 도 함께 쓴다.
+- `assets/ui/money`: 돈 그림 9장 (만화풍 PNG) · `parts/` 는 게임 안 3D 모형 확인용. `tools/blender/money_icons.py` 가 만들고 `Shared/MoneyIconData.lua` 도 함께 쓴다. `assets/ui/previews/roulette.png` 는 룰렛 판 미리보기.
 - `tests`: 모의 검사·바이너리 검사·선택적 Studio 검사.
 - `docs/reference`: 첨부 로드맵과 Phase 6–8 설명 원본.
 
@@ -15,20 +16,30 @@ Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같�
 
 ```bash
 python tools/build_locale.py --check   # 영어 사전 다시 만들기 + 빠진 영어 검사
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase15_Kraken.rbxl
-LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase15_Kraken.rbxl
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase16_Lobby.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase16_Lobby.rbxl
 
 # 개별 실행
 python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
 python tests/run_luau.py /path/to/luau # 크라켄 겹침 검사 + 같은 동작 검사를 Luau 로 직접
 python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택)
 python3 tools/blender/build_models.py --render # 3D 모델 FBX · MeshCatalog · 미리보기 다시 만들기 (bpy 5 필요)
+python3 tools/blender/money_icons.py --parts   # 돈 그림 PNG · MoneyIconData 다시 만들기
+python3 tools/blender/roulette_preview.py      # 룰렛 판 미리보기
 ```
 
 `extend_place.py`는 이 원본의 기존 스크립트 클래스 구조에 맞춘 빌더입니다. 다른 구조의 임의 rbxl에 적용하는 일반 편집기가 아닙니다. 소스 변경 전후는 소스 관리로 별도 보관하세요. Roblox에서 직접 열어 확인하기 전에는 바이너리 구조 검사만으로 완전한 호환성을 단정할 수 없습니다.
 
 ## 변경 기록
 
+- 16.0.0 Lobby:
+  - 명예의 문: 스폰 앞 계단 입구에 나무판자 랭킹판 셋 (🔥 최고 연승 · 💰 부자 · 🏆 승리, 전 서버 OrderedDataStore 셋, 아바타 얼굴). 예전 선실 앞 랭킹판은 치웠다.
+  - 좋아요 보상: 스폰 옆 받침대 → 파란 철제 드럼 (계정당 한 번 · 바로 장착 · 상점 판매 중지 · `reward = "like"`). `C.GroupId` 를 넣으면 그룹 가입 확인.
+  - 코드 (CodeService · 🎟 오른쪽 버튼): 개발자 코드 `gnsdl23091` = 999,999 코인 (개발자 계정만 · 쓴 계정은 랭킹 제외 devTester), 출시 기념 `cursedbarrel`.
+  - 상점: 왼쪽 분류 타일 + 카드 칸 (이름 · 큰 그림 · 값 버튼), 추천 칸 넓은 카드. 돈 그림 MoneyIcon (Blender PNG 또는 같은 모양 파트 3D), 출석판 · HUD · 룰렛에도.
+  - 룰렛: RouletteWheel (3D 판 · 금테 · 전구 · 칸 그림 · 3D 바늘, 카메라를 굴려 돌린다).
+  - 휴대폰: UIKit.autoScale (버튼 줄 · 코인), 창을 실제 화면에 맞춤 + 상점 flexHeight, 오른쪽 줄을 점프 버튼 위로, 휴대폰은 가까운 등불 14개만.
+  - 검사 110개 (좋아요 · 코드 · 랭킹 판 · 문 자리 · 돈 그림 조각 추가).
 - 15.0.0 Kraken:
   - 바다 구조(RescueService): 물에 빠지면 가까운 갑판으로 건짐, 부활이 안 오면 LoadCharacter, FallenPartsDestroyHeight -140.
   - Blender 모델(MeshKit · MeshCatalog · `assets/models/CursedBarrelModels.fbx`): 나무 통 · 철제 드럼 · 대포 · 크라켄 머리 · 다리 마디 · 빨판, 배 위에 누운 크라켄 다리 3개(KrakenLayout.Resting · 겹침 검사). 모델이 없으면 예전 파트 모양.
