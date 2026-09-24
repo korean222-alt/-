@@ -18,6 +18,10 @@
 	 11. WorldService    — Phase 12 항해 시계 · 크라켄 습격 · 행운의 테이블
 	 12. CannonService   — Phase 12 대포 미니게임 (배가 선 뒤에 대포를 찾는다)
 	 13. PredictionService · TournamentService — Phase 12 관전 예측 · 토너먼트
+	 14. RescueService   — Phase 15 바다에 빠진 사람 건지기 · 부활 챙기기
+
+	Phase 15 : Blender 3D 모델(Studio 에서 가져온 CursedBarrelModels)을 가장 먼저 보관함으로 옮긴다.
+	           배 · 테이블 · 대포를 세울 때 그 모델을 쓴다. (없으면 예전 파트 모양 그대로)
 ]]
 
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -39,6 +43,19 @@ local CannonService = require(Services.CannonService)
 local PredictionService = require(Services.PredictionService)
 local TournamentService = require(Services.TournamentService)
 local RewardService = require(Services.RewardService)
+local RescueService = require(Services.RescueService)
+local MeshKit = require(game:GetService("ReplicatedStorage"):WaitForChild("CursedBarrel"):WaitForChild("Shared"):WaitForChild("MeshKit"))
+
+-- Phase 15 : Studio 에서 가져온 Blender 모델을 ReplicatedStorage 로 옮긴다 (배 · 테이블을 세우기 전에)
+local okMeshes, meshError = pcall(MeshKit.adopt)
+if not okMeshes then
+	warn("[CursedBarrel] Blender 모델 보관함 확인 중 오류: " .. tostring(meshError))
+end
+for _, asset in ipairs({ "Cannon", "Cask", "Drum", "KrakenPieces" }) do
+	if not MeshKit.has(asset) then
+		print(("[CursedBarrel] Blender 모델 '%s' 없음 → 예전 모양을 씁니다 (assets/models/CursedBarrelModels.fbx 를 3D 가져오기로 넣으면 바뀝니다)"):format(asset))
+	end
+end
 
 -- Relocate whole table models before GameTable caches seat/slot geometry.
 require(Services.ShipLobbyBuilder):Prepare()
@@ -57,10 +74,11 @@ CannonService:Start()
 PredictionService:Start()
 TournamentService:Start()
 RewardService:Start()
+RescueService:Start()
 
 -- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
 task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 14: AI 선원 · 밤 조명 · 크라켄 · 대포 · 만화풍 UI)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 15: Blender 모델 · 최후의 1인 · 라운드 · 바다 구조)")

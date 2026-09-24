@@ -296,6 +296,37 @@ local function publish(player, profile)
 	local today = Utility.today()
 	player:SetAttribute("AttendReady", GameConfig.Attendance.Enabled and profile.attendDay ~= today)
 	player:SetAttribute("FreeSpin", GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today)
+	-- Phase 15 : 다 채우고 아직 안 받은 퀘스트 수 (퀘스트 버튼 위 빨간 동그라미) · 주간 의뢰 · 시즌 보상 수 (항해 버튼)
+	local questReady = 0
+	if GameConfig.Quests.Enabled and profile.daily and profile.daily.date == today then
+		for _, entry in ipairs(profile.daily.quests or {}) do
+			if not entry.claimed then
+				for _, definition in ipairs(GameConfig.Quests.Pool) do
+					if definition.id == entry.id and (entry.progress or 0) >= definition.goal then
+						questReady += 1
+					end
+				end
+			end
+		end
+	end
+	player:SetAttribute("QuestReady", questReady)
+	local voyageReady = 0
+	local weekly = profile.weekly
+	if weekly then
+		for _, q in ipairs(Release.Weekly or {}) do
+			if not (weekly.claimed or {})[q.id] and ((weekly.progress or {})[q.id] or 0) >= q.goal then
+				voyageReady += 1
+			end
+		end
+	end
+	if profile.season and Release.seasonActive(os.time()) then
+		for index, tier in ipairs(Release.Season.Tiers) do
+			if not (profile.season.claimed or {})[tostring(index)] and (profile.season.xp or 0) >= tier.xp then
+				voyageReady += 1
+			end
+		end
+	end
+	player:SetAttribute("VoyageReady", voyageReady)
 	-- Phase 12 : 칭호. 업적 목록의 뒤쪽(더 어려운 것)이 앞선다.
 	local title = ""
 	for _, entry in ipairs(GameConfig.Achievements) do
@@ -602,7 +633,10 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 			end
 
 			if player ~= winner and player ~= halfWinner then
-				profile.coins += math.floor(ECONOMY.ParticipationReward * scale * (1 + ((bonuses or {})[player] or 0)) * self:GainScale(player))
+				-- Phase 15 : 최후의 1인 테이블은 진 사람에게 코인이 없다 (판수 · 퀘스트는 오른다)
+				if not options.winnerTakesAll then
+					profile.coins += math.floor(ECONOMY.ParticipationReward * scale * (1 + ((bonuses or {})[player] or 0)) * self:GainScale(player))
+				end
 				self:_advanceQuests(player, profile, "games", 1)
 				tableQuests(player, profile)
 				self:_checkAchievements(player, profile)

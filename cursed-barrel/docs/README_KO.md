@@ -1,10 +1,11 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase14_Polish.rbxl`: 통합 Place. (Phase 14 변경 내용과 할 일: `docs/Phase14_버그수정_그래픽_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
-- `game`: 57개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
+- `output/CursedBarrel_Phase15_Kraken.rbxl`: 통합 Place. (Phase 15 변경 내용과 할 일: `docs/Phase15_크라켄_블렌더_라운드_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
+- `game`: 61개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
+- `assets/models`: Blender 로 만든 3D 모델 FBX(통 · 드럼 · 대포 · 크라켄 조각 21개)와 미리보기. `tools/blender/build_models.py` 가 만들고 `Shared/MeshCatalog.lua` 도 함께 쓴다.
 - `tests`: 모의 검사·바이너리 검사·선택적 Studio 검사.
 - `docs/reference`: 첨부 로드맵과 Phase 6–8 설명 원본.
 
@@ -14,19 +15,29 @@ Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같�
 
 ```bash
 python tools/build_locale.py --check   # 영어 사전 다시 만들기 + 빠진 영어 검사
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase14_Polish.rbxl
-LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase14_Polish.rbxl
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase15_Kraken.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase15_Kraken.rbxl
 
 # 개별 실행
 python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
 python tests/run_luau.py /path/to/luau # 크라켄 겹침 검사 + 같은 동작 검사를 Luau 로 직접
 python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택)
+python3 tools/blender/build_models.py --render # 3D 모델 FBX · MeshCatalog · 미리보기 다시 만들기 (bpy 5 필요)
 ```
 
 `extend_place.py`는 이 원본의 기존 스크립트 클래스 구조에 맞춘 빌더입니다. 다른 구조의 임의 rbxl에 적용하는 일반 편집기가 아닙니다. 소스 변경 전후는 소스 관리로 별도 보관하세요. Roblox에서 직접 열어 확인하기 전에는 바이너리 구조 검사만으로 완전한 호환성을 단정할 수 없습니다.
 
 ## 변경 기록
 
+- 15.0.0 Kraken:
+  - 바다 구조(RescueService): 물에 빠지면 가까운 갑판으로 건짐, 부활이 안 오면 LoadCharacter, FallenPartsDestroyHeight -140.
+  - Blender 모델(MeshKit · MeshCatalog · `assets/models/CursedBarrelModels.fbx`): 나무 통 · 철제 드럼 · 대포 · 크라켄 머리 · 다리 마디 · 빨판, 배 위에 누운 크라켄 다리 3개(KrakenLayout.Resting · 겹침 검사). 모델이 없으면 예전 파트 모양.
+  - 최후의 1인(TableConfig.WinnerTakesAll: 4 · 6 · 번개 · 파티 · 토너먼트): 판 도중 코인은 현상금으로, 진 사람 참가 보상 없음. 라운드(Stage · StageCount) · 순위(Eliminate place) · Stage 알림.
+  - 화면: 판 정보 창(라운드 · 인원 · 현상금), 승리!/패배, 시점 좌우 돌리기(드래그 · A/D · ← → · 오른쪽 스틱), 창은 하나만(UIKit.register), 퀘스트 · 항해 빨간 숫자 점(QuestReady · VoyageReady), 출석 · 룰렛 오른쪽 세로줄, 룰렛 확률표 제거, 상점 줄마다 3D 썸네일, 글꼴 Bold · 얇은 외곽선, 내 테이블 3D 이름표 숨김.
+  - 방해: 결제가 끝나면 고른 상대에게 바로 사용 (PurchaseService after). 항해 수첩 "카드" 탭 → "방법" 탭.
+  - 조명: 등불 빛은 클라이언트가 LanternSpots 로 바로 켬(LightController, 먼 빛 끄기), 서버가 단계 조명을 처음부터 적용.
+  - 최적화: 화면 밖 먼 크라켄 다리 애니메이션 생략.
+  - 검사 105개 (최후의 1인 · 라운드 · 퀘스트 점 · 바다 구조 · 모델 목록 추가), 크라켄 겹침 검사 269만 번.
 - 14.0.0 Polish:
   - AI 선원: `Seat:Sit` 대신 의자 위에 고정해서 앉힌다(GameTable:SeatBot · 좌석 BotCharacter). 2인 테이블도 채운다. 기다림 4초.
   - 부제목 · 설명 줄 제거 (크라켄 · 날씨 · 현황판 · 칼 고르기 · 잡기 · 대포 · 프롬프트 ObjectText · 순위판 · 설명 게시판), 알림은 짧게.

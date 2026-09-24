@@ -25,6 +25,7 @@ local SkinFX = require(Shared:WaitForChild("SkinFX"))
 local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
 local KnifeModel = require(Shared:WaitForChild("KnifeModel"))
 local BarrelStyle = require(Shared:WaitForChild("BarrelStyle"))
+local MeshKit = require(Shared:WaitForChild("MeshKit")) -- Phase 15 : Blender 통 · 드럼 메시
 
 local ProfileService = require(script.Parent.ProfileService)
 local ShopService = require(script.Parent.ShopService)
@@ -239,14 +240,21 @@ local function previewBarrel(skin, parent, base)
 	local pivot = base * CFrame.new(0, 1.8, 0)
 	local body = makeCylinder(model, "Body", 3, 3.4, pivot, skin.body, skin.bodyMaterial)
 	body.Reflectance = skin.reflectance or 0
+	-- Phase 15 : Blender 통 · 드럼이 있으면 몸통 · 테는 메시가 그린다
+	local meshed = MeshKit.barrel(skin, model, body.CFrame, body.Size.X, body.Size.Y, "BodyMesh")
+	if meshed then
+		body.Transparency = 1
+	end
 
-	if not skin.drum then
+	if not skin.drum and not meshed then
 		makeCylinder(model, "HoopLower", 3.18, 0.3, pivot * CFrame.new(0, -1.1, 0), skin.hoop, skin.hoopMaterial)
 		makeCylinder(model, "HoopUpper", 3.18, 0.3, pivot * CFrame.new(0, 1.1, 0), skin.hoop, skin.hoopMaterial)
 	end
 	makeCylinder(model, "Lid", 2.9, 0.22, pivot * CFrame.new(0, 1.76, 0), skin.lid, skin.hoopMaterial).Reflectance = skin.reflectance or 0
 
-	if skin.drum then
+	if meshed then
+		DrumStyle.build(model, body.CFrame, 3.4, 3, skin, "Drum", 1.87, true)
+	elseif skin.drum then
 		-- Phase 13 : 철제 드럼 (굴림 테 · 주름 · 마개)
 		DrumStyle.build(model, body.CFrame, 3.4, 3, skin, "Drum", 1.87)
 	elseif BarrelStyle.isWooden(skin) then

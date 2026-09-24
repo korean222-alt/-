@@ -95,6 +95,11 @@ GameConfig.TableAttributes = {
 	PredictOpen = "PredictOpen", -- 관전자가 "누가 살아남을까" 예측을 할 수 있는 동안 true
 	Tutorial = "Tutorial", -- 처음 온 사람의 연습 판 (AI 와 함께, 잡기가 조금 쉽다)
 
+	-- Phase 15 : 라운드 (한 명이 탈락할 때마다 다음 라운드로 올라간다) · 최후의 1인
+	Stage = "Stage", -- 지금 몇 라운드인가 (1 부터)
+	StageCount = "StageCount", -- 이번 판의 라운드 수 (시작 인원 - 1)
+	WinnerTakesAll = "WinnerTakesAll", -- 최후의 1인이 현상금을 전부 가져가는 테이블인가
+
 	-- Phase 7 : 이 테이블에 적용 중인 통 스킨 (앉은 사람들 중에서 서버가 하나를 고른다)
 	BarrelSkinId = "BarrelSkinId",
 	BarrelSkinOwnerId = "BarrelSkinOwnerId",
@@ -393,7 +398,8 @@ GameConfig.Pot = {
 	PerBravePick = 42, -- 배짱으로 더 찌른 안전한 자리마다 (PerPick 에 더해진다)
 	PerCatch = 48, -- 해적을 잡을 때마다
 	PerPerfect = 30, -- 완벽한 잡기는 더
-	Cap = 7500,
+	-- Phase 15 : 최후의 1인 테이블은 모두가 벌던 코인이 현상금에 쌓이므로 상한을 넉넉히 둔다
+	Cap = 18000,
 
 	-- ★ Phase 11 : 보물 폭발. 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
 	--   안 터질수록 확률이 조금씩 오른다(PityStep). 한 판에 한두 번쯤 터지게 맞췄다.
@@ -1094,6 +1100,30 @@ GameConfig.Map = {
 }
 
 --------------------------------------------------
+-- Phase 15 : 바다에 빠지면 배 위로 건져 올린다
+--   예전에는 바다(장식 파트)를 뚫고 끝없이 떨어져 죽은 뒤 되살아나지 않는 일이 있었다.
+--   이제는 물에 빠지는 순간 가장 가까운 갑판 가운데로 옮겨 준다. (죽지 않는다)
+--   그래도 어떤 이유로든 죽으면 서버가 부활을 한 번 더 챙긴다.
+--------------------------------------------------
+GameConfig.Rescue = {
+	Enabled = true,
+	BelowY = -3.6, -- 몸 중심이 이보다 낮으면 물에 빠진 것 (바다 -2.2, 갑판 1)
+	FarXZ = 260, -- 배에서 이만큼 멀리 나가도 건진다
+	Interval = 0.15,
+	-- 건져 올릴 자리 (갑판 가운데 줄. 테이블 · 돛대 · 계단을 피한다)
+	Spots = {
+		Vector3.new(0, 4.2, 98),
+		Vector3.new(0, 4.2, 62),
+		Vector3.new(0, 4.2, 12),
+		Vector3.new(0, 4.2, -24),
+		Vector3.new(0, 4.2, -62),
+		Vector3.new(0, 4.2, -94),
+	},
+	FallenPartsDestroyHeight = -140,
+	RespawnSafety = 2, -- 죽은 뒤 RespawnTime 에서 이만큼 더 기다려도 안 살아나면 서버가 살린다
+}
+
+--------------------------------------------------
 -- 서버와 클라이언트가 같은 시계를 본다.
 --------------------------------------------------
 function GameConfig.now()
@@ -1518,7 +1548,7 @@ GameConfig.Attendance = {
 -- 룰렛 : 하루에 한 번 무료로 돌린다. (이용권 · 로벅스 판매 없음)
 --   대부분 적은 코인이 나오고, 평범한 스킨은 20%, 희귀 스킨은 3%.
 --   "스킨" 칸은 아직 없는 코인 스킨 중 minPrice ~ maxPrice 가격의 것 하나. 다 가졌으면 fallbackCoins.
---   확률표는 룰렛 화면에 늘 보여 준다.
+--   확률표는 따로 보여 주지 않는다 (Phase 15). 하루 한 번 무료라 규정상 공개할 의무가 없다. 로벅스로 돌리게 바꾸면 반드시 다시 보여 줄 것.
 GameConfig.Roulette = {
 	Enabled = true,
 	-- weight 합이 1000 이면 weight / 10 이 곧 % 다

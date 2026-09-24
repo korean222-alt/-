@@ -1,0 +1,23 @@
+# Phase 15 : 최후의 1인 · 라운드 · 승리/패배 · 시점 돌리기 · 바다 구조 · 항해 수첩 방법 탭
+%s 구매 완료 · 가방 %d개	%s purchased · %d in bag
+한 번 더!  👑+%d	Once more!  👑+%d
+패배	Defeat
+%s 승리	%s wins
+패배 · %d위	Defeat · #%d
+결승!	Final!
+%d 라운드!	Round %d!
+↔ 화면을 끌어서 시점 돌리기	↔ Drag the screen to turn the view
+↔ 드래그 · ← → 로 시점 돌리기	↔ Drag or press ← → to turn the view
+결승	Final
+라운드 %d/%d	Round %d/%d
+방법	How to
+🎯 내 차례에 칼 꽂을 자리를 고르세요	🎯 On your turn, pick a slot
+☠ 해적이 나오면 눌러서 잡기! 먼저 누르면 탈락	☠ Tap when the pirate pops out! Too early = out
+🔥 한 번 더 : 더 찌를수록 현상금이 커져요	🔥 Once more: every extra stab grows the bounty
+👑 4인 이상 테이블은 마지막 1명이 전부 가져가요	👑 4+ seat tables: the last survivor takes it all
+😈 방해 : 게임 중 왼쪽 😈 버튼 → 상대 고르기 → 사용	😈 Sabotage: in a game, tap 😈 → pick a rival → use
+🃏 카드 : 카드 테이블에서 내 차례에 칼 고르는 창 위 버튼	🃏 Cards: on your turn at the card table, above the slot picker
+🧭 수첩 : 관전 · 주간 의뢰 · 파티 · 설정	🧭 Voyage: spectate · weekly quests · party · settings
+하루 한 번 무료!	Free once a day!
+테이블에서 게임 중일 때 쓸 수 있어요	Usable while you're in a table game
+💦 풍덩! 배로 돌아왔어요	💦 Splash! Back on deck

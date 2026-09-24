@@ -18,12 +18,15 @@ function Preview.build(kind,skin,parent)
   m:Destroy();m=require(script.Parent.KnifeModel).build(skin,parent,CFrame.new(0,-0.9,0)*CFrame.Angles(0,0,math.rad(-8)),1);m.Name="Skin"
  elseif kind=="Barrel" then
   local body=p(m,"Body",Vector3.new(3.1,2.7,2.7),CFrame.Angles(0,0,math.pi/2),skin.body,skin.bodyMaterial,Enum.PartType.Cylinder);body.Reflectance=skin.reflectance or 0
-  if not skin.drum then for _,y in ipairs({-1.15,1.15}) do p(m,"Hoop",Vector3.new(0.25,2.84,2.84),CFrame.new(0,y,0)*CFrame.Angles(0,0,math.pi/2),skin.hoop,skin.hoopMaterial,Enum.PartType.Cylinder) end end
+  -- Phase 15 : Blender 통 · 드럼 메시가 있으면 그것으로 (게임 테이블과 같은 모양)
+  local meshed=require(script.Parent.MeshKit).barrel(skin,m,body.CFrame,3.1,2.7,"BodyMesh")
+  if meshed then body.Transparency=1 end
+  if not skin.drum and not meshed then for _,y in ipairs({-1.15,1.15}) do p(m,"Hoop",Vector3.new(0.25,2.84,2.84),CFrame.new(0,y,0)*CFrame.Angles(0,0,math.pi/2),skin.hoop,skin.hoopMaterial,Enum.PartType.Cylinder) end end
   p(m,"Lid",Vector3.new(0.15,2.7,2.7),CFrame.new(0,1.6,0)*CFrame.Angles(0,0,math.pi/2),skin.lid,skin.hoopMaterial,Enum.PartType.Cylinder).Reflectance=skin.reflectance or 0
   -- Phase 13 : 철제 드럼 (굴림 테 · 주름 · 마개)
-  if skin.drum then require(script.Parent.DrumStyle).build(m,body.CFrame,3.1,2.7,skin,"Drum",1.675) end
-  -- Phase 14 : 나무 통은 판자 결 · 양 끝 얇은 쇠테
-  require(script.Parent.BarrelStyle).decorate(m,body.CFrame,3.1,2.7,skin)
+  if skin.drum then require(script.Parent.DrumStyle).build(m,body.CFrame,3.1,2.7,skin,"Drum",1.675,meshed~=nil) end
+  -- Phase 14 : 나무 통은 판자 결 · 양 끝 쇠테
+  if not meshed then require(script.Parent.BarrelStyle).decorate(m,body.CFrame,3.1,2.7,skin) end
  elseif kind=="Ghost" then
   local t=script.Parent.Parent.Visuals:FindFirstChild("GhostCaptain")
   if t then
@@ -54,7 +57,7 @@ function Preview.show(kind,id)
  local UIKit=require(script.Parent.UIKit)
  local rarity=Config.rarityOf(skin)
  local themes={common="grey",rare="blue",epic="purple",legend="gold",mythic="red"}
- local w=UIKit.window(gui,{name="Preview",title=skin.name,theme=themes[skin.rarity or "common"] or "blue",size=Vector2.new(640,540),onClose=Preview.close})
+ local w=UIKit.window(gui,{name="Preview",title=skin.name,theme=themes[skin.rarity or "common"] or "blue",size=Vector2.new(640,540),onClose=Preview.close,exclusive=false})
  local frame=w.frame
  local tag=UIKit.label(frame,{text=rarity.label,size=UDim2.new(1,-40,0,30),position=UDim2.fromOffset(20,76),textSize=24,color=rarity.color,stroke=3})
  tag.ZIndex=4

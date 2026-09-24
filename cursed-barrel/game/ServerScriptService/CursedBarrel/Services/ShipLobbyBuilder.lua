@@ -7,6 +7,7 @@ local Shared=RS.CursedBarrel.Shared
 local Config=require(Shared.GameConfig)
 local L=require(Shared.ShipLayout)
 local Release=require(Shared.ReleaseConfig)
+local MeshKit=require(Shared.MeshKit) -- Phase 15 : Blender 모델 (없으면 예전 파트 모양)
 local S={}
 local wood=Color3.fromRGB(87,51,30)
 local dark=Color3.fromRGB(42,28,24)
@@ -31,6 +32,19 @@ end
 -- 등불은 전부 ShipLights 폴더 하나에 모으고 Persistent 로 둔다.
 -- (Atomic 으로 두면 스트리밍이 등불을 늦게 보내서, 처음 들어와 스폰 단상에 서 있는 동안 배가 캄캄했다)
 local lightFolder=nil
+-- Phase 15 : 등불의 "빛"(PointLight)은 각자 화면(LightController)이 켠다. 여기서는 자리만 알려 준다.
+--   예전에는 빛이 등불 모델과 함께 스트리밍으로 늦게 도착해서, 들어오고 몇 초 동안 배가 캄캄했다.
+--   자리 목록(ReplicatedStorage > CursedBarrel > LanternSpots)은 접속하자마자 통째로 오므로 빛이 바로 켜진다.
+local spotFolder=nil
+local function lanternSpot(pos,range,brightness)
+ if not spotFolder then
+  spotFolder=RS.CursedBarrel:FindFirstChild("LanternSpots") or Instance.new("Folder")
+  spotFolder.Name="LanternSpots";spotFolder.Parent=RS.CursedBarrel
+ end
+ local spot=Instance.new("Vector3Value");spot.Name="Spot";spot.Value=pos
+ spot:SetAttribute("Range",range or 20);spot:SetAttribute("Brightness",brightness or 1.8)
+ spot.Parent=spotFolder
+end
 local function light(_,pos,range,brightness)
  -- Every light has a cap, cage, chain and a visible structural attachment.
  local lamp=Instance.new("Model");lamp.Name="SupportedLantern";lamp.ModelStreamingMode=Enum.ModelStreamingMode.Persistent;lamp.Parent=lightFolder
@@ -39,8 +53,7 @@ local function light(_,pos,range,brightness)
  for _,x in ipairs({-0.48,0.48}) do for _,z in ipairs({-0.48,0.48}) do
   block(lamp,"Cage",Vector3.new(0.08,1.3,0.08),CFrame.new(pos+Vector3.new(x,0,z)),iron,false,Enum.Material.Metal)
  end end
- local p=lamp:FindFirstChild("Glass")
- local point=Instance.new("PointLight");point.Color=Color3.fromRGB(255,200,128);point.Range=range or 20;point.Brightness=brightness or 1.8;point.Shadows=false;point.Parent=p
+ lanternSpot(pos,range,brightness)
  lamp:SetAttribute("StructurallySupported",true)
  return lamp
 end
@@ -237,41 +250,54 @@ function S:cannon(root,side,z)
  -- 포신
  local barrel=Instance.new("Model");barrel.Name="Barrel";barrel.Parent=model
  local tube=along(0,5.5,1.36,"CannonTube",gunIron,nil,barrel)
- along(-1.65,2.2,1.72,"Reinforce",gunIron,nil,barrel)
- along(-2.72,0.32,1.95,"BreechRing",gunRing,nil,barrel)
- along(-0.55,0.24,1.86,"TrunnionRing",gunRing,nil,barrel)
- along(0.95,0.2,1.56,"ChaseRing",gunRing,nil,barrel)
- along(2.45,0.72,1.66,"MuzzleSwell",gunIron,nil,barrel)
- along(2.8,0.2,1.84,"MuzzleLip",gunRing,nil,barrel)
- along(2.86,0.12,0.86,"Bore",Color3.fromRGB(8,8,10),Enum.Material.SmoothPlastic,barrel).Reflectance=0
- along(-3.0,0.46,0.5,"CascabelNeck",gunIron,nil,barrel)
- local knob=block(barrel,"Cascabel",Vector3.new(0.78,0.78,0.78),CFrame.new(x-side*3.35,y,z),gunIron,false,Enum.Material.Metal)
- knob.Shape=Enum.PartType.Ball;knob.Reflectance=0.12
- local trunnion=block(barrel,"Trunnions",Vector3.new(2.7,0.52,0.52),CFrame.new(x-side*0.2,y,z)*CFrame.Angles(0,math.pi/2,0),gunIron,false,Enum.Material.Metal)
- trunnion.Shape=Enum.PartType.Cylinder
- -- 포가 (계단 모양 옆판 · 굴대 · 바퀴 넷)
- for _,dz in ipairs({-1.05,1.05}) do
-  block(model,"Cheek",Vector3.new(2.4,1.38,0.34),CFrame.new(x+side*0.7,2.58,z+dz),carriageWood,false)
-  block(model,"CheekStep",Vector3.new(1.2,0.95,0.34),CFrame.new(x-side*1.1,2.37,z+dz),carriageWood,false)
-  block(model,"CheekStep",Vector3.new(0.7,0.55,0.34),CFrame.new(x-side*2.05,2.17,z+dz),carriageWood,false)
-  block(model,"CapSquare",Vector3.new(0.9,0.14,0.4),CFrame.new(x-side*0.2,3.5,z+dz),iron,false,Enum.Material.Metal)
-  for _,dx in ipairs({-0.9,0.3,1.5}) do
-   block(model,"Bolt",Vector3.new(0.14,0.14,0.38),CFrame.new(x+side*dx,2.3,z+dz),iron,false,Enum.Material.Metal)
+ barrel.PrimaryPart=tube
+ -- Phase 15 : Blender 로 만든 대포가 있으면 그 모델을 쓴다. CannonTube 는 보이지 않게 남겨 둔다
+ --   (대포 잡기 프롬프트 · 포구 위치 · 반동이 CannonTube 를 기준으로 한다)
+ if MeshKit.has("Cannon") then
+  tube.Transparency=1
+  local origin=CFrame.new(x,y,z)*CFrame.Angles(0,side>0 and 0 or math.pi,0)
+  MeshKit.place("CB_Cannon_Tube",origin,{parent=barrel,color=gunIron,material=Enum.Material.Metal,reflectance=0.12})
+  MeshKit.place("CB_Cannon_Bore",origin,{parent=barrel,color=Color3.fromRGB(8,8,10),material=Enum.Material.SmoothPlastic})
+  MeshKit.place("CB_Cannon_Carriage",origin,{parent=model,color=carriageWood,material=Enum.Material.Wood})
+  MeshKit.place("CB_Cannon_Trucks",origin,{parent=model,color=Color3.fromRGB(74,42,24),material=Enum.Material.Wood})
+  MeshKit.place("CB_Cannon_Iron",origin,{parent=model,color=iron,material=Enum.Material.Metal,reflectance=0.08})
+ else
+  along(-1.65,2.2,1.72,"Reinforce",gunIron,nil,barrel)
+  along(-2.72,0.32,1.95,"BreechRing",gunRing,nil,barrel)
+  along(-0.55,0.24,1.86,"TrunnionRing",gunRing,nil,barrel)
+  along(0.95,0.2,1.56,"ChaseRing",gunRing,nil,barrel)
+  along(2.45,0.72,1.66,"MuzzleSwell",gunIron,nil,barrel)
+  along(2.8,0.2,1.84,"MuzzleLip",gunRing,nil,barrel)
+  along(2.86,0.12,0.86,"Bore",Color3.fromRGB(8,8,10),Enum.Material.SmoothPlastic,barrel).Reflectance=0
+  along(-3.0,0.46,0.5,"CascabelNeck",gunIron,nil,barrel)
+  local knob=block(barrel,"Cascabel",Vector3.new(0.78,0.78,0.78),CFrame.new(x-side*3.35,y,z),gunIron,false,Enum.Material.Metal)
+  knob.Shape=Enum.PartType.Ball;knob.Reflectance=0.12
+  local trunnion=block(barrel,"Trunnions",Vector3.new(2.7,0.52,0.52),CFrame.new(x-side*0.2,y,z)*CFrame.Angles(0,math.pi/2,0),gunIron,false,Enum.Material.Metal)
+  trunnion.Shape=Enum.PartType.Cylinder
+  -- 포가 (계단 모양 옆판 · 굴대 · 바퀴 넷)
+  for _,dz in ipairs({-1.05,1.05}) do
+   block(model,"Cheek",Vector3.new(2.4,1.38,0.34),CFrame.new(x+side*0.7,2.58,z+dz),carriageWood,false)
+   block(model,"CheekStep",Vector3.new(1.2,0.95,0.34),CFrame.new(x-side*1.1,2.37,z+dz),carriageWood,false)
+   block(model,"CheekStep",Vector3.new(0.7,0.55,0.34),CFrame.new(x-side*2.05,2.17,z+dz),carriageWood,false)
+   block(model,"CapSquare",Vector3.new(0.9,0.14,0.4),CFrame.new(x-side*0.2,3.5,z+dz),iron,false,Enum.Material.Metal)
+   for _,dx in ipairs({-0.9,0.3,1.5}) do
+    block(model,"Bolt",Vector3.new(0.14,0.14,0.38),CFrame.new(x+side*dx,2.3,z+dz),iron,false,Enum.Material.Metal)
+   end
   end
- end
- block(model,"Bed",Vector3.new(4.1,0.3,2.1),CFrame.new(x-side*0.2,1.9,z),carriageWood,false)
- local quoin=Instance.new("WedgePart");quoin.Name="Quoin";quoin.Size=Vector3.new(1.4,0.55,0.9)
- quoin.CFrame=CFrame.new(x-side*2.1,2.32,z)*CFrame.Angles(0,side>0 and math.pi/2 or -math.pi/2,0)
- quoin.Color=carriageWood;quoin.Material=Enum.Material.Wood;quoin.Anchored=true;quoin.CanCollide=false;quoin.CanQuery=false;quoin.CanTouch=false;quoin.CastShadow=false;quoin.Parent=model
- for _,axle in ipairs({{1.45,1.2},{-1.9,1.02}}) do
-  local dx,wheelSize=axle[1],axle[2]
-  local wy=1+wheelSize/2
-  block(model,"AxleTree",Vector3.new(0.5,0.42,3.0),CFrame.new(x+side*dx,wy,z),carriageWood,false)
-  for _,dz in ipairs({-1.5,1.5}) do
-   local wheel=block(model,"Truck",Vector3.new(0.34,wheelSize,wheelSize),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),Color3.fromRGB(74,42,24),false,Enum.Material.Wood)
-   wheel.Shape=Enum.PartType.Cylinder
-   local hub=block(model,"TruckHub",Vector3.new(0.4,0.34,0.34),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),iron,false,Enum.Material.Metal)
-   hub.Shape=Enum.PartType.Cylinder
+  block(model,"Bed",Vector3.new(4.1,0.3,2.1),CFrame.new(x-side*0.2,1.9,z),carriageWood,false)
+  local quoin=Instance.new("WedgePart");quoin.Name="Quoin";quoin.Size=Vector3.new(1.4,0.55,0.9)
+  quoin.CFrame=CFrame.new(x-side*2.1,2.32,z)*CFrame.Angles(0,side>0 and math.pi/2 or -math.pi/2,0)
+  quoin.Color=carriageWood;quoin.Material=Enum.Material.Wood;quoin.Anchored=true;quoin.CanCollide=false;quoin.CanQuery=false;quoin.CanTouch=false;quoin.CastShadow=false;quoin.Parent=model
+  for _,axle in ipairs({{1.45,1.2},{-1.9,1.02}}) do
+   local dx,wheelSize=axle[1],axle[2]
+   local wy=1+wheelSize/2
+   block(model,"AxleTree",Vector3.new(0.5,0.42,3.0),CFrame.new(x+side*dx,wy,z),carriageWood,false)
+   for _,dz in ipairs({-1.5,1.5}) do
+    local wheel=block(model,"Truck",Vector3.new(0.34,wheelSize,wheelSize),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),Color3.fromRGB(74,42,24),false,Enum.Material.Wood)
+    wheel.Shape=Enum.PartType.Cylinder
+    local hub=block(model,"TruckHub",Vector3.new(0.4,0.34,0.34),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),iron,false,Enum.Material.Metal)
+    hub.Shape=Enum.PartType.Cylinder
+   end
   end
  end
  -- 부딪힘은 보이지 않는 상자 하나로 (장식 파트는 전부 부딪히지 않는다)
@@ -298,7 +324,7 @@ function S:cannon(root,side,z)
  top.Shape=Enum.PartType.Ball
  -- 사용자 3D 모델 (ReleaseConfig.Meshes.Cannon 에 MeshId 를 넣으면 포신을 그 모델로 바꾼다)
  local meshes=Release.Meshes and Release.Meshes.Cannon
- if meshes and (tonumber(meshes.MeshId) or 0)>0 then
+ if meshes and (tonumber(meshes.MeshId) or 0)>0 and not MeshKit.has("Cannon") then
   for _,piece in ipairs(barrel:GetChildren()) do if piece~=tube and piece:IsA("BasePart") then piece.Transparency=1 end end
   local mesh=Instance.new("SpecialMesh");mesh.MeshType=Enum.MeshType.FileMesh
   mesh.MeshId="rbxassetid://"..meshes.MeshId
@@ -317,8 +343,14 @@ function S:props(root)
    local x=side*42
    block(cargo,"Crate",Vector3.new(3.2,3.2,3.2),CFrame.new(x,2.6,z),wood,true)
    for _,dy in ipairs({-1.1,1.1}) do block(cargo,"CrateBand",Vector3.new(3.3,0.16,3.3),CFrame.new(x,2.6+dy,z),iron,false) end
-   cylinder(cargo,"CargoBarrel",2.6,3.3,Vector3.new(x+side*4,2.65,z+2),wood,true)
-   for _,y in ipairs({1.6,3.6}) do cylinder(cargo,"IronHoop",2.75,0.18,Vector3.new(x+side*4,y,z+2),iron,false,Enum.Material.Metal) end
+   local cask=cylinder(cargo,"CargoBarrel",2.6,3.3,Vector3.new(x+side*4,2.65,z+2),wood,true)
+   -- Phase 15 : Blender 나무통 (부딪힘은 원래 원통이 맡고 보이지 않게 된다)
+   local meshed=MeshKit.has("Cask") and MeshKit.build("Cask",CFrame.new(x+side*4,2.65,z+2)*CFrame.Angles(0,z*0.37,0),
+    {parent=cargo,scale=Vector3.new(2.6/3.5,3.3/4,2.6/3.5),color=wood,material=Enum.Material.Wood},
+    {CB_Cask_Hoops={color=iron,material=Enum.Material.Metal}})
+   if meshed then cask.Transparency=1 else
+    for _,y in ipairs({1.6,3.6}) do cylinder(cargo,"IronHoop",2.75,0.18,Vector3.new(x+side*4,y,z+2),iron,false,Enum.Material.Metal) end
+   end
    segment(cargo,"TieDown",Vector3.new(x-2,1.2,z-2),Vector3.new(x+2,4.3,z+2),0.1,gold,false)
   end
  end

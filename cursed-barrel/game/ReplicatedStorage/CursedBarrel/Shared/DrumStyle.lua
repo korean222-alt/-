@@ -72,7 +72,8 @@ function DrumStyle.layout(length, diameter, top)
 	return list
 end
 
-function DrumStyle.build(parent, bodyCFrame, length, diameter, skin, name, top)
+-- onlyBungs (Phase 15) : Blender 드럼 메시가 굴림 테 · 주름 · 테두리를 그릴 때는 뚜껑 마개만 얹는다
+function DrumStyle.build(parent, bodyCFrame, length, diameter, skin, name, top, onlyBungs)
 	local drum = skin and skin.drum
 	if not drum then
 		return {}
@@ -80,17 +81,20 @@ function DrumStyle.build(parent, bodyCFrame, length, diameter, skin, name, top)
 	local cf = DrumStyle.upright(bodyCFrame)
 	local made = {}
 	for _, entry in ipairs(DrumStyle.layout(length, diameter, top)) do
-		local part
-		if entry.kind == "bung" or entry.kind == "bungSmall" then
-			local color = entry.kind == "bung" and (drum.bung or Color3.fromRGB(206, 210, 216)) or (drum.bungSmall or drum.bung or Color3.fromRGB(196, 158, 92))
-			part = piece(parent, name or "SkinDrum", Vector3.new(entry.thick, entry.size, entry.size),
-				cf * CFrame.new(entry.x, entry.y, entry.z), color, Enum.Material.Metal, 0.1)
-		else
-			local color = entry.kind == "rib" and skin.body or skin.hoop
-			part = piece(parent, name or "SkinDrum", Vector3.new(entry.thick, diameter * entry.scale, diameter * entry.scale),
-				cf * CFrame.new(entry.x, 0, 0), color, skin.bodyMaterial, skin.reflectance)
+		local bung = entry.kind == "bung" or entry.kind == "bungSmall"
+		if bung or not onlyBungs then
+			local part
+			if bung then
+				local color = entry.kind == "bung" and (drum.bung or Color3.fromRGB(206, 210, 216)) or (drum.bungSmall or drum.bung or Color3.fromRGB(196, 158, 92))
+				part = piece(parent, name or "SkinDrum", Vector3.new(entry.thick, entry.size, entry.size),
+					cf * CFrame.new(entry.x, entry.y, entry.z), color, Enum.Material.Metal, 0.1)
+			else
+				local color = entry.kind == "rib" and skin.body or skin.hoop
+				part = piece(parent, name or "SkinDrum", Vector3.new(entry.thick, diameter * entry.scale, diameter * entry.scale),
+					cf * CFrame.new(entry.x, 0, 0), color, skin.bodyMaterial, skin.reflectance)
+			end
+			table.insert(made, part)
 		end
-		table.insert(made, part)
 	end
 	return made
 end

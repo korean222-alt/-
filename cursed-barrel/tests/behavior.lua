@@ -437,6 +437,7 @@ end) end)
 
 check("brave: accept keeps the turn, pays per level, then passes on",function() withScheduler(function()
  local r,t=makeTable(3,"Standard4",16,true)
+ t.config.WinnerTakesAll=false -- 코인을 그 자리에서 주는 테이블 (최후의 1인 테이블은 아래에서 따로 본다)
  assert(runUntil(function() return playing(t) and not r.resolving end))
  local a,b=r.participants[1],r.participants[2];table.clear(r.dangerSlots)
  r._ensureDanger=function() end
@@ -451,6 +452,58 @@ check("brave: accept keeps the turn, pays per level, then passes on",function() 
  assert(Profiles:Get(a).coins>=coins+Config.Brave.Rewards[1]+Config.Economy.SurviveTurnReward,"brave reward paid")
  assert(Profiles:Get(a).bravePicks==1);assert(r.pot>potBefore)
  assert(runUntil(function() return not r.resolving end));assert(r:GetCurrentPlayer()==b and r.braveLevel==0)
+end) end)
+
+check("winner-takes-all tables: 4-seat presets only, never the duel",function()
+ for _,name in ipairs({"Standard4","Party6","Blitz4","PartyCards6","Tournament4"}) do
+  assert(TableConfig.Types[name]==nil or TableConfig.Types[name].WinnerTakesAll==true,name)
+ end
+ assert(not TableConfig.Types.Duo2.WinnerTakesAll,"1:1 keeps paying as you go")
+end)
+
+check("winner-takes-all: brave coins grow the pot instead of the wallet",function() withScheduler(function()
+ local r,t=makeTable(3,"Standard4",16,true)
+ assert(runUntil(function() return playing(t) and not r.resolving end))
+ assert(t.model:GetAttribute("WinnerTakesAll")==true)
+ local a=r.participants[1];table.clear(r.dangerSlots);r._ensureDanger=function() end
+ local d=Profiles:Get(a);local coins,safe=d.coins,d.safePicks or 0
+ assert(r:HandlePick(a,1,"test")==nil);assert(d.coins==coins,"no coins mid-round");assert((d.safePicks or 0)==safe+1,"quests still count")
+ assert(t.model:GetAttribute("BraveNextReward")>=Config.Brave.Rewards[1],"the button shows how much the pot grows")
+ now=now+0.3;assert(r:AcceptBrave(a));local pot=r.pot
+ now=now+0.3;assert(r:HandlePick(a,2,"test")==nil)
+ assert(d.coins==coins,"brave reward is not paid now");assert(d.bravePicks==1)
+ assert(r.pot>=pot+Config.Brave.Rewards[1],"brave reward went into the pot")
+end) end)
+
+check("winner-takes-all: players drop one by one, rounds go up, only the last one is paid",function() withScheduler(function()
+ local r,t=makeTable(3,"Standard4",16,true)
+ local cue=services.ReplicatedStorage.CursedBarrel.Remotes.PresentationCue
+ local log={};rawset(cue,"FireAllClients",function(self,...) local a={...};log[#log+1]=a;self.last=a end)
+ assert(runUntil(function() return playing(t) and not r.resolving end))
+ assert(t.model:GetAttribute("Stage")==1 and t.model:GetAttribute("StageCount")==2,"3 players: round 1 of 2")
+ local order=r:GetParticipants();local before={}
+ for _,q in ipairs(order) do before[q]=Profiles:Get(q).coins end
+ local function eliminateCurrent()
+  local q=r:GetCurrentPlayer();r.catchesUsed[q]=Config.Catch.MaxPerPlayer
+  local free=t:GetFreeSlotIndices()[1];table.clear(r.dangerSlots);r.dangerSlots[free]=true;r._ensureDanger=function() end
+  now=now+0.3;assert(r:HandlePick(q,free,"test")==nil);assert(runUntil(function() return not r.isParticipant[q] end))
+  return q
+ end
+ local first=eliminateCurrent()
+ local out;for _,e in ipairs(log) do if e[1]=="Eliminate" then out=e[3] end end
+ assert(out and out.place==3 and out.total==3,"first out is 3rd of 3")
+ assert(runUntil(function() return playing(t) and not r.resolving and t.model:GetAttribute("Stage")==2 end),"final round")
+ local staged=false;for _,e in ipairs(log) do if e[1]=="Stage" and e[3].stage==2 and e[3].total==2 then staged=true end end
+ assert(staged,"a Stage cue announces the final")
+ local second=eliminateCurrent()
+ assert(runUntil(function() return t.state=="RoundEnding" end))
+ local winner;for _,q in ipairs(order) do if q~=first and q~=second then winner=q end end
+ local win;for _,e in ipairs(log) do if e[1]=="Win" then win=e[3] end end
+ assert(win and win.userId==winner.UserId and win.winnerTakesAll==true and #win.roster==3)
+ assert(Profiles:Get(first).coins==before[first] and Profiles:Get(second).coins==before[second],"losers get no coins")
+ assert(Profiles:Get(first).games>=1,"losers still get the game counted")
+ assert(Profiles:Get(winner).coins>=before[winner]+win.pot+Config.Economy.WinReward,"the last one takes the whole pot")
+ rawset(cue,"FireAllClients",nil)
 end) end)
 
 check("brave offer stops at the chain limit and when the barrel is nearly empty",function() withScheduler(function()
@@ -1091,5 +1144,33 @@ check("showcase rows fit inside the stern cabin",function()
   assert(last+3.4<Ship.CabinFront);assert(Ship.Showcase.Z-3.4>Ship.CabinBack)
   assert(math.abs(Ship.Showcase.Centers[kind])+8+3.4<52)
  end
+end)
+check("quest dot counts finished, unclaimed daily quests",function()
+ local q=player(41);Profiles:_load(q);local d=Profiles:Get(q)
+ Profiles:_rollDaily(q,d);Profiles:_touch(q)
+ local entry=d.daily.quests[1];assert(entry,"a daily quest exists")
+ local goal;for _,def in ipairs(Config.Quests.Pool) do if def.id==entry.id then goal=def.goal end end
+ entry.progress=0;entry.claimed=false;Profiles:_touch(q);local base=q:GetAttribute("QuestReady") or 0
+ entry.progress=goal;Profiles:_touch(q);assert(q:GetAttribute("QuestReady")==base+1,"red dot appears")
+ entry.claimed=true;Profiles:_touch(q);assert(q:GetAttribute("QuestReady")==base,"and goes away once claimed")
+end)
+check("sea rescue: anyone below the waterline is lifted to the nearest deck spot",function()
+ local Rescue=loadModule("RescueService")
+ assert(Rescue.needsRescue(Vector3.new(0,-6,40)),"in the water")
+ assert(not Rescue.needsRescue(Vector3.new(10,4,40)),"on deck")
+ assert(Rescue.needsRescue(Vector3.new(400,30,0)),"far off the ship")
+ local spot=Rescue.spotFor(Vector3.new(60,-20,58));assert(spot.Z==62 and spot.Y>Config.Rescue.BelowY+3)
+ assert(Rescue.spotFor(Vector3.new(0,-9,-200)).Z==-94)
+ assert(Config.Rescue.FallenPartsDestroyHeight>-500 and Config.Rescue.FallenPartsDestroyHeight<Config.Rescue.BelowY)
+end)
+check("Blender models: catalog is complete and the game falls back without them",function()
+ local Catalog=loadModule("MeshCatalog");local Kit=loadModule("MeshKit")
+ for asset,names in pairs(Catalog.Assets) do
+  assert(#names>0,asset)
+  for _,name in ipairs(names) do assert(Catalog.Pieces[name],asset.." -> "..name) end
+ end
+ for _,asset in ipairs({"Cannon","Cask","Drum","KrakenPieces"}) do assert(Catalog.Assets[asset],asset) end
+ assert(not Kit.has("Cannon"),"no imported model -> procedural shapes")
+ assert(Kit.barrelAsset({drum=true})=="Drum" and Kit.barrelAsset({})=="Cask")
 end)
 print("BEHAVIOR CHECKS: "..count.." passed")

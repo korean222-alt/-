@@ -101,6 +101,147 @@ for _, arm in ipairs(K.Arms) do
 end
 end
 
+--------------------------------------------------
+-- Phase 15 : 갑판 위에 누운 다리 (움직이지 않는다)
+--------------------------------------------------
+local cargo = {}
+for _, side in ipairs({ -1, 1 }) do
+	for _, z in ipairs({ -80, -58, -20, 24, 72 }) do
+		table.insert(cargo, { x = side * 42, z = z, radius = 2.3 })
+		table.insert(cargo, { x = side * 46, z = z + 2, radius = 1.3 })
+	end
+end
+local railLamps = {}
+for _, side in ipairs({ -1, 1 }) do
+	for _, z in ipairs({ 72, 24, -20, -66 }) do
+		local x = side * (Ship.halfWidth(z) - 0.4)
+		table.insert(railLamps, Vector3.new(x, 5.3, z))
+		table.insert(railLamps, Vector3.new(x - side * 1.4, 5.3, z))
+	end
+end
+local quarterLamps = {}
+for _, spot in ipairs({ { 7, -110 }, { -7, -110 }, { 51.6, -108 }, { -51.6, -108 }, { 51.6, -141 }, { -51.6, -141 }, { -16, -150 }, { 0, -150 }, { 16, -150 } }) do
+	table.insert(quarterLamps, spot)
+end
+-- 난간 기둥 : 선체 51 칸 중 세 칸마다 하나
+local railPosts = {}
+local sectionLength = (Ship.Bow - Ship.Stern) / 51
+for i = 3, 51, 3 do
+	local z = Ship.Stern + (i - 0.5) * sectionLength
+	table.insert(railPosts, z)
+end
+local function segmentDistance2D(px, pz, ax, az, bx, bz)
+	local dx, dz = bx - ax, bz - az
+	local t = math.clamp(((px - ax) * dx + (pz - az) * dz) / math.max(dx * dx + dz * dz, 1e-9), 0, 1)
+	local cx, cz = ax + dx * t, az + dz * t
+	return math.sqrt((px - cx) ^ 2 + (pz - cz) ^ 2)
+end
+
+for _, arm in ipairs(K.Resting) do
+	for _, count in ipairs({ K.Samples.High, K.Samples.Low, 60, 200 }) do
+		local samples = K.restingSample(arm, count)
+		expect(#samples == count, arm.name .. " resting sample count")
+		for index, s in ipairs(samples) do
+			local p, r = s.p, s.r
+			local ax = math.abs(p.X)
+			local label = ("%s(%d) #%d (%.1f, %.1f, %.1f) r=%.2f"):format(arm.name, count, index, p.X, p.Y, p.Z, r)
+			expect(s.inner ~= nil and math.abs(s.inner.Magnitude - 1) < 1e-3, label .. " sucker direction is a unit vector")
+			for name, pos in pairs(Ship.Tables) do
+				local dx, dz = p.X - pos[1], p.Z - pos[2]
+				expect(math.sqrt(dx * dx + dz * dz) > 16 + r, label .. " too close to " .. name)
+			end
+			for _, anchor in ipairs(rigAnchors) do
+				expect((p - anchor).Magnitude > r + 1, label .. " touches rigging anchor")
+			end
+			-- 주갑판
+			if p.Z > Ship.CabinFront and p.Z < Ship.Bow and p.Y < 14 then
+				local half = Ship.halfWidth(p.Z)
+				if ax > half - 1.2 and ax < half + 0.6 then
+					expect(p.Y - r >= K.RailTop - 0.05, label .. " cuts through the bulwark")
+				end
+				if ax < half + 0.6 then
+					-- 난간 안쪽 윗모서리를 파고들지 않는다
+					local corner = Vector3.new((p.X < 0 and -1 or 1) * (half - 0.8), K.RailTop, p.Z)
+					local dx, dy = math.abs(ax - (half - 0.8)), p.Y - K.RailTop
+					if ax < half - 0.8 and dy < 0 then
+						expect(dx >= r - 0.05, label .. " pushes into the bulwark wall")
+					else
+						expect((Vector3.new(p.X, p.Y, p.Z) - corner).Magnitude >= r - 0.05, label .. " pierces the rail cap")
+					end
+				end
+				if ax < half - 1.2 then
+					expect(p.Y - r >= K.DeckTop - 0.2, label .. " sinks into the deck")
+					expect(ax >= 49 - 0.01, label .. " reaches into the walkway (|x| < 49)")
+					for _, cz in ipairs(Ship.CannonZ) do
+						expect(not (math.abs(p.Z - cz) < 2.6 + r and ax > 47.3 - r), label .. " overlaps a cannon")
+					end
+					expect(not (p.Z < -60 and p.Z > -106 and ax > 42 - r), label .. " overlaps the stairs")
+					for _, box in ipairs(cargo) do
+						local dx, dz = p.X - box.x, p.Z - box.z
+						expect(math.sqrt(dx * dx + dz * dz) > box.radius + r + 0.4 or p.Y - r > 5, label .. " lies on the cargo")
+					end
+				end
+				for _, z in ipairs(railPosts) do
+					local postX = (p.X < 0 and -1 or 1) * (half - 1)
+					if p.Y - r < 5.2 then
+						expect(segmentDistance2D(p.X, p.Z, postX, z, postX, z) > r + 0.65, label .. " hits a rail post")
+					end
+				end
+				for _, lamp in ipairs(railLamps) do
+					expect((p - lamp).Magnitude > r + 1, label .. " hits a rail lantern")
+				end
+			end
+			-- 후갑판
+			if p.Z <= Ship.CabinFront + 0.5 and p.Z >= -159 and ax < 58 and p.Y > 5 then
+				if ax > 52.4 or p.Z < -154.4 then
+					expect(p.Y - r >= K.QuarterRailTop - 0.05, label .. " cuts through the quarterdeck rail")
+				else
+					expect(p.Y - r >= K.QuarterdeckTop - 0.2, label .. " sinks into the quarterdeck")
+					expect(p.Z < -118 or ax > 44, label .. " reaches the helm area")
+					local dx, dy = 52.65 - ax, p.Y - K.QuarterRailTop
+					if dy < 0 then
+						expect(dx >= r - 0.05, label .. " pushes into the quarterdeck rail")
+					else
+						expect(math.sqrt(dx * dx + dy * dy) >= r - 0.05, label .. " pierces the quarterdeck rail cap")
+					end
+				end
+				for _, lamp in ipairs(quarterLamps) do
+					local dx, dz = p.X - lamp[1], p.Z - lamp[2]
+					expect(math.sqrt(dx * dx + dz * dz) > r + 1 or p.Y - r > 22.2, label .. " hits a quarterdeck lantern")
+				end
+			end
+			if index == 1 then
+				expect(p.Y + r < K.SeaY, label .. " root is not under water")
+			end
+			-- 움직이는 다리와 겹치지 않는다
+			for _, other in ipairs(K.Arms) do
+				for _, t in ipairs({ false, 0, 3.1, 7.3, 12.9 }) do
+					for _, amp in ipairs({ 1, 2.2 }) do
+						for _, o in ipairs(K.sample(other, t or nil, 26, amp)) do
+							expect((o.p - p).Magnitude > o.r + r + 0.3, ("%s touches %s"):format(label, other.name))
+						end
+					end
+				end
+			end
+		end
+		for index = 2, #samples do
+			expect(samples[index].r <= samples[index - 1].r + 1e-9, arm.name .. " radius must taper")
+		end
+		-- 누운 몸이 충분히 길다 (가로로 누운 구간 : 갑판에 닿은 마디가 이어진 길이)
+		local lying = 0
+		for index = 2, #samples do
+			local a, b = samples[index - 1], samples[index]
+			local floor = K.floorAt(b.p.X, b.p.Z)
+			if floor and b.p.Y - b.r - floor < 0.2 and math.abs(b.p.Y - a.p.Y) < 0.5 then
+				lying += (b.p - a.p).Magnitude
+			end
+		end
+		if count == 200 then
+			expect(lying > 8, ("%s lies on the deck for %.1f studs"):format(arm.name, lying))
+		end
+	end
+end
+
 -- 머리는 배와 떨어져 있다
 local head = K.Head
 local hull = Vector3.new(-Ship.HalfBeam, head.center.Y, head.center.Z)

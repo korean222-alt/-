@@ -1,12 +1,13 @@
 # 해야 할 일 총정리 — 이 문서 하나만 보시면 됩니다
 
-게임 파일: `output/CursedBarrel_Phase14_Polish.rbxl`  (이번 변경: [Phase 14](Phase14_버그수정_그래픽_KO.md))
+게임 파일: `output/CursedBarrel_Phase15_Kraken.rbxl`  (이번 변경: [Phase 15](Phase15_크라켄_블렌더_라운드_KO.md))
+블렌더 모델: `assets/models/CursedBarrelModels.fbx` (1장 2번에서 한 번 가져오기)
 모든 ID는 **숫자만 복사해서 저에게 보내 주시면** 제가 넣고 새 파일을 드립니다. (직접 넣으셔도 됩니다)
 맨 아래 [7장](#7-보내-주실-것--한-번에-복사해서-채우기)에 보내 주실 양식이 한 번에 있습니다.
 
 | 순서 | 할 일 | 걸리는 시간 | 꼭? |
 |---|---|---|---|
-| 1 | Studio에서 열고 Publish | 5분 | ✅ |
+| 1 | Studio에서 열고 블렌더 모델 가져오기 · Publish | 10분 | ✅ |
 | 2 | Play로 새 기능 확인 | 15분 | ✅ |
 | 3 | 로벅스 상품 8개 만들기 | 30분 | ✅ |
 | 4 | 그림 3개 올리기 | 10분 | ✅ |
@@ -16,17 +17,21 @@
 
 ---
 
-## 1. Studio에서 열고 Publish
+## 1. Studio에서 열고 블렌더 모델 가져오기 · Publish
 
-1. Roblox Studio에서 `CursedBarrel_Phase14_Polish.rbxl` 을 엽니다.
-2. **파일 → Roblox에 게시(Publish to Roblox)** 를 누릅니다.
+1. Roblox Studio에서 `CursedBarrel_Phase15_Kraken.rbxl` 을 엽니다.
+2. **홈 → 3D 가져오기(Import 3D)** → `assets/models/CursedBarrelModels.fbx` → **"단일 메시로 가져오기" 끄기** → 가져오기.
+   - Workspace 에 `CursedBarrelModels` 가 생기면 그대로 둡니다. (게임이 켜질 때 알아서 보관함으로 옮기고 제자리에 놓습니다)
+   - 새 통 · 드럼 · 대포 · 크라켄(누운 다리 포함)이 이 모델로 바뀝니다. 안 하면 예전 모양으로 돌아갑니다.
+3. **파일 → Roblox에 게시(Publish to Roblox)** 를 누릅니다.
    - 상품을 만들려면 게임이 한 번은 게시돼 있어야 합니다. 비공개 상태로 두어도 됩니다.
-3. **게임 설정 → 보안 → "Studio에서 API 서비스 사용"** 을 켭니다. (저장 · 순위판을 Studio에서 확인할 수 있게)
+4. **게임 설정 → 보안 → "Studio에서 API 서비스 사용"** 을 켭니다. (저장 · 순위판을 Studio에서 확인할 수 있게)
 
 ## 2. Play로 확인할 것 (체크하면서)
 
-- [ ] 왼쪽 아래 📅 출석 · 🎡 룰렛 버튼이 보이고, 들어오면 출석판이 한 번 열린다
-- [ ] 출석 「받기!」 → ✔ 튀어나옴 → 룰렛이 이어서 열림 → 하루 한 번만 돌아감
+- [ ] Phase 15 새 기능: [Phase 15 문서의 Play 체크](Phase15_크라켄_블렌더_라운드_KO.md#play-체크) (바다 구조 · 라운드 · 최후의 1인 · 시점 돌리기 · 창 하나만 · 등불)
+- [ ] 오른쪽 가운데 📅 출석 · 🎡 룰렛 버튼이 보이고, 들어오면 출석판이 한 번 열린다
+- [ ] 출석 「받기!」 → ✔ 튀어나옴 → 룰렛이 이어서 열림 → 하루 한 번만 돌아감 (확률표 없음)
 - [ ] 상점:
   - 스킨마다 🪙 가격 버튼이 있다
   - 코인이 모자라면 아래에 「충전」 버튼이 생긴다
@@ -35,7 +40,7 @@
   - 파란 광택, 굴림 테 두 줄, 위아래 주름, 뚜껑 마개 두 개
 - [ ] 신화(용 세트) 스킨 3D 미리보기에 무지갯빛 반짝임이 보인다
 - [ ] 설정 → 언어 → English 로 바꾸면 화면이 영어가 된다
-- [ ] 한 판 끝까지 해 보고 코인이 수백 단위로 들어오는지 본다 (한 판 평균 약 800)
+- [ ] 1:1 테이블에서 한 판 끝까지 해 보고 코인이 수백 단위로 들어오는지 본다 (4인 이상 테이블은 이긴 사람이 현상금을 전부 받음)
 - [ ] 폭풍 확인
   - `GameConfig.World.StudioStartPhase = "storm"` 으로 두고 Play 합니다.
   - 크라켄이 갑판을 쾅 치는지, 대포로 막히는지 봅니다.
@@ -184,11 +189,9 @@ Dragon =
 Impact =
 Win =
 
-[그래픽 — 선택] (찾는 법: Phase14 문서의 "3D 모델 ID")
+[그래픽 — 선택] (통 · 대포 · 크라켄은 블렌더 모델로 바뀌어 이제 필요 없음. 칼만: Phase14 문서의 "3D 모델 ID")
 Pattern = (assets/ui/pattern_tile.png 를 올린 ID)
 칼 스킨 id = MeshId / TextureId   예) gold = 123 / 456
-통 스킨 id = MeshId / TextureId
-Cannon = MeshId / TextureId
 
 [배지 — 선택]
 first_win= win10= win50= catch50= catch250= streak3= streak7= games100= cannon100= raid10= crew5= tourney34=

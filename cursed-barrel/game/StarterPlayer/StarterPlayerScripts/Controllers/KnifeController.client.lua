@@ -479,7 +479,12 @@ local function refreshActions(myTurn)
 	braveButton.Visible = offered
 	if offered then
 		local reward = currentModel:GetAttribute(TABLE_ATTR.BraveNextReward) or 0
-		braveButton.Text = ("한 번 더!  +%d"):format(reward)
+		-- Phase 15 : 최후의 1인 테이블은 보상이 현상금에 쌓인다 (👑)
+		if currentModel:GetAttribute(TABLE_ATTR.WinnerTakesAll) == true then
+			braveButton.Text = ("한 번 더!  👑+%d"):format(reward)
+		else
+			braveButton.Text = ("한 번 더!  +%d"):format(reward)
+		end
 	end
 
 	-- 파티 카드는 내 차례이고 아직 고르기 전(제한 시간이 흐르는 중)에만 쓸 수 있다.

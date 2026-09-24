@@ -81,7 +81,34 @@ function WorldService:CurrentPhase()
 	return self.phase or WORLD.Phases[1]
 end
 
+-- Phase 15 : 서버의 하늘도 지금 단계로 맞춰 둔다. 새로 들어온 사람은 스크립트가 돌기 전부터 맞는 밝기를 본다.
+-- (예전에는 Place 파일의 낮 하늘로 시작했다가 몇 초 뒤에 바뀌었다) 부드럽게 옮겨 가는 일은 각자 화면이 한다.
+function WorldService:_applyLighting(phase)
+	local sky = WORLD.Sky and WORLD.Sky[phase.id]
+	if not sky then
+		return
+	end
+	local Lighting = game:GetService("Lighting")
+	pcall(function()
+		Lighting.Ambient = sky.Ambient
+		Lighting.OutdoorAmbient = sky.OutdoorAmbient
+		Lighting.Brightness = sky.Brightness
+		Lighting.ClockTime = sky.ClockTime
+		Lighting.ExposureCompensation = sky.Exposure
+		local air = Lighting:FindFirstChildOfClass("Atmosphere")
+		if air then
+			air.Density = sky.Density
+			air.Offset = sky.Offset
+			air.Color = sky.AirColor
+			air.Decay = sky.Decay
+			air.Glare = sky.Glare
+			air.Haze = sky.Haze
+		end
+	end)
+end
+
 function WorldService:_applyPhase(phase, into, duration, lap, now)
+	self:_applyLighting(phase)
 	self.phase = phase
 	self.lap = lap
 	WORLD.current = phase

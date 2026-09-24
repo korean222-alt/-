@@ -351,6 +351,7 @@ local function bolt()
 	Debris:AddItem(folder, 0.45)
 	flashPower = 1
 	if not reduced() then
+		flash.BackgroundColor3 = Color3.new(1, 1, 1)
 		flash.BackgroundTransparency = 0.75
 		Tween:Create(flash, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
 	end
@@ -415,6 +416,10 @@ Run.Heartbeat:Connect(function(dt)
 
 	raidBox.Visible = raid
 	if raid then
+		-- Phase 15 : 게임 중에는 위쪽 알림판 아래로 내린다 (겹치지 않게)
+		local phase4 = player.PlayerGui:FindFirstChild("CursedBarrel_Phase4")
+		local match = phase4 and phase4:FindFirstChild("Match")
+		raidBox.Position = UDim2.new(0.5, 0, 0, (match and match.Visible) and 244 or 48)
 		local hp = workspace:GetAttribute("RaidHP") or 0
 		local max = math.max(1, workspace:GetAttribute("RaidMaxHP") or 1)
 		local raidLeft = math.max(0, (workspace:GetAttribute("RaidEndsAt") or 0) - workspace:GetServerTimeNow())
@@ -450,6 +455,15 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 		elseif data.state == "escaped" then
 			local coins = data.rewards and data.rewards[player.UserId]
 			announce(coins and ("크라켄이 물러났다  +%d"):format(coins) or "크라켄이 물러났다", cream, 2.5)
+		end
+	elseif kind == "Rescue" then
+		-- Phase 15 : 바다에 빠졌다가 갑판으로 건져 올려졌다
+		announce("💦 풍덩! 배로 돌아왔어요", Color3.fromRGB(150, 215, 255), 2.2)
+		Sfx.play("Splash", { volume = 0.7 })
+		if not reduced() then
+			flash.BackgroundColor3 = Color3.fromRGB(60, 140, 200)
+			flash.BackgroundTransparency = 0.35
+			Tween:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
 		end
 	elseif kind == "SlamBlocked" and data.userId == player.UserId then
 		announce("내려치기를 막았다!", teal, 1.6)

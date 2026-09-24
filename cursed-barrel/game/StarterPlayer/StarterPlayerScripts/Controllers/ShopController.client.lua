@@ -104,8 +104,63 @@ local levelLabel = UIKit.label(launcher, {
 
 local tabButtons = {}
 tabButtons.shop = UIKit.railButton({ name = "ShopButton", icon = "🛒", caption = "상점", theme = "green", order = 1 })
-tabButtons.quest = UIKit.railButton({ name = "QuestButton", icon = "📜", caption = "퀘스트", theme = "blue", order = 2 })
+local questDot
+tabButtons.quest, questDot = UIKit.railButton({ name = "QuestButton", icon = "📜", caption = "퀘스트", theme = "blue", order = 2 })
 tabButtons.sabotage = UIKit.railButton({ name = "SabotageButton", icon = "😈", caption = "방해", theme = "purple", order = 5 })
+
+-- Phase 15 : 다 채우고 아직 안 받은 퀘스트가 있으면 퀘스트 버튼 위에 빨간 동그라미 (개수)
+local function refreshQuestDot()
+	UIKit.setDot(questDot, localPlayer:GetAttribute("QuestReady") or 0)
+end
+localPlayer:GetAttributeChangedSignal("QuestReady"):Connect(refreshQuestDot)
+refreshQuestDot()
+
+-- Phase 15 : 상점 줄마다 어떤 스킨인지 작은 3D 그림 (동작 · 연출 스킨은 아이콘)
+local SkinPreview = require(Shared:WaitForChild("SkinPreview"))
+local THUMB_ICONS = { Stab = "🗡", Victory = "🏆", Elimination = "💥" }
+local function thumbnail(row, kind, id)
+	local skin = GameConfig.findSkin(kind, id)
+	if not skin or skin.id ~= id then
+		return nil
+	end
+	local frame = Instance.new("ViewportFrame")
+	frame.Name = "Thumb"
+	frame.Size = UDim2.fromOffset(78, 78)
+	frame.Position = UDim2.fromOffset(20, 9)
+	frame.BackgroundColor3 = UIKit.Colors.BodyDark
+	frame.BackgroundTransparency = 0.15
+	frame.Ambient = Color3.fromRGB(175, 182, 205)
+	frame.LightColor = Color3.fromRGB(255, 238, 210)
+	frame.LightDirection = Vector3.new(-1, -1.2, -0.8)
+	frame.ZIndex = row.ZIndex + 1
+	frame.Parent = row
+	UIKit.corner(frame, 12)
+	local icon = THUMB_ICONS[kind]
+	if icon then
+		local color = (skin.fx and skin.fx.emit) or skin.color
+		if color then
+			frame.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.5)
+		end
+		local label = UIKit.label(frame, { text = icon, size = UDim2.fromScale(1, 1), textSize = 44, stroke = 2, zIndex = frame.ZIndex + 1 })
+		label.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+		return frame
+	end
+	local world = Instance.new("WorldModel")
+	world.Parent = frame
+	local ok, model = pcall(SkinPreview.build, kind, skin, world)
+	if not ok or not model then
+		return frame
+	end
+	local box, size = model:GetBoundingBox()
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = frame
+	frame.CurrentCamera = camera
+	local radius = math.max(size.X, size.Y, size.Z) * 0.5
+	local distance = radius / math.tan(math.rad(15)) * 1.05 + 0.4
+	camera.CFrame = CFrame.lookAt(box.Position + Vector3.new(0.6, 0.38, 0.9).Unit * distance, box.Position)
+	return frame
+end
 
 --------------------------------------------------
 -- 본 화면
@@ -307,10 +362,11 @@ local function drawShop()
 	for _, entry in ipairs(state.catalog[currentKind] or {}) do
 		order += 1
 		local row = makeRow(order, 96, RARITY_THEME[entry.rarity or "common"] or "grey")
+		thumbnail(row, entry.kind, entry.id)
 
-		label(row, entry.name, UDim2.new(1, -250, 0, 34), UDim2.fromOffset(24, 10), 24, UIKit.Colors.White)
+		label(row, entry.name, UDim2.new(1, -350, 0, 34), UDim2.fromOffset(108, 10), 24, UIKit.Colors.White)
 		-- 등급만 짧게 (설명 줄은 두지 않는다)
-		local rarity = label(row, entry.rarityLabel or "", UDim2.new(1, -250, 0, 24), UDim2.fromOffset(24, 50), 18, entry.rarityColor or PALETTE.Dim)
+		local rarity = label(row, entry.rarityLabel or "", UDim2.new(1, -350, 0, 24), UDim2.fromOffset(108, 50), 18, entry.rarityColor or PALETTE.Dim)
 		if entry.deal and not entry.owned then
 			rarity.Text = rarity.Text .. "  🔥"
 		end
@@ -486,8 +542,9 @@ local function drawSabotage()
 	headerRow(order, "🎯 상대")
 
 	if #sabotageState.opponents == 0 then
+		-- Phase 15 : 테이블에서 게임 중일 때만 쓸 수 있다는 것만 짧게
 		order += 1
-		label(makeRow(order, 56), "—", UDim2.new(1, -30, 1, 0), UDim2.fromOffset(24, 0), 22, PALETTE.Dim)
+		label(makeRow(order, 56), "테이블에서 게임 중일 때 쓸 수 있어요", UDim2.new(1, -30, 1, 0), UDim2.fromOffset(24, 0), 20, PALETTE.Dim)
 		selectedTarget = nil
 	else
 		-- 고른 상대가 사라졌으면 첫 번째로 되돌린다

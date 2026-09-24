@@ -69,8 +69,18 @@ local function theme(name)
 end
 UIKit.theme = theme
 
-function UIKit.font(heavy)
-	return Font.new(FREDOKA, heavy and Enum.FontWeight.Heavy or Enum.FontWeight.Bold)
+-- Phase 15 : 한글이 뭉개지지 않게 굵기는 Bold 까지만 쓴다.
+--   (Fredoka 에는 한글이 없어서 한글은 기본 한글 글꼴로 그려진다. Heavy 로 부풀리고 두꺼운 외곽선까지 두르면
+--    획이 서로 붙어 "뭐라는지 안 보이는" 글자가 됐다)
+function UIKit.font(_heavy)
+	return Font.new(FREDOKA, Enum.FontWeight.Bold)
+end
+
+-- 글자 크기에 맞는 외곽선 두께. 작은 글자일수록 얇게 (한글 획 사이가 메워지지 않게)
+function UIKit.strokeFor(textSize, wanted)
+	local size = tonumber(textSize) or 20
+	local thickness = tonumber(wanted) or size / 12
+	return math.clamp(math.min(thickness, size / 9), 1, 3)
 end
 
 local patternId = 0
@@ -204,7 +214,7 @@ function UIKit.label(parent, props)
 		limit.MaxTextSize = props.textSize or 20
 		limit.Parent = l
 	end
-	UIKit.textStroke(l, props.stroke or math.clamp((props.textSize or 20) / 9, 1.4, 4))
+	UIKit.textStroke(l, UIKit.strokeFor(props.textSize or 20, props.stroke))
 	return l
 end
 
@@ -330,21 +340,22 @@ function UIKit.iconButton(parent, props)
 		stroke = 3,
 		zIndex = b.ZIndex + 2,
 	})
+	-- 받을 것이 있으면 뜨는 빨간 동그라미 (숫자를 적으면 개수가 보인다)
 	local dot = Instance.new("TextLabel")
 	dot.Name = "Dot"
 	dot.AnchorPoint = Vector2.new(0.5, 0.5)
 	dot.Position = UDim2.new(1, -6, 0, 6)
-	dot.Size = UDim2.fromOffset(26, 26)
+	dot.Size = UDim2.fromOffset(28, 28)
 	dot.BackgroundColor3 = C.Red
-	dot.FontFace = UIKit.font(true)
-	dot.TextSize = 18
+	dot.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+	dot.TextSize = 17
 	dot.TextColor3 = C.White
 	dot.Text = "!"
 	dot.Visible = false
 	dot.ZIndex = b.ZIndex + 3
 	dot.Parent = b
-	UIKit.corner(dot, 13)
-	UIKit.outline(dot, 2.5)
+	UIKit.corner(dot, 14)
+	UIKit.outline(dot, 2.5, C.White)
 	UIKit.bounce(b)
 	return b, dot
 end
@@ -381,15 +392,101 @@ function UIKit.hud()
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.FillDirectionMaxCells = 2
 		grid.Parent = rail
+
+		-- Phase 15 : 오른쪽 버튼 줄 (출석 · 룰렛). 인기 게임처럼 매일 받는 보상은 오른쪽에 세로로 둔다.
+		local right = Instance.new("Frame")
+		right.Name = "RightRail"
+		right.BackgroundTransparency = 1
+		right.AnchorPoint = Vector2.new(1, 0.5)
+		right.Position = UDim2.new(1, -14, 0.42, 0)
+		right.Size = UDim2.fromOffset(84, 2 * 74 + 26)
+		right.Parent = gui
+		local list = Instance.new("UIListLayout")
+		list.FillDirection = Enum.FillDirection.Vertical
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		list.Padding = UDim.new(0, 26)
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		list.Parent = right
 	end
 	hud = gui
 	return gui
 end
 
--- 왼쪽 버튼 하나를 더한다. order 가 작을수록 위 · 왼쪽
+-- 버튼 하나를 더한다. order 가 작을수록 위 · 왼쪽. props.side = "right" 면 오른쪽 줄
 function UIKit.railButton(props)
 	local gui = UIKit.hud()
-	return UIKit.iconButton(gui:WaitForChild("Rail"), props)
+	local rail = gui:WaitForChild(props.side == "right" and "RightRail" or "Rail")
+	return UIKit.iconButton(rail, props)
+end
+
+-- 버튼 위 빨간 동그라미. count 가 0 이면 숨긴다. true 면 "!" 만.
+function UIKit.setDot(dot, count)
+	if not dot then
+		return
+	end
+	if count == true then
+		dot.Text = "!"
+		dot.Visible = true
+		return
+	end
+	local n = math.floor(tonumber(count) or 0)
+	dot.Visible = n > 0
+	dot.Text = n > 9 and "9+" or tostring(n)
+end
+
+--------------------------------------------------
+-- Phase 15 : 창은 한 번에 하나만
+--   출석 · 룰렛 · 상점 · 항해 수첩 … 중 하나가 열리면 나머지는 닫힌다.
+--   어떻게 열었든(버튼 · 단축키 · 자동) Visible 이 켜지는 순간 나머지를 닫는다.
+--   exclusive = false 인 창(3D 미리보기처럼 다른 창 위에 잠깐 뜨는 것)은 다른 창을 닫지 않고,
+--   다른 창이 새로 열릴 때만 같이 닫힌다.
+--------------------------------------------------
+local windows = {}
+
+function UIKit.closeOthers(keep)
+	local keepEntry = nil
+	for _, entry in ipairs(windows) do
+		if entry.frame == keep then
+			keepEntry = entry
+		end
+	end
+	if keepEntry and not keepEntry.exclusive then
+		return
+	end
+	for _, entry in ipairs(windows) do
+		if entry.frame ~= keep and entry.frame.Parent and entry.frame.Visible then
+			pcall(entry.hide)
+		end
+	end
+end
+
+function UIKit.closeAll()
+	for _, entry in ipairs(windows) do
+		if entry.frame.Parent and entry.frame.Visible then
+			pcall(entry.hide)
+		end
+	end
+end
+
+function UIKit.register(frame, hide, exclusive)
+	local entry = { frame = frame, hide = hide or function()
+		frame.Visible = false
+	end, exclusive = exclusive ~= false }
+	table.insert(windows, entry)
+	frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if frame.Visible then
+			UIKit.closeOthers(frame)
+		end
+	end)
+	frame.AncestryChanged:Connect(function()
+		if not frame:IsDescendantOf(game) then
+			local index = table.find(windows, entry)
+			if index then
+				table.remove(windows, index)
+			end
+		end
+	end)
+	return entry
 end
 
 --------------------------------------------------
@@ -503,6 +600,13 @@ function UIKit.window(parent, props)
 			props.onClose()
 		end
 	end)
+	-- 한 번에 창 하나만 (props.exclusive = false 면 다른 창 위에 잠깐 뜨는 창)
+	UIKit.register(frame, function()
+		w.hide()
+		if props.onClose then
+			props.onClose()
+		end
+	end, props.exclusive)
 	return w
 end
 
@@ -570,7 +674,7 @@ local function styleText(obj)
 		obj.TextStrokeColor3 = C.Outline
 	elseif not obj:FindFirstChildOfClass("UIStroke") then
 		local size = obj.TextScaled and 20 or obj.TextSize
-		UIKit.textStroke(obj, math.clamp(size / 9, 1.3, 3.2))
+		UIKit.textStroke(obj, UIKit.strokeFor(size))
 	end
 end
 

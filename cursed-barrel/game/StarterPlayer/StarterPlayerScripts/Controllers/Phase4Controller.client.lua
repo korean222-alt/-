@@ -51,6 +51,7 @@ local visuals = package:WaitForChild("Visuals")
 local StabMotion = require(package.Shared:WaitForChild("StabMotion"))
 local PirateModel = require(package.Shared:WaitForChild("PirateModel"))
 local UIKit = require(package.Shared:WaitForChild("UIKit"))
+local Utility = require(package.Shared:WaitForChild("Utility"))
 local SKIN_ATTR = config.Skins.PlayerAttributes
 local TABLE_ATTR = config.TableAttributes
 
@@ -149,7 +150,7 @@ gui.DisplayOrder = 12
 gui.IgnoreGuiInset = true
 gui.Parent = player:WaitForChild("PlayerGui")
 
-local function textLabel(name, size, position, fontSize)
+local function textLabel(name, size, position, fontSize, parent)
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.Size = size
@@ -160,19 +161,77 @@ local function textLabel(name, size, position, fontSize)
 	label.TextSize = fontSize
 	label.TextWrapped = true
 	label.Text = ""
-	label.Parent = gui
-	UIKit.textStroke(label, math.clamp(fontSize / 8, 2, 5))
+	label.Parent = parent or gui
+	UIKit.textStroke(label, UIKit.strokeFor(fontSize))
 	return label
 end
 
-local title = textLabel("Chapter", UDim2.new(0.8, 0, 0, 36), UDim2.new(0.1, 0, 0, 92), 26)
+--[[
+	Phase 15 : 게임 중 위쪽 가운데 알림판 하나 (예전에는 테이블 이름 · 상태 · 경고가 따로 떠서
+	테이블 위 3D 현황판과 겹쳐 "뭐라는지 안 보였다")
+	  윗줄   : 테이블 이름 ................ 라운드 2/3 (마지막은 "결승")
+	  가운데 : 시작 3 · 내 차례! · ○○ 차례
+	  아랫줄 : 👥 남은 사람    💰 현상금 (최후의 1인 테이블은 👑)
+]]
+local hud = Instance.new("Frame")
+hud.Name = "Match"
+hud.AnchorPoint = Vector2.new(0.5, 0)
+hud.Position = UDim2.new(0.5, 0, 0, 50)
+hud.Size = UDim2.fromOffset(430, 100)
+hud.BackgroundColor3 = Color3.new(1, 1, 1)
+hud.BackgroundTransparency = 0.05
+hud.Visible = false
+hud.ZIndex = 10
+hud.Parent = gui
+UIKit.gradient(hud, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
+UIKit.corner(hud, 16)
+UIKit.outline(hud, 3.5)
+local hudScale = Instance.new("UIScale")
+hudScale.Parent = hud
+
+local title = textLabel("Chapter", UDim2.new(1, -150, 0, 28), UDim2.fromOffset(16, 6), 20, hud)
 title.TextColor3 = gold
-local status = textLabel("Status", UDim2.new(0.86, 0, 0, 44), UDim2.new(0.07, 0, 0, 128), 34)
--- 꼭 알아야 하는 경고 한 줄 (분노한 해적)
-local detail = textLabel("Detail", UDim2.new(0.86, 0, 0, 30), UDim2.new(0.07, 0, 0, 174), 24)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 11
+local roundChip = Instance.new("Frame")
+roundChip.Name = "Round"
+roundChip.AnchorPoint = Vector2.new(1, 0)
+roundChip.Position = UDim2.new(1, -10, 0, 7)
+roundChip.Size = UDim2.fromOffset(122, 28)
+roundChip.BackgroundColor3 = Color3.new(1, 1, 1)
+roundChip.ZIndex = 11
+roundChip.Visible = false
+roundChip.Parent = hud
+UIKit.paint(roundChip, "purple")
+UIKit.corner(roundChip, 14)
+UIKit.outline(roundChip, 2.5)
+local roundLabel = textLabel("RoundText", UDim2.fromScale(1, 1), UDim2.new(), 18, roundChip)
+roundLabel.ZIndex = 12
+local status = textLabel("Status", UDim2.new(1, -24, 0, 36), UDim2.fromOffset(12, 32), 30, hud)
+status.ZIndex = 11
+local aliveLabel = textLabel("Alive", UDim2.new(0.5, -16, 0, 24), UDim2.fromOffset(16, 70), 19, hud)
+aliveLabel.TextXAlignment = Enum.TextXAlignment.Left
+aliveLabel.ZIndex = 11
+local potLabel = textLabel("Pot", UDim2.new(0.5, -16, 0, 24), UDim2.new(0.5, 0, 0, 70), 19, hud)
+potLabel.TextXAlignment = Enum.TextXAlignment.Right
+potLabel.TextColor3 = gold
+potLabel.ZIndex = 11
+-- 꼭 알아야 하는 경고 한 줄 (분노한 해적) : 알림판 바로 아래
+local detail = textLabel("Detail", UDim2.fromOffset(430, 28), UDim2.new(0.5, -215, 0, 154), 22)
 detail.TextColor3 = red
-local banner = textLabel("Result", UDim2.new(0.84, 0, 0, 100), UDim2.new(0.08, 0, 0.24, 0), 48)
+local banner = textLabel("Result", UDim2.new(0.84, 0, 0, 90), UDim2.new(0.08, 0, 0.3, 40), 48)
 banner.TextTransparency = 1
+
+-- 작은 화면에서는 알림판을 줄인다
+local function fitHud()
+	local camera = workspace.CurrentCamera
+	local width = camera and camera.ViewportSize.X or 1280
+	hudScale.Scale = math.clamp((width - 20) / 450, 0.6, 1)
+end
+fitHud()
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitHud)
+end
 
 local flash = Instance.new("Frame")
 flash.Name = "Flash"
@@ -184,6 +243,9 @@ flash.BorderSizePixel = 0
 flash.ZIndex = 20
 flash.Active = false -- 화면을 덮지만 아래의 칼 선택 버튼 입력은 그대로 통과시킵니다.
 flash.Parent = gui
+
+-- Phase 15 : 판이 끝났을 때 알림판 가운데에 남기는 한 마디 (승리 / 패배 / ○○ 승리)
+local resultText, resultColor = nil, nil
 
 local bannerToken = 0
 local function announce(message, color, hold)
@@ -271,7 +333,7 @@ catchText.TextColor3 = cream
 catchText.Text = ""
 catchText.ZIndex = 18
 catchText.Parent = catchGui
-UIKit.textStroke(catchText, 5)
+UIKit.textStroke(catchText, UIKit.strokeFor(64, 3))
 
 local catchHint = Instance.new("TextLabel")
 catchHint.Name = "Hint"
@@ -393,6 +455,8 @@ end)
 --------------------------------------------------
 -- 소리
 --------------------------------------------------
+-- Phase 15 : 다른 창(상점 · 출석 …)이 열리면 이 안내도 닫힌다 (창은 한 번에 하나)
+UIKit.register(tutorial)
 player:GetAttributeChangedSignal("TutorialDone"):Connect(function() if player:GetAttribute("TutorialDone") then tutorial.Visible=false end end)
 if player:GetAttribute("TutorialDone") then tutorial.Visible=false end
 
@@ -671,13 +735,24 @@ local function framing(camera, tension)
 	return distance, shift, fov
 end
 
+-- Phase 15 : 시점을 좌우로 돌린 만큼 (라디안). 카메라 · 해적 · 가짜 손이 모두 이 방향을 따른다.
+local yaw = 0
+local YAW_SPEED = math.rad(110)
+local dragInput, dragLast, padTurn = nil, nil, 0
+local yawHintShown = false
+local yawHint = textLabel("YawHint", UDim2.fromOffset(440, 28), UDim2.new(0.5, -220, 0.6, 0), 19)
+yawHint.TextTransparency = 1
 local function facing(pos)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	local delta = root and Vector3.new(root.Position.X - pos.X, 0, root.Position.Z - pos.Z) or Vector3.new(0, 0, 1)
 	if delta.Magnitude < 0.1 then
 		delta = Vector3.new(0, 0, 1)
 	end
-	return delta.Unit
+	local direction = delta.Unit
+	if yaw ~= 0 then
+		direction = CFrame.Angles(0, yaw, 0):VectorToWorldSpace(direction)
+	end
+	return direction
 end
 
 local function standardShot(camera, pos, tension)
@@ -1595,23 +1670,54 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 	elseif kind == "Win" then
 		burst(pos + Vector3.new(0, 3, 0), gold, reduced and 10 or 28)
 		if own then
-			local streakText = (data.streak and data.streak >= 2) and ("  🔥%d"):format(data.streak) or ""
-			local potText = (data.pot and data.pot > 0) and ("  +%d"):format(data.pot) or ""
-			local text
-			if data.userId == 0 then
-				text = "승자 없음"
-			elseif data.bot then
-				text = (data.name or "AI") .. " 승리"
+			-- Phase 15 : 이기면 "승리", 진 사람(이번 판 참가자)은 누가 이겼든 "패배". 구경한 사람만 "○○ 승리".
+			local wasIn = false
+			for _, id in ipairs(typeof(data.roster) == "table" and data.roster or {}) do
+				if id == player.UserId then
+					wasIn = true
+				end
+			end
+			local won = data.userId ~= 0 and data.userId == player.UserId
+			local text, color
+			if won then
+				local potText = (data.pot and data.pot > 0) and ("  +%s"):format(Utility.comma(data.pot)) or ""
+				local streakText = (data.streak and data.streak >= 2) and ("  🔥%d"):format(data.streak) or ""
+				text, color = "승리!" .. potText .. streakText, gold
+			elseif wasIn then
+				text, color = "패배", red
+			elseif data.userId == 0 then
+				text, color = "승자 없음", cream
 			else
-				text = data.name .. " 승리!" .. streakText .. potText
+				text, color = ("%s 승리"):format(data.name or ""), gold
 			end
-			announce(text, data.bot and red or gold, (data.forfeit or data.bot) and 2.4 or 1.8)
-			blink(gold, 0.3)
-			for i, pitch in ipairs({ 1, 1.25, 1.5 }) do
-				task.delay((i - 1) * 0.15, function()
-					sound("win", pitch)
-				end)
+			resultText, resultColor = won and "승리!" or (wasIn and "패배" or text), color
+			announce(text, color, won and 2.6 or 2)
+			blink(won and gold or (wasIn and red or gold), won and 0.35 or 0.2)
+			if won or not wasIn then
+				for i, pitch in ipairs({ 1, 1.25, 1.5 }) do
+					task.delay((i - 1) * 0.15, function()
+						sound("win", pitch)
+					end)
+				end
+			else
+				sound("danger", 0.55, 0.25)
 			end
+		end
+	elseif kind == "Eliminate" then
+		-- Phase 15 : 탈락한 사람 화면에는 "패배 · 4위". 이유(놓쳤다 · 너무 빨랐다)를 먼저 보여 주고 이어서 뜬다.
+		if data.userId == player.UserId then
+			local place = tonumber(data.place)
+			task.delay(1.1, function()
+				announce(place and ("패배 · %d위"):format(place) or "패배", red, 2.4)
+			end)
+			resultText, resultColor = "패배", red
+		end
+	elseif kind == "Stage" then
+		-- Phase 15 : 한 명이 떨어지고 다음 라운드가 시작된다
+		if own and model:GetAttribute(TABLE_ATTR.Stage) then
+			local stage, total = tonumber(data.stage) or 1, tonumber(data.total) or 1
+			announce(stage >= total and "결승!" or ("%d 라운드!"):format(stage), stage >= total and gold or teal, 1.6)
+			sound("riser", 1.1, 0.12)
 		end
 	end
 end)
@@ -1666,8 +1772,18 @@ Run.Heartbeat:Connect(function()
 		active = desired
 		lastTurn = nil
 		shot = nil
+		yaw = 0 -- 새 판은 정면에서 시작한다
+		dragInput, dragLast = nil, nil
 		if active then
 			enterStage(active)
+			if not yawHintShown and cameraOn then
+				yawHintShown = true
+				yawHint.Text = Input.TouchEnabled and "↔ 화면을 끌어서 시점 돌리기" or "↔ 드래그 · ← → 로 시점 돌리기"
+				yawHint.TextTransparency = 0
+				task.delay(4, function()
+					Tween:Create(yawHint, TweenInfo.new(0.6), { TextTransparency = 1 }):Play()
+				end)
+			end
 		else
 			leaveStage()
 		end
@@ -1683,10 +1799,31 @@ Run.Heartbeat:Connect(function()
 
 	if model then
 		local current = model:GetAttribute(TABLE_ATTR.State)
+		hud.Visible = true
 		title.Text = model:GetAttribute("DisplayName") or model.Name
+		-- 라운드 : 한 명이 떨어질 때마다 올라간다. 마지막 둘이 겨루면 "결승"
+		local stage = model:GetAttribute(TABLE_ATTR.Stage) or 0
+		local stages = model:GetAttribute(TABLE_ATTR.StageCount) or 0
+		local inRound = current == "Playing" or current == "Starting"
+		roundChip.Visible = inRound and stages >= 2 and stage >= 1
+		if roundChip.Visible then
+			roundLabel.Text = stage >= stages and "결승" or ("라운드 %d/%d"):format(stage, stages)
+		end
+		-- 남은 사람 · 현상금
+		local alive = model:GetAttribute(TABLE_ATTR.TurnCount) or 0
+		local started = model:GetAttribute(TABLE_ATTR.ParticipantCount) or 0
+		if inRound and started > 0 then
+			aliveLabel.Text = ("👥 %d/%d"):format(alive, started)
+		else
+			aliveLabel.Text = ("👥 %d/%d"):format(model:GetAttribute(TABLE_ATTR.SeatedCount) or 0, model:GetAttribute(TABLE_ATTR.SeatCount) or 0)
+		end
+		local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
+		local takesAll = model:GetAttribute(TABLE_ATTR.WinnerTakesAll) == true
+		potLabel.Text = (pot > 0 or takesAll) and ((takesAll and "👑 " or "💰 ") .. Utility.comma(pot)) or ""
 		if current == "Countdown" then
 			local remaining = math.max(0, math.ceil((model:GetAttribute(TABLE_ATTR.CountdownEndsAt) or 0) - workspace:GetServerTimeNow()))
 			status.Text = ("시작 %d"):format(remaining)
+			status.TextColor3 = cream
 			if lastCountdown ~= remaining then
 				sound("tick", remaining <= 2 and 1.4 or 1)
 				lastCountdown = remaining
@@ -1696,6 +1833,7 @@ Run.Heartbeat:Connect(function()
 			highlight.Adornee = characterOfUser(model, id)
 			local mine = id == player.UserId
 			status.Text = mine and "내 차례!" or ((model:GetAttribute(TABLE_ATTR.CurrentTurnName) or "") .. " 차례")
+			status.TextColor3 = mine and gold or cream
 			-- 부제목은 두지 않는다. 꼭 알아야 하는 경고(분노한 해적)만 한 줄.
 			local warning = ""
 			local mySeat = seatOf(model)
@@ -1717,10 +1855,14 @@ Run.Heartbeat:Connect(function()
 			end
 		elseif current == "Starting" then
 			status.Text = "시작!"
+			status.TextColor3 = gold
+			resultText, resultColor = nil, nil
 		elseif current == "RoundEnding" then
-			status.Text = ""
+			status.Text = resultText or ""
+			status.TextColor3 = resultColor or gold
 		else
 			status.Text = "대기 중"
+			status.TextColor3 = cream
 		end
 		if current ~= "Playing" then
 			detail.Text = ""
@@ -1729,6 +1871,7 @@ Run.Heartbeat:Connect(function()
 			highlight.Adornee = nil
 		end
 	else
+		hud.Visible = false
 		title.Text = ""
 		status.Text = ""
 		detail.Text = ""
@@ -1745,6 +1888,47 @@ Run.Heartbeat:Connect(function()
 				board.Enabled = false
 			end
 		end
+	end
+end)
+
+--------------------------------------------------
+-- Phase 15 : 시점 좌우로 돌리기 ("시점 고정 말고 좌우로 움직일 수 있게")
+--   · PC : 마우스 드래그(왼쪽 · 오른쪽 버튼), ← → 또는 A D
+--   · 휴대폰 : 화면을 손가락으로 끌기
+--   · 게임패드 : 오른쪽 스틱
+--   해적이 튀어나오는 클로즈업과 잡기 중에는 돌지 않는다. 새 판이 시작되면 정면으로 돌아온다.
+--------------------------------------------------
+local function canTurn()
+	return active ~= nil and cameraOn and not catch and not shot
+end
+Input.InputBegan:Connect(function(input, processed)
+	if processed or not canTurn() then
+		return
+	end
+	local kind = input.UserInputType
+	if kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.MouseButton2 or kind == Enum.UserInputType.Touch then
+		dragInput, dragLast = input, input.Position
+	end
+end)
+Input.InputChanged:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Thumbstick2 then
+		padTurn = math.abs(input.Position.X) > 0.2 and -input.Position.X or 0
+		return
+	end
+	if not dragInput or not canTurn() then
+		return
+	end
+	local follows = input == dragInput
+		or (input.UserInputType == Enum.UserInputType.MouseMovement and dragInput.UserInputType ~= Enum.UserInputType.Touch)
+	if follows and dragLast then
+		local delta = input.Position - dragLast
+		dragLast = input.Position
+		yaw -= delta.X * 0.008
+	end
+end)
+Input.InputEnded:Connect(function(input)
+	if dragInput and (input == dragInput or input.UserInputType == dragInput.UserInputType) then
+		dragInput, dragLast = nil, nil
 	end
 end)
 
@@ -1766,6 +1950,26 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		originalSubject = camera.CameraSubject
 	end
 	camera.CameraType = Enum.CameraType.Scriptable
+
+	if canTurn() then
+		local turn = padTurn
+		if not Input:GetFocusedTextBox() then
+			if Input:IsKeyDown(Enum.KeyCode.Left) or Input:IsKeyDown(Enum.KeyCode.A) then
+				turn += 1
+			end
+			if Input:IsKeyDown(Enum.KeyCode.Right) or Input:IsKeyDown(Enum.KeyCode.D) then
+				turn -= 1
+			end
+		end
+		if turn ~= 0 then
+			yaw += turn * YAW_SPEED * dt
+		end
+	end
+	if yaw > math.pi then
+		yaw -= math.pi * 2
+	elseif yaw < -math.pi then
+		yaw += math.pi * 2
+	end
 
 	local target, fov = standardShot(camera, pos, tension)
 	if shot then

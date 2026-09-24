@@ -33,6 +33,7 @@ local FX = require(Shared:WaitForChild("PremiumFX"))
 local CameraShake = require(Shared:WaitForChild("CameraShake"))
 local Sfx = require(Shared:WaitForChild("Sfx"))
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
+local MeshKit = require(Shared:WaitForChild("MeshKit")) -- Phase 15 : Blender 머리 · 마디 · 빨판 · 누운 다리
 local remotes = package:WaitForChild("Remotes")
 local worldCue = remotes:WaitForChild(GameConfig.Remotes.WorldCue)
 local cannonCue = remotes:WaitForChild(GameConfig.Remotes.CannonCue)
@@ -45,6 +46,7 @@ local BULB_RAID = Color3.fromRGB(255, 70, 160)
 
 local folder = nil
 local arms = {} -- { spec, count, tube, normal, sign, faded, bulb, flinchUntil }
+local resting = {} -- Phase 15 : 갑판에 누운 다리 (한 번 세우고 움직이지 않는다)
 local head = nil
 local animate = true
 local interval = 1 / 30
@@ -141,9 +143,20 @@ local function innerAt(points, index, normal, sign)
 end
 
 -- 굵기 목록대로 관 하나를 세운다. detailed 면 배 살 · 빨판까지 붙인다.
+-- Phase 15 : Blender 마디 · 빨판 메시가 있으면 원통 · 원판 대신 그것을 쓴다 (모양이 더 살아 있고 파트도 줄어든다)
+local function meshPiece(model, name, pieceName, size, color)
+	local piece = MeshKit.place(pieceName, nil, { parent = model, name = name, color = color, material = Enum.Material.SmoothPlastic })
+	if piece then
+		piece.Size = size
+		piece.Locked = true
+	end
+	return piece
+end
+
 local function buildTube(model, radii, detailed)
 	local count = #radii
 	local tube = { joints = {}, segs = {}, bellies = {}, suckers = {}, radii = radii, parts = {} }
+	local meshed = MeshKit.has("KrakenPieces")
 	for i = 1, count do
 		local u = (i - 1) / (count - 1)
 		local r = radii[i]
@@ -154,7 +167,8 @@ local function buildTube(model, radii, detailed)
 		if i > 1 then
 			local d = r + radii[i - 1]
 			local color = skinAt(u - 0.5 / (count - 1))
-			local seg = part(model, "Segment", Enum.PartType.Cylinder, Vector3.new(1, d, d), color)
+			local seg = meshed and meshPiece(model, "Segment", "CB_Kraken_Segment", Vector3.new(1, d, d), color)
+				or part(model, "Segment", Enum.PartType.Cylinder, Vector3.new(1, d, d), color)
 			seg.Reflectance = WET
 			tube.segs[i - 1] = seg
 			table.insert(tube.parts, seg)
@@ -167,22 +181,29 @@ local function buildTube(model, radii, detailed)
 			end
 		end
 		if detailed and u >= 0.3 and u <= 0.97 and i < count then
-			local rim = part(model, "Sucker", Enum.PartType.Cylinder, Vector3.new(0.14, r * 0.7, r * 0.7), COLORS.Sucker)
-			local cup = part(model, "SuckerCup", Enum.PartType.Cylinder, Vector3.new(0.16, r * 0.36, r * 0.36), COLORS.SuckerCup)
-			table.insert(tube.suckers, { rim = rim, cup = cup, index = i, row = (i % 2 == 0) and 1 or -1 })
-			table.insert(tube.parts, rim)
-			table.insert(tube.parts, cup)
+			local rim = meshed and meshPiece(model, "Sucker", "CB_Kraken_Sucker", Vector3.new(0.2, r * 0.74, r * 0.74), COLORS.Sucker)
+			if rim then
+				table.insert(tube.suckers, { rim = rim, index = i, row = (i % 2 == 0) and 1 or -1 })
+				table.insert(tube.parts, rim)
+			else
+				rim = part(model, "Sucker", Enum.PartType.Cylinder, Vector3.new(0.14, r * 0.7, r * 0.7), COLORS.Sucker)
+				local cup = part(model, "SuckerCup", Enum.PartType.Cylinder, Vector3.new(0.16, r * 0.36, r * 0.36), COLORS.SuckerCup)
+				table.insert(tube.suckers, { rim = rim, cup = cup, index = i, row = (i % 2 == 0) and 1 or -1 })
+				table.insert(tube.parts, rim)
+				table.insert(tube.parts, cup)
+			end
 		end
 	end
 	return tube
 end
 
 -- 관을 점들에 맞춰 옮긴다 (BulkMoveTo 에 쌓아 두기만 한다)
-local function placeTube(tube, points, normal, sign)
+-- given (Phase 15) : 빨판 방향을 미리 정해 준 경우 (누운 다리)
+local function placeTube(tube, points, normal, sign, given)
 	local count = #points
 	local inners = {}
 	for i = 1, count do
-		inners[i] = innerAt(points, i, normal, sign)
+		inners[i] = (given and given[i]) or innerAt(points, i, normal, sign)
 	end
 	for i = 1, count do
 		local p = points[i]
@@ -220,8 +241,10 @@ local function placeTube(tube, points, normal, sign)
 		local at = points[i] + inner * r + side * (r * 0.42)
 		table.insert(moveParts, sucker.rim)
 		table.insert(moveFrames, facing(at, face))
-		table.insert(moveParts, sucker.cup)
-		table.insert(moveFrames, facing(at + face * 0.04, face))
+		if sucker.cup then
+			table.insert(moveParts, sucker.cup)
+			table.insert(moveFrames, facing(at + face * 0.04, face))
+		end
 	end
 end
 
@@ -385,11 +408,19 @@ local function buildHead()
 	model.Parent = folder
 
 	local h = { model = model, eyes = {} }
-	h.low = part(model, "Mantle", Enum.PartType.Ball, Vector3.new(spec.mantle, spec.mantle, spec.mantle), COLORS.Skin)
-	local back = spec.mantle * 0.8
-	h.high = part(model, "MantleTop", Enum.PartType.Ball, Vector3.new(back, back, back), COLORS.SkinDark)
-	h.low.Reflectance = WET
-	h.high.Reflectance = WET
+	-- Phase 15 : Blender 머리(울퉁불퉁한 살 · 성난 눈썹 · 눈 둘레)가 있으면 그것 하나로 두 공을 대신한다
+	local mantle = MeshKit.place("CB_Kraken_Mantle", CFrame.new(), { parent = model, name = "Mantle", color = COLORS.Skin, material = Enum.Material.SmoothPlastic, reflectance = WET })
+	if mantle then
+		mantle.Locked = true
+		h.low = mantle
+		h.lowOffset = CFrame.new(MeshKit.Catalog.Pieces.CB_Kraken_Mantle.center)
+	else
+		h.low = part(model, "Mantle", Enum.PartType.Ball, Vector3.new(spec.mantle, spec.mantle, spec.mantle), COLORS.Skin)
+		local back = spec.mantle * 0.8
+		h.high = part(model, "MantleTop", Enum.PartType.Ball, Vector3.new(back, back, back), COLORS.SkinDark)
+		h.low.Reflectance = WET
+		h.high.Reflectance = WET
+	end
 	h.highOffset = Vector3.new(0, spec.mantle * 0.2, 0)
 	h.highBack = spec.mantle * 0.16
 
@@ -421,9 +452,11 @@ local function queueHead(h, t, cameraPosition, raid)
 	local frame = CFrame.fromMatrix(center, right, up, -look)
 
 	table.insert(moveParts, h.low)
-	table.insert(moveFrames, frame)
-	table.insert(moveParts, h.high)
-	table.insert(moveFrames, CFrame.new(center + h.highOffset - look * h.highBack))
+	table.insert(moveFrames, h.lowOffset and (frame * h.lowOffset) or frame)
+	if h.high then
+		table.insert(moveParts, h.high)
+		table.insert(moveFrames, CFrame.new(center + h.highOffset - look * h.highBack))
+	end
 
 	-- 눈꺼풀 : 몇 초에 한 번 느리게 감는다. 눈에 맞으면 질끈 감는다.
 	local blink = 0
@@ -642,6 +675,32 @@ local function currentQuality()
 	return FX.quality() == "Low" and "Low" or "High"
 end
 
+-- Phase 15 : 갑판에 가로로 누운 다리. Blender 모델이 있으면 통째로 한 번 놓고, 없으면 같은 곡선으로 파트를 세운다.
+local function buildResting(spec)
+	local model = Instance.new("Model")
+	model.Name = spec.name
+	model.Parent = folder
+	local made = MeshKit.build(spec.name, nil, { parent = model, material = Enum.Material.SmoothPlastic, reflectance = WET }, {
+		["CB_" .. spec.name:gsub("^Rest_", "KrakenRest_") .. "_Skin"] = { color = COLORS.Skin },
+		["CB_" .. spec.name:gsub("^Rest_", "KrakenRest_") .. "_Belly"] = { color = COLORS.Belly },
+		["CB_" .. spec.name:gsub("^Rest_", "KrakenRest_") .. "_Suckers"] = { color = COLORS.Sucker },
+	})
+	if made then
+		for _, piece in ipairs(made) do
+			piece.Locked = true
+		end
+		return { model = model, parts = made }
+	end
+	local samples = K.restingSample(spec, K.Samples[quality] or K.Samples.High)
+	local radii, points, inners = {}, {}, {}
+	for i, s in ipairs(samples) do
+		radii[i], points[i], inners[i] = s.r, s.p, s.inner
+	end
+	local tube = buildTube(model, radii, quality == "High")
+	placeTube(tube, points, Vector3.new(0, 0, 1), 1, inners)
+	return { model = model, parts = tube.parts }
+end
+
 local function build()
 	if folder then
 		folder:Destroy()
@@ -665,6 +724,15 @@ local function build()
 	end
 	local ok, built = pcall(buildHead)
 	head = ok and built or nil
+	table.clear(resting)
+	for _, spec in ipairs(K.Resting or {}) do
+		local restOk, rest = pcall(buildResting, spec)
+		if restOk then
+			table.insert(resting, rest)
+		else
+			warn("[CursedBarrel] 누운 크라켄 다리를 세우지 못했습니다: " .. tostring(rest))
+		end
+	end
 
 	local t = serverNow()
 	for _, arm in ipairs(arms) do
@@ -698,6 +766,12 @@ local function queueRebuild()
 end
 player:GetAttributeChangedSignal("Setting_quality"):Connect(queueRebuild)
 player:GetAttributeChangedSignal("Setting_reducedFX"):Connect(queueRebuild)
+-- Phase 15 : Blender 모델 보관함이 늦게 도착하면(서버가 옮긴 직후) 한 번 다시 세운다
+ReplicatedStorage.ChildAdded:Connect(function(child)
+	if child.Name == MeshKit.LibraryName then
+		queueRebuild()
+	end
+end)
 
 --------------------------------------------------
 -- 서버 알림 : 내려치기 · 막기 · 대포 명중 · 습격 결과
@@ -789,7 +863,17 @@ local heartbeat = RunService.Heartbeat:Connect(function(dt)
 	local pulse = 0.15 + 0.25 * (0.5 + 0.5 * math.sin(clock * (raid and 8 or 3)))
 	for _, arm in ipairs(arms) do
 		local root = arm.spec.waypoints[3].p
-		if not cameraPosition or (root - cameraPosition).Magnitude < 520 then
+		-- Phase 15 최적화 : 화면 밖(여유를 두고)이면서 가깝지도 않은 다리는 움직이지 않는다
+		local seen = true
+		if camera and cameraPosition then
+			local mid = arm.spec.waypoints[math.min(4, #arm.spec.waypoints)].p
+			local screen = camera:WorldToViewportPoint(mid)
+			local size = camera.ViewportSize
+			local margin = 0.45
+			seen = (mid - cameraPosition).Magnitude < 70 or (screen.Z > 0 and screen.X > -size.X * margin
+				and screen.X < size.X * (1 + margin) and screen.Y > -size.Y * margin and screen.Y < size.Y * (1 + margin))
+		end
+		if seen and (not cameraPosition or (root - cameraPosition).Magnitude < 520) then
 			if t or arm.flinchUntil > clock then
 				local samples = queueArm(arm, t or now, clock)
 				if cameraPosition then

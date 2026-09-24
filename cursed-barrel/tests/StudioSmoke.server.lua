@@ -67,4 +67,20 @@ local lights=workspace.Lobby.PlayableGalleon:FindFirstChild("ShipLights")
 check(lights~=nil and #lights:GetChildren()>=30,"Night lanterns")
 for _,lamp in ipairs(lights:GetChildren()) do check(lamp.ModelStreamingMode==Enum.ModelStreamingMode.Persistent,"Lanterns are always streamed") end
 for _,c in pairs(require(Services.CannonService).cannons) do check(c.tube.Parent.Name=="Barrel","Cannon barrel model") end
+-- Phase 15 : 바다에서 건지기 · 등불 자리 · 최후의 1인 · 라운드 · 블렌더 모델
+check(require(Services.RescueService)._started,"RescueService started")
+check(workspace.FallenPartsDestroyHeight>=Config.Rescue.FallenPartsDestroyHeight-1,"Fallen parts are removed soon")
+local spots=RS.CursedBarrel:FindFirstChild("LanternSpots")
+check(spots~=nil and #spots:GetChildren()>=30,"Lantern spots replicate for the client lights")
+for _,lamp in ipairs(lights:GetChildren()) do check(lamp:FindFirstChildWhichIsA("PointLight",true)==nil,"Lantern light is made on the client") end
+for _,t in ipairs(Tables:GetAllTables()) do
+ check(t.model:GetAttribute("Stage")~=nil and t.model:GetAttribute("StageCount")~=nil,"Missing table attribute Stage")
+ check((t.config.WinnerTakesAll==true)==(t.typeName~="Duo2"),"Winner-takes-all on multi-seat tables only")
+end
+local MeshKit=require(RS.CursedBarrel.Shared.MeshKit)
+if MeshKit.library() then
+ for asset in pairs(MeshKit.Catalog.Assets) do check(MeshKit.has(asset),"Imported Blender model has "..asset) end
+else
+ print("[StudioSmoke] Blender models not imported yet (assets/models/CursedBarrelModels.fbx) - part-built shapes are used")
+end
 print("[StudioSmoke] "..assertions.." engine assertions passed. This does not replace multiplayer/device QA.")

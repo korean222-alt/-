@@ -54,7 +54,8 @@ local function spectate(model)
  if h and h.SeatPart then return end
  player:SetAttribute("SpectateTableId",model:GetAttribute("TableId"));panel.Visible=false
 end
-local tabDefs={{"watch","관전","Watch"},{"weekly","의뢰","Quests"},{"party","파티","Party"},{"cards","카드","Cards"},{"settings","설정","Settings"}}
+-- Phase 15 : "카드" 탭은 걷어냈다 (파티 카드는 내 차례에 칼 고르는 창에서 바로 쓴다). 대신 짧은 "방법" 탭.
+local tabDefs={{"watch","관전","Watch"},{"weekly","의뢰","Quests"},{"party","파티","Party"},{"guide","방법","How to"},{"settings","설정","Settings"}}
 local tabButtons={}
 for i,t in ipairs(tabDefs) do
  tabButtons[i]=button(tabs,t[2],UDim2.new((i-1)/5,3,0,0),UDim2.new(1/5,-6,1,0),function() tab=t[1];refresh();draw() end,"grey")
@@ -63,8 +64,11 @@ local function openVoyage()
  if panel.Visible then panel.Visible=false;return end
  voyage.open();refresh();draw()
 end
-local launcher=UIKit.railButton({name="VoyageButton",icon="🧭",caption="항해",theme="teal",order=6})
+local launcher,voyageDot=UIKit.railButton({name="VoyageButton",icon="🧭",caption="항해",theme="teal",order=6})
 launcher.Activated:Connect(openVoyage)
+-- Phase 15 : 받을 수 있는 주간 의뢰 · 시즌 보상이 있으면 항해 버튼 위에 빨간 동그라미
+local function refreshVoyageDot() UIKit.setDot(voyageDot,player:GetAttribute("VoyageReady") or 0) end
+player:GetAttributeChangedSignal("VoyageReady"):Connect(refreshVoyageDot);refreshVoyageDot()
 local spectateExit=button(gui,"관전 종료",UDim2.new(1,-196,0.5,-60),UDim2.fromOffset(180,50),function() player:SetAttribute("SpectateTableId",nil);selected=nil end,"red");spectateExit.Visible=false
 local rejoin=button(gui,"다음 판 참가",UDim2.new(1,-196,0.5,0),UDim2.fromOffset(180,50),function() if selected then request:FireServer("rejoin",selected) end end,"green");rejoin.Visible=false
 function draw()
@@ -99,17 +103,17 @@ function draw()
   for _,member in ipairs(data.party.members) do local _,l=row("✓ "..member.name,38);l.Size=UDim2.new(1,-20,1,-10) end
   if data.party.leader~=0 then local rr=row(lang("현재 파티","Current party"));action(rr,lang("나가기","Leave"),function() request:FireServer("leaveParty") end) end
   for _,other in ipairs(data.players) do local rr=row(other.name);action(rr,lang("파티 초대","Invite to party"),function() request:FireServer("invite",other.id) end) end
- elseif tab=="cards" then
-  local model=currentTable()
-  local inputRow=row(lang("봉인할 자리","Slot to seal"))
-  local input=Instance.new("TextBox");input.Size=UDim2.fromOffset(146,44);input.Position=UDim2.new(1,-160,0.5,-22);input.Text="1";input.TextSize=22;input.FontFace=UIKit.font(true);input.ClearTextOnFocus=false;input.BackgroundColor3=UIKit.Colors.Cream;input.Parent=inputRow
-  UIKit.corner(input,10);UIKit.outline(input,3)
-  for _,id in ipairs({"skip","rotate","seal"}) do
-   local def=Release.Cards[id];local r=row(lang(def.name,def.en))
-   action(r,lang("사용","Use"),function()
-    if model then request:FireServer("card",model,id,tonumber(input.Text),model:GetAttribute("RoundId"),model:GetAttribute("TurnSerial")) end
-   end)
-  end
+ elseif tab=="guide" then
+  -- 게임 방법 · 방해 · 카드 · 수첩 쓰는 법 (한 줄씩)
+  for _,line in ipairs({
+   {"🎯 내 차례에 칼 꽂을 자리를 고르세요","🎯 On your turn, pick a slot"},
+   {"☠ 해적이 나오면 눌러서 잡기! 먼저 누르면 탈락","☠ Tap when the pirate pops out! Too early = out"},
+   {"🔥 한 번 더 : 더 찌를수록 현상금이 커져요","🔥 Once more: every extra stab grows the bounty"},
+   {"👑 4인 이상 테이블은 마지막 1명이 전부 가져가요","👑 4+ seat tables: the last survivor takes it all"},
+   {"😈 방해 : 게임 중 왼쪽 😈 버튼 → 상대 고르기 → 사용","😈 Sabotage: in a game, tap 😈 → pick a rival → use"},
+   {"🃏 카드 : 카드 테이블에서 내 차례에 칼 고르는 창 위 버튼","🃏 Cards: on your turn at the card table, above the slot picker"},
+   {"🧭 수첩 : 관전 · 주간 의뢰 · 파티 · 설정","🧭 Voyage: spectate · weekly quests · party · settings"},
+  }) do local _,l=row(lang(line[1],line[2]),52);l.Size=UDim2.new(1,-30,1,-8) end
  elseif tab=="settings" then
   local set=data.settings
   for _,def in ipairs({{"music","음악","Music"},{"sfx","효과음","Effects"}}) do

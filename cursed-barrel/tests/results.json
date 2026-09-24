@@ -1,23 +1,23 @@
 {
-  "place": "CursedBarrel_Phase14_Polish.rbxl",
-  "sha256": "b8b7670e957a2247f1e5da6a7487413ae72be93c3489cff1ec636d8e4ed46f44",
+  "place": "CursedBarrel_Phase15_Kraken.rbxl",
+  "sha256": "5b316281b7d120a19741d44a1b6edd25fbf75d07f5eb717fd633de028f2beb15",
   "original_instances": 1255,
-  "output_instances": 1289,
-  "source_files": 57,
-  "behavior_checks_passed": 99,
+  "output_instances": 1293,
+  "source_files": 61,
+  "behavior_checks_passed": 105,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
-  "luau_compile": "PASS (57 files, luau-compile)",
+  "luau_compile": "PASS (61 files, luau-compile)",
   "native_luau_checks": [
-    "[kraken] KRAKEN CHECKS: 316815 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 99 passed"
+    "[kraken] KRAKEN CHECKS: 2690061 run, 0 failed",
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 105 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
   "live_datastore_receipts_assets": "NOT_RUN",
   "test_output": [
-    "PASS: 57 source files parsed by Lua 5.4 after compound-assignment translation",
+    "PASS: 61 source files parsed by Lua 5.4 after compound-assignment translation",
     "PASS rarity lookup does not mutate or duplicate the skin catalog",
     "PASS new profile acquires an atomic session",
     "PASS six inventory categories and defaults",
@@ -69,6 +69,9 @@
     "PASS leaving during an elimination pause does not skip the next player",
     "PASS current player leaving mid-catch hands the turn to the next player",
     "PASS brave: accept keeps the turn, pays per level, then passes on",
+    "PASS winner-takes-all tables: 4-seat presets only, never the duel",
+    "PASS winner-takes-all: brave coins grow the pot instead of the wallet",
+    "PASS winner-takes-all: players drop one by one, rounds go up, only the last one is paid",
     "PASS brave offer stops at the chain limit and when the barrel is nearly empty",
     "PASS forfeit win pays half the win reward and half the pot; the other half carries over",
     "PASS pirate elimination gives a full win with pot",
@@ -77,7 +80,7 @@
     "PASS new profile fields survive a save and reload",
     "  simulated 160 rounds · catches 718 · pirate outs 271 · brave 1613 · cards 164 · leavers 119 · longest 128 picks",
     "PASS randomized full rounds always end (escalating catches, brave, cards, leavers)",
-    "  average coins per player per round: 853",
+    "  average coins per player per round: 804",
     "PASS economy: an average round pays about 800 coins (big-looking numbers)",
     "  perfect catchers: 120 rounds · catches 2069 · pirate outs 292 · longest 221 picks",
     "PASS reported bug: even if everyone always catches, every round still ends",
@@ -121,7 +124,10 @@
     "PASS table pairs preserve at least 26 studs center separation",
     "PASS lantern posts are outside chair access rings",
     "PASS showcase rows fit inside the stern cabin",
-    "BEHAVIOR CHECKS: 99 passed",
-    "PASS: English covers all 451 Korean UI strings"
+    "PASS quest dot counts finished, unclaimed daily quests",
+    "PASS sea rescue: anyone below the waterline is lifted to the nearest deck spot",
+    "PASS Blender models: catalog is complete and the game falls back without them",
+    "BEHAVIOR CHECKS: 105 passed",
+    "PASS: English covers all 466 Korean UI strings"
   ]
 }

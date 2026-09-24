@@ -166,6 +166,88 @@ K.Arms = {
 	bowspritArm("Bowsprit"),
 }
 
+--[[
+	Phase 15 : 갑판 위에 가로로 길게 누운 다리 (움직이지 않는다 · 대포 과녁이 아니다)
+	  "배에 살짝 걸쳐 두지 말고 어느 쪽은 아예 가로로 누워 있게" 라는 요청.
+	  바다에서 올라와 난간을 넘은 뒤 갑판(또는 후갑판) 위에 몸통째 드러누운 다리 셋.
+	    · 우현 주갑판 : 난간을 넘어 뱃전을 따라 길게 눕는다 (화물 · 대포 · 돛대 밧줄 사이의 빈 자리)
+	    · 후갑판 양쪽 : 난간을 넘어 조타륜 뒤 후갑판을 가로질러 눕는다 (가운데 길은 비워 둔다)
+	  Blender 모델(assets/models)이 이 곡선을 그대로 따라 만들어진다. 모델이 없으면 KrakenController 가 같은 곡선으로 파트를 세운다.
+	  taper 가 작아서(0.72) 끝까지 굵다. 누운 몸이 가늘면 무게감이 없다.
+]]
+K.Resting = {
+	{
+		name = "Rest_Starboard_Deck",
+		baseRadius = 3.3,
+		tipRadius = 0.36,
+		taper = 0.72,
+		lieFrom = 0.84, -- 이 지점부터 갑판에 몸을 붙이고 눕는다
+		curlFrom = 0.93, -- 끝이 말리기 시작하는 곳 (없으면 K.RestCurlFrom)
+		waypoints = {
+			{ p = v(80, K.SeaY - 8, 64) },
+			{ p = v(70.5, K.SeaY + 1.5, 59.4) },
+			{ p = v(62.8, 7, 54.8) },
+			{ p = v(59.8, 8.4, 52.4) },
+			{ p = v(57.6, 8.5, 50.4) },
+			{ p = v(55.8, 7.8, 48.6) },
+			{ p = v(54.2, 6.2, 46.6) },
+			{ p = v(53.4, 4.6, 44.8) },
+			{ p = v(52.7, 2.7, 42.2) },
+			{ p = v(52, 2.09, 38.6) },
+			{ p = v(52.2, 1.69, 35.2) },
+			{ p = v(51.8, 1.6, 31.8) },
+			{ p = v(52.1, 1.5, 29.4) },
+		},
+	},
+	{
+		name = "Rest_Starboard_Quarter",
+		baseRadius = 3.5,
+		tipRadius = 0.4,
+		taper = 0.6,
+		lieFrom = 0.76,
+		waypoints = {
+			{ p = v(86, K.SeaY - 8, -131.5) },
+			{ p = v(75, K.SeaY + 4, -132.6) },
+			{ p = v(66.5, 17, -133.6) },
+			{ p = v(61.2, 24.6, -134.2) },
+			{ p = v(57.8, 26.8, -134.4) },
+			{ p = v(54.2, 26.2, -134.4) },
+			{ p = v(51.6, 23.6, -134.2) },
+			{ p = v(49.4, 21.2, -134.0) },
+			{ p = v(46.6, 19.67, -133.2) },
+			{ p = v(41.2, 19.45, -132.4) },
+			{ p = v(35.2, 19.16, -133.4) },
+			{ p = v(29.4, 18.75, -133.1) },
+			{ p = v(24.6, 18.75, -132.4) },
+		},
+	},
+	{
+		name = "Rest_Port_Quarter",
+		baseRadius = 3.4,
+		tipRadius = 0.4,
+		taper = 0.6,
+		lieFrom = 0.76,
+		waypoints = {
+			{ p = v(-86, K.SeaY - 8, -139.4) },
+			{ p = v(-75, K.SeaY + 4, -138.6) },
+			{ p = v(-66.5, 17, -137.8) },
+			{ p = v(-61.2, 24.6, -137.3) },
+			{ p = v(-57.8, 26.8, -137.1) },
+			{ p = v(-54.2, 26.2, -137.1) },
+			{ p = v(-51.6, 23.6, -137.2) },
+			{ p = v(-49.4, 21.2, -137.5) },
+			{ p = v(-46.6, 19.63, -138.2) },
+			{ p = v(-41.2, 19.42, -139.4) },
+			{ p = v(-35.2, 19.13, -138.2) },
+			{ p = v(-29.4, 18.74, -138.8) },
+			{ p = v(-24.6, 18.74, -139.4) },
+		},
+	},
+}
+-- 누운 다리 끝이 말리는 곳과 각도 (위로 말려 올라간다)
+K.RestCurlFrom = 0.9
+K.RestCurlAngle = math.rad(250)
+
 -- 머리 : 좌현 선미 쪽 바다에서 반쯤 떠올라 배를 노려본다.
 -- 눈은 머리 표면에 반쯤 박혀 물 위로 올라와 있다. (머리 중심에서 눈까지 거리 ≈ 반지름 - 1)
 K.Head = {
@@ -240,9 +322,9 @@ function K.waypointsAt(arm, t, amp)
 	return list
 end
 
--- 굵기 : u (0 = 바다 속 뿌리, 1 = 끝)
+-- 굵기 : u (0 = 바다 속 뿌리, 1 = 끝). taper 가 작을수록 끝까지 굵다 (Phase 15 누운 다리는 0.72)
 function K.radiusAt(arm, u)
-	return arm.tipRadius + (arm.baseRadius - arm.tipRadius) * (1 - u) ^ 1.25
+	return arm.tipRadius + (arm.baseRadius - arm.tipRadius) * (1 - u) ^ (arm.taper or 1.25)
 end
 
 --[[
@@ -304,6 +386,123 @@ function K.innerSign(arm, count)
 	local tangent = samples[math.min(top + 1, #samples)].p - samples[math.max(top - 1, 1)].p
 	local inner = normal:Cross(tangent)
 	return inner.Y > 0 and -1 or 1
+end
+
+--------------------------------------------------
+-- Phase 15 : 누운 다리
+--------------------------------------------------
+
+-- (x, z) 바로 아래에서 가장 높은 딛는 면의 높이. 배 밖(바다)이면 nil.
+-- 후갑판 옆 띠(|x| 52.4 ~ 58)는 난간 높이로 친다. (크라켄 검사와 같은 기준)
+function K.floorAt(x, z, reach)
+	local ax = math.abs(x) + (reach or 0)
+	if z <= ShipLayout.CabinFront + 0.5 and z >= -159 and ax < 58 then
+		return ax < 52.4 and K.QuarterdeckTop or K.QuarterRailTop
+	end
+	if z > -159 and z < ShipLayout.Bow then
+		local half = ShipLayout.halfWidth(z)
+		if ax < half - 1.2 then
+			return K.DeckTop
+		end
+		if ax < half + 0.6 then
+			return K.RailTop
+		end
+	end
+	return nil
+end
+
+local UP = Vector3.new(0, 1, 0)
+
+-- 두 방향 벡터를 섞어 tangent 에 수직으로 만든다
+local function perpendicular(vector, tangent)
+	local out = vector - tangent * vector:Dot(tangent)
+	if out.Magnitude < 1e-4 then
+		return nil
+	end
+	return out.Unit
+end
+
+--[[
+	누운 다리 하나의 마디. 돌려주는 값 : { {p, r, u, inner}, ... }
+	  · 곡선은 K.sample 과 같다 (쉬는 자세). lieFrom 부터는 딛는 면에 몸을 붙인다(무게감).
+	    어디서든 딛는 면 아래로 파고드는 마디는 면 위로 올린다.
+	  · 끝은 위로 말린다 (RestCurlFrom 부터 RestCurlAngle 만큼).
+	  · inner : 빨판이 보는 쪽 = 곡선의 오목한 쪽. 뱃전을 기어오를 때는 배 쪽, 난간 위에서는 아래,
+	    난간을 넘어 내려올 때는 난간 쪽, 누운 곳에서는 갑판(아래). 말린 끝에서는 말리는 만큼 같이 돈다.
+]]
+local function smoothstep(x)
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+
+function K.restingSample(arm, count)
+	local samples = K.sample(arm, nil, count)
+	local n = #samples
+	local curlAt = math.floor((n - 1) * (arm.curlFrom or K.RestCurlFrom)) + 1
+	local lieFrom = arm.lieFrom or 1
+	for index, s in ipairs(samples) do
+		local floor = K.floorAt(s.p.X, s.p.Z)
+		if floor then
+			local rest = floor + s.r + 0.06
+			local y = s.p.Y
+			if index <= curlAt then
+				y += (rest - y) * smoothstep((s.u - (lieFrom - 0.08)) / 0.08)
+			end
+			s.p = Vector3.new(s.p.X, math.max(y, rest), s.p.Z)
+		end
+	end
+
+	-- 곡선이 놓인 세로 평면 (뿌리 → 난간 위 꼭대기)
+	local first = samples[1].p
+	local apex = 1
+	for i = 2, math.floor(n * 0.7) do
+		if samples[i].p.Y > samples[apex].p.Y then
+			apex = i
+		end
+	end
+	local flat = Vector3.new(samples[apex].p.X - first.X, 0, samples[apex].p.Z - first.Z)
+	local normal = flat.Magnitude > 1e-3 and flat.Unit:Cross(UP).Unit or Vector3.new(0, 0, 1)
+	local function tangentAt(i)
+		local a = samples[math.max(i - 1, 1)].p
+		local b = samples[math.min(i + 1, n)].p
+		return (b - a).Magnitude > 1e-4 and (b - a).Unit or Vector3.new(0, 0, 1)
+	end
+	-- 꼭대기에서 빨판이 아래를 보도록 부호를 정한다
+	local sign = normal:Cross(tangentAt(apex)).Y > 0 and -1 or 1
+	for i = 1, n do
+		local tangent = tangentAt(i)
+		local planar = perpendicular(normal:Cross(tangent) * sign, tangent)
+		local down = perpendicular(Vector3.new(0, -1, 0), tangent)
+		local across = math.clamp((math.abs(tangent:Dot(normal)) - 0.3) / 0.4, 0, 1)
+		local mixed = (planar or down or Vector3.new(0, -1, 0)):Lerp(down or planar or Vector3.new(0, -1, 0), across)
+		samples[i].inner = perpendicular(mixed, tangent) or Vector3.new(0, -1, 0)
+	end
+
+	-- 끝을 위로 만다 (길이는 그대로)
+	local k = curlAt
+	if k >= 2 and k < n - 1 then
+		local d = samples[k].p - samples[k - 1].p
+		d = d.Magnitude > 1e-4 and d.Unit or Vector3.new(0, 0, 1)
+		local up = perpendicular(UP, d) or Vector3.new(1, 0, 0)
+		local total = 0
+		local lengths = {}
+		for j = k + 1, n do
+			lengths[j] = (samples[j].p - samples[j - 1].p).Magnitude
+			total += lengths[j]
+		end
+		if total > 1e-3 then
+			local walked = 0
+			local position = samples[k].p
+			for j = k + 1, n do
+				local theta = K.RestCurlAngle * ((walked + lengths[j] * 0.5) / total) ^ 1.6
+				position += (d * math.cos(theta) + up * math.sin(theta)) * lengths[j]
+				samples[j].p = position
+				samples[j].inner = d * math.sin(theta) - up * math.cos(theta)
+				walked += lengths[j]
+			end
+		end
+	end
+	return samples
 end
 
 return K

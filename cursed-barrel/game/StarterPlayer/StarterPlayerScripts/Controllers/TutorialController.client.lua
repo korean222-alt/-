@@ -24,25 +24,30 @@ gui.Parent = player:WaitForChild("PlayerGui")
 -- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
 require(package.Shared:WaitForChild("UIKit")).restyle(gui)
 
+-- Phase 15 : 알림판 바로 아래, 읽기 쉬운 흰 글씨 (예전에는 옅은 청록 글씨가 반투명 판 위에 떠서 안 보였다)
+local UIKit = require(package.Shared:WaitForChild("UIKit"))
 local card = Instance.new("TextLabel")
 card.AnchorPoint = Vector2.new(0.5, 0)
-card.Position = UDim2.new(0.5, 0, 0, 150)
-card.Size = UDim2.fromOffset(460, 54)
-card.BackgroundColor3 = Color3.fromRGB(20, 44, 40)
-card.BackgroundTransparency = 0.1
-card.TextColor3 = Color3.fromRGB(200, 255, 236)
-card.Font = Enum.Font.GothamBold
-card.TextSize = 15
+card.Position = UDim2.new(0.5, 0, 0, 196)
+card.Size = UDim2.fromOffset(430, 44)
+card.BackgroundColor3 = Color3.fromRGB(18, 40, 38)
+card.BackgroundTransparency = 0.05
+card.TextColor3 = Color3.new(1, 1, 1)
+card.FontFace = UIKit.font(true)
+card.TextSize = 20
 card.TextWrapped = true
 card.Visible = false
 card.Parent = gui
+card:SetAttribute("UIKitStyled", true)
+card:SetAttribute("UIKitBox", true)
 Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
 local cap = Instance.new("UISizeConstraint")
-cap.MaxSize = Vector2.new(460, 54)
+cap.MaxSize = Vector2.new(430, 44)
 cap.Parent = card
 local stroke = Instance.new("UIStroke")
 stroke.Color = Color3.fromRGB(120, 255, 214)
-stroke.Thickness = 2
+stroke.Thickness = 2.5
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 stroke.Parent = card
 
 local catchHintUntil = 0

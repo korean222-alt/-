@@ -293,8 +293,45 @@ function Round:_resetRoundAttributes()
 	self:_set(TABLE_ATTR.PotCarry, self.carry or 0)
 	self:_set(TABLE_ATTR.Practice, false)
 	self:_set(TABLE_ATTR.PredictOpen, false)
+	self:_set(TABLE_ATTR.Stage, 0)
+	self:_set(TABLE_ATTR.StageCount, 0)
+	self:_set(TABLE_ATTR.WinnerTakesAll, self:_winnerTakesAll())
 	self:_clearBraveOffer()
 	self:_writeSeatOrder()
+end
+
+--------------------------------------------------
+-- Phase 15 : 최후의 1인 · 라운드
+--------------------------------------------------
+
+-- 최후의 1인이 전부 가져가는 테이블인가 (4인 이상 테이블. 처음 온 사람의 연습 판은 빼 준다)
+function Round:_winnerTakesAll()
+	return self.gameTable.config.WinnerTakesAll == true and not self.tutorialPlayer
+end
+
+-- 판 도중 버는 코인. 보통 테이블은 그 자리에서 주고, 최후의 1인 테이블은 현상금에 쌓는다.
+-- 어느 쪽이든 퀘스트 · 업적 진행(metric)은 그대로 오른다.
+function Round:_earn(player, coins, metric, potExtra)
+	coins = tonumber(coins) or 0
+	potExtra = tonumber(potExtra) or 0
+	if self:_winnerTakesAll() then
+		ProfileService:Award(player, 0, metric)
+		self:_addPot(coins + potExtra)
+	else
+		ProfileService:Award(player, coins * self:_rewardScale(), metric)
+		if potExtra > 0 then
+			self:_addPot(potExtra)
+		end
+	end
+end
+
+-- 지금 몇 라운드인가. 한 명이 떨어질 때마다 한 라운드 올라간다. (4명이면 1 → 2 → 3(결승))
+function Round:_publishStage()
+	local total = math.max(1, (self.startingCount or 1) - 1)
+	local stage = math.clamp((self.startingCount or 1) - #self.participants + 1, 1, total)
+	self:_set(TABLE_ATTR.Stage, stage)
+	self:_set(TABLE_ATTR.StageCount, total)
+	return stage, total
 end
 
 --------------------------------------------------
@@ -599,6 +636,8 @@ function Round:_beginRound()
 	self:_set(TABLE_ATTR.BraveLevel, 0)
 	self:_set(TABLE_ATTR.Practice, self.practice)
 	self:_set(TABLE_ATTR.PredictOpen, GameConfig.Prediction.Enabled == true)
+	self:_set(TABLE_ATTR.WinnerTakesAll, self:_winnerTakesAll())
+	self:_publishStage()
 	self:_clearBraveOffer()
 	self:_addPot(POT.Base)
 	-- Phase 11 : 지난 판에서 넘어온 현상금을 얹는다. (이미 그때의 배율이 들어가 있다)
@@ -973,15 +1012,14 @@ function Round:_resolvePick(player, slotIndex, source)
 	end
 
 	-- 안전. 작은 보상을 주고, 잠깐 결과를 보여준 뒤 다음 사람 차례로 넘어간다.
-	ProfileService:Award(player, ECONOMY.SurviveTurnReward * self:_rewardScale(), "safePicks")
-	self:_addPot(POT.PerPick)
+	-- (Phase 15 : 최후의 1인 테이블은 보상이 현상금에 쌓인다)
+	self:_earn(player, ECONOMY.SurviveTurnReward, "safePicks", POT.PerPick)
 	self:_rollSurge(player)
 
 	-- 배짱으로 더 찌른 자리에서 살아남았다. 단계만큼 바로 보상한다.
 	local level = self.braveLevel or 0
 	if level > 0 then
-		ProfileService:Award(player, self:_braveReward(level), "bravePicks")
-		self:_addPot(POT.PerBravePick)
+		self:_earn(player, BRAVE.Rewards[math.clamp(level, 1, #BRAVE.Rewards)] or 0, "bravePicks", POT.PerBravePick)
 	end
 
 	self.phaseToken += 1
@@ -991,7 +1029,7 @@ function Round:_resolvePick(player, slotIndex, source)
 	--   누르면 AcceptBrave 가 phaseToken 을 올려 아래의 "다음 사람 차례" 예약을 무효로 만든다.
 	if BRAVE.Enabled and level < BRAVE.MaxChain and self:_pickableCount() >= BRAVE.MinPickable then
 		self.braveOffer = { player = player, token = token }
-		self:_set(TABLE_ATTR.BraveNextReward, self:_braveReward(level + 1))
+		self:_set(TABLE_ATTR.BraveNextReward, self:_braveOfferValue(level + 1))
 		self:_set(TABLE_ATTR.BraveOfferEndsAt, GameConfig.now() + TIMING.ResultHold)
 		self:_set(TABLE_ATTR.BraveOfferUserId, player.UserId)
 		if GameConfig.isBot(player) then
@@ -1024,6 +1062,17 @@ function Round:_braveReward(level)
 	local list = BRAVE.Rewards
 	local amount = list[math.clamp(level, 1, #list)] or 0
 	return math.floor(amount * self:_rewardScale())
+end
+
+-- "한 번 더" 버튼에 적을 숫자. 최후의 1인 테이블은 현상금이 이만큼 커진다.
+function Round:_braveOfferValue(level)
+	if not self:_winnerTakesAll() then
+		return self:_braveReward(level)
+	end
+	local list = BRAVE.Rewards
+	local amount = (list[math.clamp(level, 1, #list)] or 0) + (tonumber(POT.PerBravePick) or 0) + (tonumber(POT.PerPick) or 0)
+		+ (tonumber(ECONOMY.SurviveTurnReward) or 0)
+	return math.floor(amount * self:_rewardScale() * (tonumber(GameConfig.worldMods().pot) or 1))
 end
 
 function Round:_clearBraveOffer()
@@ -1340,11 +1389,9 @@ function Round:_resolveCatch(success, reason)
 	self.catchCount += 1
 	self:_set(TABLE_ATTR.CatchCount, self.catchCount)
 	self:_publishPirateCount()
-	ProfileService:Award(player, ECONOMY.CatchReward * self:_rewardScale(), "catches")
-	self:_addPot(POT.PerCatch)
+	self:_earn(player, ECONOMY.CatchReward, "catches", POT.PerCatch)
 	if perfect then
-		ProfileService:Award(player, ECONOMY.PerfectCatchBonus * self:_rewardScale(), "perfectCatches")
-		self:_addPot(POT.PerPerfect)
+		self:_earn(player, ECONOMY.PerfectCatchBonus, "perfectCatches", POT.PerPerfect)
 	end
 
 	-- 살아남았다. 통은 새로 채우지 않는다.
@@ -1487,11 +1534,19 @@ function Round:_eliminate(player)
 
 	local remaining = #self.participants
 	self:_set(TABLE_ATTR.TurnCount, remaining)
+	self:_publishStage()
 
 	gameTable:SetSeatAlive(player, false)
 	ProfileService:BreakStreak(player)
 
-	presentation:FireAllClients("Eliminate",gameTable.model,{userId=player.UserId,skin=player:GetAttribute("EliminationSkin") or "classic"})
+	-- place : 이번 판 순위 (4명 중 처음 떨어지면 4위)
+	presentation:FireAllClients("Eliminate", gameTable.model, {
+		userId = player.UserId,
+		name = player.DisplayName or player.Name,
+		skin = player:GetAttribute("EliminationSkin") or "classic",
+		place = remaining + 1,
+		total = self.startingCount,
+	})
  -- 탈락자는 자리에서 일어난다.
 	gameTable:RemovePlayer(player)
  local root=(not GameConfig.isBot(player)) and player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -1524,7 +1579,7 @@ function Round:_eliminate(player)
 			return
 		end
 
-		-- 아직 둘 이상 남았다 → 통을 새로 채우고(해적도 새로 숨긴다) 계속한다.
+		-- 아직 둘 이상 남았다 → 통을 새로 채우고(해적도 새로 숨긴다) 다음 라운드로 올라간다.
 		if gameTable.config.RefillOnElimination then
 			self:_refillBarrel()
 		end
@@ -1533,6 +1588,8 @@ function Round:_eliminate(player)
 			return
 		end
 
+		local stage, total = self:_publishStage()
+		presentation:FireAllClients("Stage", gameTable.model, { stage = stage, total = total, alive = #self.participants })
 		self:_beginTurn(self.turnIndex + 1)
 	end)
 end
@@ -1594,6 +1651,7 @@ function Round:_declareWinner(player)
 	ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, paid, {
 		halfWinner = halfWinner,
 		practice = self.practice == true,
+		winnerTakesAll = self:_winnerTakesAll(),
 	})
 	-- 연습 판(AI 동석)의 승리는 랭킹에 넣지 않는다.
 	RankingService:RecordRound(gameTable, self.roundRoster or {}, (not self.practice) and credited or nil)
@@ -1604,7 +1662,13 @@ function Round:_declareWinner(player)
 		end)
 	end
 
+	local rosterIds = {}
+	for _, member in ipairs(self.roundRoster or {}) do
+		table.insert(rosterIds, member.UserId)
+	end
 	presentation:FireAllClients("Win", gameTable.model, {
+		roster = rosterIds, -- Phase 15 : 이번 판에 참가한 사람 (진 사람 화면에는 "패배")
+		winnerTakesAll = self:_winnerTakesAll() or nil,
 		userId = player and player.UserId or 0,
 		name = player and (player.DisplayName or player.Name) or "",
 		streak = (credited and not self.practice) and (credited:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
@@ -1752,6 +1816,9 @@ function Round:RemoveParticipant(player)
 	local count = #self.participants
 	self:_set(TABLE_ATTR.TurnCount, count)
 	self:_writeSeatOrder()
+	if self.gameTable.state == STATES.Playing or self.gameTable.state == STATES.Starting then
+		self:_publishStage()
+	end
 
 	GameConfig.log(("%s 참가자 이탈: %s · 남은 인원 %d명")
 		:format(self.gameTable.tableId, player.Name, count))

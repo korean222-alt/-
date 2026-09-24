@@ -24,6 +24,7 @@ local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
 local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
 local ReleaseConfig = require(Shared:WaitForChild("ReleaseConfig"))
+local MeshKit = require(Shared:WaitForChild("MeshKit")) -- Phase 15 : Blender 통 · 드럼 메시
 
 local SlotBuilder = require(script.Parent.SlotBuilder)
 local BotRegistry = require(script.Parent.BotRegistry)
@@ -745,10 +746,24 @@ function GameTable:_applyBarrelSkin(skin)
 		parts.lid.Transparency = useMesh and 1 or 0
 	end
 
+	-- Phase 15 : Blender 로 만든 통(나무통 · 철제 드럼)이 있으면 몸통을 그 메시로 그린다.
+	--   몸통 파트(Body)는 그대로 두고 보이지만 않게 한다. (칼 슬롯 · 카메라 · 이펙트가 Body 를 기준으로 한다)
+	--   뚜껑(Lid) · 빛 원판(Glow)은 그대로 쓴다. (뚜껑이 튀어오르는 연출이 그 파트를 움직인다)
+	for _, child in ipairs(parts.model:GetChildren()) do
+		if child:GetAttribute("MeshKit") then
+			child:Destroy()
+		end
+	end
+	local blender = nil
+	if not useMesh and parts.body:IsA("Part") and parts.body.Shape == Enum.PartType.Cylinder then
+		blender = MeshKit.barrel(skin, parts.model, parts.body.CFrame, parts.body.Size.X, parts.body.Size.Y, "SkinMesh")
+	end
+	parts.body.Transparency = blender and 1 or 0
+
 	-- Phase 13 : 철제 드럼은 원래 쇠테 대신 DrumStyle 의 굴림 테 · 주름을 쓴다
 	for _, hoop in ipairs({ parts.hoopLower, parts.hoopUpper }) do
 		if hoop and hoop:IsA("BasePart") then
-			hoop.Transparency = (skin.drum or useMesh) and 1 or 0
+			hoop.Transparency = (skin.drum or useMesh or blender) and 1 or 0
 		end
 	end
 
@@ -765,6 +780,19 @@ function GameTable:_applyBarrelSkin(skin)
 	end
 	if useMesh then
 		-- 메시가 모양을 다 그린다
+	elseif blender then
+		-- Blender 메시가 몸통 · 테를 그린다. 철제 드럼은 뚜껑 마개만 얹는다
+		if skin.drum then
+			local frame = DrumStyle.upright(parts.body.CFrame)
+			local top = nil
+			for _, cover in ipairs({ parts.lid, parts.glow }) do
+				if cover and cover:IsA("BasePart") then
+					local height = frame:PointToObjectSpace(cover.Position).X + cover.Size.X * 0.5
+					top = math.max(top or height, height)
+				end
+			end
+			DrumStyle.build(parts.model, parts.body.CFrame, parts.body.Size.X, parts.body.Size.Y, skin, "SkinRib", top, true)
+		end
 	elseif skin.drum and parts.body:IsA("Part") and parts.body.Shape == Enum.PartType.Cylinder then
 		-- 마개는 뚜껑 · 빛 원판 중 더 높은 면 위에 얹는다
 		local top = nil
@@ -794,18 +822,18 @@ function GameTable:_applyBarrelSkin(skin)
 	local detail = parts.model:FindFirstChild("BarrelDetail")
 	if detail then
 		local wooden = skin.bodyMaterial == Enum.Material.Wood or skin.bodyMaterial == Enum.Material.WoodPlanks
-		local plain = not skin.drum and not useMesh
+		local plain = not skin.drum and not useMesh and not blender
 		for _, piece in ipairs(detail:GetChildren()) do
 			if piece:IsA("BasePart") then
 				if piece.Name == "StaveSeam" then
 					piece.Color = skin.body:Lerp(Color3.new(0, 0, 0), 0.45)
-					piece.Transparency = (wooden and not skin.ribbed and not useMesh) and 0 or 1
+					piece.Transparency = (wooden and not skin.ribbed and not useMesh and not blender) and 0 or 1
 				elseif piece.Name == "Stave" then
 					-- 판자마다 조금씩 다른 나뭇결 색
 					local shade = piece:GetAttribute("Shade") or 0
 					piece.Color = skin.body:Lerp(shade > 0 and Color3.new(1, 1, 1) or Color3.new(0, 0, 0), math.abs(shade))
 					piece.Material = skin.bodyMaterial or Enum.Material.Wood
-					piece.Transparency = (wooden and not skin.ribbed and not useMesh) and 0 or 1
+					piece.Transparency = (wooden and not skin.ribbed and not useMesh and not blender) and 0 or 1
 				elseif piece.Name == "Rivet" or piece.Name == "ChimeHoop" then
 					piece.Transparency = plain and 0 or 1
 					piece.Color = piece.Name == "Rivet" and skin.hoop:Lerp(Color3.new(1, 1, 1), 0.2) or skin.hoop

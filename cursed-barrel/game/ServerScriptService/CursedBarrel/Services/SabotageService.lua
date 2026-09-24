@@ -226,9 +226,28 @@ end
 function SabotageService:_registerProducts()
  for _,item in ipairs(SABOTAGE.Items) do
   PurchaseService:Register(item.productId,function(profile)
-   -- Always bank a charge. The buyer chooses a valid target and presses Use afterwards.
+   -- Always bank a charge. (결제 기록과 한 번에 저장된다)
    profile.consumables[item.id]=(profile.consumables[item.id] or 0)+1
    return true
+  end,function(player)
+   -- Phase 15 : 결제가 끝나면 누른 상대에게 곧바로 쓴다. (예전에는 사 두기만 하고 "사용"을 한 번 더 눌러야 했다)
+   --   그 사이 판이 끝났거나 상대가 없어졌으면 가방에 남겨 두고 알려 준다.
+   local intent=self._intent[player]
+   self._intent[player]=nil
+   local profile=ProfileService:Get(player)
+   if intent and intent.itemId==item.id and os.clock()-intent.at<=INTENT_TTL and profile and (profile.consumables[item.id] or 0)>0 then
+    local ok,message=self:_apply(player,item.id,intent.targetUserId)
+    if ok then
+     profile.consumables[item.id]=profile.consumables[item.id]-1
+     ProfileService:_touch(player)
+     self._cue:FireClient(player,nil,{id="done",message=message})
+     self:_sendList(player)
+     return
+    end
+   end
+   local count=profile and (profile.consumables[item.id] or 0) or 0
+   self._cue:FireClient(player,nil,{id="done",message=("%s 구매 완료 · 가방 %d개"):format(item.name,count)})
+   self:_sendList(player)
   end)
  end
 end

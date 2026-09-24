@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "14.0.0-polish"
+C.Version = "15.0.0"
 C.StudioSolo = false
 C.FriendBonus = 0.10 -- one verified friend in the same round, non-stacking
 C.PartyBonus = 0.05

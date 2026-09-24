@@ -127,6 +127,14 @@ function TableConfig.getRewardScale(typeName)
 	return tonumber(TableConfig.get(typeName).RewardScale) or 1
 end
 
+-- Phase 15 : 4인 이상 테이블은 "최후의 1인이 전부 가져간다".
+--   판 도중에 버는 코인(안전한 자리 · 잡기 · 배짱)은 바로 주지 않고 현상금에 쌓인다. 한 명씩 탈락해 올라가고,
+--   마지막까지 살아남은 한 명이 쌓인 현상금과 우승 보상을 전부 받는다. 탈락한 사람은 코인을 받지 않는다.
+--   (퀘스트 · 업적 진행은 그대로 쌓인다.) 2인 테이블은 예전 그대로다.
+for _, key in ipairs({ "Standard4", "Party6", "Blitz4" }) do
+	TableConfig.Types[key].WinnerTakesAll = true
+end
+
 TableConfig.Types.PartyCards6 = table.clone(TableConfig.Types.Party6)
 TableConfig.Types.PartyCards6.DisplayName = "파티 카드 · 6인"
 TableConfig.Types.PartyCards6.SpecialCards = true

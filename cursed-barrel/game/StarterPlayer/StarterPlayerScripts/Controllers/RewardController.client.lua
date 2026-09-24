@@ -1,5 +1,7 @@
 -- RewardController  (Phase 13)
--- 출석판과 룰렛 화면. 왼쪽 아래 상점 위에 버튼 두 개(📅 출석 · 🎡 룰렛)가 생긴다.
+-- 출석판과 룰렛 화면. 화면 오른쪽에 버튼 두 개(📅 출석 · 🎡 룰렛)가 세로로 선다. (Phase 15 : 왼쪽 → 오른쪽)
+--   · Phase 15 : 룰렛 확률표를 걷어냈다. 룰렛은 하루 한 번 무료이고 로벅스로 사는 뽑기가 아니라서
+--     Roblox 규정상 확률을 꼭 보여 줄 필요가 없다. (돈으로 돌리는 뽑기를 만들면 그때는 반드시 보여 줘야 한다)
 --
 --   · 무엇을 받는지 · 룰렛이 어디에 멈추는지는 전부 서버(RewardService)가 정한다. 여기서는 그리기만 한다.
 --   · 받을 것이 있으면 버튼 위에 빨간 점. 들어오자마자 출석판이 한 번 열린다 (Attendance.AutoOpen).
@@ -207,30 +209,16 @@ UIKit.outline(hub, 4)
 UIKit.label(hub, { text = "☠", size = UDim2.fromScale(1, 1), textSize = 40, stroke = 3 })
 local pointer = UIKit.label(wheelHolder, { text = "▼", size = UDim2.fromOffset(50, 50), position = UDim2.new(0.5, -25, 0, -36), textSize = 46, color = COLORS.Red, stroke = 4, zIndex = 5 })
 
--- 오른쪽 : 확률표 + 버튼
+-- 오른쪽 : 안내 한 줄 + 버튼 + 결과 (Phase 15 : 확률표는 걷어냈다)
 local side = Instance.new("Frame")
 side.Position = UDim2.new(0, WHEEL + 26, 0, 4)
 side.Size = UDim2.new(1, -(WHEEL + 30), 1, -8)
 side.BackgroundTransparency = 1
 side.Parent = roulettePaper
-local oddsTitle = text(side, "확률", UDim2.new(1, 0, 0, 30), UDim2.new(), 24, COLORS.Gold)
-oddsTitle.TextXAlignment = Enum.TextXAlignment.Left
-local total = GameConfig.rouletteTotalWeight()
-for index, segment in ipairs(SEGMENTS) do
-	local name
-	if segment.kind == "coins" then
-		name = "🪙 " .. Utility.comma(segment.amount)
-	elseif (segment.minPrice or 0) > 700 then
-		name = "💎 희귀 스킨"
-	else
-		name = "🎁 평범한 스킨"
-	end
-	local line = text(side, ("%s  %.1f%%"):format(name, segment.weight / total * 100),
-		UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 32 + (index - 1) * 22), 17, COLORS.Cream)
-	line.TextXAlignment = Enum.TextXAlignment.Left
-end
-local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 222), "green")
-local resultLabel = text(side, "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 292), 24, COLORS.Gold)
+text(side, "하루 한 번 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 40), 28, COLORS.Gold)
+text(side, "🪙  🎁  💎", UDim2.new(1, 0, 0, 56), UDim2.fromOffset(0, 92), 40, COLORS.Cream).FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 172), "green")
+local resultLabel = text(side, "", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 250), 24, COLORS.Gold)
 
 local spinning = false
 local spinToken = 0
@@ -321,7 +309,7 @@ end
 --------------------------------------------------
 
 local function launcher(name, emoji, caption, imageId, order, themeName, onClick)
-	local b, dot = UIKit.railButton({ name = name, icon = emoji, caption = caption, image = imageId, order = order, theme = themeName })
+	local b, dot = UIKit.railButton({ name = name, icon = emoji, caption = caption, image = imageId, order = order, theme = themeName, side = "right" })
 	b.Activated:Connect(onClick)
 	return b, dot
 end
@@ -362,8 +350,8 @@ local rouletteButton, rouletteDot = launcher("RouletteButton", "🎡", "룰렛",
 end)
 
 local function refreshDots()
-	attendDot.Visible = player:GetAttribute("AttendReady") == true
-	rouletteDot.Visible = player:GetAttribute("FreeSpin") == true
+	UIKit.setDot(attendDot, player:GetAttribute("AttendReady") == true and 1 or 0)
+	UIKit.setDot(rouletteDot, player:GetAttribute("FreeSpin") == true and 1 or 0)
 end
 for _, name in ipairs({ "AttendReady", "FreeSpin" }) do
 	player:GetAttributeChangedSignal(name):Connect(refreshDots)

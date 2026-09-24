@@ -369,6 +369,10 @@ local function updateBoard(entry)
 
 	-- 내가 앉아 있는 테이블은 테두리를 금색으로 밝혀 구분한다
 	local mine = isLocalPlayerSeated(entry)
+	-- Phase 15 : 내가 앉은(또는 관전하는) 테이블의 현황판은 끈다. 같은 내용이 화면 위 알림판에 크게 나오고,
+	--   켜 두면 화면 글자와 겹쳐서 "뭐라는지 안 보였다"
+	local watching = localPlayer:GetAttribute("SpectateTableId")
+	entry.billboard.Enabled = not (mine or (watching ~= nil and watching == model:GetAttribute(TABLE_ATTR.TableId)))
 	local myTurn = mine and turnUserId == localPlayer.UserId
 	local highlight = myTurn and "turn" or (mine and "mine" or "none")
 	if entry.highlight ~= highlight then
@@ -553,6 +557,12 @@ end
 
 CollectionService:GetInstanceAddedSignal(TABLE_TAG):Connect(registerTable)
 CollectionService:GetInstanceRemovedSignal(TABLE_TAG):Connect(unregisterTable)
+-- Phase 15 : 관전을 시작 · 끝내면 그 테이블 현황판을 끄고 켠다
+localPlayer:GetAttributeChangedSignal("SpectateTableId"):Connect(function()
+	for _, entry in pairs(boards) do
+		updateBoard(entry)
+	end
+end)
 
 -- 스트리밍으로 좌석이나 현황판 기준점이 뒤늦게 들어오면 그 테이블 현황판만 다시 붙인다.
 -- ★ Phase 9 까지는 테이블 안에 무엇이든(칼 이펙트 · 의자 장식) 추가될 때마다 현황판을 지우고 새로 만들었다.
