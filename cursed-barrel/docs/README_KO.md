@@ -1,7 +1,7 @@
 # 소스 및 재현
 
-- `output/CursedBarrel_Phase13_Rewards.rbxl`: 통합 Place. (Phase 13 변경 내용과 할 일: `docs/Phase13_돈_출석_룰렛_영어_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
-- `game`: 54개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
+- `output/CursedBarrel_Phase14_Polish.rbxl`: 통합 Place. (Phase 14 변경 내용과 할 일: `docs/Phase14_버그수정_그래픽_KO.md`, 음원 · 상품 ID: `docs/Phase12_에셋_상품_안내_KO.md`)
+- `game`: 57개 Script/LocalScript/ModuleScript 소스. (`Shared/LocaleData.lua` 는 `tools/locale/en_*.txt` 에서 `python tools/build_locale.py` 로 만든다)
 - `base`: 사용자 첨부 Phase 8 원본.
 - `assets/branding`: 사용자 원본 JPEG 3장 및 연결 안내. 이전 생성 홍보물 제외.
 - `assets/audio`: 합성 원본 WAV 5개.
@@ -14,8 +14,8 @@ Python 3, 시스템 liblz4와 liblua5.4가 필요합니다. Luau 검사를 같�
 
 ```bash
 python tools/build_locale.py --check   # 영어 사전 다시 만들기 + 빠진 영어 검사
-python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase13_Rewards.rbxl
-LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase13_Rewards.rbxl
+python tools/extend_place.py base/CursedBarrel_Phase8.rbxl game output/CursedBarrel_Phase14_Polish.rbxl
+LUAU=/path/to/luau python tests/verify_place.py base/CursedBarrel_Phase8.rbxl output/CursedBarrel_Phase14_Polish.rbxl
 
 # 개별 실행
 python tests/run.py                    # 동작 검사 (Lua 5.4 번역)
@@ -27,6 +27,14 @@ python tools/sourcemap.py > sourcemap.json   # luau-lsp 타입 검사용 (선택
 
 ## 변경 기록
 
+- 14.0.0 Polish:
+  - AI 선원: `Seat:Sit` 대신 의자 위에 고정해서 앉힌다(GameTable:SeatBot · 좌석 BotCharacter). 2인 테이블도 채운다. 기다림 4초.
+  - 부제목 · 설명 줄 제거 (크라켄 · 날씨 · 현황판 · 칼 고르기 · 잡기 · 대포 · 프롬프트 ObjectText · 순위판 · 설명 게시판), 알림은 짧게.
+  - 밤: 등불 40개(Persistent 스트리밍), 밤 · 안개 · 폭풍 밝기 상향, 내 주변 불빛, Bloom.
+  - 크라켄 다리: 26마디 · 색 그러데이션 · 배 살 · 빨판 2겹 · 끝 말림 · 광택. 대포: 포신 · 포가 · 바퀴 · 밧줄 · 포문 · 포탄 (Barrel 모델째 반동).
+  - 스킨: KnifeModel(칼 모양 7종), BarrelStyle(판자 결 · 양 끝 쇠테), ReleaseConfig.Meshes 로 칼 · 통 · 대포 메시 교체.
+  - UI: UIKit (굵은 테두리 · Fredoka 글꼴 · 외곽선 글자 · 머리띠 창 · 빨간 X · 왼쪽 아이콘 버튼 · 큰 코인), 상점 · 출석 · 룰렛 · 항해 수첩 · 3D 미리보기 다시 그림, 나머지 화면은 UIKit.restyle.
+  - 검사 99개 (AI 착석 · 2인 테이블 · 밤 밝기 추가).
 - 13.0.0 Rewards:
   - 스킨은 모두 코인으로만 산다 (로벅스 전용 스킨 4개도 코인 스킨으로). 로벅스로는 코인을 충전한다: 소 159 · 중 319 · 대 369 · 특대 799 R$ (팝콘 가격, 대 강조).
   - 코인이 모자란 스킨 옆에 알맞은 묶음의 「충전」 버튼, 첫 코인 충전 2배, 오늘의 특가(매일 스킨 하나 30% 할인). 스타터 99 · VIP 399 · 부스터 249 R$.

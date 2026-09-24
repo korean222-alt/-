@@ -14,15 +14,16 @@ end
 function Preview.build(kind,skin,parent)
  local m=Instance.new("Model");m.Name="Skin";m.Parent=parent
  if kind=="Knife" then
-  p(m,"Blade",Vector3.new(0.28,3,0.14),CFrame.new(0,0.8,0),skin.blade,skin.bladeMaterial)
-  p(m,"Handle",Vector3.new(0.32,1.1,0.3),CFrame.new(0,-1.3,0),skin.handle,skin.handleMaterial)
-  p(m,"Guard",Vector3.new(1.2,0.16,0.3),CFrame.new(0,-0.65,0),skin.guard)
+  -- Phase 14 : 끝이 뾰족한 날 · 홈 · 코등이 구슬 · 감은 손잡이 · 폼멜 (스킨마다 모양이 다르다)
+  m:Destroy();m=require(script.Parent.KnifeModel).build(skin,parent,CFrame.new(0,-0.9,0)*CFrame.Angles(0,0,math.rad(-8)),1);m.Name="Skin"
  elseif kind=="Barrel" then
   local body=p(m,"Body",Vector3.new(3.1,2.7,2.7),CFrame.Angles(0,0,math.pi/2),skin.body,skin.bodyMaterial,Enum.PartType.Cylinder);body.Reflectance=skin.reflectance or 0
   if not skin.drum then for _,y in ipairs({-1.15,1.15}) do p(m,"Hoop",Vector3.new(0.25,2.84,2.84),CFrame.new(0,y,0)*CFrame.Angles(0,0,math.pi/2),skin.hoop,skin.hoopMaterial,Enum.PartType.Cylinder) end end
   p(m,"Lid",Vector3.new(0.15,2.7,2.7),CFrame.new(0,1.6,0)*CFrame.Angles(0,0,math.pi/2),skin.lid,skin.hoopMaterial,Enum.PartType.Cylinder).Reflectance=skin.reflectance or 0
   -- Phase 13 : 철제 드럼 (굴림 테 · 주름 · 마개)
   if skin.drum then require(script.Parent.DrumStyle).build(m,body.CFrame,3.1,2.7,skin,"Drum",1.675) end
+  -- Phase 14 : 나무 통은 판자 결 · 양 끝 얇은 쇠테
+  require(script.Parent.BarrelStyle).decorate(m,body.CFrame,3.1,2.7,skin)
  elseif kind=="Ghost" then
   local t=script.Parent.Parent.Visuals:FindFirstChild("GhostCaptain")
   if t then
@@ -49,15 +50,17 @@ function Preview.show(kind,id)
  Preview.close()
  local skin=Config.findSkin(kind,id);if not skin then return end
  local gui=Instance.new("ScreenGui");gui.Name="SkinPreview";gui.DisplayOrder=40;gui.ResetOnSpawn=false;gui.Parent=Players.LocalPlayer.PlayerGui;current=gui
- local frame=Instance.new("Frame");frame.Size=UDim2.fromScale(0.9,0.8);frame.Position=UDim2.fromScale(0.5,0.5);frame.AnchorPoint=Vector2.new(0.5,0.5);frame.BackgroundColor3=Color3.fromRGB(10,18,30);frame.Parent=gui
- local limit=Instance.new("UISizeConstraint");limit.MaxSize=Vector2.new(760,620);limit.Parent=frame
- Instance.new("UICorner",frame).CornerRadius=UDim.new(0,18)
- local function label(text,y,height)
-  local l=Instance.new("TextLabel");l.BackgroundTransparency=1;l.Text=text;l.TextColor3=Color3.fromRGB(238,224,189);l.Font=Enum.Font.GothamBold;l.TextSize=18;l.TextWrapped=true;l.Size=UDim2.new(1,-36,0,height);l.Position=UDim2.fromOffset(18,y);l.Parent=frame;return l
- end
- label(skin.name.."  /  "..Config.rarityOf(skin).label,12,34)
- local info=label("",48,32);info.TextSize=13;info.Text="3D 미리보기 · 드래그로 회전 / Drag to rotate"
- local viewport=Instance.new("ViewportFrame");viewport.Size=UDim2.new(1,-24,1,-148);viewport.Position=UDim2.fromOffset(12,86);viewport.BackgroundColor3=Color3.fromRGB(8,13,25);viewport.Ambient=Color3.fromRGB(145,165,198);viewport.LightColor=Color3.fromRGB(255,227,180);viewport.LightDirection=Vector3.new(-1,-1,-1);viewport.Parent=frame
+ -- Phase 14 : 상점과 같은 만화풍 창 (이름 · 등급만, 설명 줄 없음)
+ local UIKit=require(script.Parent.UIKit)
+ local rarity=Config.rarityOf(skin)
+ local themes={common="grey",rare="blue",epic="purple",legend="gold",mythic="red"}
+ local w=UIKit.window(gui,{name="Preview",title=skin.name,theme=themes[skin.rarity or "common"] or "blue",size=Vector2.new(640,540),onClose=Preview.close})
+ local frame=w.frame
+ local tag=UIKit.label(frame,{text=rarity.label,size=UDim2.new(1,-40,0,30),position=UDim2.fromOffset(20,76),textSize=24,color=rarity.color,stroke=3})
+ tag.ZIndex=4
+ local viewport=Instance.new("ViewportFrame");viewport.Size=UDim2.new(1,-40,1,-126);viewport.Position=UDim2.fromOffset(20,110);viewport.BackgroundColor3=Color3.fromRGB(34,40,58);viewport.Ambient=Color3.fromRGB(170,180,205);viewport.LightColor=Color3.fromRGB(255,236,200);viewport.LightDirection=Vector3.new(-1,-1,-1);viewport.Parent=frame
+ UIKit.corner(viewport,14);UIKit.outline(viewport,3.5)
+ w.open()
  local world=Instance.new("WorldModel");world.Parent=viewport
  local model=Preview.build(kind,skin,world)
  local box,size=model:GetBoundingBox();local focus=box.Position
@@ -73,7 +76,6 @@ function Preview.show(kind,id)
   local distance=radius/math.min(1,aspect)
   camera.CFrame=CFrame.lookAt(focus+Vector3.new(math.sin(angle)*distance,distance*0.18,math.cos(angle)*distance),focus)
  end)
- local close=Instance.new("TextButton");close.Text="닫기 / Close";close.TextSize=16;close.Font=Enum.Font.GothamBold;close.TextColor3=Color3.new(1,1,1);close.BackgroundColor3=Color3.fromRGB(40,71,83);close.Size=UDim2.new(1,-32,0,38);close.Position=UDim2.new(0,16,1,-48);close.Parent=frame;close.Activated:Connect(Preview.close)
- close.Selectable=true;if Input.GamepadEnabled then game:GetService("GuiService").SelectedObject=close end
+ w.close.Selectable=true;if Input.GamepadEnabled then game:GetService("GuiService").SelectedObject=w.close end
 end
 return Preview

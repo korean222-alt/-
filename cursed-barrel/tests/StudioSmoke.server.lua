@@ -52,4 +52,19 @@ for _,t in ipairs(Tables:GetAllTables()) do check(t.model:GetAttribute("PredictO
 for _,name in ipairs({"RewardRequest","RewardCue"}) do check(RS.CursedBarrel.Remotes:FindFirstChild(name)~=nil,"Missing remote "..name) end
 check(require(Services.RewardService)._started,"RewardService started")
 check(require(RS.CursedBarrel.Shared.Locale).translate("상점")=="Shop","English dictionary loads")
+-- Phase 14 : AI 선원이 실제 엔진에서 앉는다 · 밤 등불은 항상 스트리밍 · 대포 포신 모델
+local Bots=require(Services.BotService)
+for _,t in ipairs(Tables:GetAllTables()) do
+ if not t.config.NoBots and t.state=="Waiting" and t:GetHumanCount()==0 and #t:GetFreeSeats()>0 then
+  local bot=Bots:_spawn(t)
+  check(bot~=nil and t:HasPlayer(bot),"AI crew sits down")
+  check(bot.Character.PrimaryPart.Anchored,"AI body is pinned to the chair")
+  Bots:_despawn(bot)
+  break
+ end
+end
+local lights=workspace.Lobby.PlayableGalleon:FindFirstChild("ShipLights")
+check(lights~=nil and #lights:GetChildren()>=30,"Night lanterns")
+for _,lamp in ipairs(lights:GetChildren()) do check(lamp.ModelStreamingMode==Enum.ModelStreamingMode.Persistent,"Lanterns are always streamed") end
+for _,c in pairs(require(Services.CannonService).cannons) do check(c.tube.Parent.Name=="Barrel","Cannon barrel model") end
 print("[StudioSmoke] "..assertions.." engine assertions passed. This does not replace multiplayer/device QA.")

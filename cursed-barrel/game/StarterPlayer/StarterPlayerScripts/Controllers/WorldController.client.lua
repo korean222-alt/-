@@ -52,6 +52,8 @@ gui.ResetOnSpawn = false
 gui.DisplayOrder = 11
 gui.IgnoreGuiInset = false
 gui.Parent = player:WaitForChild("PlayerGui")
+-- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
+require(package.Shared:WaitForChild("UIKit")).restyle(gui)
 
 local function label(parent, size, position, textSize, color)
 	local l = Instance.new("TextLabel")
@@ -69,23 +71,22 @@ end
 
 local pill = Instance.new("Frame")
 pill.Name = "Phase"
-pill.AnchorPoint = Vector2.new(1, 0)
-pill.Position = UDim2.new(1, -10, 0, 6)
-pill.Size = UDim2.fromOffset(300, 44)
+-- 오른쪽 위는 Roblox 플레이어 목록 자리라 가운데 위로 옮겼다
+pill.AnchorPoint = Vector2.new(0.5, 0)
+pill.Position = UDim2.new(0.5, 0, 0, 6)
+pill.Size = UDim2.fromOffset(210, 36)
 pill.BackgroundColor3 = Color3.fromRGB(14, 20, 30)
 pill.BackgroundTransparency = 0.25
 pill.Parent = gui
 Instance.new("UICorner", pill).CornerRadius = UDim.new(0, 10)
-local phaseTitle = label(pill, UDim2.new(1, -16, 0, 20), UDim2.fromOffset(10, 3), 15, gold)
-phaseTitle.TextXAlignment = Enum.TextXAlignment.Left
-local phaseBlurb = label(pill, UDim2.new(1, -16, 0, 16), UDim2.fromOffset(10, 23), 12, cream)
-phaseBlurb.TextXAlignment = Enum.TextXAlignment.Left
+-- 부제목(단계 설명)은 두지 않는다. 이름과 남은 시간만.
+local phaseTitle = label(pill, UDim2.new(1, -16, 1, 0), UDim2.fromOffset(8, 0), 20, gold)
 
 local raidBox = Instance.new("Frame")
 raidBox.Name = "Raid"
-raidBox.AnchorPoint = Vector2.new(1, 0)
-raidBox.Position = UDim2.new(1, -10, 0, 56)
-raidBox.Size = UDim2.fromOffset(300, 62)
+raidBox.AnchorPoint = Vector2.new(0.5, 0)
+raidBox.Position = UDim2.new(0.5, 0, 0, 48)
+raidBox.Size = UDim2.fromOffset(280, 50)
 raidBox.BackgroundColor3 = Color3.fromRGB(40, 12, 30)
 raidBox.BackgroundTransparency = 0.15
 raidBox.Visible = false
@@ -95,11 +96,10 @@ local raidStroke = Instance.new("UIStroke")
 raidStroke.Color = red
 raidStroke.Thickness = 2
 raidStroke.Parent = raidBox
-local raidTitle = label(raidBox, UDim2.new(1, -16, 0, 20), UDim2.fromOffset(10, 3), 15, Color3.fromRGB(255, 170, 200))
-raidTitle.TextXAlignment = Enum.TextXAlignment.Left
+local raidTitle = label(raidBox, UDim2.new(1, -16, 0, 22), UDim2.fromOffset(8, 2), 19, Color3.fromRGB(255, 170, 200))
 local barBack = Instance.new("Frame")
-barBack.Position = UDim2.fromOffset(10, 26)
-barBack.Size = UDim2.new(1, -20, 0, 12)
+barBack.Position = UDim2.fromOffset(10, 28)
+barBack.Size = UDim2.new(1, -20, 0, 14)
 barBack.BackgroundColor3 = Color3.fromRGB(20, 8, 16)
 barBack.Parent = raidBox
 Instance.new("UICorner", barBack).CornerRadius = UDim.new(0, 6)
@@ -108,10 +108,8 @@ barFill.Size = UDim2.fromScale(1, 1)
 barFill.BackgroundColor3 = Color3.fromRGB(196, 80, 180)
 barFill.Parent = barBack
 Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 6)
-local raidHint = label(raidBox, UDim2.new(1, -16, 0, 16), UDim2.fromOffset(10, 42), 12, cream)
-raidHint.TextXAlignment = Enum.TextXAlignment.Left
 
-local banner = label(gui, UDim2.new(0.8, 0, 0, 70), UDim2.new(0.1, 0, 0.14, 0), 30, gold)
+local banner = label(gui, UDim2.new(0.8, 0, 0, 70), UDim2.new(0.1, 0, 0.2, 0), 42, gold)
 banner.TextTransparency = 1
 banner.TextStrokeTransparency = 1
 local bannerToken = 0
@@ -213,6 +211,35 @@ local function currentSky()
 	return blend(from, to, t)
 end
 
+--------------------------------------------------
+-- 내 발밑 불빛 (밤 · 안개 · 폭풍)
+-- 등불이 닿지 않는 곳(스폰 단상 · 배 끝 · 후갑판)에서도 내 주변은 보이게 한다. 내 화면에서만 켠다.
+--------------------------------------------------
+local playerGlow = Instance.new("PointLight")
+playerGlow.Name = "CursedBarrel_PlayerGlow"
+playerGlow.Color = Color3.fromRGB(255, 226, 180)
+playerGlow.Range = 26
+playerGlow.Shadows = false
+playerGlow.Brightness = 0
+local function attachGlow(character)
+	local root = character and character:WaitForChild("HumanoidRootPart", 10)
+	if root then
+		playerGlow.Parent = root
+	end
+end
+if player.Character then
+	task.spawn(attachGlow, player.Character)
+end
+player.CharacterAdded:Connect(attachGlow)
+
+-- 네온 · 등불이 은은하게 번지는 빛 (한 번만 만든다)
+local bloom = Lighting:FindFirstChild("CursedBarrel_Bloom") or Instance.new("BloomEffect")
+bloom.Name = "CursedBarrel_Bloom"
+bloom.Intensity = 0.35
+bloom.Size = 28
+bloom.Threshold = 1.6
+bloom.Parent = Lighting
+
 local function applySky(sky)
 	local boost = flashPower
 	Lighting.Ambient = sky.Ambient:Lerp(Color3.new(1, 1, 1), boost * 0.5)
@@ -238,6 +265,9 @@ local function applySky(sky)
 	if sea then
 		sea.Color = sky.Sea
 	end
+	local glow = sky.PlayerGlow or 0
+	playerGlow.Brightness = glow
+	playerGlow.Enabled = glow > 0.05
 end
 
 --------------------------------------------------
@@ -351,6 +381,7 @@ Run.Heartbeat:Connect(function(dt)
 		applySky(sky)
 	else
 		weatherCC.Enabled = false
+		playerGlow.Enabled = false -- 무대는 따로 조명을 쓴다
 	end
 
 	-- 비는 카메라 위에서 쏟아진다
@@ -380,17 +411,15 @@ Run.Heartbeat:Connect(function(dt)
 	local phase = config.findPhase(workspace:GetAttribute("WorldPhase") or "day")
 	local endsAt = workspace:GetAttribute("WorldPhaseEndsAt") or 0
 	local left = math.max(0, endsAt - workspace:GetServerTimeNow())
-	phaseTitle.Text = ("%s %s  ·  %d:%02d"):format(phase.icon or "", phase.name, math.floor(left / 60), math.floor(left % 60))
-	phaseBlurb.Text = phase.blurb or ""
+	phaseTitle.Text = ("%s %s  %d:%02d"):format(phase.icon or "", phase.name, math.floor(left / 60), math.floor(left % 60))
 
 	raidBox.Visible = raid
 	if raid then
 		local hp = workspace:GetAttribute("RaidHP") or 0
 		local max = math.max(1, workspace:GetAttribute("RaidMaxHP") or 1)
 		local raidLeft = math.max(0, (workspace:GetAttribute("RaidEndsAt") or 0) - workspace:GetServerTimeNow())
-		raidTitle.Text = ("🐙 크라켄 습격!  체력 %d / %d  ·  %d:%02d"):format(hp, max, math.floor(raidLeft / 60), math.floor(raidLeft % 60))
+		raidTitle.Text = ("🐙 크라켄  %d:%02d"):format(math.floor(raidLeft / 60), math.floor(raidLeft % 60))
 		barFill.Size = UDim2.fromScale(math.clamp(hp / max, 0, 1), 1)
-		raidHint.Text = stage and "판을 마치고 뱃전의 대포로 크라켄을 쫓아내세요" or "뱃전의 대포(E)로 빛나는 약점 · 눈 · 내려치는 다리를 쏘세요"
 		raidStroke.Transparency = 0.5 + 0.5 * math.sin(os.clock() * 6)
 	end
 end)
@@ -405,27 +434,27 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 	if kind == "Phase" then
 		local phase = config.findPhase(data.id)
 		local color = data.id == "storm" and red or (data.id == "night" and Color3.fromRGB(170, 190, 255) or gold)
-		announce(("%s %s  —  %s"):format(phase.icon or "", phase.name, phase.blurb or ""), color, 3.5)
+		announce(("%s %s"):format(phase.icon or "", phase.name), color, 2.5)
 		if data.id == "storm" then
 			nextBolt = os.clock() + 1.5
 		end
 	elseif kind == "Raid" then
 		if data.state == "start" then
-			announce("🐙 크라켄 습격!  배를 지켜라 — 대포로 쫓아내면 보상", red, 4)
+			announce("🐙 크라켄 습격!", red, 3)
 			Sfx.play("KrakenRoar", { volume = 0.8 })
 			CameraShake.add(0.6, 1.4, 1.2)
 		elseif data.state == "victory" then
 			local coins = data.rewards and data.rewards[player.UserId]
-			announce(coins and ("크라켄을 물리쳤다!  +%d 코인"):format(coins) or "크라켄을 물리쳤다!", teal, 4)
+			announce(coins and ("크라켄 퇴치!  +%d"):format(coins) or "크라켄 퇴치!", teal, 3)
 			Sfx.play("Coins", { volume = 0.6 })
 		elseif data.state == "escaped" then
 			local coins = data.rewards and data.rewards[player.UserId]
-			announce(coins and ("크라켄이 바다로 돌아갔다…  참여 보상 +%d"):format(coins) or "크라켄이 바다로 돌아갔다…", cream, 3.5)
+			announce(coins and ("크라켄이 물러났다  +%d"):format(coins) or "크라켄이 물러났다", cream, 2.5)
 		end
 	elseif kind == "SlamBlocked" and data.userId == player.UserId then
 		announce("내려치기를 막았다!", teal, 1.6)
 	elseif kind == "Tourney" then
-		announce(("🏆 토너먼트 시리즈 완료!  %d점 · +%d 코인"):format(data.score or 0, data.coins or 0), gold, 4)
+		announce(("🏆 %d점  +%d"):format(data.score or 0, data.coins or 0), gold, 3)
 		Sfx.play("Coins", { volume = 0.6 })
 	elseif kind == "Announce" then
 		-- Phase 13 : 누군가 전설 · 신화 스킨을 손에 넣었다 (또는 룰렛에서 희귀 스킨)
@@ -444,5 +473,6 @@ end)
 script.Destroying:Connect(function()
 	gui:Destroy()
 	rainPart:Destroy()
+	playerGlow:Destroy()
 	Lighting:SetAttribute("WeatherOwned", nil)
 end)

@@ -21,6 +21,8 @@ gui.Name = "CursedBarrel_Tutorial"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 13
 gui.Parent = player:WaitForChild("PlayerGui")
+-- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
+require(package.Shared:WaitForChild("UIKit")).restyle(gui)
 
 local card = Instance.new("TextLabel")
 card.AnchorPoint = Vector2.new(0.5, 0)
@@ -80,16 +82,16 @@ Run.Heartbeat:Connect(function()
 	if mine then
 		local state = model:GetAttribute(TABLE_ATTR.State)
 		if state == STATES.Waiting or state == STATES.Countdown or state == STATES.Starting then
-			text = "연습 판이에요!  AI 선원 둘과 함께합니다. 처음 해적은 잡기 쉬워요"
+			text = "연습 판!"
 		elseif state == STATES.Playing then
 			if os.clock() < catchHintUntil then
-				text = "③ 해적이 튀어나오면 그때 누르세요!  가짜 손에 속아 먼저 누르면 탈락"
+				text = "해적이 나오면 누르세요!"
 			elseif model:GetAttribute(TABLE_ATTR.BraveOfferUserId) == player.UserId then
-				text = "「한 번 더」를 누르면 보너스 코인!  대신 통이 더 위험해져요"
+				text = "「한 번 더」 = 보너스 코인"
 			elseif model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId then
-				text = "① 내 차례!  아래에서 칼 자리를 하나 누르세요 (해적이 숨어 있을 수도)"
+				text = "내 차례! 자리를 고르세요"
 			else
-				text = "② AI 선원이 고르는 중…  위험한 자리를 뽑으면 해적이 튀어나와요"
+				text = nil
 			end
 		elseif state == STATES.RoundEnding then
 			finishedUntil = os.clock() + 6
@@ -101,7 +103,7 @@ Run.Heartbeat:Connect(function()
 		lastTable = nil
 	end
 	if not text and os.clock() < finishedUntil then
-		text = "연습 끝!  이제 다른 사람들과 해 보세요 · 오른쪽 위 날씨에 따라 규칙이 바뀌어요"
+		text = "연습 끝!"
 	end
 	card.Visible = text ~= nil
 	if text then

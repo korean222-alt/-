@@ -29,6 +29,8 @@ gui.Name = "CursedBarrel_Predict"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 13
 gui.Parent = player:WaitForChild("PlayerGui")
+-- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
+require(RS:WaitForChild("CursedBarrel").Shared:WaitForChild("UIKit")).restyle(gui)
 
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(1, 0.5)
@@ -58,7 +60,7 @@ heading.Font = Enum.Font.GothamBold
 heading.TextSize = 14
 heading.TextColor3 = gold
 heading.TextWrapped = true
-heading.Text = "누가 살아남을까?\n맞히면 코인 (걸지 않아요)"
+heading.Text = "누가 살아남을까?"
 heading.LayoutOrder = 0
 heading.Parent = panel
 
@@ -146,10 +148,10 @@ local function redraw(model)
 	local roundId = model:GetAttribute(TABLE_ATTR.RoundId)
 	local mine = picked[model]
 	if mine and mine.roundId == roundId then
-		heading.Text = ("예측: %s\n결과를 기다리는 중…"):format(mine.name)
+		heading.Text = ("예측: %s"):format(mine.name)
 		return
 	end
-	heading.Text = "누가 살아남을까?\n맞히면 코인 (걸지 않아요)"
+	heading.Text = "누가 살아남을까?"
 	for index, entry in ipairs(participants(model)) do
 		local b = Instance.new("TextButton")
 		b.Size = UDim2.new(1, 0, 0, 30)
@@ -204,7 +206,7 @@ predict.OnClientEvent:Connect(function(data)
 	elseif data.kind == "result" then
 		if data.correct then
 			showToast(data.coins and data.coins > 0 and ("예측 적중! %s 생존 · +%d 코인"):format(data.name or "", data.coins)
-				or ("예측 적중! %s 생존 (오늘 보상은 다 받았어요)"):format(data.name or ""), teal)
+				or "예측 적중!", teal)
 		else
 			showToast(data.name ~= "" and ("아쉽다! %s 님이 살아남았다"):format(data.name) or "아쉽다! 예측이 빗나갔다", cream)
 		end

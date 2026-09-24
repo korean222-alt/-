@@ -225,15 +225,10 @@ function TournamentService:_ensureBoard(gameTable)
 end
 
 function TournamentService:_draw()
-	local lines = { "🏆 토너먼트 · 시즌 순위 (4판 합계)", "" }
-	if #self.top == 0 then
-		table.insert(lines, "아직 기록이 없습니다. 4판을 연달아 해 보세요!")
-	end
+	local lines = { "🏆 토너먼트", "" }
 	for index, row in ipairs(self.top) do
 		table.insert(lines, ("%2d.  %s   %d점"):format(index, row.name, row.score))
 	end
-	table.insert(lines, "")
-	table.insert(lines, "생존 10 · 2등 6 · 3등 4 · 4등 2 · 잡기 +1 (최대 3)")
 	local text = table.concat(lines, "\n")
 	for gameTable, label in pairs(self._boards) do
 		if gameTable.destroyed or not label.Parent then

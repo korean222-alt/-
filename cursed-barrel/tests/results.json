@@ -1,23 +1,23 @@
 {
-  "place": "CursedBarrel_Phase13_Rewards.rbxl",
-  "sha256": "98e9ed20c80973db7715692f3380b9e83b6a5c90a9f72433a684876b2f87c24b",
+  "place": "CursedBarrel_Phase14_Polish.rbxl",
+  "sha256": "b8b7670e957a2247f1e5da6a7487413ae72be93c3489cff1ec636d8e4ed46f44",
   "original_instances": 1255,
-  "output_instances": 1286,
-  "source_files": 54,
-  "behavior_checks_passed": 96,
+  "output_instances": 1289,
+  "source_files": 57,
+  "behavior_checks_passed": 99,
   "unrelated_binary_properties": "PRESERVED",
   "source_roundtrip": "PASS",
   "parser": "Lua 5.4 after simple compound-assignment translation (tests/run.py)",
-  "luau_compile": "PASS (54 files, luau-compile)",
+  "luau_compile": "PASS (57 files, luau-compile)",
   "native_luau_checks": [
-    "[kraken] KRAKEN CHECKS: 232175 run, 0 failed",
-    "[behavior (native Luau)] BEHAVIOR CHECKS: 96 passed"
+    "[kraken] KRAKEN CHECKS: 316815 run, 0 failed",
+    "[behavior (native Luau)] BEHAVIOR CHECKS: 99 passed"
   ],
   "roblox_studio_open": "NOT_RUN",
   "multiplayer_device_physics_QA": "NOT_RUN",
   "live_datastore_receipts_assets": "NOT_RUN",
   "test_output": [
-    "PASS: 54 source files parsed by Lua 5.4 after compound-assignment translation",
+    "PASS: 57 source files parsed by Lua 5.4 after compound-assignment translation",
     "PASS rarity lookup does not mutate or duplicate the skin catalog",
     "PASS new profile acquires an atomic session",
     "PASS six inventory categories and defaults",
@@ -114,11 +114,14 @@
     "PASS skin price ladder: common ~1만, rare ~1.7~6.9만, epic ~13~15만, legend ~25~30만, mythic 49.9만",
     "PASS blue steel drum: coin skin with rolling hoops, ribs, chimes and two bungs on the lid",
     "PASS buying a legend or mythic skin is announced to the whole server",
+    "PASS AI crew fills duo tables and sits down without Seat:Sit",
+    "PASS GameTable seats an AI directly, blocks the chair, and frees it again",
+    "PASS dark phases keep the deck visible (ambient floor + player glow)",
     "PASS all ten tables fit the ship with chair clearance",
     "PASS table pairs preserve at least 26 studs center separation",
     "PASS lantern posts are outside chair access rings",
     "PASS showcase rows fit inside the stern cabin",
-    "BEHAVIOR CHECKS: 96 passed",
-    "PASS: English covers all 569 Korean UI strings"
+    "BEHAVIOR CHECKS: 99 passed",
+    "PASS: English covers all 451 Korean UI strings"
   ]
 }

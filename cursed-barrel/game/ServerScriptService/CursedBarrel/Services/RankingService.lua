@@ -343,7 +343,7 @@ function RankingService:Refresh()
 			local ok, err = pcall(function()
 				local rows, footer, subtitle = ensureBoardGui(board)
 
-				subtitle.Text = useGlobal and "저주받은 통 · 전체 서버 승리 순위" or "저주받은 통 · 이 서버 승리 순위"
+				subtitle.Text = "" -- 부제목 없음
 
 				for index = 1, RANKING.Rows do
 					local entry = top[index]
@@ -368,7 +368,7 @@ function RankingService:Refresh()
 					buildRow(rows, 1, "아직 승자가 없습니다", "0승 / 0판", false, 0)
 				end
 
-				footer.Text = ("접속 %d명 · 불꽃 숫자는 현재 연승"):format(#Players:GetPlayers())
+				footer.Text = ""
 			end)
 
 			if not ok then

@@ -8,7 +8,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local package = ReplicatedStorage:WaitForChild("CursedBarrel")
@@ -27,22 +26,19 @@ local shopResult = remotes:WaitForChild(GameConfig.Remotes.ShopResult)
 local ATTEND = GameConfig.Attendance
 local ROULETTE = GameConfig.Roulette
 
+local UIKit = require(Shared:WaitForChild("UIKit"))
+
 local COLORS = {
-	Wood = Color3.fromRGB(104, 66, 36),
-	WoodDark = Color3.fromRGB(62, 38, 20),
-	Plank = Color3.fromRGB(128, 84, 46),
-	Parchment = Color3.fromRGB(236, 212, 164),
-	Cell = Color3.fromRGB(214, 180, 128),
-	Slot = Color3.fromRGB(118, 82, 48),
-	Gold = Color3.fromRGB(255, 206, 96),
-	Cream = Color3.fromRGB(250, 238, 210),
-	Ink = Color3.fromRGB(70, 44, 24),
-	Green = Color3.fromRGB(70, 200, 90),
-	Red = Color3.fromRGB(214, 52, 44),
-	Robux = Color3.fromRGB(0, 176, 111),
-	Dim = Color3.fromRGB(150, 130, 104),
+	Gold = UIKit.Colors.Gold,
+	Cream = UIKit.Colors.Cream,
+	Ink = UIKit.Colors.White,
+	Green = UIKit.Colors.Green,
+	Red = UIKit.Colors.Red,
+	Dim = UIKit.Colors.Dim,
 }
 local ICONS = { coins = "🪙", spin = "🎟", gem = "💎", chest = "🧰" }
+-- 출석 칸 배경 (사진처럼 칸마다 다른 색)
+local CELL_THEMES = { "green", "green", "blue", "blue", "purple", "purple", "gold" }
 
 local state = nil
 
@@ -52,200 +48,81 @@ gui.ResetOnSpawn = false
 gui.DisplayOrder = 16
 gui.Parent = player:WaitForChild("PlayerGui")
 
-local function corner(parent, radius)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius or 10)
-	c.Parent = parent
-	return c
+local function text(parent, value, size, position, textSize, color)
+	return UIKit.label(parent, { text = value, size = size, position = position, textSize = textSize or 16, color = color or COLORS.Cream, wrap = true })
 end
 
-local function stroke(parent, color, thickness)
-	local s = Instance.new("UIStroke")
-	s.Color = color or COLORS.WoodDark
-	s.Thickness = thickness or 3
-	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	s.Parent = parent
-	return s
-end
-
-local function text(parent, value, size, position, textSize, color, font)
-	local l = Instance.new("TextLabel")
-	l.BackgroundTransparency = 1
-	l.Size = size
-	l.Position = position
-	l.Text = value
-	l.TextSize = textSize or 14
-	l.TextColor3 = color or COLORS.Cream
-	l.Font = font or Enum.Font.GothamBold
-	l.TextWrapped = true
-	l.Parent = parent
-	return l
-end
-
-local function button(parent, value, size, position, color, textColor)
-	local b = Instance.new("TextButton")
-	b.Size = size
-	b.Position = position
-	b.BackgroundColor3 = color or COLORS.Plank
-	b.Text = value
-	b.TextSize = 16
-	b.Font = Enum.Font.GothamBlack
-	b.TextColor3 = textColor or COLORS.Cream
-	b.AutoButtonColor = true
-	b.BorderSizePixel = 0
-	b.Parent = parent
-	corner(b, 10)
-	return b
-end
-
--- 나무 판 창 (사진처럼 : 나무 틀 + 해골 머리판 + 양피지)
-local function woodWindow(name, title, width, height)
-	local window = Instance.new("Frame")
-	window.Name = name
-	window.AnchorPoint = Vector2.new(0.5, 0.5)
-	window.Position = UDim2.fromScale(0.5, 0.52)
-	window.Size = UDim2.fromOffset(width, height)
-	window.BackgroundColor3 = COLORS.Wood
-	window.Visible = false
-	window.Parent = gui
-	corner(window, 18)
-	stroke(window, COLORS.WoodDark, 4)
-	local scale = Instance.new("UIScale")
-	scale.Parent = window
-	local grain = Instance.new("UIGradient")
-	grain.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 190, 180))
-	grain.Rotation = 90
-	grain.Parent = window
-
-	local header = Instance.new("Frame")
-	header.AnchorPoint = Vector2.new(0.5, 0.5)
-	header.Position = UDim2.new(0.5, 0, 0, 6)
-	header.Size = UDim2.fromOffset(math.min(width - 60, 340), 50)
-	header.BackgroundColor3 = COLORS.Plank
-	header.Parent = window
-	corner(header, 12)
-	stroke(header, COLORS.WoodDark, 3)
-	text(header, "☠  " .. title .. "  ☠", UDim2.fromScale(1, 1), UDim2.new(), 22, COLORS.Gold, Enum.Font.GothamBlack)
-
-	-- 양쪽 붉은 깃발
-	for _, side in ipairs({ -1, 1 }) do
-		local flag = Instance.new("TextLabel")
-		flag.AnchorPoint = Vector2.new(0.5, 0)
-		flag.Position = UDim2.new(side < 0 and 0 or 1, side * -4, 0, 30)
-		flag.Size = UDim2.fromOffset(34, 64)
-		flag.BackgroundColor3 = COLORS.Red
-		flag.Text = "☠"
-		flag.TextSize = 20
-		flag.TextColor3 = COLORS.Cream
-		flag.Parent = window
-		corner(flag, 4)
-	end
-
-	local paper = Instance.new("Frame")
-	paper.Name = "Paper"
-	paper.Position = UDim2.fromOffset(22, 44)
-	paper.Size = UDim2.new(1, -44, 1, -62)
-	paper.BackgroundColor3 = COLORS.Parchment
-	paper.Parent = window
-	corner(paper, 12)
-	stroke(paper, Color3.fromRGB(170, 130, 84), 2)
-
-	local close = button(window, "✕", UDim2.fromOffset(36, 36), UDim2.new(1, -28, 0, -8), COLORS.Red)
-	close.Activated:Connect(function()
-		window.Visible = false
-	end)
-	return window, paper, scale
-end
-
--- 작은 화면에서는 창을 줄인다
-local function fit(window, scale)
-	local camera = workspace.CurrentCamera
-	local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-	local size = window.Size
-	scale.Scale = math.min(1, (view.X - 24) / size.X.Offset, (view.Y - 70) / (size.Y.Offset + 30))
-end
-
-local function popIn(window, scale)
-	fit(window, scale)
-	local target = scale.Scale
-	scale.Scale = target * 0.8
-	window.Visible = true
-	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = target }):Play()
+local function button(parent, value, size, position, themeName)
+	return UIKit.button(parent, { text = value, size = size, position = position, theme = themeName or "green", textSize = 24 })
 end
 
 --------------------------------------------------
 -- 출석판
 --------------------------------------------------
 
-local attendWindow, attendPaper, attendScale = woodWindow("Attendance", "출석 체크", 600, 400)
+local attend = UIKit.window(gui, { name = "Attendance", title = "출석 체크", theme = "purple", icon = "📅", size = Vector2.new(640, 440) })
+local attendWindow, attendPaper = attend.frame, attend.body
 local cells = {}
 for index, reward in ipairs(ATTEND.Days) do
 	local row = index <= 4 and 0 or 1
 	local column = index <= 4 and (index - 1) or (index - 5)
-	local cellWidth = 118
-	local offsetX = row == 0 and 14 or 14 + cellWidth * 0.5 + 6
+	local cellWidth = 138
+	local offsetX = row == 0 and 4 or 4 + (cellWidth + 12) * 0.5
 	local cell = Instance.new("Frame")
-	cell.Position = UDim2.fromOffset(offsetX + column * (cellWidth + 12), 14 + row * 140)
-	cell.Size = UDim2.fromOffset(cellWidth, 128)
-	cell.BackgroundColor3 = COLORS.Cell
+	cell.Name = "Day" .. index
+	cell.Position = UDim2.fromOffset(offsetX + column * (cellWidth + 12), 4 + row * 150)
+	cell.Size = UDim2.fromOffset(cellWidth, 138)
+	cell.BackgroundColor3 = Color3.new(1, 1, 1)
 	cell.Parent = attendPaper
-	corner(cell, 12)
-	local glow = stroke(cell, COLORS.Gold, 0)
-	local slot = Instance.new("Frame")
-	slot.Position = UDim2.fromOffset(10, 26)
-	slot.Size = UDim2.new(1, -20, 0, 62)
-	slot.BackgroundColor3 = COLORS.Slot
-	slot.Parent = cell
-	corner(slot, 10)
-	text(cell, ("%d일"):format(index), UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 3), 14, COLORS.Ink, Enum.Font.GothamBlack)
-	local icon = text(slot, ICONS[reward.icon] or "🪙", UDim2.fromScale(1, 1), UDim2.new(), 34, COLORS.Cream)
-	local amount = Utility.comma(reward.coins)
-	local amountLabel = text(cell, amount, UDim2.new(1, -8, 0, 34), UDim2.fromOffset(4, 90), 13, COLORS.Ink, Enum.Font.GothamBlack)
-	local check = text(cell, "✔", UDim2.fromScale(1, 1), UDim2.new(), 64, COLORS.Green, Enum.Font.GothamBlack)
-	check.TextStrokeTransparency = 0.2
-	check.TextStrokeColor3 = Color3.fromRGB(20, 80, 30)
+	UIKit.paint(cell, CELL_THEMES[index] or "blue")
+	UIKit.corner(cell, 12)
+	local glow = UIKit.outline(cell, 3.5)
+	local amountLabel = UIKit.label(cell, { text = Utility.comma(reward.coins), size = UDim2.new(1, -10, 0, 30), position = UDim2.fromOffset(5, 6), textSize = 26, stroke = 3 })
+	local icon = UIKit.label(cell, { text = ICONS[reward.icon] or "🪙", size = UDim2.new(1, 0, 0, 60), position = UDim2.fromOffset(0, 36), textSize = 52, stroke = 2 })
+	icon.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+	UIKit.label(cell, { text = ("%d일"):format(index), size = UDim2.new(1, 0, 0, 30), position = UDim2.new(0, 0, 1, -34), textSize = 24, stroke = 3 })
+	local check = UIKit.label(cell, { text = "✔", size = UDim2.fromScale(1, 1), textSize = 84, color = COLORS.Green, stroke = 4, zIndex = 6 })
 	check.Visible = false
-	cells[index] = { frame = cell, glow = glow, check = check, icon = icon, amount = amountLabel, slot = slot }
+	cells[index] = { frame = cell, glow = glow, check = check, icon = icon, amount = amountLabel }
 end
 
-local attendNote = text(attendPaper, "", UDim2.new(1, -170, 0, 34), UDim2.new(0, 14, 1, -44), 13, COLORS.Ink)
+local attendNote = text(attendPaper, "", UDim2.new(1, -220, 0, 44), UDim2.new(0, 4, 1, -50), 20, COLORS.Gold)
 attendNote.TextXAlignment = Enum.TextXAlignment.Left
-local claimButton = button(attendPaper, "받기!", UDim2.fromOffset(140, 40), UDim2.new(1, -154, 1, -48), COLORS.Green)
+local claimButton = button(attendPaper, "받기!", UDim2.fromOffset(190, 56), UDim2.new(1, -196, 1, -60), "green")
 claimButton.Activated:Connect(function()
 	rewardRequest:FireServer("attend")
 end)
 
 local function drawAttendance()
-	local attend = state and state.attendance
-	if not attend then
+	local attendance = state and state.attendance
+	if not attendance then
 		return
 	end
 	-- 이번 판에서 받은 칸 수. 7칸을 다 받은 날은 count 가 0 이 되므로 7칸 모두 체크로 보여 준다.
-	local claimed = attend.count
-	if not attend.ready and claimed == 0 then
+	local claimed = attendance.count
+	if not attendance.ready and claimed == 0 then
 		claimed = #ATTEND.Days
 	end
-	local nextIndex = attend.ready and (attend.count % #ATTEND.Days + 1) or nil
-	local vipScale = attend.vip and ATTEND.VipMultiplier or 1
+	local nextIndex = attendance.ready and (attendance.count % #ATTEND.Days + 1) or nil
+	local vipScale = attendance.vip and ATTEND.VipMultiplier or 1
 	for index, cell in ipairs(cells) do
 		local reward = ATTEND.Days[index]
-		cell.check.Visible = index <= claimed and not (attend.ready and attend.count == 0)
+		cell.check.Visible = index <= claimed and not (attendance.ready and attendance.count == 0)
 		cell.icon.TextTransparency = cell.check.Visible and 0.6 or 0
-		cell.glow.Thickness = index == nextIndex and 4 or 0
-		cell.frame.BackgroundColor3 = index == nextIndex and Color3.fromRGB(255, 226, 150) or COLORS.Cell
+		cell.glow.Color = index == nextIndex and COLORS.Gold or UIKit.Colors.Outline
+		cell.glow.Thickness = index == nextIndex and 6 or 3.5
 		cell.amount.Text = Utility.comma(math.floor(reward.coins * vipScale))
 	end
-	if attend.ready then
+	if attendance.ready then
 		claimButton.Text = "받기!"
-		claimButton.BackgroundColor3 = COLORS.Green
-		claimButton.AutoButtonColor = true
+		UIKit.setTheme(claimButton, "green")
+		claimButton.Active = true
 	else
 		claimButton.Text = "내일 또 와요"
-		claimButton.BackgroundColor3 = COLORS.Dim
-		claimButton.AutoButtonColor = false
+		UIKit.setTheme(claimButton, "grey")
+		claimButton.Active = false
 	end
-	attendNote.Text = attend.vip and "👑 VIP 코인 2배 적용 중!  빠진 날이 있어도 이어서 받아요."
-		or "👑 VIP 패스가 있으면 출석 코인 2배!  빠진 날이 있어도 이어서 받아요."
+	attendNote.Text = attendance.vip and "👑 VIP ×2" or ""
 end
 
 -- 받은 칸이 통통 튀는 연출
@@ -256,8 +133,8 @@ local function celebrateCell(index)
 	end
 	cell.check.Visible = true
 	cell.check.TextTransparency = 1
-	cell.check.TextSize = 110
-	TweenService:Create(cell.check, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { TextTransparency = 0, TextSize = 64 }):Play()
+	cell.check.TextSize = 130
+	TweenService:Create(cell.check, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { TextTransparency = 0, TextSize = 84 }):Play()
 	Sfx.play("Coins", { volume = 0.7 })
 end
 
@@ -265,10 +142,11 @@ end
 -- 룰렛
 --------------------------------------------------
 
-local rouletteWindow, roulettePaper, rouletteScale = woodWindow("Roulette", "행운의 룰렛", 620, 420)
-local WHEEL = 300
+local roulette = UIKit.window(gui, { name = "Roulette", title = "행운의 룰렛", theme = "orange", icon = "🎡", size = Vector2.new(660, 460) })
+local rouletteWindow, roulettePaper = roulette.frame, roulette.body
+local WHEEL = 340
 local wheelHolder = Instance.new("Frame")
-wheelHolder.Position = UDim2.fromOffset(16, 34)
+wheelHolder.Position = UDim2.fromOffset(6, 20)
 wheelHolder.Size = UDim2.fromOffset(WHEEL, WHEEL)
 wheelHolder.BackgroundTransparency = 1
 wheelHolder.Parent = roulettePaper
@@ -277,11 +155,10 @@ local wheel = Instance.new("Frame")
 wheel.AnchorPoint = Vector2.new(0.5, 0.5)
 wheel.Position = UDim2.fromScale(0.5, 0.5)
 wheel.Size = UDim2.fromScale(1, 1)
-wheel.BackgroundColor3 = COLORS.WoodDark
+wheel.BackgroundColor3 = UIKit.Colors.BodyDark
 wheel.Parent = wheelHolder
-local wheelRound = corner(wheel, 0)
-wheelRound.CornerRadius = UDim.new(0.5, 0)
-stroke(wheel, COLORS.Gold, 5)
+UIKit.corner(wheel, UDim.new(0.5, 0))
+UIKit.outline(wheel, 8, COLORS.Gold)
 
 local SEGMENTS = ROULETTE.Segments
 local STEP = 360 / #SEGMENTS
@@ -298,74 +175,62 @@ for index, segment in ipairs(SEGMENTS) do
 	local spoke = Instance.new("Frame")
 	spoke.AnchorPoint = Vector2.new(0.5, 1)
 	spoke.Position = UDim2.fromScale(0.5, 0.5)
-	spoke.Size = UDim2.new(0, 3, 0.5, -4)
+	spoke.Size = UDim2.new(0, 4, 0.5, -4)
 	spoke.BackgroundColor3 = COLORS.Gold
 	spoke.BorderSizePixel = 0
 	spoke.Parent = pivot
 
 	local radius = WHEEL * 0.32
 	local radians = math.rad(angle)
-	local tile = Instance.new("TextLabel")
+	local tile = Instance.new("Frame")
 	tile.AnchorPoint = Vector2.new(0.5, 0.5)
 	tile.Position = UDim2.new(0.5, math.sin(radians) * radius, 0.5, -math.cos(radians) * radius)
-	tile.Size = UDim2.fromOffset(64, 44)
+	tile.Size = UDim2.fromOffset(74, 54)
 	tile.Rotation = angle
 	tile.BackgroundColor3 = segment.color
-	tile.TextColor3 = COLORS.Cream
-	tile.Font = Enum.Font.GothamBlack
-	tile.TextSize = 15
-	tile.TextWrapped = true
-	if segment.kind == "coins" then
-		tile.Text = "🪙\n" .. segment.label
-	elseif (segment.minPrice or 0) > 700 then
-		tile.Text = "💎\n" .. segment.label
-	else
-		tile.Text = "🎁\n" .. segment.label
-	end
 	tile.Parent = wheel
-	corner(tile, 8)
+	UIKit.corner(tile, 10)
+	UIKit.outline(tile, 3)
+	UIKit.gradient(tile, Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 200), 90)
+	local icon = segment.kind == "coins" and "🪙" or ((segment.minPrice or 0) > 700 and "💎" or "🎁")
+	UIKit.label(tile, { text = icon .. "\n" .. segment.label, size = UDim2.fromScale(1, 1), textSize = 17, stroke = 2.5, wrap = true })
 end
-local hub = Instance.new("TextLabel")
+local hub = Instance.new("Frame")
 hub.AnchorPoint = Vector2.new(0.5, 0.5)
 hub.Position = UDim2.fromScale(0.5, 0.5)
-hub.Size = UDim2.fromOffset(62, 62)
-hub.BackgroundColor3 = COLORS.Plank
-hub.Text = "☠"
-hub.TextSize = 32
-hub.TextColor3 = COLORS.Cream
+hub.Size = UDim2.fromOffset(72, 72)
+hub.BackgroundColor3 = Color3.new(1, 1, 1)
 hub.Parent = wheelHolder
-corner(hub, 31)
-stroke(hub, COLORS.Gold, 3)
-local pointer = text(wheelHolder, "▼", UDim2.fromOffset(40, 40), UDim2.new(0.5, -20, 0, -30), 38, COLORS.Red, Enum.Font.GothamBlack)
-pointer.TextStrokeTransparency = 0
-pointer.ZIndex = 5
+UIKit.paint(hub, "gold")
+UIKit.corner(hub, UDim.new(0.5, 0))
+UIKit.outline(hub, 4)
+UIKit.label(hub, { text = "☠", size = UDim2.fromScale(1, 1), textSize = 40, stroke = 3 })
+local pointer = UIKit.label(wheelHolder, { text = "▼", size = UDim2.fromOffset(50, 50), position = UDim2.new(0.5, -25, 0, -36), textSize = 46, color = COLORS.Red, stroke = 4, zIndex = 5 })
 
 -- 오른쪽 : 확률표 + 버튼
 local side = Instance.new("Frame")
-side.Position = UDim2.new(0, WHEEL + 32, 0, 12)
-side.Size = UDim2.new(1, -(WHEEL + 44), 1, -24)
+side.Position = UDim2.new(0, WHEEL + 26, 0, 4)
+side.Size = UDim2.new(1, -(WHEEL + 30), 1, -8)
 side.BackgroundTransparency = 1
 side.Parent = roulettePaper
-local oddsTitle = text(side, "확률표 · 하루 한 번 무료", UDim2.new(1, 0, 0, 20), UDim2.new(), 13, COLORS.Ink, Enum.Font.GothamBlack)
+local oddsTitle = text(side, "확률", UDim2.new(1, 0, 0, 30), UDim2.new(), 24, COLORS.Gold)
 oddsTitle.TextXAlignment = Enum.TextXAlignment.Left
 local total = GameConfig.rouletteTotalWeight()
 for index, segment in ipairs(SEGMENTS) do
 	local name
 	if segment.kind == "coins" then
-		name = Utility.comma(segment.amount) .. " 코인"
+		name = "🪙 " .. Utility.comma(segment.amount)
 	elseif (segment.minPrice or 0) > 700 then
-		name = "희귀 스킨 (없는 것 중 하나)"
+		name = "💎 희귀 스킨"
 	else
-		name = "평범한 스킨 (없는 것 중 하나)"
+		name = "🎁 평범한 스킨"
 	end
-	local line = text(side, ("%s  ·  %.1f%%"):format(name, segment.weight / total * 100),
-		UDim2.new(1, 0, 0, 17), UDim2.fromOffset(0, 20 + (index - 1) * 17), 12, COLORS.Ink, Enum.Font.Gotham)
+	local line = text(side, ("%s  %.1f%%"):format(name, segment.weight / total * 100),
+		UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 32 + (index - 1) * 22), 17, COLORS.Cream)
 	line.TextXAlignment = Enum.TextXAlignment.Left
 end
-local fallbackNote = text(side, "다 가진 스킨 칸은 코인으로 바뀌어요", UDim2.new(1, 0, 0, 30), UDim2.fromOffset(0, 160), 11, COLORS.Dim, Enum.Font.Gotham)
-fallbackNote.TextXAlignment = Enum.TextXAlignment.Left
-local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 52), UDim2.fromOffset(0, 196), COLORS.Green)
-local resultLabel = text(side, "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 258), 15, COLORS.Ink, Enum.Font.GothamBlack)
+local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 222), "green")
+local resultLabel = text(side, "", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 292), 24, COLORS.Gold)
 
 local spinning = false
 local spinToken = 0
@@ -376,13 +241,13 @@ local function drawRoulette()
 		return
 	end
 	if spinning then
-		spinButton.Text = "돌아가는 중…"
+		spinButton.Text = "…"
 	elseif info.free then
-		spinButton.Text = "오늘의 룰렛 돌리기!"
+		spinButton.Text = "돌리기!"
 	else
-		spinButton.Text = "내일 또 돌릴 수 있어요"
+		spinButton.Text = "내일 또!"
 	end
-	spinButton.BackgroundColor3 = (not spinning and info.free) and COLORS.Green or COLORS.Dim
+	UIKit.setTheme(spinButton, (not spinning and info.free) and "green" or "grey")
 end
 
 spinButton.Activated:Connect(function()
@@ -442,58 +307,21 @@ local function spinTo(result)
 	spinning = false
 	local message, big = resultText(result)
 	resultLabel.Text = message
-	resultLabel.TextColor3 = big and COLORS.Red or COLORS.Ink
+	resultLabel.TextColor3 = big and COLORS.Gold or COLORS.Ink
 	Sfx.play("Coins", { volume = big and 1 or 0.6 })
 	if big then
-		pointer.TextSize = 54
-		TweenService:Create(pointer, TweenInfo.new(0.5, Enum.EasingStyle.Elastic), { TextSize = 38 }):Play()
+		pointer.TextSize = 64
+		TweenService:Create(pointer, TweenInfo.new(0.5, Enum.EasingStyle.Elastic), { TextSize = 46 }):Play()
 	end
 	drawRoulette()
 end
 
 --------------------------------------------------
--- 왼쪽 아래 버튼 두 개
+-- 왼쪽 버튼 두 개 (📅 출석 · 🎡 룰렛)
 --------------------------------------------------
 
-local baseY = UserInputService.TouchEnabled and -108 or -16
-local function launcher(name, emoji, caption, imageId, index, onClick)
-	local b
-	local size = 66
-	if imageId and imageId > 0 then
-		b = Instance.new("ImageButton")
-		b.Image = "rbxassetid://" .. imageId
-		b.ScaleType = Enum.ScaleType.Crop
-		b.BackgroundColor3 = COLORS.Wood
-	else
-		local t = Instance.new("TextButton")
-		t.Text = emoji .. "\n" .. caption
-		t.TextSize = 13
-		t.Font = Enum.Font.GothamBlack
-		t.TextColor3 = COLORS.Gold
-		t.BackgroundColor3 = COLORS.Wood
-		b = t
-	end
-	b.Name = name
-	b.AnchorPoint = Vector2.new(0, 1)
-	b.Position = UDim2.new(0, 14 + (index - 1) * (size + 8), 1, baseY - 76 - 10)
-	b.Size = UDim2.fromOffset(size, size)
-	b.BorderSizePixel = 0
-	b.Parent = gui
-	corner(b, 14)
-	stroke(b, COLORS.Gold, 2)
-	local dot = Instance.new("TextLabel")
-	dot.Name = "Dot"
-	dot.AnchorPoint = Vector2.new(0.5, 0.5)
-	dot.Position = UDim2.new(1, -4, 0, 4)
-	dot.Size = UDim2.fromOffset(22, 22)
-	dot.BackgroundColor3 = COLORS.Red
-	dot.TextColor3 = COLORS.Cream
-	dot.Font = Enum.Font.GothamBlack
-	dot.TextSize = 12
-	dot.Text = "!"
-	dot.Visible = false
-	dot.Parent = b
-	corner(dot, 11)
+local function launcher(name, emoji, caption, imageId, order, themeName, onClick)
+	local b, dot = UIKit.railButton({ name = name, icon = emoji, caption = caption, image = imageId, order = order, theme = themeName })
 	b.Activated:Connect(onClick)
 	return b, dot
 end
@@ -509,23 +337,23 @@ end
 local function openAttendance()
 	closeOthers(attendWindow)
 	drawAttendance()
-	popIn(attendWindow, attendScale)
+	attend.open()
 end
 
 local function openRoulette()
 	closeOthers(rouletteWindow)
 	drawRoulette()
-	popIn(rouletteWindow, rouletteScale)
+	roulette.open()
 end
 
-local attendButton, attendDot = launcher("AttendanceButton", "📅", "출석", tonumber(Release.Images and Release.Images.Attendance) or 0, 1, function()
+local attendButton, attendDot = launcher("AttendanceButton", "📅", "출석", tonumber(Release.Images and Release.Images.Attendance) or 0, 3, "purple", function()
 	if attendWindow.Visible then
 		attendWindow.Visible = false
 	else
 		openAttendance()
 	end
 end)
-local rouletteButton, rouletteDot = launcher("RouletteButton", "🎡", "룰렛", tonumber(Release.Images and Release.Images.Roulette) or 0, 2, function()
+local rouletteButton, rouletteDot = launcher("RouletteButton", "🎡", "룰렛", tonumber(Release.Images and Release.Images.Roulette) or 0, 4, "orange", function()
 	if rouletteWindow.Visible then
 		rouletteWindow.Visible = false
 	else
@@ -599,9 +427,9 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 				state.attendance.ready = false
 			end
 			celebrateCell(result.day)
-			attendNote.Text = ("+%s 코인%s"):format(Utility.comma(result.coins), result.vip and " (VIP 2배)" or "")
+			attendNote.Text = ("🪙 +%s%s"):format(Utility.comma(result.coins), result.vip and "  👑×2" or "")
 			claimButton.Text = "내일 또 와요"
-			claimButton.BackgroundColor3 = COLORS.Dim
+			UIKit.setTheme(claimButton, "grey")
 			-- 오늘 룰렛을 아직 안 돌렸으면 이어서 룰렛을 보여 준다
 			if player:GetAttribute("FreeSpin") == true then
 				task.delay(1.6, function()

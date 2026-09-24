@@ -48,7 +48,7 @@ end
 --------------------------------------------------
 
 function CannonService:_register(model)
-	local tube = model:FindFirstChild("CannonTube")
+	local tube = model:FindFirstChild("CannonTube", true) -- Phase 14 : 포신 장식과 함께 Barrel 모델 안에 있다
 	if not tube or not tube:IsA("BasePart") then
 		return
 	end
@@ -71,7 +71,7 @@ function CannonService:_register(model)
 	local prompt = tube:FindFirstChildOfClass("ProximityPrompt") or Instance.new("ProximityPrompt")
 	prompt.Name = "CannonPrompt"
 	prompt.ActionText = "대포 쏘기"
-	prompt.ObjectText = "크라켄 사냥"
+	prompt.ObjectText = "" -- 부제목 없음
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = CANNON.PromptDistance
 	prompt.RequiresLineOfSight = false

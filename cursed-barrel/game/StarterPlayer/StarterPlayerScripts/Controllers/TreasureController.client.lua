@@ -256,8 +256,13 @@ local function characterOf(model, userId)
 		return actor.Character
 	end
 	for _, seat in ipairs(model:GetDescendants()) do
-		if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == userId and seat.Occupant then
-			return seat.Occupant.Parent
+		if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == userId then
+			local link = seat:FindFirstChild("BotCharacter")
+			if link and link.Value then
+				return link.Value
+			elseif seat.Occupant then
+				return seat.Occupant.Parent
+			end
 		end
 	end
 	return nil

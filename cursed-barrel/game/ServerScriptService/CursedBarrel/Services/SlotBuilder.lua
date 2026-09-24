@@ -308,7 +308,7 @@ local function ensurePrompt(slot)
 
 	local settings = GameConfig.SlotPrompt
 	prompt.ActionText = settings.ActionText
-	prompt.ObjectText = ("%d번 자리"):format(slot:GetAttribute(SLOT_ATTR.SlotIndex) or 0)
+	prompt.ObjectText = "" -- 부제목 없음
 	prompt.HoldDuration = settings.HoldDuration
 	prompt.MaxActivationDistance = settings.MaxActivationDistance
 	prompt.RequiresLineOfSight = settings.RequiresLineOfSight

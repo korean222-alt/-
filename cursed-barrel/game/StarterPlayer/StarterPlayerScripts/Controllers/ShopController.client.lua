@@ -18,7 +18,6 @@ local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
@@ -33,20 +32,18 @@ local sabotageCue = Remotes:WaitForChild(GameConfig.Remotes.SabotageCue)
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
+local UIKit = require(Shared:WaitForChild("UIKit"))
+
 local PALETTE = {
-	Back = Color3.fromRGB(22, 17, 13),
-	Panel = Color3.fromRGB(34, 25, 18),
-	Row = Color3.fromRGB(46, 33, 23),
-	Gold = Color3.fromRGB(232, 186, 96),
-	Cream = Color3.fromRGB(238, 226, 200),
-	Dim = Color3.fromRGB(158, 144, 122),
-	Good = Color3.fromRGB(131, 209, 144),
-	Bad = Color3.fromRGB(230, 118, 104),
-	Robux = Color3.fromRGB(0, 176, 111),
+	Gold = UIKit.Colors.Gold,
+	Cream = UIKit.Colors.Cream,
+	Dim = UIKit.Colors.Dim,
+	Good = UIKit.Colors.Green,
+	Bad = UIKit.Colors.Red,
 }
 
-local TAB_NAMES = { { "shop", "상점" }, { "quest", "퀘스트" }, { "sabotage", "방해" } }
 local KINDS = { {"Knife","칼"},{"Barrel","통"},{"Ghost","해적"},{"Stab","모션"},{"Chair","의자"},{"Elimination","탈락"},{"Victory","승리"} }
+local RARITY_THEME = { common = "grey", rare = "blue", epic = "purple", legend = "gold", mythic = "red" }
 
 local state = nil -- 서버가 보내 준 마지막 상태
 local coinAndRobuxButtons -- Phase 13 (아래에서 정의)
@@ -58,7 +55,7 @@ local currentKind = "Knife"
 local selectedTarget = nil
 
 --------------------------------------------------
--- 기본 UI
+-- 기본 UI (Phase 14 : 만화풍 굵은 테두리 · 밝은 머리띠)
 --------------------------------------------------
 
 local gui = Instance.new("ScreenGui")
@@ -68,131 +65,116 @@ gui.DisplayOrder = 14
 gui.IgnoreGuiInset = false
 gui.Parent = playerGui
 
-local function corner(parent, radius)
-	local instance = Instance.new("UICorner")
-	instance.CornerRadius = UDim.new(0, radius or 10)
-	instance.Parent = parent
-	return instance
+local function label(parent, text, size, position, textSize, color)
+	return UIKit.label(parent, {
+		text = text, size = size, position = position, textSize = textSize or 16,
+		color = color or PALETTE.Cream, alignX = Enum.TextXAlignment.Left, wrap = true,
+	})
 end
 
-local function stroke(parent, color, thickness, transparency)
-	local instance = Instance.new("UIStroke")
-	instance.Color = color or PALETTE.Gold
-	instance.Thickness = thickness or 1.5
-	instance.Transparency = transparency or 0.4
-	instance.Parent = parent
-	return instance
-end
-
-local function label(parent, text, size, position, textSize, color, font)
-	local instance = Instance.new("TextLabel")
-	instance.Size = size
-	instance.Position = position
-	instance.BackgroundTransparency = 1
-	instance.Font = font or Enum.Font.GothamBold
-	instance.TextSize = textSize or 14
-	instance.TextColor3 = color or PALETTE.Cream
-	instance.TextXAlignment = Enum.TextXAlignment.Left
-	instance.Text = text
-	instance.Parent = parent
-	return instance
-end
-
-local function textButton(parent, text, size, position, color, textColor)
-	local instance = Instance.new("TextButton")
-	instance.Size = size
-	instance.Position = position
-	instance.BackgroundColor3 = color or PALETTE.Row
-	instance.BorderSizePixel = 0
-	instance.AutoButtonColor = true
-	instance.Font = Enum.Font.GothamBold
-	instance.TextSize = 13
-	instance.TextColor3 = textColor or PALETTE.Cream
-	instance.Text = text
-	instance.Parent = parent
-	corner(instance, 8)
-	return instance
+local function textButton(parent, text, size, position, themeName, textColor)
+	return UIKit.button(parent, {
+		text = text, size = size, position = position, theme = themeName or "blue",
+		textColor = textColor, textSize = 18,
+	})
 end
 
 --------------------------------------------------
--- 코인 표시 + 여는 버튼
+-- 왼쪽 아래 코인 (크게) + 왼쪽 버튼
 --------------------------------------------------
 
 local launcher = Instance.new("Frame")
-launcher.Name = "Launcher"
-launcher.AnchorPoint = Vector2.new(0, 1)
-launcher.Position = UDim2.new(0, 14, 1, UserInputService.TouchEnabled and -108 or -16)
-launcher.Size = UDim2.fromOffset(212, 76)
-launcher.BackgroundColor3 = PALETTE.Back
-launcher.BackgroundTransparency = 0.15
-launcher.BorderSizePixel = 0
+launcher.Name = "Coins"
+launcher.AnchorPoint = Vector2.new(0, 0)
+launcher.Position = UDim2.new(0, 14, 0.42, 3 * 74 / 2 + 22 + 24)
+launcher.Size = UDim2.fromOffset(260, 64)
+launcher.BackgroundTransparency = 1
 launcher.Parent = gui
-corner(launcher, 12)
-stroke(launcher, PALETTE.Gold, 1.5, 0.5)
 
-local coinLabel = label(launcher, "0 코인", UDim2.new(1, -16, 0, 20), UDim2.fromOffset(10, 6), 15, PALETTE.Gold)
-local levelLabel = label(launcher, "Lv.1", UDim2.new(1, -16, 0, 16), UDim2.fromOffset(10, 24), 12, PALETTE.Dim)
+local coinIcon = UIKit.label(launcher, { text = "🪙", size = UDim2.fromOffset(52, 52), position = UDim2.fromOffset(0, 0), textSize = 44, stroke = 2.5 })
+coinIcon.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+local coinLabel = UIKit.label(launcher, {
+	text = "0", size = UDim2.new(1, -58, 0, 44), position = UDim2.fromOffset(56, 2),
+	textSize = 38, color = PALETTE.Gold, stroke = 4, alignX = Enum.TextXAlignment.Left,
+})
+local levelLabel = UIKit.label(launcher, {
+	text = "Lv.1", size = UDim2.new(1, -58, 0, 20), position = UDim2.fromOffset(58, 44),
+	textSize = 17, color = PALETTE.Cream, stroke = 2.5, alignX = Enum.TextXAlignment.Left,
+})
 
 local tabButtons = {}
-for index, entry in ipairs(TAB_NAMES) do
-	local button = textButton(launcher, entry[2], UDim2.fromOffset(62, 24), UDim2.fromOffset(10 + (index - 1) * 66, 44))
-	tabButtons[entry[1]] = button
-end
+tabButtons.shop = UIKit.railButton({ name = "ShopButton", icon = "🛒", caption = "상점", theme = "green", order = 1 })
+tabButtons.quest = UIKit.railButton({ name = "QuestButton", icon = "📜", caption = "퀘스트", theme = "blue", order = 2 })
+tabButtons.sabotage = UIKit.railButton({ name = "SabotageButton", icon = "😈", caption = "방해", theme = "purple", order = 5 })
 
 --------------------------------------------------
 -- 본 화면
 --------------------------------------------------
 
-local window = Instance.new("Frame")
-window.Name = "Window"
-window.AnchorPoint = Vector2.new(0.5, 0.5)
-window.Position = UDim2.fromScale(0.5, 0.5)
-window.Size = UDim2.fromOffset(620, 430)
-window.BackgroundColor3 = PALETTE.Back
-window.BackgroundTransparency = 0.04
-window.BorderSizePixel = 0
-window.Visible = false
-window.Parent = gui
-corner(window, 16)
-stroke(window, PALETTE.Gold, 2, 0.3)
+local shopWindow = UIKit.window(gui, { name = "Window", title = "상점", theme = "green", icon = "🛒", size = Vector2.new(680, 500) })
+local window = shopWindow.frame
+local windowTitle = shopWindow.title
+windowTitle.TextXAlignment = Enum.TextXAlignment.Left
+windowTitle.Size = UDim2.new(1, -300, 1, 0)
+windowTitle.Position = UDim2.fromOffset(78, 0)
 
-local windowTitle = label(window, "상점", UDim2.new(1, -120, 0, 28), UDim2.fromOffset(20, 14), 20, PALETTE.Gold)
-local windowCoins = label(window, "", UDim2.fromOffset(180, 20), UDim2.new(1, -206, 0, 18), 14, PALETTE.Gold)
-windowCoins.TextXAlignment = Enum.TextXAlignment.Right
+-- 머리띠 오른쪽 코인 알약
+local coinPill = Instance.new("Frame")
+coinPill.Name = "CoinPill"
+coinPill.AnchorPoint = Vector2.new(1, 0.5)
+coinPill.Position = UDim2.new(1, -70, 0.5, 0)
+coinPill.Size = UDim2.fromOffset(190, 42)
+coinPill.ZIndex = 5
+coinPill.Parent = shopWindow.header
+UIKit.paint(coinPill, "gold")
+UIKit.corner(coinPill, 21)
+UIKit.outline(coinPill, 3)
+local windowCoins = UIKit.label(coinPill, { text = "", size = UDim2.new(1, -12, 1, 0), position = UDim2.fromOffset(6, 0), textSize = 24, stroke = 3, scaled = true, zIndex = 6 })
 
-local closeButton = textButton(window, "✕", UDim2.fromOffset(30, 26), UDim2.new(1, -44, 0, 14), PALETTE.Row)
+local closeButton = shopWindow.close
 
-local toast = label(window, "", UDim2.new(1, -40, 0, 18), UDim2.fromOffset(20, 44), 13, PALETTE.Good)
+local toast = UIKit.label(window, {
+	name = "Toast", text = "", size = UDim2.new(1, -40, 0, 30), position = UDim2.new(0.5, 0, 1, -10),
+	anchor = Vector2.new(0.5, 1), textSize = 22, color = PALETTE.Good, stroke = 3.5, zIndex = 20,
+})
 
--- 종류 탭 (칼 · 통 · 해적) — 상점 화면에서만 쓴다
+-- 종류 탭 (칼 · 통 · 해적 …) — 상점 화면에서만 쓴다
 local kindRow = Instance.new("Frame")
 kindRow.Name = "Kinds"
-kindRow.Position = UDim2.fromOffset(20, 66)
-kindRow.Size = UDim2.new(1, -40, 0, 26)
+kindRow.Position = UDim2.fromOffset(20, 78)
+kindRow.Size = UDim2.new(1, -40, 0, 38)
 kindRow.BackgroundTransparency = 1
 kindRow.Parent = window
 
 local kindButtons = {}
 for index, entry in ipairs(KINDS) do
-	kindButtons[entry[1]] = textButton(kindRow, entry[2], UDim2.fromOffset(88, 26), UDim2.fromOffset((index - 1) * 94, 0))
+	kindButtons[entry[1]] = UIKit.button(kindRow, {
+		text = entry[2], size = UDim2.fromOffset(84, 36), position = UDim2.fromOffset((index - 1) * 90, 0),
+		theme = "grey", textSize = 18,
+	})
 end
 
 local scroller = Instance.new("ScrollingFrame")
 scroller.Name = "List"
-scroller.Position = UDim2.fromOffset(20, 100)
-scroller.Size = UDim2.new(1, -40, 1, -120)
+scroller.Position = UDim2.fromOffset(20, 126)
+scroller.Size = UDim2.new(1, -40, 1, -146)
 scroller.BackgroundTransparency = 1
 scroller.BorderSizePixel = 0
-scroller.ScrollBarThickness = 5
+scroller.ScrollBarThickness = 8
 scroller.ScrollBarImageColor3 = PALETTE.Gold
 scroller.CanvasSize = UDim2.fromOffset(0, 0)
 scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scroller.Parent = window
 
 local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 6)
+listLayout.Padding = UDim.new(0, 10)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 listLayout.Parent = scroller
+local listPadding = Instance.new("UIPadding")
+listPadding.PaddingTop = UDim.new(0, 6)
+listPadding.PaddingBottom = UDim.new(0, 10)
+listPadding.Parent = scroller
 
 local function clearList()
 	for _, child in ipairs(scroller:GetChildren()) do
@@ -202,16 +184,19 @@ local function clearList()
 	end
 end
 
-local function makeRow(order, height)
+local function makeRow(order, height, themeName)
+	return UIKit.card(scroller, { name = "Row" .. order, order = order, height = height or 64, theme = themeName or "grey" })
+end
+
+-- 목록 사이 제목 줄
+local function headerRow(order, text)
 	local row = Instance.new("Frame")
-	row.Name = "Row" .. order
-	row.Size = UDim2.new(1, -8, 0, height or 52)
-	row.BackgroundColor3 = PALETTE.Row
-	row.BackgroundTransparency = 0.15
-	row.BorderSizePixel = 0
+	row.Name = "Header" .. order
+	row.Size = UDim2.new(1, -10, 0, 34)
+	row.BackgroundTransparency = 1
 	row.LayoutOrder = order
 	row.Parent = scroller
-	corner(row, 8)
+	UIKit.label(row, { text = text, size = UDim2.new(1, -8, 1, 0), position = UDim2.fromOffset(4, 0), textSize = 24, color = PALETTE.Gold, stroke = 3.5, alignX = Enum.TextXAlignment.Left })
 	return row
 end
 
@@ -243,16 +228,11 @@ local function premiumRow(order, offer, action, kind)
 		return order
 	end
 	order += 1
-	local row = makeRow(order, 62)
-	row.BackgroundColor3 = Color3.fromRGB(64, 44, 20)
-	label(row, "★ " .. offer.name, UDim2.new(1, -140, 0, 22), UDim2.fromOffset(12, 6), 15, PALETTE.Gold)
-	local blurb = label(row, offer.blurb or "", UDim2.new(1, -140, 0, 30), UDim2.fromOffset(12, 28), 12, PALETTE.Cream)
-	blurb.TextWrapped = true
-	blurb.TextYAlignment = Enum.TextYAlignment.Top
+	local row = makeRow(order, 84, action == "vip" and "gold" or (kind == "Booster" and "orange" or "teal"))
+	label(row, "★ " .. offer.name, UDim2.new(1, -190, 0, 32), UDim2.fromOffset(24, 8), 24, PALETTE.Gold)
+	label(row, offer.blurb or "", UDim2.new(1, -190, 0, 30), UDim2.fromOffset(24, 44), 17, PALETTE.Cream)
 	local buy = textButton(row, offer.ready and ("R$ %d"):format(offer.robux) or "준비 중",
-		UDim2.fromOffset(110, 34), UDim2.new(1, -122, 0, 14),
-		offer.ready and PALETTE.Robux or PALETTE.Panel,
-		offer.ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+		UDim2.fromOffset(150, 52), UDim2.new(1, -166, 0.5, -26), offer.ready and "robux" or "grey")
 	buy.Activated:Connect(function()
 		shopRequest:FireServer(action, kind, kind)
 	end)
@@ -263,13 +243,13 @@ end
 -- (모자란 만큼을 채우는 가장 작은 코인 묶음을 권한다. 누르면 그 묶음의 로벅스 구매창)
 coinAndRobuxButtons = function(row, entry)
 	local affordable = state.coins >= entry.price
-	local buy = textButton(row, "🪙 " .. Utility.comma(entry.price), UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 6),
-		affordable and PALETTE.Row or PALETTE.Panel, affordable and PALETTE.Gold or PALETTE.Dim)
+	local buy = textButton(row, "🪙 " .. Utility.comma(entry.price), UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10),
+		affordable and "gold" or "grey")
 	buy.Activated:Connect(function()
 		if state.coins >= entry.price then
 			shopRequest:FireServer("buy", entry.kind, entry.id)
 		else
-			showToast(("코인이 %s 모자라요 · 아래 「충전」으로 채울 수 있어요"):format(Utility.comma(entry.price - state.coins)), false)
+			showToast(("🪙 %s 부족"):format(Utility.comma(entry.price - state.coins)), false)
 		end
 	end)
 	if affordable then
@@ -282,11 +262,9 @@ coinAndRobuxButtons = function(row, entry)
 	end
 	local ready = (tonumber(pack.productId) or 0) > 0
 	local topUp = textButton(row, ready and ("충전 R$ %d"):format(pack.robux) or "충전 준비 중",
-		UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 42),
-		ready and PALETTE.Robux or PALETTE.Panel, ready and Color3.new(1, 1, 1) or PALETTE.Dim)
-	topUp.TextSize = 12
+		UDim2.fromOffset(150, 30), UDim2.new(1, -166, 0, 56), ready and "robux" or "grey")
 	topUp.Activated:Connect(function()
-		showToast(("%s 묶음 · 코인 %s 충전 (R$ %d)"):format(pack.size or "", Utility.comma(pack.coins), pack.robux), true)
+		showToast(("🪙 %s  (R$ %d)"):format(Utility.comma(pack.coins), pack.robux), true)
 		shopRequest:FireServer("robux", "coins", pack.id)
 	end)
 end
@@ -303,13 +281,13 @@ local function dealRow(order)
 		return order
 	end
 	order += 1
-	local row = makeRow(order, 78)
-	row.BackgroundColor3 = Color3.fromRGB(92, 38, 26)
-	label(row, ("🔥 오늘의 특가 -%d%%  ·  %s"):format(math.floor(GameConfig.DailyDeal.Discount * 100 + 0.5), KIND_NAMES[entry.kind] or entry.kind),
-		UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, 6), 13, PALETTE.Gold)
-	label(row, entry.name, UDim2.new(1, -130, 0, 22), UDim2.fromOffset(12, 26), 15, entry.rarityColor or PALETTE.Cream)
-	label(row, ("%s → %s 코인 · 내일이면 바뀝니다"):format(Utility.comma(entry.originalPrice or entry.price), Utility.comma(entry.price)),
-		UDim2.new(1, -130, 0, 20), UDim2.fromOffset(12, 50), 12, PALETTE.Cream)
+	local row = makeRow(order, 96, "red")
+	UIKit.tag(row, ("-%d%%"):format(math.floor(GameConfig.DailyDeal.Discount * 100 + 0.5)), UIKit.Colors.Gold)
+	label(row, ("🔥 오늘의 특가  ·  %s"):format(KIND_NAMES[entry.kind] or entry.kind), UDim2.new(1, -190, 0, 26), UDim2.fromOffset(24, 10), 18, PALETTE.Gold)
+	label(row, entry.name, UDim2.new(1, -190, 0, 30), UDim2.fromOffset(24, 38), 24, entry.rarityColor or PALETTE.Cream)
+	local old = label(row, ("%s"):format(Utility.comma(entry.originalPrice or entry.price)), UDim2.new(1, -190, 0, 20), UDim2.fromOffset(24, 68), 16, PALETTE.Dim)
+	old.Text = "<s>" .. old.Text .. "</s>"
+	old.RichText = true
 	coinAndRobuxButtons(row, entry)
 	return order
 end
@@ -317,7 +295,7 @@ end
 local function drawShop()
 	clearList()
 	if not state then
-		label(makeRow(1), "자료를 불러오는 중…", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 14, PALETTE.Dim)
+		label(makeRow(1), "…", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(24, 0), 20, PALETTE.Dim)
 		return
 	end
 
@@ -328,60 +306,43 @@ local function drawShop()
 	order = dealRow(order)
 	for _, entry in ipairs(state.catalog[currentKind] or {}) do
 		order += 1
-		local row = makeRow(order,78)
+		local row = makeRow(order, 96, RARITY_THEME[entry.rarity or "common"] or "grey")
 
-		label(row, entry.name, UDim2.new(1,-178,0,38), UDim2.fromOffset(12, 4), 14,
-			entry.rarityColor or PALETTE.Cream).TextWrapped=true
-
-		local detail
-		if entry.owned then
-			detail = entry.equipped and "장착 중" or "보유 중"
-		elseif entry.vip then
-			detail = "VIP 패스 전용"
-		elseif entry.pack then
-			detail = "스타터 팩 전용"
-		elseif entry.season then
-			detail = "시즌 보상 (항해 탭)"
-		elseif entry.robux > 0 and entry.price <= 0 then
-			detail = ("R$ %d"):format(entry.robux)
-		elseif entry.deal then
-			detail = ("🔥 특가 %s 코인"):format(Utility.comma(entry.price))
-		else
-			detail = ("%s 코인"):format(Utility.comma(entry.price))
+		label(row, entry.name, UDim2.new(1, -250, 0, 34), UDim2.fromOffset(24, 10), 24, UIKit.Colors.White)
+		-- 등급만 짧게 (설명 줄은 두지 않는다)
+		local rarity = label(row, entry.rarityLabel or "", UDim2.new(1, -250, 0, 24), UDim2.fromOffset(24, 50), 18, entry.rarityColor or PALETTE.Dim)
+		if entry.deal and not entry.owned then
+			rarity.Text = rarity.Text .. "  🔥"
 		end
-		label(row, ("%s  ·  %s"):format(entry.rarityLabel, detail),
-			UDim2.new(1,-178,0,28), UDim2.fromOffset(12, 42), 12, PALETTE.Dim).TextWrapped=true
 
 		-- Phase 11 : 칼 꽂기 모션은 3D 모형 대신 내 캐릭터로 동작을 보여 준다. (내 화면에서만)
 		local isMotion = entry.kind == "Stab"
-		local inspect=textButton(row,isMotion and "보기" or "3D",UDim2.fromOffset(42,30),UDim2.new(1,-160,0,11),PALETTE.Panel,PALETTE.Gold)
-        inspect.Activated:Connect(function()
+		local inspect = textButton(row, isMotion and "▶" or "3D", UDim2.fromOffset(62, 40), UDim2.new(1, -240, 0, 10), "purple")
+		inspect.Activated:Connect(function()
 			if isMotion then
 				local skin = GameConfig.findSkin("Stab", entry.id)
 				require(Shared.StabMotion).preview(localPlayer.Character, skin and skin.style or "classic")
 			else
-				require(Shared.SkinPreview).show(entry.kind,entry.id)
+				require(Shared.SkinPreview).show(entry.kind, entry.id)
 			end
 		end)
 		if entry.equipped then
-			local badge = textButton(row, "장착 중", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Panel, PALETTE.Good)
-			badge.AutoButtonColor = false
+			local badge = textButton(row, "장착 중", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "teal")
 			badge.Active = false
 		elseif entry.owned then
-			local equip = textButton(row, "장착", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Row, PALETTE.Gold)
+			local equip = textButton(row, "장착", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "blue")
 			equip.Activated:Connect(function()
 				shopRequest:FireServer("equip", entry.kind, entry.id)
 			end)
 		elseif entry.season then
-			local badge = textButton(row, "시즌 보상", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Panel, PALETTE.Dim)
-			badge.AutoButtonColor = false
+			local badge = textButton(row, "시즌 보상", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "grey")
 			badge.Active = false
 		elseif entry.vip or entry.pack then
 			-- 코인으로 살 수 없다. 해당 상품으로 안내한다.
 			local offer = entry.vip and state.vip or state.starter
 			local ready = offer and offer.ready and not offer.owned
-			local buy = textButton(row, entry.vip and "VIP 패스" or "스타터 팩", UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11),
-				ready and PALETTE.Robux or PALETTE.Panel, ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+			local buy = textButton(row, entry.vip and "VIP 패스" or "스타터 팩", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10),
+				ready and "robux" or "grey")
 			buy.Activated:Connect(function()
 				if entry.vip then
 					shopRequest:FireServer("vip", "vip", "vip")
@@ -390,22 +351,13 @@ local function drawShop()
 				end
 			end)
 		elseif entry.robux > 0 and entry.price <= 0 then
-			local buy = textButton(row, ("R$ %d"):format(entry.robux), UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 11), PALETTE.Robux, Color3.new(1, 1, 1))
+			local buy = textButton(row, ("R$ %d"):format(entry.robux), UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0, 10), "robux")
 			buy.Activated:Connect(function()
 				shopRequest:FireServer("robux", entry.kind, entry.id)
 			end)
 		else
 			coinAndRobuxButtons(row, entry)
 		end
-	end
-
-	-- 통 스킨 탭에는 우선순위 규칙을 한 줄로 알려준다.
-	if currentKind == "Barrel" then
-		order += 1
-		local note = makeRow(order, 40)
-		note.BackgroundTransparency = 0.6
-		label(note, "한 테이블에는 통이 하나뿐입니다. 등급이 높은 통이 보이고, 같은 등급이면 레벨이 높은 사람 것이 보입니다.",
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 12, PALETTE.Dim).TextWrapped = true
 	end
 
 	-- 코인 묶음
@@ -417,36 +369,24 @@ local function drawShop()
 	end
 	if #packs > 0 then
 		order += 1
-		local header = makeRow(order, 28)
-		header.BackgroundTransparency = 1
-		label(header, state.firstPurchase and "코인 충전  ·  🎁 첫 충전은 코인 2배!" or "코인 충전",
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+		headerRow(order, state.firstPurchase and "🪙 코인 충전  ·  🎁 첫 충전 2배!" or "🪙 코인 충전")
 	end
 
 	for _, pack in ipairs(packs) do
 		order += 1
 		-- Phase 13 : 영화관 팝콘처럼 "대"를 크게 · 금색으로
-		local row = makeRow(order, pack.highlight and 64 or (pack.badge and 52 or 44))
-		if pack.highlight then
-			row.BackgroundColor3 = Color3.fromRGB(96, 70, 22)
-			row.BackgroundTransparency = 0
-			stroke(row, PALETTE.Gold, 2, 0)
-		end
-		local coinsText = ("%s  ·  %s"):format(pack.size or "", pack.name)
-		if state.firstPurchase then
-			coinsText = ("%s  ·  %s  →  %s (2배)"):format(pack.size or "", pack.name, Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier))
-		end
-		label(row, coinsText, UDim2.new(1, -130, 0, 22), UDim2.fromOffset(12, pack.badge and 6 or 12), pack.highlight and 16 or 14,
-			pack.highlight and PALETTE.Gold or PALETTE.Cream)
+		local row = makeRow(order, pack.highlight and 92 or 74, pack.highlight and "gold" or "green")
 		if pack.badge then
-			local badge = label(row, pack.badge, UDim2.new(1, -130, 0, 30), UDim2.fromOffset(12, 28), 11, pack.highlight and PALETTE.Good or PALETTE.Dim)
-			badge.TextWrapped = true
-			badge.TextYAlignment = Enum.TextYAlignment.Top
+			UIKit.tag(row, pack.badge, pack.highlight and UIKit.Colors.Gold or UIKit.Colors.Cream).Size = UDim2.fromOffset(150, 30)
 		end
+		local coinsText = ("🪙 %s"):format(Utility.comma(pack.coins))
+		if state.firstPurchase then
+			coinsText = ("🪙 %s → %s"):format(Utility.comma(pack.coins), Utility.comma(pack.coins * GameConfig.FirstPurchase.CoinMultiplier))
+		end
+		label(row, coinsText, UDim2.new(1, -200, 1, 0), UDim2.fromOffset(24, 0), pack.highlight and 30 or 24,
+			pack.highlight and PALETTE.Gold or UIKit.Colors.White)
 		local buy = textButton(row, pack.ready and ("R$ %d"):format(pack.robux) or "준비 중",
-			UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0.5, -15),
-			pack.ready and PALETTE.Robux or PALETTE.Panel,
-			pack.ready and Color3.new(1, 1, 1) or PALETTE.Dim)
+			UDim2.fromOffset(150, 48), UDim2.new(1, -166, 0.5, -24), pack.ready and "robux" or "grey")
 		buy.Activated:Connect(function()
 			shopRequest:FireServer("robux", "coins", pack.id)
 		end)
@@ -457,87 +397,81 @@ end
 -- 퀘스트 · 업적 그리기
 --------------------------------------------------
 
-local function progressBar(parent, ratio, color)
+local function progressBar(parent, ratio, color, y)
 	local track = Instance.new("Frame")
-	track.Size = UDim2.new(1, -130, 0, 6)
-	track.Position = UDim2.fromOffset(12, 36)
-	track.BackgroundColor3 = PALETTE.Panel
+	track.Name = "Track"
+	track.Size = UDim2.new(1, -220, 0, 16)
+	track.Position = UDim2.fromOffset(24, y or 50)
+	track.BackgroundColor3 = UIKit.Colors.BodyDark
 	track.BorderSizePixel = 0
 	track.Parent = parent
-	corner(track, 3)
+	UIKit.corner(track, 8)
+	UIKit.outline(track, 2.5)
 
 	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(math.clamp(ratio, 0, 1), 1)
-	fill.BackgroundColor3 = color or PALETTE.Gold
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
 	fill.BorderSizePixel = 0
 	fill.Parent = track
-	corner(fill, 3)
-
+	UIKit.corner(fill, 8)
+	UIKit.gradient(fill, color or PALETTE.Gold, (color or PALETTE.Gold):Lerp(Color3.new(0, 0, 0), 0.3), 90)
 	return track
 end
 
 local function drawQuests()
 	clearList()
 	if not state then
-		label(makeRow(1), "자료를 불러오는 중…", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 14, PALETTE.Dim)
+		label(makeRow(1), "…", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(24, 0), 20, PALETTE.Dim)
 		return
 	end
 
 	local order = 1
-	-- Phase 13 : 출석은 왼쪽 아래 출석판에서 받는다
+	-- Phase 13 : 출석은 왼쪽 출석판에서 받는다
 	local attend = state.attendance
 	if attend then
-		local attendance = makeRow(order, 40)
-		attendance.BackgroundColor3 = Color3.fromRGB(40, 52, 36)
-		label(attendance, attend.ready and ("📅 오늘 출석 보상을 아직 안 받았어요! (%d/7칸) · 왼쪽 아래 출석판"):format(attend.count)
-			or ("📅 오늘 출석 완료 (%d/7칸) · 내일 또 오세요"):format(attend.count == 0 and 7 or attend.count),
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Good).TextWrapped = true
+		local attendance = makeRow(order, 56, attend.ready and "green" or "grey")
+		label(attendance, attend.ready and ("📅 출석 보상 받기! (%d/7)"):format(attend.count)
+			or ("📅 출석 완료 (%d/7)"):format(attend.count == 0 and 7 or attend.count),
+			UDim2.new(1, -30, 1, 0), UDim2.fromOffset(24, 0), 20, attend.ready and PALETTE.Good or PALETTE.Cream)
 		order += 1
 	end
 
-	local header = makeRow(order, 26)
-	header.BackgroundTransparency = 1
-	label(header, "오늘의 퀘스트", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+	headerRow(order, "📜 오늘의 퀘스트")
 
 	for _, quest in ipairs(state.quests or {}) do
 		order += 1
-		local row = makeRow(order, 52)
-		label(row, quest.text, UDim2.fromOffset(300, 20), UDim2.fromOffset(12, 8), 14, PALETTE.Cream)
-		label(row, ("%d / %d  ·  %s 코인"):format(quest.progress, quest.goal, Utility.comma(quest.reward)),
-			UDim2.fromOffset(240, 16), UDim2.new(1, -250, 0, 8), 12, PALETTE.Dim).TextXAlignment = Enum.TextXAlignment.Right
-		progressBar(row, quest.progress / math.max(1, quest.goal))
+		local done = quest.progress >= quest.goal
+		local row = makeRow(order, 80, quest.claimed and "grey" or (done and "green" or "blue"))
+		label(row, quest.text, UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 10), 20, UIKit.Colors.White)
+		progressBar(row, quest.progress / math.max(1, quest.goal), done and PALETTE.Good or PALETTE.Gold, 48)
+		label(row, ("%d/%d"):format(quest.progress, quest.goal), UDim2.fromOffset(120, 16), UDim2.new(1, -330, 0, 48), 15, UIKit.Colors.White)
+			.TextXAlignment = Enum.TextXAlignment.Right
 
 		if quest.claimed then
-			local done = textButton(row, "받음", UDim2.fromOffset(84, 28), UDim2.new(1, -98, 0, 12), PALETTE.Panel, PALETTE.Dim)
-			done.AutoButtonColor = false
-			done.Active = false
-		elseif quest.progress >= quest.goal then
-			local claim = textButton(row, "보상 받기", UDim2.fromOffset(84, 28), UDim2.new(1, -98, 0, 12), PALETTE.Row, PALETTE.Good)
+			local claimed = textButton(row, "✔", UDim2.fromOffset(150, 44), UDim2.new(1, -166, 0.5, -22), "grey")
+			claimed.Active = false
+		elseif done then
+			local claim = textButton(row, ("🪙 %s 받기"):format(Utility.comma(quest.reward)), UDim2.fromOffset(150, 44), UDim2.new(1, -166, 0.5, -22), "green")
 			claim.Activated:Connect(function()
 				shopRequest:FireServer("claimQuest", quest.id)
 			end)
+		else
+			local reward = textButton(row, ("🪙 %s"):format(Utility.comma(quest.reward)), UDim2.fromOffset(150, 44), UDim2.new(1, -166, 0.5, -22), "gold")
+			reward.Active = false
 		end
 	end
 
-	if #(state.quests or {}) == 0 then
-		order += 1
-		label(makeRow(order, 40), "오늘 받은 퀘스트가 없습니다. 잠시 뒤 다시 확인해 주세요.",
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Dim)
-	end
-
 	order += 1
-	local achievementHeader = makeRow(order, 26)
-	achievementHeader.BackgroundTransparency = 1
-	label(achievementHeader, "업적", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+	headerRow(order, "🏅 업적")
 
 	for _, entry in ipairs(state.achievements or {}) do
 		order += 1
-		local row = makeRow(order, 46)
-		label(row, entry.text, UDim2.fromOffset(280, 20), UDim2.fromOffset(12, 6), 14,
-			entry.done and PALETTE.Good or PALETTE.Cream)
-		label(row, ("%d / %d  ·  %s 코인"):format(entry.progress, entry.goal, Utility.comma(entry.reward)),
-			UDim2.fromOffset(220, 16), UDim2.new(1, -232, 0, 6), 12, PALETTE.Dim).TextXAlignment = Enum.TextXAlignment.Right
-		progressBar(row, entry.progress / math.max(1, entry.goal), entry.done and PALETTE.Good or PALETTE.Gold).Position = UDim2.fromOffset(12, 32)
+		local row = makeRow(order, 76, entry.done and "green" or "purple")
+		label(row, entry.text, UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 8), 19, entry.done and PALETTE.Good or UIKit.Colors.White)
+		progressBar(row, entry.progress / math.max(1, entry.goal), entry.done and PALETTE.Good or PALETTE.Gold, 46)
+		local reward = textButton(row, entry.done and "✔" or ("🪙 %s"):format(Utility.comma(entry.reward)), UDim2.fromOffset(150, 42), UDim2.new(1, -166, 0.5, -21), entry.done and "grey" or "gold")
+		reward.Active = false
 	end
 end
 
@@ -549,23 +483,11 @@ local function drawSabotage()
 	clearList()
 
 	local order = 1
-	local note = makeRow(order, 56)
-	note.BackgroundTransparency = 0.55
-	local noteLabel = label(note,
-		"같은 테이블에 앉은 상대만 방해할 수 있습니다. 위험한 자리를 알려주거나 잡기 창을 늘려 주는 물건은 팔지 않습니다.",
-		UDim2.new(1, -20, 1, -8), UDim2.fromOffset(12, 4), 12, PALETTE.Dim)
-	noteLabel.TextWrapped = true
-
-	-- 상대 고르기
-	order += 1
-	local targetHeader = makeRow(order, 26)
-	targetHeader.BackgroundTransparency = 1
-	label(targetHeader, "상대 고르기", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+	headerRow(order, "🎯 상대")
 
 	if #sabotageState.opponents == 0 then
 		order += 1
-		label(makeRow(order, 38), "지금은 방해할 상대가 없습니다. 테이블에 앉아 게임이 시작되면 이름이 나옵니다.",
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Dim).TextWrapped = true
+		label(makeRow(order, 56), "—", UDim2.new(1, -30, 1, 0), UDim2.fromOffset(24, 0), 22, PALETTE.Dim)
 		selectedTarget = nil
 	else
 		-- 고른 상대가 사라졌으면 첫 번째로 되돌린다
@@ -581,14 +503,10 @@ local function drawSabotage()
 
 		for _, opponent in ipairs(sabotageState.opponents) do
 			order += 1
-			local row = makeRow(order, 38)
 			local chosen = opponent.userId == selectedTarget
-			row.BackgroundColor3 = chosen and PALETTE.Panel or PALETTE.Row
-			label(row, opponent.name, UDim2.fromOffset(300, 20), UDim2.fromOffset(12, 9), 14,
-				chosen and PALETTE.Gold or PALETTE.Cream)
-			local pick = textButton(row, chosen and "고름" or "고르기", UDim2.fromOffset(84, 26),
-				UDim2.new(1, -98, 0, 6), chosen and PALETTE.Row or PALETTE.Panel,
-				chosen and PALETTE.Gold or PALETTE.Cream)
+			local row = makeRow(order, 60, chosen and "gold" or "grey")
+			label(row, opponent.name, UDim2.new(1, -220, 1, 0), UDim2.fromOffset(24, 0), 22, chosen and PALETTE.Gold or UIKit.Colors.White)
+			local pick = textButton(row, chosen and "✔" or "고르기", UDim2.fromOffset(150, 40), UDim2.new(1, -166, 0.5, -20), chosen and "gold" or "blue")
 			pick.Activated:Connect(function()
 				selectedTarget = opponent.userId
 				drawSabotage()
@@ -597,9 +515,7 @@ local function drawSabotage()
 	end
 
 	order += 1
-	local itemHeader = makeRow(order, 26)
-	itemHeader.BackgroundTransparency = 1
-	label(itemHeader, "방해 아이템", UDim2.new(1, -20, 1, 0), UDim2.fromOffset(4, 0), 15, PALETTE.Gold)
+	headerRow(order, "😈 방해 아이템")
 
 	local items = {}
 	for _, item in ipairs(sabotageState.items) do
@@ -609,22 +525,16 @@ local function drawSabotage()
 	end
 	for _, item in ipairs(items) do
 		order += 1
-		local row = makeRow(order, 62)
-		label(row, ("%s  %s"):format(item.icon or "", item.name),
-			UDim2.fromOffset(300, 20), UDim2.fromOffset(12, 6), 14, item.color or PALETTE.Cream)
-		local detail = label(row, item.detail or item.blurb or "",
-			UDim2.new(1, -130, 0, 30), UDim2.fromOffset(12, 26), 11, PALETTE.Dim)
-		detail.TextWrapped = true
-		detail.TextYAlignment = Enum.TextYAlignment.Top
+		local row = makeRow(order, 84, "purple")
+		label(row, ("%s  %s"):format(item.icon or "", item.name), UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 8), 22, item.color or UIKit.Colors.White)
+		label(row, item.blurb or "", UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 44), 16, PALETTE.Cream)
 
-		local usable = (item.ready or (item.owned or 0)>0) and selectedTarget ~= nil
-		local buy = textButton(row, (item.owned or 0)>0 and ("사용 ×%d"):format(item.owned) or (item.ready and ("R$ %d"):format(item.robux) or "준비 중"),
-			UDim2.fromOffset(96, 30), UDim2.new(1, -110, 0, 16),
-			usable and PALETTE.Robux or PALETTE.Panel,
-			usable and Color3.new(1, 1, 1) or PALETTE.Dim)
+		local usable = (item.ready or (item.owned or 0) > 0) and selectedTarget ~= nil
+		local buy = textButton(row, (item.owned or 0) > 0 and ("사용 ×%d"):format(item.owned) or (item.ready and ("R$ %d"):format(item.robux) or "준비 중"),
+			UDim2.fromOffset(150, 48), UDim2.new(1, -166, 0.5, -24), usable and "robux" or "grey")
 		buy.Activated:Connect(function()
 			if not usable then
-				showToast((item.ready or (item.owned or 0)>0) and "먼저 상대를 골라 주세요" or "이 아이템은 아직 준비 중입니다", false)
+				showToast((item.ready or (item.owned or 0) > 0) and "먼저 상대를 골라 주세요" or "준비 중", false)
 				return
 			end
 			sabotageRemote:FireServer("use", item.id, selectedTarget)
@@ -632,8 +542,7 @@ local function drawSabotage()
 	end
 	if #items == 0 then
 		order += 1
-		label(makeRow(order, 38), "방해 아이템은 아직 준비 중입니다.",
-			UDim2.new(1, -20, 1, 0), UDim2.fromOffset(12, 0), 13, PALETTE.Dim)
+		label(makeRow(order, 56), "준비 중", UDim2.new(1, -30, 1, 0), UDim2.fromOffset(24, 0), 22, PALETTE.Dim)
 	end
 end
 
@@ -641,29 +550,31 @@ end
 -- 탭 전환
 --------------------------------------------------
 
+local TAB_TITLES = { shop = { "상점", "🛒", "green" }, quest = { "퀘스트", "📜", "blue" }, sabotage = { "방해", "😈", "purple" } }
+
 local function redraw()
-	windowCoins.Text = state and ("%s 코인"):format(Utility.comma(state.coins)) or ""
+	windowCoins.Text = state and ("🪙 %s"):format(Utility.comma(state.coins)) or ""
 	kindRow.Visible = currentTab == "shop"
-	local top=currentTab=="shop" and (window.AbsoluteSize.X<520 and 134 or 100) or 70
-    scroller.Position = UDim2.fromOffset(12,top)
-    scroller.Size=UDim2.new(1,-24,1,-top-16)
+	local top = currentTab == "shop" and (kindRow.Size.Y.Offset > 40 and 170 or 126) or 82
+	scroller.Position = UDim2.fromOffset(20, top)
+	scroller.Size = UDim2.new(1, -40, 1, -top - 16)
 
 	for kind, button in pairs(kindButtons) do
-		button.BackgroundColor3 = (kind == currentKind) and PALETTE.Panel or PALETTE.Row
-		button.TextColor3 = (kind == currentKind) and PALETTE.Gold or PALETTE.Cream
-	end
-	for name, button in pairs(tabButtons) do
-		button.BackgroundColor3 = (name == currentTab and window.Visible) and PALETTE.Panel or PALETTE.Row
+		UIKit.setTheme(button, kind == currentKind and "gold" or "grey")
 	end
 
+	local titleInfo = TAB_TITLES[currentTab] or TAB_TITLES.shop
+	windowTitle.Text = titleInfo[1]
+	local badge = window:FindFirstChild("Badge")
+	if badge then
+		badge.Text = titleInfo[2]
+	end
+	UIKit.gradient(shopWindow.header, UIKit.theme(titleInfo[3])[1]:Lerp(Color3.new(1, 1, 1), 0.18), UIKit.theme(titleInfo[3])[2], 90)
 	if currentTab == "shop" then
-		windowTitle.Text = "상점"
 		drawShop()
 	elseif currentTab == "quest" then
-		windowTitle.Text = "퀘스트와 업적"
 		drawQuests()
 	else
-		windowTitle.Text = "방해 아이템"
 		drawSabotage()
 	end
 end
@@ -675,7 +586,7 @@ local function openTab(name)
 		return
 	end
 	currentTab = name
-	window.Visible = true
+	shopWindow.open()
 	if name == "sabotage" then
 		sabotageRemote:FireServer("list")
 	else
@@ -732,9 +643,9 @@ local function refreshPedestal(pedestal)
 	elseif entry.pack then
 		prompt.ActionText = "스타터 팩 전용"
 	elseif entry.robux > 0 and entry.price <= 0 then
-		prompt.ActionText = ("R$ %d · 상점에서"):format(entry.robux)
+		prompt.ActionText = ("R$ %d"):format(entry.robux)
 	else
-		prompt.ActionText = ("구매 · %s 코인"):format(Utility.comma(entry.price))
+		prompt.ActionText = ("🪙 %s"):format(Utility.comma(entry.price))
 	end
 end
 
@@ -750,9 +661,8 @@ end)
 shopResult.OnClientEvent:Connect(function(ok, message, payload)
 	if typeof(payload) == "table" then
 		state = payload
-		coinLabel.Text = ("%s 코인"):format(Utility.comma(state.coins))
-		levelLabel.Text = ("Lv.%d  ·  %d승 %d판  ·  최고 %d연승")
-			:format(state.level or 1, state.wins or 0, state.games or 0, state.bestStreak or 0)
+		coinLabel.Text = Utility.comma(state.coins)
+		levelLabel.Text = ("Lv.%d  ·  🏆 %d"):format(state.level or 1, state.wins or 0)
 		refreshPedestals()
 	end
 	if message then
@@ -792,77 +702,77 @@ task.defer(function()
 	shopRequest:FireServer("sync")
 end)
 
--- Responsive layout keeps text at readable sizes instead of shrinking the whole UI.
+-- 작은 화면에서는 종류 탭을 두 줄로 나눈다 (창 크기는 UIKit 가 화면에 맞춰 줄인다)
 local function fitWindow()
- local camera=workspace.CurrentCamera;if not camera then return end
- local width=math.min(620,camera.ViewportSize.X-20)
- window.Size=UDim2.fromOffset(width,math.min(600,camera.ViewportSize.Y-80))
- local columns=width<520 and 4 or 7
- kindRow.Size=UDim2.new(1,-40,0,columns==3 and 60 or 26)
- for i,entry in ipairs(KINDS) do
-  local b=kindButtons[entry[1]]
-  b.Size=UDim2.new(1/columns,-4,0,26)
-  b.Position=UDim2.new(((i-1)%columns)/columns,0,0,math.floor((i-1)/columns)*30)
- end
- redraw()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local columns = camera.ViewportSize.X < 700 and 4 or 7
+	kindRow.Size = UDim2.new(1, -40, 0, columns == 4 and 80 or 38)
+	for i, entry in ipairs(KINDS) do
+		local b = kindButtons[entry[1]]
+		b.Size = UDim2.new(1 / columns, -6, 0, 36)
+		b.Position = UDim2.new(((i - 1) % columns) / columns, 0, 0, math.floor((i - 1) / columns) * 42)
+	end
+	if window.Visible then
+		shopWindow.scale.Scale = shopWindow.fit()
+	end
+	redraw()
 end
 fitWindow()
-if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitWindow) end
-local previousCoins=localPlayer:GetAttribute("Coins") or 0
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitWindow)
+end
+
+-- 코인이 들어오면 숫자 위로 "+얼마"가 튀어 오른다
+local previousCoins = localPlayer:GetAttribute("Coins") or 0
 localPlayer:GetAttributeChangedSignal("Coins"):Connect(function()
- local now=localPlayer:GetAttribute("Coins") or 0
- if now>previousCoins then
-  local reward=label(launcher,"+"..Utility.comma(now-previousCoins),UDim2.fromOffset(130,24),UDim2.fromOffset(80,-20),18,PALETTE.Good)
-  TweenService:Create(reward,TweenInfo.new(1.1),{Position=UDim2.fromOffset(80,-64),TextTransparency=1}):Play()
-  game:GetService("Debris"):AddItem(reward,1.2)
- end
- previousCoins=now
+	local now = localPlayer:GetAttribute("Coins") or 0
+	if now > previousCoins then
+		local reward = UIKit.label(launcher, {
+			text = "+" .. Utility.comma(now - previousCoins), size = UDim2.fromOffset(200, 34), position = UDim2.fromOffset(60, -24),
+			textSize = 30, color = PALETTE.Good, stroke = 3.5, alignX = Enum.TextXAlignment.Left,
+		})
+		TweenService:Create(reward, TweenInfo.new(1.1), { Position = UDim2.fromOffset(60, -70), TextTransparency = 1 }):Play()
+		game:GetService("Debris"):AddItem(reward, 1.2)
+		local pop = launcher:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+		pop.Parent = launcher
+		pop.Scale = 1.12
+		TweenService:Create(pop, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	end
+	previousCoins = now
 end)
 
--- User's third image is the shop launcher. Preserve its square aspect ratio.
--- An image asset ID is the only owner-side step; JPEGs cannot be embedded as an Image URI.
+-- 상점 버튼 그림 (ReleaseConfig.Branding.ShopImage 를 넣으면 🛒 대신 그 그림)
 do
- local brand=require(Shared.ReleaseConfig).Branding
- local shopIcon=Instance.new("ImageButton")
- shopIcon.Name="UserShopImage"
- shopIcon.AnchorPoint=Vector2.new(0,1)
- shopIcon.Position=UDim2.new(0,14,1,UserInputService.TouchEnabled and -108 or -16)
- shopIcon.Size=UDim2.fromOffset(84,84)
- shopIcon.ScaleType=Enum.ScaleType.Fit
- shopIcon.BackgroundColor3=PALETTE.Back
- shopIcon.BorderSizePixel=0
- shopIcon.Image=(tonumber(brand.ShopImage) or 0)>0 and ("rbxassetid://"..brand.ShopImage) or ""
- shopIcon.Selectable=true
- shopIcon.Parent=gui
- corner(shopIcon,12)
- stroke(shopIcon,PALETTE.Gold,2,0.2)
- if shopIcon.Image=="" then
-  local fallback=label(shopIcon,"SHOP",UDim2.fromScale(1,1),UDim2.new(),18,PALETTE.Gold)
-  fallback.TextXAlignment=Enum.TextXAlignment.Center
- end
- launcher.Position=UDim2.new(0,106,1,UserInputService.TouchEnabled and -108 or -16)
- tabButtons.shop.Visible=false
- tabButtons.quest.Position=UDim2.fromOffset(10,44)
- tabButtons.quest.Size=UDim2.fromOffset(92,24)
- tabButtons.sabotage.Position=UDim2.fromOffset(110,44)
- tabButtons.sabotage.Size=UDim2.fromOffset(92,24)
- -- 내 차례에는 칼 고르는 창이 화면 아래를 쓴다. 작은 화면에서 왼쪽 자리 버튼을 가리지 않도록 잠시 숨긴다.
- task.spawn(function()
-  while gui.Parent do
-   local picker=playerGui:FindFirstChild("CursedBarrel_KnifePicker")
-   local busy=picker~=nil and picker.Enabled
-   if shopIcon.Visible==busy then
-    shopIcon.Visible=not busy;launcher.Visible=not busy
-    -- 내 차례가 오면 열려 있던 상점 창도 닫는다. (칼 고르는 창을 가리지 않게)
-    if busy and window.Visible then window.Visible=false;redraw() end
-   end
-   task.wait(0.25)
-  end
- end)
- shopIcon.Activated:Connect(function()
-  -- 다른 탭이 열려 있으면 상점으로 바꾸고, 상점이 열려 있으면 닫는다.
-  if window.Visible and currentTab=="shop" then window.Visible=false
-  else currentTab="shop";window.Visible=true;shopRequest:FireServer("sync") end
-  redraw()
- end)
+	local brand = require(Shared.ReleaseConfig).Branding
+	local image = tonumber(brand.ShopImage) or 0
+	if image > 0 then
+		tabButtons.shop.Image = "rbxassetid://" .. image
+		local icon = tabButtons.shop:FindFirstChild("Icon")
+		if icon then
+			icon.Visible = false
+		end
+	end
+	-- 내 차례에는 칼 고르는 창이 화면 아래를 쓴다. 열려 있던 상점 창은 닫는다. (칼 고르는 창을 가리지 않게)
+	task.spawn(function()
+		local wasBusy = false
+		while gui.Parent do
+			local picker = playerGui:FindFirstChild("CursedBarrel_KnifePicker")
+			local busy = picker ~= nil and picker.Enabled
+			if busy ~= wasBusy then
+				wasBusy = busy
+				local hud = playerGui:FindFirstChild("CursedBarrel_HUD")
+				if hud then
+					hud.Enabled = not busy
+				end
+				launcher.Visible = not busy
+				if busy and window.Visible then
+					window.Visible = false
+				end
+			end
+			task.wait(0.25)
+		end
+	end)
 end

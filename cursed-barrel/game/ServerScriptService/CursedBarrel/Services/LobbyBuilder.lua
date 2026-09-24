@@ -23,6 +23,8 @@ local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
 local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
+local KnifeModel = require(Shared:WaitForChild("KnifeModel"))
+local BarrelStyle = require(Shared:WaitForChild("BarrelStyle"))
 
 local ProfileService = require(script.Parent.ProfileService)
 local ShopService = require(script.Parent.ShopService)
@@ -247,6 +249,9 @@ local function previewBarrel(skin, parent, base)
 	if skin.drum then
 		-- Phase 13 : 철제 드럼 (굴림 테 · 주름 · 마개)
 		DrumStyle.build(model, body.CFrame, 3.4, 3, skin, "Drum", 1.87)
+	elseif BarrelStyle.isWooden(skin) then
+		-- Phase 14 : 판자 결 · 양 끝 얇은 쇠테
+		BarrelStyle.decorate(model, body.CFrame, 3.4, 3, skin)
 	elseif skin.ribbed then
 		for _, offset in ipairs({ -0.5, 0.1, 0.7 }) do
 			makeCylinder(model, "Rib", 3.1, 0.14, pivot * CFrame.new(0, offset, 0), skin.hoop, skin.hoopMaterial)
@@ -267,31 +272,17 @@ local function previewBarrel(skin, parent, base)
 end
 
 local function previewKnife(skin, parent, base)
-	local model = Instance.new("Model")
-	model.Name = "Preview"
-	model.Parent = parent
-
 	-- 전시용이라 실제 칼보다 크게 만든다. 게임 안의 칼 크기는 건드리지 않는다.
+	-- Phase 14 : 상점 3D 미리보기와 같은 KnifeModel (끝이 뾰족한 날 · 홈 · 코등이 구슬 · 감은 손잡이)
 	local pivot = base * CFrame.new(0, 3.2, 0)
-	local pose = pivot * CFrame.Angles(math.rad(-22), 0, math.rad(12))
-
-	local blade = makePart(model, "Blade", Vector3.new(0.3, 3.4, 0.14), pose * CFrame.new(0, 0.9, 0), skin.blade, skin.bladeMaterial)
-	blade.Reflectance = skin.glow and 0.25 or 0.05
-
-	makePart(model, "Tip", Vector3.new(0.3, 0.5, 0.14), pose * CFrame.new(0, 2.75, 0), skin.blade, skin.bladeMaterial)
-	makePart(model, "Guard", Vector3.new(1.1, 0.22, 0.32), pose * CFrame.new(0, -0.85, 0), skin.guard, Enum.Material.Metal)
-	makePart(model, "Handle", Vector3.new(0.36, 1.5, 0.36), pose * CFrame.new(0, -1.7, 0), skin.handle, skin.handleMaterial)
-	makePart(model, "Pommel", Vector3.new(0.5, 0.26, 0.5), pose * CFrame.new(0, -2.5, 0), skin.guard, Enum.Material.Metal)
-
-	if skin.glow and skin.glow > 0 then
-		local light = Instance.new("PointLight")
-		light.Color = skin.trail or skin.blade
-		light.Brightness = 2.4 * skin.glow
-		light.Range = 11
-		light.Shadows = false
-		light.Parent = blade
+	local pose = pivot * CFrame.Angles(math.rad(-22), 0, math.rad(12)) * CFrame.new(0, -0.9, 0)
+	local model = KnifeModel.build(skin, parent, pose, 1.05)
+	model.Name = "Preview"
+	for _, piece in ipairs(model:GetDescendants()) do
+		if piece:IsA("BasePart") then
+			Utility.makeDecor(piece)
+		end
 	end
-
 	return finishPreview(model, pivot.Position)
 end
 

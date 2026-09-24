@@ -1,6 +1,6 @@
 # 해야 할 일 총정리 — 이 문서 하나만 보시면 됩니다
 
-게임 파일: `output/CursedBarrel_Phase13_Rewards.rbxl`
+게임 파일: `output/CursedBarrel_Phase14_Polish.rbxl`  (이번 변경: [Phase 14](Phase14_버그수정_그래픽_KO.md))
 모든 ID는 **숫자만 복사해서 저에게 보내 주시면** 제가 넣고 새 파일을 드립니다. (직접 넣으셔도 됩니다)
 맨 아래 [7장](#7-보내-주실-것--한-번에-복사해서-채우기)에 보내 주실 양식이 한 번에 있습니다.
 
@@ -18,7 +18,7 @@
 
 ## 1. Studio에서 열고 Publish
 
-1. Roblox Studio에서 `CursedBarrel_Phase13_Rewards.rbxl` 을 엽니다.
+1. Roblox Studio에서 `CursedBarrel_Phase14_Polish.rbxl` 을 엽니다.
 2. **파일 → Roblox에 게시(Publish to Roblox)** 를 누릅니다.
    - 상품을 만들려면 게임이 한 번은 게시돼 있어야 합니다. 비공개 상태로 두어도 됩니다.
 3. **게임 설정 → 보안 → "Studio에서 API 서비스 사용"** 을 켭니다. (저장 · 순위판을 Studio에서 확인할 수 있게)
@@ -95,6 +95,7 @@ Studio → **보기 → 에셋 관리자 → 가져오기(Import)** → 파일 �
 | `attendance_button.png` | 📅 출석 버튼 (보내 주신 그림) | `ReleaseConfig.lua` → `C.Images.Attendance` |
 | `roulette_button.png` | 🎡 룰렛 버튼 (보내 주신 그림) | `ReleaseConfig.lua` → `C.Images.Roulette` |
 | `shop_button.jpeg` | 상점 버튼 | `ReleaseConfig.lua` → `C.Branding.ShopImage` |
+| `assets/ui/pattern_tile.png` | 창 머리띠 무늬 (선택) | `ReleaseConfig.lua` → `C.UIImages.Pattern` |
 | `game_profile.jpeg` | 게임 아이콘 | Creator Hub → 게임 → 설정의 아이콘 (ID 필요 없음) |
 | `game_thumbnail.jpeg` | 게임 썸네일 | Creator Hub → 게임 → 설정의 썸네일 (ID 필요 없음) |
 
@@ -182,6 +183,12 @@ Coins =
 Dragon =
 Impact =
 Win =
+
+[그래픽 — 선택] (찾는 법: Phase14 문서의 "3D 모델 ID")
+Pattern = (assets/ui/pattern_tile.png 를 올린 ID)
+칼 스킨 id = MeshId / TextureId   예) gold = 123 / 456
+통 스킨 id = MeshId / TextureId
+Cannon = MeshId / TextureId
 
 [배지 — 선택]
 first_win= win10= win50= catch50= catch250= streak3= streak7= games100= cannon100= raid10= crew5= tourney34=

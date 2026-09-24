@@ -65,7 +65,7 @@ end
 -- 목표 자리 위에 뜨는 작은 표지
 local marker = Instance.new("BillboardGui")
 marker.Name = "SeatMarker"
-marker.Size = UDim2.fromOffset(150, 46)
+marker.Size = UDim2.fromOffset(160, 44)
 marker.StudsOffset = Vector3.new(0, 3.4, 0)
 marker.AlwaysOnTop = true
 marker.MaxDistance = 160
@@ -88,11 +88,11 @@ markerStroke.Transparency = 0.15
 markerStroke.Parent = markerPlate
 
 local markerTitle = Instance.new("TextLabel")
-markerTitle.Size = UDim2.new(1, -10, 0, 22)
+markerTitle.Size = UDim2.new(1, -10, 1, -6)
 markerTitle.Position = UDim2.fromOffset(5, 3)
 markerTitle.BackgroundTransparency = 1
 markerTitle.Font = Enum.Font.GothamBold
-markerTitle.TextSize = 15
+markerTitle.TextSize = 22
 markerTitle.TextColor3 = WAY.Color
 markerTitle.Text = "빈 자리"
 markerTitle.Parent = markerPlate
@@ -106,6 +106,8 @@ markerInfo.TextSize = 13
 markerInfo.TextColor3 = Color3.fromRGB(226, 214, 190)
 markerInfo.Text = ""
 markerInfo.Parent = markerPlate
+-- Phase 14 : 만화풍 글꼴 · 글자 외곽선
+require(Shared:WaitForChild("UIKit")).restyle(marker)
 
 --------------------------------------------------
 -- 목표 고르기
@@ -241,10 +243,8 @@ RunService.Heartbeat:Connect(function()
 	markerTitle.TextColor3 = color
 	markerTitle.Text = urgent and "곧 시작! 빈 자리" or "빈 자리"
 
-	local seated = targetModel:GetAttribute(TABLE_ATTR.SeatedCount) or 0
-	local capacity = targetModel:GetAttribute(TABLE_ATTR.SeatCount) or 0
-	markerInfo.Text = ("%s · %d/%d명 · %d스터드")
-		:format(targetModel:GetAttribute("DisplayName") or targetModel.Name, seated, capacity, math.floor(distance))
+	-- 부제목(테이블 · 인원 · 거리)은 두지 않는다
+	markerInfo.Text = ""
 
 	marker.Adornee = targetSeat
 	marker.Enabled = true

@@ -41,6 +41,7 @@ local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shar
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local TableConfig = require(Shared:WaitForChild("TableConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
+local UIKit = require(Shared:WaitForChild("UIKit"))
 
 local TABLE_TAG = GameConfig.Tags.Table
 local TABLE_ATTR = GameConfig.TableAttributes
@@ -207,6 +208,9 @@ local function buildBoard(adornee)
 	skin.TextTransparency = 0.2
 	skin.Visible = false
 
+	-- Phase 14 : 만화풍 글꼴 · 글자 외곽선
+	UIKit.restyle(billboard)
+
 	return {
 		billboard = billboard,
 		frame = frame,
@@ -252,39 +256,6 @@ local function lastPickText(model)
 	return ("%s · %d번 자리에서 탈락!"):format(who, slot), PALETTE.Danger
 end
 
--- 이 테이블에 숨어 있을 해적 수. 게임 전에는 테이블 종류로 계산해서 미리 알려준다.
--- (몇 마리인지는 알려도 되는 정보다. 어느 자리인지는 서버 메모리에만 있다)
-local function dangerHint(model)
-	local live = model:GetAttribute(TABLE_ATTR.PirateCount) or 0
-	if live > 0 then
-		return live
-	end
-	local typeName = model:GetAttribute(TABLE_ATTR.TableType)
-	local seats = model:GetAttribute(TABLE_ATTR.SeatCount) or 4
-	return TableConfig.getDangerCount(typeName, seats)
-end
-
--- 지금 이 테이블에 적용 중인 통 스킨 한 줄.
-local function barrelSkinText(model)
-	local id = model:GetAttribute(TABLE_ATTR.BarrelSkinId)
-	if not id or id == "" then
-		return nil
-	end
-	local skin = GameConfig.findSkin("Barrel", id)
-	if not skin or skin.id ~= id then
-		return nil
-	end
-	local ownerName = model:GetAttribute(TABLE_ATTR.BarrelSkinOwnerName) or ""
-	local ownerId = model:GetAttribute(TABLE_ATTR.BarrelSkinOwnerId) or 0
-	if ownerId == 0 or ownerName == "" then
-		return nil
-	end
-	if ownerId == localPlayer.UserId then
-		return ("통: %s (내 것)"):format(skin.name)
-	end
-	return ("통: %s (%s 님)"):format(skin.name, ownerName)
-end
-
 -- Attribute 가 바뀔 때만 부르는 "느린" 갱신
 local function updateBoard(entry)
 	local model = entry.model
@@ -299,9 +270,6 @@ local function updateBoard(entry)
 
 	local slotCount = model:GetAttribute(TABLE_ATTR.KnifeSlotCount) or 0
 	local slotsLeft = model:GetAttribute(TABLE_ATTR.SlotsRemaining) or slotCount
-	local alive = model:GetAttribute(TABLE_ATTR.TurnCount) or 0
-	local started = model:GetAttribute(TABLE_ATTR.ParticipantCount) or 0
-	local pirates = model:GetAttribute(TABLE_ATTR.PirateCount) or 0
 
 	entry.state = state
 	entry.seated = seated
@@ -315,14 +283,12 @@ local function updateBoard(entry)
 
 	if state == STATES.Countdown then
 		-- 남은 시간(숫자/게이지)은 updateTimer 가 매 프레임 채운다
-		statusText = ("%d명 참가 · 곧 시작합니다"):format(seated)
+		statusText = "곧 시작!"
 		statusColor = PALETTE.Gold
-		infoText = ("칼 %d자루 · 해적 %d마리가 숨어 있습니다"):format(slotCount, dangerHint(model))
 	elseif state == STATES.Starting then
 		entry.count.Text = "준비!"
 		entry.count.TextColor3 = PALETTE.Gold
 		statusText, statusColor = STATE_TEXT[state], PALETTE.Gold
-		infoText = ("참가 %d명 · 칼 %d자루"):format(started, slotCount)
 	elseif state == STATES.Playing then
 		entry.count.Text = ("칼 %d"):format(slotsLeft)
 		entry.count.TextColor3 = slotsLeft <= 3 and PALETTE.Danger or PALETTE.Cream
@@ -330,11 +296,7 @@ local function updateBoard(entry)
 		local pickText, pickColor = lastPickText(model)
 		statusText = pickText or STATE_TEXT[state]
 		statusColor = pickColor or PALETTE.Cream
-		-- 몇 마리인지만 보여준다. 어느 자리인지는 클라이언트가 알 방법이 없다.
-		local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
-		infoText = ("생존 %d / %d명 · 해적 %d마리%s%s"):format(alive, math.max(started, alive), pirates,
-			pot > 0 and (" · 현상금 %d"):format(pot) or "",
-			model:GetAttribute(TABLE_ATTR.Practice) == true and " · AI 연습 판" or "")
+
 	elseif state == STATES.RoundEnding then
 		local winnerName = model:GetAttribute(TABLE_ATTR.WinnerName) or ""
 		local winnerId = model:GetAttribute(TABLE_ATTR.WinnerUserId) or 0
@@ -345,55 +307,40 @@ local function updateBoard(entry)
 		local forfeit = model:GetAttribute(TABLE_ATTR.WinForfeit) == true
 		if forfeit and winnerId ~= 0 then
 			entry.count.Text = "기권승"
-			statusText, statusColor = ("%s 생존 · 상대 기권 (보상 절반)"):format(winnerId == localPlayer.UserId and "나" or winnerName), PALETTE.Dim
+			statusText, statusColor = winnerId == localPlayer.UserId and "나" or winnerName, PALETTE.Dim
 		elseif winnerId < 0 then
-			statusText, statusColor = ("%s 승리 · 현상금 일부가 다음 판으로"):format(winnerName), PALETTE.Dim
+			statusText, statusColor = winnerName, PALETTE.Dim
 		elseif winnerId == localPlayer.UserId then
-			statusText, statusColor = "내가 마지막까지 살아남았다!", PALETTE.Mine
+			statusText, statusColor = "내가 이겼다!", PALETTE.Mine
 		elseif winnerId ~= 0 then
-			statusText, statusColor = ("%s 님 우승"):format(winnerName), PALETTE.Gold
+			statusText, statusColor = winnerName, PALETTE.Gold
 		else
-			statusText, statusColor = "남은 참가자가 없습니다", PALETTE.Dim
+			statusText, statusColor = "", PALETTE.Dim
 		end
 		-- 초기화까지 남은 시간은 updateTimer 가 채운다
 	elseif state == STATES.Resetting then
 		entry.count.Text = "정리 중"
 		entry.count.TextColor3 = PALETTE.Dim
 		statusText, statusColor = STATE_TEXT[state], PALETTE.Dim
-		infoText = "곧 다시 앉을 수 있습니다"
 	else
 		entry.count.Text = ("%d / %d"):format(seated, capacity)
 		entry.count.TextColor3 = PALETTE.Cream
 		if seated == 0 then
-			statusText, statusColor = "빈 테이블 · 앉으면 참가", PALETTE.Cream
+			statusText, statusColor = "빈 테이블", PALETTE.Cream
 		elseif seated < minPlayers then
-			statusText, statusColor = ("%d명 더 필요 · 곧 AI 선원이 합류"):format(minPlayers - seated), PALETTE.Cream
+			statusText, statusColor = "대기 중", PALETTE.Cream
 		else
-			statusText, statusColor = "시작 준비 완료", PALETTE.Ready
+			statusText, statusColor = "준비 완료", PALETTE.Ready
 		end
-		local carry = model:GetAttribute(TABLE_ATTR.PotCarry) or 0
-		infoText = ("칼 %d자루 · 해적 %d마리 · 마지막 한 명이 승리%s"):format(slotCount, dangerHint(model),
-			carry > 0 and (" · 이월 현상금 %d"):format(carry) or "")
 	end
 
-	-- Phase 12 : 오늘의 행운 테이블 · 토너먼트 · 연습 판
-	local extras = {}
+	-- 부제목(설명 줄)은 두지 않는다. 행운 테이블 · 토너먼트 점수처럼 짧은 표시만 남긴다.
 	if model:GetAttribute(TABLE_ATTR.Lucky) == true then
-		table.insert(extras, "🍀 오늘의 행운 테이블 · 보물 폭발 2배")
+		infoText = "🍀"
 	end
 	if preset.Tournament then
 		local rounds = localPlayer:GetAttribute("TourneyRounds") or 0
-		table.insert(extras, rounds > 0 and ("🏆 내 시리즈 %d/4판 · %d점"):format(rounds, localPlayer:GetAttribute("TourneyScore") or 0)
-			or "🏆 4판 연속 점수로 시즌 순위 · AI 없음")
-	end
-	local tutorialId = model:GetAttribute(TABLE_ATTR.Tutorial) or 0
-	if tutorialId ~= 0 then
-		table.insert(extras, "연습 판 · AI 선원과 함께")
-	end
-	if #extras > 0 and infoText ~= "" then
-		infoText = infoText .. "  ·  " .. table.concat(extras, "  ·  ")
-	elseif #extras > 0 then
-		infoText = table.concat(extras, "  ·  ")
+		infoText = rounds > 0 and ("🏆 %d/4 · %d점"):format(rounds, localPlayer:GetAttribute("TourneyScore") or 0) or "🏆"
 	end
 
 	entry.status.Text = statusText
@@ -402,25 +349,20 @@ local function updateBoard(entry)
 		entry.info.Text = infoText
 	end
 
-	-- 통 스킨 주인 표시 (앉은 사람이 둘 이상이면 누구 통이 적용됐는지 보인다)
-	local skinText = barrelSkinText(model)
-	entry.skin.Visible = skinText ~= nil and (state == STATES.Playing or state == STATES.Countdown or state == STATES.Starting)
-	entry.skin.Text = skinText or ""
+	entry.skin.Visible = false
 
 	-- 현재 차례 표시
 	local turnUserId = model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) or 0
 	local turnName = model:GetAttribute(TABLE_ATTR.CurrentTurnName) or ""
-	local turnIndex = model:GetAttribute(TABLE_ATTR.TurnIndex) or 0
-	local turnCount = model:GetAttribute(TABLE_ATTR.TurnCount) or 0
 	local showTurn = state == STATES.Playing and turnUserId ~= 0 and turnName ~= ""
 
 	entry.turn.Visible = showTurn
 	if showTurn then
 		if turnUserId == localPlayer.UserId then
-			entry.turn.Text = ("▶ 내 차례! 자리를 고르세요 (%d/%d)"):format(turnIndex, turnCount)
+			entry.turn.Text = "▶ 내 차례!"
 			entry.turn.TextColor3 = PALETTE.Mine
 		else
-			entry.turn.Text = ("▶ %s 님의 차례 (%d/%d)"):format(turnName, turnIndex, turnCount)
+			entry.turn.Text = ("▶ %s"):format(turnName)
 			entry.turn.TextColor3 = PALETTE.Cream
 		end
 	end
@@ -486,7 +428,7 @@ local function updateTimer(entry)
 	if state == STATES.RoundEnding then
 		local resetAt = model:GetAttribute(TABLE_ATTR.ResetEndsAt) or 0
 		local remaining = math.max(0, resetAt - now)
-		entry.info.Text = ("%s 뒤 테이블이 초기화됩니다"):format(Utility.formatSeconds(remaining))
+		entry.info.Text = ""
 		entry.timerTrack.Visible = true
 		entry.timerFill.BackgroundColor3 = PALETTE.Gold
 		local total = GameConfig.Timing.RoundEndDuration

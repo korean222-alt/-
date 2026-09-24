@@ -267,20 +267,18 @@ function BotService:_spawn(gameTable)
 	BotRegistry.register(character, bot)
 	self._bots[bot] = { gameTable = gameTable, character = character }
 
-	character:PivotTo(seat.CFrame * CFrame.new(0, 2.6, 0))
-	character.Parent = self._folder
+	-- 의자 위에 앉은 자세로 고정한다. (Seat:Sit 은 막 만든 NPC 에게 조용히 실패해서 AI 가 갑판 아래로 떨어지곤 했다)
+	-- 자리는 Roblox 의자가 R6 를 앉히는 자리와 같다: 좌판 윗면 + 1.5
 	local root = character.PrimaryPart
-	if root and root:CanSetNetworkOwnership() then
-		root:SetNetworkOwner(nil) -- 서버가 쥐고 있어야 앉은 자세가 흔들리지 않는다
-	end
-	seat:Sit(humanoid)
+	root.Anchored = true
+	humanoid.PlatformStand = true
+	character:PivotTo(seat.CFrame * CFrame.new(0, seat.Size.Y / 2 + 1.5, 0))
+	character.Parent = self._folder
 
-	-- 앉지 못했으면(그 사이 누가 앉았다 등) 바로 치운다.
-	task.delay(0.5, function()
-		if self._bots[bot] and not gameTable:HasPlayer(bot) then
-			self:_despawn(bot)
-		end
-	end)
+	if not gameTable:SeatBot(bot, seat) then
+		self:_despawn(bot)
+		return nil
+	end
 
 	GameConfig.log(("%s 에 AI 선원 %s 이 앉음"):format(gameTable.tableId, bot.DisplayName))
 	return bot
@@ -331,11 +329,13 @@ function BotService:_botsAt(gameTable)
 end
 
 -- AI 를 채워 맞출 전체 인원
+-- 2인 테이블은 빈자리를 남기면 AI 가 영영 못 앉는다. 시작 인원만큼은 꼭 채운다.
 function BotService:_targetSeated(gameTable)
 	local seats = #gameTable:GetSeats()
 	local minPlayers = gameTable:GetMinPlayers()
 	local target = math.max(minPlayers, tonumber(BOTS.TargetSeated) or minPlayers)
-	return math.min(target, seats - (tonumber(BOTS.KeepFreeSeats) or 1))
+	target = math.min(target, seats - (tonumber(BOTS.KeepFreeSeats) or 1))
+	return math.min(seats, math.max(minPlayers, target))
 end
 
 function BotService:_tick(gameTable)

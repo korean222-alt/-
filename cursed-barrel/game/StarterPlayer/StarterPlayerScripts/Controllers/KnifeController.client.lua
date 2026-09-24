@@ -71,7 +71,7 @@ local PALETTE = {
 
 -- Phase 5: 패널이 화면 아래 3분의 1을 덮고 있어서 카메라가 그만큼 물러나야 했다.
 -- 칸을 줄이고 한 줄에 더 많이 넣어 패널 높이를 절반 가까이 낮춘다.
-local CELL = 42
+local CELL = 46
 local CELL_PADDING = 5
 local MAX_COLUMNS = 10
 
@@ -87,6 +87,8 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.DisplayOrder = 8
 gui.Enabled = false
 gui.Parent = playerGui
+-- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
+require(Shared:WaitForChild("UIKit")).restyle(gui)
 
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
@@ -121,7 +123,7 @@ header.Name = "Header"
 header.BackgroundTransparency = 1
 header.Size = UDim2.new(1, 0, 0, 20)
 header.Font = Enum.Font.GothamBold
-header.Text = "칼을 꽂을 자리를 고르세요"
+header.Text = "자리를 고르세요"
 header.TextColor3 = PALETTE.Gold
 header.TextSize = 16
 header.TextXAlignment = Enum.TextXAlignment.Left
@@ -227,9 +229,8 @@ local function actionButton(name, text, width, color, order)
 	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = button
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = PALETTE.Gold
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.2
+	stroke.Color = Color3.fromRGB(20, 16, 24)
+	stroke.Thickness = 3
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = button
 	return button
@@ -347,8 +348,8 @@ local function buildButtons(count)
 		button.Name = ("Slot_%02d"):format(index)
 		button.LayoutOrder = index
 		button.Text = tostring(index)
-		button.Font = Enum.Font.GothamBold
-		button.TextSize = 16
+		button.Font = Enum.Font.GothamBlack
+		button.TextSize = 20
 		button.TextColor3 = PALETTE.Cream
 		button.BackgroundColor3 = PALETTE.WoodLight
 		button.BorderSizePixel = 0
@@ -360,10 +361,11 @@ local function buildButtons(count)
 		corner.CornerRadius = UDim.new(0, 8)
 		corner.Parent = button
 
+		-- Phase 14 : 굵은 검은 테두리 (만화풍)
 		local stroke = Instance.new("UIStroke")
-		stroke.Color = PALETTE.Gold
-		stroke.Thickness = 1
-		stroke.Transparency = 0.6
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Color3.fromRGB(20, 16, 24)
+		stroke.Thickness = 2.5
 		stroke.Parent = button
 
 		-- 클릭(PC)과 탭(모바일)이 모두 이 신호로 들어온다.
@@ -477,8 +479,7 @@ local function refreshActions(myTurn)
 	braveButton.Visible = offered
 	if offered then
 		local reward = currentModel:GetAttribute(TABLE_ATTR.BraveNextReward) or 0
-		local keyHint = UserInputService.GamepadEnabled and "X" or (UserInputService.KeyboardEnabled and "F" or "")
-		braveButton.Text = ("한 번 더!  +%d 코인%s"):format(reward, keyHint ~= "" and ("  (" .. keyHint .. ")") or "")
+		braveButton.Text = ("한 번 더!  +%d"):format(reward)
 	end
 
 	-- 파티 카드는 내 차례이고 아직 고르기 전(제한 시간이 흐르는 중)에만 쓸 수 있다.
@@ -526,30 +527,20 @@ local function refresh()
 	refreshAllButtons()
 
 	if sealMode then
-		header.Text = "봉인할 자리를 누르세요 · 다음 사람은 그 자리를 고를 수 없습니다"
+		header.Text = "봉인할 자리"
 		header.TextColor3 = Color3.fromRGB(196, 150, 255)
 		return
 	end
 
-	local slotsLeft = currentModel:GetAttribute(TABLE_ATTR.SlotsRemaining) or 0
-	local pirates = currentModel:GetAttribute(TABLE_ATTR.PirateCount) or 0
-	-- 몇 마리가 숨어 있는지만 보여준다. 어느 자리인지는 서버만 안다.
-	local pirateText = (pirates > 0) and ("  ·  해적 %d마리"):format(pirates) or ""
+	-- 머리글은 한 줄만. 설명(남은 자리 · 해적 수 · 단계)은 두지 않는다.
 	local seat = mySeat()
 	local noChance = seat ~= nil and (seat:GetAttribute(SEAT_ATTR.CatchesLeft) or 1) <= 0
-	local level = seat and seat:GetAttribute(SEAT_ATTR.CatchLevel) or 0
 	if noChance then
 		-- 잡을 만큼 다 잡았다. 다음 해적은 분노한 해적이라 만나면 바로 탈락이다.
-		header.Text = ("⚠ 다음 해적은 분노한 해적 · 만나면 탈락 · 남은 자리 %d%s"):format(slotsLeft, pirateText)
+		header.Text = "⚠ 분노한 해적 주의"
 		header.TextColor3 = PALETTE.Danger
-	elseif level > 0 then
-		-- Phase 11 : 잡을 때마다 다음 해적이 빨라진다. 몇 단계인지 알려 준다.
-		header.Text = ("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s  ·  ⚡ 잡기 %d회 · 다음 해적은 더 빠르다"):format(slotsLeft, pirateText, level)
-		header.TextColor3 = Color3.fromRGB(255, 186, 110)
 	else
-		local brave = currentModel:GetAttribute(TABLE_ATTR.BraveLevel) or 0
-		local braveText = brave > 0 and ("  ·  배짱 %d단계"):format(brave) or ""
-		header.Text = ("칼을 꽂을 자리를 고르세요 · 남은 자리 %d%s%s"):format(slotsLeft, pirateText, braveText)
+		header.Text = "자리를 고르세요"
 		header.TextColor3 = PALETTE.Gold
 	end
 end
@@ -731,7 +722,7 @@ end
 
 selectSlotRemote.OnClientEvent:Connect(function(ok, payload)
 	if ok then
-		showToast(("%s번 자리에 칼을 꽂았습니다"):format(tostring(payload)), PALETTE.Ready)
+		showToast(("%s번"):format(tostring(payload)), PALETTE.Ready)
 	else
 		showToast(tostring(payload), PALETTE.Danger)
 	end
@@ -844,10 +835,10 @@ sabotageCue.OnClientEvent:Connect(function(_, data)
 	end
 	if data.id == "shake" then
 		shakeUntil = os.clock() + (data.duration or 7)
-		showToast("손이 흔들린다! 자리를 잘 노려보세요", PALETTE.Danger)
+		showToast("손이 흔들린다!", PALETTE.Danger)
 	elseif data.id == "scramble" then
 		beginScramble(data.duration)
-		showToast("번호가 뒤섞였다! 누른 자리에 그대로 꽂힙니다", PALETTE.Danger)
+		showToast("번호가 뒤섞였다!", PALETTE.Danger)
 	end
 end)
 

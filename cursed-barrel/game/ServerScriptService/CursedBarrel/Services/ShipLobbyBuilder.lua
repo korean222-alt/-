@@ -6,6 +6,7 @@ local Tags=game:GetService("CollectionService")
 local Shared=RS.CursedBarrel.Shared
 local Config=require(Shared.GameConfig)
 local L=require(Shared.ShipLayout)
+local Release=require(Shared.ReleaseConfig)
 local S={}
 local wood=Color3.fromRGB(87,51,30)
 local dark=Color3.fromRGB(42,28,24)
@@ -27,23 +28,39 @@ end
 local function group(parent,name)
  local m=Instance.new("Model");m.Name=name;m.ModelStreamingMode=Enum.ModelStreamingMode.Atomic;m.Parent=parent;return m
 end
-local function light(parent,pos)
+-- 등불은 전부 ShipLights 폴더 하나에 모으고 Persistent 로 둔다.
+-- (Atomic 으로 두면 스트리밍이 등불을 늦게 보내서, 처음 들어와 스폰 단상에 서 있는 동안 배가 캄캄했다)
+local lightFolder=nil
+local function light(_,pos,range,brightness)
  -- Every light has a cap, cage, chain and a visible structural attachment.
- local lamp=group(parent,"SupportedLantern")
+ local lamp=Instance.new("Model");lamp.Name="SupportedLantern";lamp.ModelStreamingMode=Enum.ModelStreamingMode.Persistent;lamp.Parent=lightFolder
  block(lamp,"Glass",Vector3.new(0.8,1.1,0.8),CFrame.new(pos),Color3.fromRGB(255,193,93),false,Enum.Material.Neon).Transparency=0.15
  for _,y in ipairs({-0.66,0.66}) do block(lamp,"Cap",Vector3.new(1.2,0.17,1.2),CFrame.new(pos+Vector3.new(0,y,0)),iron,false,Enum.Material.Metal) end
  for _,x in ipairs({-0.48,0.48}) do for _,z in ipairs({-0.48,0.48}) do
   block(lamp,"Cage",Vector3.new(0.08,1.3,0.08),CFrame.new(pos+Vector3.new(x,0,z)),iron,false,Enum.Material.Metal)
  end end
  local p=lamp:FindFirstChild("Glass")
- local point=Instance.new("PointLight");point.Color=Color3.fromRGB(255,200,128);point.Range=15;point.Brightness=1.4;point.Shadows=false;point.Parent=p
+ local point=Instance.new("PointLight");point.Color=Color3.fromRGB(255,200,128);point.Range=range or 20;point.Brightness=brightness or 1.8;point.Shadows=false;point.Parent=p
  lamp:SetAttribute("StructurallySupported",true)
  return lamp
+end
+-- 기둥 위에 올린 등불 (갑판 · 후갑판 · 뱃머리)
+local function postLight(parent,base,height)
+ local top=base+Vector3.new(0,height,0)
+ block(parent,"LampPost",Vector3.new(0.45,height,0.45),CFrame.new(base+Vector3.new(0,height/2,0)),dark,true,Enum.Material.Wood)
+ block(parent,"LampPostFoot",Vector3.new(1.1,0.3,1.1),CFrame.new(base+Vector3.new(0,0.15,0)),iron,false,Enum.Material.Metal)
+ return light(parent,top+Vector3.new(0,0.7,0))
+end
+-- 천장(후갑판 바닥 밑)에 사슬로 매단 등불
+local function hangingLight(parent,ceiling,drop)
+ segment(parent,"LampChain",ceiling,ceiling-Vector3.new(0,drop,0),0.07,iron,false)
+ return light(parent,ceiling-Vector3.new(0,drop+0.66,0))
 end
 function S:archive(lobby)
  local old=ServerStorage:FindFirstChild("Phase8_LobbyBackup")
  if not old then old=Instance.new("Folder");old.Name="Phase8_LobbyBackup";old.Parent=ServerStorage end
- local keep={Deck=true,HarborSea=true,RankingBoard=true,Instructions=true,LobbySpawn=true,ShopDisplay=true}
+ -- 설명 게시판(Instructions)은 치운다. 게임 방법은 첫 접속 카드 한 장으로 충분하다.
+ local keep={Deck=true,HarborSea=true,RankingBoard=true,LobbySpawn=true,ShopDisplay=true}
  for _,obj in ipairs(lobby:GetChildren()) do if not keep[obj.Name] and obj.Name~="PlayableGalleon" then obj.Parent=old end end
  local deck=lobby:FindFirstChild("Deck")
  if deck then deck.Transparency=1;deck.CanCollide=false;deck.CanQuery=false;deck.CanTouch=false end
@@ -165,10 +182,8 @@ function S:cabin(root,lobby)
  end
  local ranking=lobby:FindFirstChild("RankingBoard")
  if ranking then ranking.CFrame=CFrame.new(-34,9,-95);ranking.Size=Vector3.new(23,11,0.6) end
- local instructions=lobby:FindFirstChild("Instructions")
- if instructions then instructions.CFrame=CFrame.new(34,7,-95);instructions.Size=Vector3.new(23,8,0.5) end
- -- Both boards rest on posts instead of floating in front of the cabin.
- for _,x in ipairs({-43,-25,25,43}) do block(cabin,"BoardPost",Vector3.new(0.65,8,0.65),CFrame.new(x,5,-95),wood,true) end
+ -- The ranking board rests on posts instead of floating in front of the cabin.
+ for _,x in ipairs({-43,-25}) do block(cabin,"BoardPost",Vector3.new(0.65,8,0.65),CFrame.new(x,5,-95),wood,true) end
 end
 function S:forecastle(root,lobby)
  local front=group(root,"Forecastle")
@@ -183,16 +198,119 @@ function S:forecastle(root,lobby)
   for _,z in ipairs({113,121,129}) do block(front,"BowRailPost",Vector3.new(0.35,2.7,0.35),CFrame.new(side*17.5,6.85,z),wood,true) end
  end
 end
+function S:nightLights(root)
+ local extra=group(root,"NightLights")
+ -- 스폰 단상 (뱃머리 높은 갑판)
+ for _,x in ipairs({-12,12}) do for _,z in ipairs({114,127}) do postLight(extra,Vector3.new(x,5.5,z),3.4) end end
+ -- 뱃머리 끝
+ postLight(extra,Vector3.new(0,5.5,129.2),2.6)
+ -- 후갑판 (조타륜이 있는 2층) : 조타륜 양옆 · 양쪽 난간 · 선미 끝
+ for _,x in ipairs({-7,7}) do postLight(extra,Vector3.new(x,17.8,-110),3.2) end
+ -- 계단이 올라오는 길(x 43.5 ~ 50.5)을 막지 않게 난간 바로 안쪽에 세운다
+ for _,side in ipairs({-1,1}) do for _,z in ipairs({-108,-141}) do postLight(extra,Vector3.new(side*51.6,17.8,z),3.2) end end
+ for _,x in ipairs({-16,0,16}) do postLight(extra,Vector3.new(x,17.8,-150),3.2) end
+ -- 선실 안 (전시장) : 후갑판 바닥 밑에 매단다
+ for _,x in ipairs({-34,0,34}) do for _,z in ipairs({-113,-138}) do hangingLight(extra,Vector3.new(x,16.95,z),2.6) end end
+ -- 뱃전 난간 (대포 쪽 가장자리)
+ for _,side in ipairs({-1,1}) do for _,z in ipairs({72,24,-20,-66}) do
+  local x=side*(L.halfWidth(z)-0.4)
+  block(extra,"RailLampPost",Vector3.new(0.35,1.6,0.35),CFrame.new(x,5.3,z),dark,false,Enum.Material.Wood)
+  segment(extra,"RailLampArm",Vector3.new(x,6.1,z),Vector3.new(x-side*1.4,6.1,z),0.18,iron,false)
+  light(extra,Vector3.new(x-side*1.4,5.3,z),18,1.6)
+ end end
+end
+-- 함포 한 문. 바깥(side 방향)을 겨눈다.
+-- ★ CannonTube 의 자리 · 길이(5.5)는 그대로다. 포구 위치(대포 판정 · 조준)가 여기서 나온다.
+-- 포신 장식은 Barrel 모델 안에 함께 있어서 쏠 때 같이 뒤로 밀린다(반동).
+local gunIron=Color3.fromRGB(40,42,48)
+local gunRing=Color3.fromRGB(62,64,72)
+local carriageWood=Color3.fromRGB(112,60,34)
+local rope=Color3.fromRGB(150,120,80)
+function S:cannon(root,side,z)
+ local model=group(root,"Cannon_"..side.."_"..z)
+ local x=side*50
+ local y=3.2
+ local function along(dx,length,diameter,name,color,material,parent)
+  local p=block(parent or model,name,Vector3.new(length,diameter,diameter),CFrame.new(x+side*dx,y,z),color or gunIron,false,material or Enum.Material.Metal)
+  p.Shape=Enum.PartType.Cylinder;p.Reflectance=0.12;return p
+ end
+ -- 포신
+ local barrel=Instance.new("Model");barrel.Name="Barrel";barrel.Parent=model
+ local tube=along(0,5.5,1.36,"CannonTube",gunIron,nil,barrel)
+ along(-1.65,2.2,1.72,"Reinforce",gunIron,nil,barrel)
+ along(-2.72,0.32,1.95,"BreechRing",gunRing,nil,barrel)
+ along(-0.55,0.24,1.86,"TrunnionRing",gunRing,nil,barrel)
+ along(0.95,0.2,1.56,"ChaseRing",gunRing,nil,barrel)
+ along(2.45,0.72,1.66,"MuzzleSwell",gunIron,nil,barrel)
+ along(2.8,0.2,1.84,"MuzzleLip",gunRing,nil,barrel)
+ along(2.86,0.12,0.86,"Bore",Color3.fromRGB(8,8,10),Enum.Material.SmoothPlastic,barrel).Reflectance=0
+ along(-3.0,0.46,0.5,"CascabelNeck",gunIron,nil,barrel)
+ local knob=block(barrel,"Cascabel",Vector3.new(0.78,0.78,0.78),CFrame.new(x-side*3.35,y,z),gunIron,false,Enum.Material.Metal)
+ knob.Shape=Enum.PartType.Ball;knob.Reflectance=0.12
+ local trunnion=block(barrel,"Trunnions",Vector3.new(2.7,0.52,0.52),CFrame.new(x-side*0.2,y,z)*CFrame.Angles(0,math.pi/2,0),gunIron,false,Enum.Material.Metal)
+ trunnion.Shape=Enum.PartType.Cylinder
+ -- 포가 (계단 모양 옆판 · 굴대 · 바퀴 넷)
+ for _,dz in ipairs({-1.05,1.05}) do
+  block(model,"Cheek",Vector3.new(2.4,1.38,0.34),CFrame.new(x+side*0.7,2.58,z+dz),carriageWood,false)
+  block(model,"CheekStep",Vector3.new(1.2,0.95,0.34),CFrame.new(x-side*1.1,2.37,z+dz),carriageWood,false)
+  block(model,"CheekStep",Vector3.new(0.7,0.55,0.34),CFrame.new(x-side*2.05,2.17,z+dz),carriageWood,false)
+  block(model,"CapSquare",Vector3.new(0.9,0.14,0.4),CFrame.new(x-side*0.2,3.5,z+dz),iron,false,Enum.Material.Metal)
+  for _,dx in ipairs({-0.9,0.3,1.5}) do
+   block(model,"Bolt",Vector3.new(0.14,0.14,0.38),CFrame.new(x+side*dx,2.3,z+dz),iron,false,Enum.Material.Metal)
+  end
+ end
+ block(model,"Bed",Vector3.new(4.1,0.3,2.1),CFrame.new(x-side*0.2,1.9,z),carriageWood,false)
+ local quoin=Instance.new("WedgePart");quoin.Name="Quoin";quoin.Size=Vector3.new(1.4,0.55,0.9)
+ quoin.CFrame=CFrame.new(x-side*2.1,2.32,z)*CFrame.Angles(0,side>0 and math.pi/2 or -math.pi/2,0)
+ quoin.Color=carriageWood;quoin.Material=Enum.Material.Wood;quoin.Anchored=true;quoin.CanCollide=false;quoin.CanQuery=false;quoin.CanTouch=false;quoin.CastShadow=false;quoin.Parent=model
+ for _,axle in ipairs({{1.45,1.2},{-1.9,1.02}}) do
+  local dx,wheelSize=axle[1],axle[2]
+  local wy=1+wheelSize/2
+  block(model,"AxleTree",Vector3.new(0.5,0.42,3.0),CFrame.new(x+side*dx,wy,z),carriageWood,false)
+  for _,dz in ipairs({-1.5,1.5}) do
+   local wheel=block(model,"Truck",Vector3.new(0.34,wheelSize,wheelSize),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),Color3.fromRGB(74,42,24),false,Enum.Material.Wood)
+   wheel.Shape=Enum.PartType.Cylinder
+   local hub=block(model,"TruckHub",Vector3.new(0.4,0.34,0.34),CFrame.new(x+side*dx,wy,z+dz)*CFrame.Angles(0,math.pi/2,0),iron,false,Enum.Material.Metal)
+   hub.Shape=Enum.PartType.Cylinder
+  end
+ end
+ -- 부딪힘은 보이지 않는 상자 하나로 (장식 파트는 전부 부딪히지 않는다)
+ local hit=block(model,"CarriageCollision",Vector3.new(5.2,2.4,3.4),CFrame.new(x,2.2,z),wood,true);hit.Transparency=1;hit.CanQuery=false
+ -- 뱃전 쪽 포문과 고정 밧줄
+ local half=L.halfWidth(z)
+ block(model,"GunPort",Vector3.new(0.08,1.5,1.8),CFrame.new(side*(half-0.84),3.1,z),Color3.fromRGB(12,10,10),false,Enum.Material.SmoothPlastic)
+ for _,edge in ipairs({{0,0.84,1.9,0.14},{0,-0.84,1.9,0.14},{0.97,0,0.14,1.82},{-0.97,0,0.14,1.82}}) do
+  block(model,"GunPortFrame",Vector3.new(0.1,edge[4],edge[3]),CFrame.new(side*(half-0.88),3.1+edge[2],z+edge[1]),gold,false,Enum.Material.Metal)
+ end
+ for _,dz in ipairs({-2.6,2.6}) do
+  local ring=Vector3.new(side*(half-0.9),3.0,z+dz)
+  block(model,"RingBolt",Vector3.new(0.3,0.3,0.3),CFrame.new(ring),iron,false,Enum.Material.Metal)
+  local a,b=ring,Vector3.new(x-side*1.9,2.5,z+dz*0.42)
+  block(model,"BreechingRope",Vector3.new(0.16,0.16,(b-a).Magnitude),CFrame.lookAt((a+b)*0.5,b),rope,false,Enum.Material.Fabric)
+ end
+ -- 옆에 쌓아 둔 포탄
+ local pile=Vector3.new(x-side*0.9,1,z+3.3)
+ for _,o in ipairs({{-0.36,-0.36},{0.36,-0.36},{-0.36,0.36},{0.36,0.36}}) do
+  local ball=block(model,"Shot",Vector3.new(0.72,0.72,0.72),CFrame.new(pile+Vector3.new(o[1],0.36,o[2])),Color3.fromRGB(28,28,32),false,Enum.Material.Metal)
+  ball.Shape=Enum.PartType.Ball;ball.Reflectance=0.1
+ end
+ local top=block(model,"Shot",Vector3.new(0.72,0.72,0.72),CFrame.new(pile+Vector3.new(0,0.92,0)),Color3.fromRGB(28,28,32),false,Enum.Material.Metal)
+ top.Shape=Enum.PartType.Ball
+ -- 사용자 3D 모델 (ReleaseConfig.Meshes.Cannon 에 MeshId 를 넣으면 포신을 그 모델로 바꾼다)
+ local meshes=Release.Meshes and Release.Meshes.Cannon
+ if meshes and (tonumber(meshes.MeshId) or 0)>0 then
+  for _,piece in ipairs(barrel:GetChildren()) do if piece~=tube and piece:IsA("BasePart") then piece.Transparency=1 end end
+  local mesh=Instance.new("SpecialMesh");mesh.MeshType=Enum.MeshType.FileMesh
+  mesh.MeshId="rbxassetid://"..meshes.MeshId
+  if (tonumber(meshes.TextureId) or 0)>0 then mesh.TextureId="rbxassetid://"..meshes.TextureId end
+  mesh.Scale=meshes.Scale or Vector3.new(1,1,1);mesh.Offset=meshes.Offset or Vector3.new();mesh.Parent=tube
+ end
+ return model
+end
 function S:props(root)
  for _,side in ipairs({-1,1}) do
   for _,z in ipairs(L.CannonZ) do
-   local cannon=group(root,"Cannon_"..side.."_"..z)
-   local x=side*50
-   block(cannon,"Carriage",Vector3.new(4.4,1,3.2),CFrame.new(x,2.1,z),wood,true)
-   local barrel=block(cannon,"CannonTube",Vector3.new(5.5,1.5,1.5),CFrame.new(x,3.2,z),iron,false,Enum.Material.Metal);barrel.Shape=Enum.PartType.Cylinder
-   for _,dz in ipairs({-1.8,1.8}) do
-    local wheel=block(cannon,"Wheel",Vector3.new(0.4,1.7,1.7),CFrame.new(x,1.85,z+dz)*CFrame.Angles(0,math.pi/2,0),dark,false);wheel.Shape=Enum.PartType.Cylinder
-   end
+   S:cannon(root,side,z)
   end
   for i,z in ipairs({-80,-58,-20,24,72}) do
    local cargo=group(root,"SecuredCargo_"..side.."_"..i)
@@ -227,7 +345,8 @@ function S:Prepare()
  Config.Showcase.Columns=L.Showcase.Columns;Config.Showcase.RowSpacing=L.Showcase.RowSpacing
  for _,zone in ipairs(Config.Showcase.Zones) do zone.x=L.Showcase.Centers[zone.kind] end
  local root=Instance.new("Folder");root.Name="PlayableGalleon";root.Parent=lobby
- self:hull(root);self:rigging(root);self:lighting(root);self:cabin(root,lobby);self:forecastle(root,lobby);self:props(root)
+ lightFolder=Instance.new("Folder");lightFolder.Name="ShipLights";lightFolder.Parent=root
+ self:hull(root);self:rigging(root);self:lighting(root);self:cabin(root,lobby);self:forecastle(root,lobby);self:nightLights(root);self:props(root)
  workspace:SetAttribute("ShipLobbyReady",true)
  print("[CursedBarrel] Playable galleon ready: 10 tables, supported lights, cabin and quarterdeck")
 end

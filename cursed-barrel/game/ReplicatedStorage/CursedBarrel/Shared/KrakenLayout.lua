@@ -27,18 +27,21 @@ K.QuarterdeckTop = 17.8 -- 선미 후갑판 윗면
 K.QuarterRailTop = 20.5 -- 후갑판 난간 윗면
 
 K.Colors = {
-	Skin = Color3.fromRGB(92, 36, 64),
-	SkinDark = Color3.fromRGB(64, 24, 46),
-	Belly = Color3.fromRGB(206, 132, 136),
-	Sucker = Color3.fromRGB(236, 178, 170),
+	-- 뿌리(SkinDark) → 몸(Skin) → 끝(Tip) 으로 부드럽게 바뀐다. 안쪽은 Belly, 빨판은 Sucker 테두리 + SuckerCup 속.
+	Skin = Color3.fromRGB(122, 40, 70),
+	SkinDark = Color3.fromRGB(58, 20, 44),
+	Tip = Color3.fromRGB(186, 78, 96),
+	Belly = Color3.fromRGB(226, 150, 150),
+	Sucker = Color3.fromRGB(244, 196, 184),
+	SuckerCup = Color3.fromRGB(168, 84, 98),
 	Foam = Color3.fromRGB(228, 240, 246),
 	EyeWhite = Color3.fromRGB(236, 214, 120),
 	Iris = Color3.fromRGB(255, 150, 40),
 	Pupil = Color3.fromRGB(12, 8, 10),
 }
 
--- 마디 수. 품질이 낮으면 줄인다.
-K.Samples = { High = 18, Low = 11 }
+-- 마디 수. 품질이 낮으면 줄인다. (마디가 촘촘해야 다리가 매끈한 곡선으로 보인다)
+K.Samples = { High = 26, Low = 14 }
 
 --------------------------------------------------
 -- 다리 정의

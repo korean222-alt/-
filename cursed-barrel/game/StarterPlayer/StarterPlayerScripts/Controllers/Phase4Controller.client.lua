@@ -50,6 +50,7 @@ local sabotageCue = remotes:WaitForChild(config.Remotes.SabotageCue)
 local visuals = package:WaitForChild("Visuals")
 local StabMotion = require(package.Shared:WaitForChild("StabMotion"))
 local PirateModel = require(package.Shared:WaitForChild("PirateModel"))
+local UIKit = require(package.Shared:WaitForChild("UIKit"))
 local SKIN_ATTR = config.Skins.PlayerAttributes
 local TABLE_ATTR = config.TableAttributes
 
@@ -116,9 +117,6 @@ local STAB = {
 
 local active, lastTable, holdUntil, shakeUntil = nil, nil, 0, 0
 local muted, reduced, cameraOn = false, false, true
-local function persistSetting(key,value)
- local remote=remotes:FindFirstChild("VoyageRequest");if remote then remote:FireServer("setting",key,value) end
-end
 local function applySettings()
  muted=(player:GetAttribute("Setting_sfx") or 0.65)<=0
  reduced=player:GetAttribute("Setting_reducedFX")==true
@@ -158,22 +156,22 @@ local function textLabel(name, size, position, fontSize)
 	label.Position = position
 	label.BackgroundTransparency = 1
 	label.TextColor3 = cream
-	label.Font = Enum.Font.GothamBold
+	label.FontFace = UIKit.font(true)
 	label.TextSize = fontSize
 	label.TextWrapped = true
 	label.Text = ""
 	label.Parent = gui
+	UIKit.textStroke(label, math.clamp(fontSize / 8, 2, 5))
 	return label
 end
 
-local title = textLabel("Chapter", UDim2.new(0.8, 0, 0, 32), UDim2.new(0.1, 0, 0, 46), 22)
+local title = textLabel("Chapter", UDim2.new(0.8, 0, 0, 36), UDim2.new(0.1, 0, 0, 92), 26)
 title.TextColor3 = gold
-local status = textLabel("Status", UDim2.new(0.86, 0, 0, 34), UDim2.new(0.07, 0, 0, 80), 16)
--- Phase 10 : 현상금 · 내 잡기 기회 · 배짱 단계
-local detail = textLabel("Detail", UDim2.new(0.86, 0, 0, 22), UDim2.new(0.07, 0, 0, 112), 14)
-detail.TextColor3 = teal
-local banner = textLabel("Result", UDim2.new(0.84, 0, 0, 100), UDim2.new(0.08, 0, 0.24, 0), 32)
-banner.TextStrokeTransparency = 0.5
+local status = textLabel("Status", UDim2.new(0.86, 0, 0, 44), UDim2.new(0.07, 0, 0, 128), 34)
+-- 꼭 알아야 하는 경고 한 줄 (분노한 해적)
+local detail = textLabel("Detail", UDim2.new(0.86, 0, 0, 30), UDim2.new(0.07, 0, 0, 174), 24)
+detail.TextColor3 = red
+local banner = textLabel("Result", UDim2.new(0.84, 0, 0, 100), UDim2.new(0.08, 0, 0.24, 0), 48)
 banner.TextTransparency = 1
 
 local flash = Instance.new("Frame")
@@ -267,13 +265,13 @@ catchText.AnchorPoint = Vector2.new(0.5, 0.5)
 catchText.Position = UDim2.fromScale(0.5, 0.44)
 catchText.Size = UDim2.fromOffset(420, 72)
 catchText.BackgroundTransparency = 1
-catchText.Font = Enum.Font.GothamBlack
-catchText.TextSize = 46
+catchText.FontFace = UIKit.font(true)
+catchText.TextSize = 64
 catchText.TextColor3 = cream
-catchText.TextStrokeTransparency = 0.4
 catchText.Text = ""
 catchText.ZIndex = 18
 catchText.Parent = catchGui
+UIKit.textStroke(catchText, 5)
 
 local catchHint = Instance.new("TextLabel")
 catchHint.Name = "Hint"
@@ -343,59 +341,15 @@ local function showInk(duration)
 end
 
 --------------------------------------------------
--- 설정
+-- 설정은 항해 수첩(🧭) > 설정 한 곳에만 있다. (예전의 작은 설정 창은 걷어냈다)
 --------------------------------------------------
-local settings = Instance.new("Frame")
-settings.Name = "Settings"
-settings.Size = UDim2.fromOffset(174, 184)
-settings.Position = UDim2.new(1, -186, 0, 140)
-settings.BackgroundColor3 = Color3.fromRGB(24, 28, 32)
-settings.BackgroundTransparency = 0.12
-settings.Visible = false
-settings.Parent = gui
-Instance.new("UICorner", settings).CornerRadius = UDim.new(0, 10)
-
 local function button(parent, caption, position, size, callback)
-	local b = Instance.new("TextButton")
-	b.Text = caption
-	b.Position = position
-	b.Size = size
-	b.BackgroundColor3 = Color3.fromRGB(38, 48, 53)
-	b.TextColor3 = cream
-	b.Font = Enum.Font.GothamBold
-	b.TextSize = 13
-	b.Parent = parent
-	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+	local b = UIKit.button(parent, { text = caption, position = position, size = size, theme = "green", textSize = 18, zIndex = 15 })
 	b.Activated:Connect(function()
 		callback(b)
 	end)
 	return b
 end
-
-button(gui, "설정", UDim2.new(1, -82, 0, 104), UDim2.fromOffset(70, 30), function()
-	settings.Visible = not settings.Visible
-end)
-button(settings, "효과음: 켜짐", UDim2.fromOffset(8, 8), UDim2.fromOffset(158, 36), function(b)
-	muted = not muted
-    persistSetting("sfx",muted and 0 or 0.65)
-	b.Text = muted and "효과음: 꺼짐" or "효과음: 켜짐"
-end)
-button(settings, "놀람 연출: 켜짐", UDim2.fromOffset(8, 52), UDim2.fromOffset(158, 36), function(b)
-	-- 화면 흔들림 · 번쩍임 · 클로즈업을 한 번에 줄입니다. (빛 과민 사용자 배려)
-	reduced = not reduced
-    persistSetting("reducedFX",reduced)
-	b.Text = reduced and "놀람 연출: 꺼짐" or "놀람 연출: 켜짐"
-end)
-button(settings, "테이블 카메라: 켜짐", UDim2.fromOffset(8, 96), UDim2.fromOffset(158, 36), function(b)
-	cameraOn = not cameraOn
-    persistSetting("camera",cameraOn)
-	b.Text = cameraOn and "테이블 카메라: 켜짐" or "테이블 카메라: 꺼짐"
-end)
-button(settings, "화각 넓게: 켜짐", UDim2.fromOffset(8, 140), UDim2.fromOffset(158, 36), function(b)
-	FRAME.FOV = (FRAME.FOV > 64) and 58 or 68
-    persistSetting("wide",FRAME.FOV>64)
-	b.Text = (FRAME.FOV > 64) and "화각 넓게: 켜짐" or "화각 넓게: 꺼짐"
-end)
 
 --------------------------------------------------
 -- 첫 판 안내
@@ -404,52 +358,34 @@ local tutorial = Instance.new("Frame")
 tutorial.Name = "Tutorial"
 tutorial.AnchorPoint = Vector2.new(0, 0.5)
 tutorial.Position = UDim2.new(0, 22, 0.5, 0)
-tutorial.Size = UDim2.fromOffset(318, 290)
-tutorial.BackgroundColor3 = Color3.fromRGB(24, 20, 16)
-tutorial.BackgroundTransparency = 0.08
+tutorial.Size = UDim2.fromOffset(340, 210)
+tutorial.BackgroundColor3 = Color3.new(1, 1, 1)
 tutorial.BorderSizePixel = 0
 tutorial.ZIndex = 14
 tutorial.Parent = gui
-Instance.new("UICorner", tutorial).CornerRadius = UDim.new(0, 14)
-local tutorialStroke = Instance.new("UIStroke")
-tutorialStroke.Color = gold
-tutorialStroke.Thickness = 2
-tutorialStroke.Transparency = 0.3
-tutorialStroke.Parent = tutorial
+UIKit.gradient(tutorial, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
+UIKit.corner(tutorial, 16)
+UIKit.outline(tutorial, 4)
 
 local function tutorialLine(text, y, color, size)
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Position = UDim2.fromOffset(16, y)
-	label.Size = UDim2.new(1, -32, 0, size and 24 or 22)
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = size or 14
-	label.TextColor3 = color or cream
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextWrapped = true
-	label.Text = text
-	label.ZIndex = 15
-	label.Parent = tutorial
-	return label
+	return UIKit.label(tutorial, {
+		text = text, position = UDim2.fromOffset(18, y), size = UDim2.new(1, -36, 0, (size or 14) + 10),
+		textSize = size or 14, color = color or cream, alignX = Enum.TextXAlignment.Left, zIndex = 15,
+	})
 end
-tutorialLine("처음이신가요?", 14, gold, 18)
-tutorialLine("1.  의자에 다가가 E · 모바일은 탭", 48)
-tutorialLine("2.  내 차례가 오면 아래에서 자리를 고르기", 74)
-tutorialLine("3.  저주받은 자리를 뽑으면 해적이 튀어나옵니다", 100)
-tutorialLine("     고리가 줄어들 때 눌러 잡으면 살아남아요", 124, teal)
-tutorialLine("     나오기 전에 누르면 탈락! 잡을수록 점점 빨라져요", 148, red)
-tutorialLine("4.  안전하면 「한 번 더」로 보너스 코인", 172)
-tutorialLine("5.  마지막 생존자가 현상금을 가져갑니다", 196)
-tutorialLine("바닥 화살표를 따라가면 빈 자리가 나옵니다", 222, Color3.fromRGB(168, 152, 128))
+tutorialLine("게임 방법", 12, gold, 26)
+tutorialLine("① 의자에 앉기", 52, cream, 20)
+tutorialLine("② 내 차례에 칼 꽂을 자리 고르기", 84, cream, 20)
+tutorialLine("③ 해적이 나오면 눌러서 잡기!", 116, teal, 20)
 -- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
-button(tutorial, "연습 한 판", UDim2.new(1, -196, 1, -34), UDim2.fromOffset(92, 26), function()
+button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function()
 	tutorial.Visible = false
 	local r = remotes:FindFirstChild("VoyageRequest")
 	if r then
 		r:FireServer("practice")
 	end
 end)
-button(tutorial, "알겠어요", UDim2.new(1, -96, 1, -34), UDim2.fromOffset(84, 26), function()
+button(tutorial, "알겠어요", UDim2.new(1, -124, 1, -54), UDim2.fromOffset(110, 42), function()
 	tutorial.Visible = false
     local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
 end)
@@ -830,8 +766,13 @@ local function characterOfUser(model, userId)
 	local seats = model and model:FindFirstChild("Seats")
 	if seats and userId and userId ~= 0 then
 		for _, seat in ipairs(seats:GetDescendants()) do
-			if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == userId and seat.Occupant then
-				return seat.Occupant.Parent
+			if seat:IsA("Seat") and seat:GetAttribute(config.SeatAttributes.OccupantUserId) == userId then
+				local link = seat:FindFirstChild("BotCharacter")
+				if link and link.Value then
+					return link.Value
+				elseif seat.Occupant then
+					return seat.Occupant.Parent
+				end
 			end
 		end
 	end
@@ -1452,7 +1393,7 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 
 	if not data.mine then
 		task.delay(math.max(0, opensLocal - os.clock()), function()
-			announce(("%s 님이 해적을 잡는 중!%s"):format(data.name or "", level > 1 and ("  (%d단계)"):format(level) or ""), gold, 1.2)
+			announce(("%s 잡는 중!"):format(data.name or ""), gold, 1.2)
 		end)
 		return
 	end
@@ -1467,8 +1408,7 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	catchGui.Visible = true
 	catchButton.Active = true
 	catchText.Text = ""
-	catchHint.Text = ("해적이 튀어나온 뒤에 눌러라!  먼저 누르면 탈락   ·   %d단계 · 창 %.2f초%s")
-		:format(level, data.window or 0, level > 1 and " (점점 빨라진다)" or "")
+	catchHint.Text = ""
 	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
 	setSeatLock(true, opensLocal + (data.window or 0.6) + 4)
 	-- 게임패드로 칼 자리 버튼이 선택돼 있으면 A 가 그 버튼으로 먹힌다. 잡기 입력이 되도록 선택을 푼다.
@@ -1488,25 +1428,15 @@ catchResult.OnClientEvent:Connect(function(model, data)
 	end
 
 	if data.success then
-		local grade_ = data.perfect and "완벽! 보너스 코인" or "아슬아슬!"
-		-- 잡으면 통 안에 해적이 새로 숨고, 이 사람의 다음 해적은 더 빨라진다.
-		local tail
-		if (data.catchesLeft or 0) <= 0 then
-			tail = "  다음 해적은 분노한 해적!"
-		else
-			tail = ("  다음 해적은 더 빠르다 (%d단계)"):format((data.level or 1) + 1)
-		end
-		announce(mine and ("잡았다!  " .. grade_ .. tail) or ((data.name or "") .. " 님이 해적을 잡았습니다!"), teal, 2)
+		announce(mine and (data.perfect and "완벽!" or "잡았다!") or ((data.name or "") .. " 잡았다!"), teal, 1.6)
 		blink(teal, 0.35)
 		sound("win", 1.4, 0.3)
 		-- 해적이 통으로 끌려 들어갑니다.
 		setGhostState(ghostLive, "caught")
 	else
 		local reason = data.reason
-		local why = (reason == "late" and "놓쳤다…") or (reason == "early" and "해적이 나오기도 전에 눌렀다…")
-			or (reason == "timeout" and "반응하지 못했다…")
-			or (reason == "spent" and "분노한 해적은 잡을 수 없다…") or "놓쳤다…"
-		announce(mine and (why .. "  탈락") or ((data.name or "") .. (reason == "early" and " · 너무 서둘렀다 · 탈락" or " · 탈락")), red, 1.8)
+		local why = (reason == "early" and "너무 빨랐다!") or (reason == "spent" and "분노한 해적!") or "놓쳤다…"
+		announce(mine and why or ((data.name or "") .. " 탈락"), red, 1.6)
 		blink(red, 0.4)
 		sound("danger", 0.6, 0.3)
 		-- 해적이 달려든다. (먼저 눌러서 아직 안 나왔다면, 나오자마자 달려든다)
@@ -1633,16 +1563,14 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			end)
 		elseif own then
 			task.delay(hitAt, function()
-				local mineNow = data.userId == player.UserId
-				local canBrave = mineNow and model:GetAttribute(TABLE_ATTR.BraveOfferUserId) == player.UserId
-				announce(canBrave and "안전!  「한 번 더」로 보너스를 노릴 수 있어요" or "안전!  다음 차례로", teal)
+				announce("안전!", teal, 1.2)
 			end)
 		end
 	elseif kind == "Brave" then
 		if own then
 			local mineNow = data.userId == player.UserId
-			announce(mineNow and ("배짱 %d단계!  한 번 더 찌르세요"):format(data.level or 1)
-				or ("%s 님이 한 번 더 찌릅니다!  (배짱 %d단계)"):format(data.name or "", data.level or 1),
+			announce(mineNow and ("배짱 %d단계!"):format(data.level or 1)
+				or ("%s 배짱 %d단계!"):format(data.name or "", data.level or 1),
 				Color3.fromRGB(255, 160, 70), 1.6)
 			sound("riser", 1.2, 0.14)
 		end
@@ -1655,7 +1583,7 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 		-- Phase 11 : 보물 폭발. 금화 비는 TreasureController 가 뿌린다.
 		if own then
 			local big = data.tier == "kraken"
-			announce(("%s!  현상금 +%d  (총 %d)"):format(data.name or "보물", data.amount or 0, data.pot or 0),
+			announce(("💰 +%d"):format(data.amount or 0),
 				big and Color3.fromRGB(196, 130, 255) or gold, big and 2.6 or 1.8)
 			for i, pitch in ipairs(big and { 1, 1.2, 1.45, 1.7 } or { 1.3, 1.6 }) do
 				task.delay((i - 1) * 0.1, function()
@@ -1667,19 +1595,15 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 	elseif kind == "Win" then
 		burst(pos + Vector3.new(0, 3, 0), gold, reduced and 10 or 28)
 		if own then
-			local streakText = (data.streak and data.streak >= 2) and ("  ·  %d연승!"):format(data.streak) or ""
-			local potText = (data.pot and data.pot > 0) and ("  ·  현상금 %d 코인"):format(data.pot) or ""
-			local carryText = (data.carry and data.carry > 0) and ("  ·  다음 판 이월 +%d"):format(data.carry) or ""
-			local practiceText = data.practice and "  ·  AI 연습 판" or ""
+			local streakText = (data.streak and data.streak >= 2) and ("  🔥%d"):format(data.streak) or ""
+			local potText = (data.pot and data.pot > 0) and ("  +%d"):format(data.pot) or ""
 			local text
 			if data.userId == 0 then
-				text = "이번 판은 승자 없음" .. carryText
+				text = "승자 없음"
 			elseif data.bot then
-				text = (data.name or "AI") .. " 승리…" .. carryText
-			elseif data.forfeit then
-				text = data.name .. " 생존!  상대가 모두 나가서 보상 절반" .. potText .. carryText
+				text = (data.name or "AI") .. " 승리"
 			else
-				text = data.name .. " 승리!" .. streakText .. potText .. practiceText
+				text = data.name .. " 승리!" .. streakText .. potText
 			end
 			announce(text, data.bot and red or gold, (data.forfeit or data.bot) and 2.4 or 1.8)
 			blink(gold, 0.3)
@@ -1759,10 +1683,10 @@ Run.Heartbeat:Connect(function()
 
 	if model then
 		local current = model:GetAttribute(TABLE_ATTR.State)
-		title.Text = "저주받은 통  /  " .. (model:GetAttribute("DisplayName") or model.Name)
+		title.Text = model:GetAttribute("DisplayName") or model.Name
 		if current == "Countdown" then
 			local remaining = math.max(0, math.ceil((model:GetAttribute(TABLE_ATTR.CountdownEndsAt) or 0) - workspace:GetServerTimeNow()))
-			status.Text = ("%d초 후 시작 · 자리를 떠나면 참가가 취소됩니다"):format(remaining)
+			status.Text = ("시작 %d"):format(remaining)
 			if lastCountdown ~= remaining then
 				sound("tick", remaining <= 2 and 1.4 or 1)
 				lastCountdown = remaining
@@ -1771,37 +1695,15 @@ Run.Heartbeat:Connect(function()
 			local id = model:GetAttribute(TABLE_ATTR.CurrentTurnUserId)
 			highlight.Adornee = characterOfUser(model, id)
 			local mine = id == player.UserId
-			local duel = (model:GetAttribute(TABLE_ATTR.TurnCount) or 0) == 2
-			local left = model:GetAttribute(TABLE_ATTR.SlotsRemaining) or 0
-			local caught = model:GetAttribute(TABLE_ATTR.CatchCount) or 0
-			local pirates = model:GetAttribute(TABLE_ATTR.PirateCount) or 0
-			local edge = (left > 0 and left <= 3) and ("남은 자리 " .. left .. "칸  ·  ") or ""
-			local caughtText = (caught > 0) and ("잡기 " .. caught .. "회  ·  ") or ""
-			-- 몇 마리가 숨어 있는지만 보여 줍니다. 어느 자리인지는 서버만 압니다.
-			local pirateText = (pirates > 1) and ("해적 " .. pirates .. "마리  ·  ") or ""
-			status.Text = edge .. pirateText .. caughtText .. (duel and "최후의 2인  ·  " or "")
-				.. (mine and "내 차례! 아래에서 칼 자리를 선택하세요" or ((model:GetAttribute(TABLE_ATTR.CurrentTurnName) or "") .. " 님의 선택을 지켜보세요"))
-			-- 현상금 · 내 잡기 기회 · 배짱 단계
-			local parts = {}
-			local pot = model:GetAttribute(TABLE_ATTR.Pot) or 0
-			if pot > 0 then
-				table.insert(parts, ("현상금 %d 코인"):format(pot))
-			end
+			status.Text = mine and "내 차례!" or ((model:GetAttribute(TABLE_ATTR.CurrentTurnName) or "") .. " 차례")
+			-- 부제목은 두지 않는다. 꼭 알아야 하는 경고(분노한 해적)만 한 줄.
+			local warning = ""
 			local mySeat = seatOf(model)
-			if mySeat and (mySeat:GetAttribute(config.SeatAttributes.TurnOrder) or 0) > 0 then
-				local left = mySeat:GetAttribute(config.SeatAttributes.CatchesLeft) or 0
-				local level = mySeat:GetAttribute(config.SeatAttributes.CatchLevel) or 0
-				if left <= 0 then
-					table.insert(parts, "다음 해적은 분노한 해적 · 만나면 탈락")
-				elseif level > 0 then
-					table.insert(parts, ("잡기 %d회 · 다음 해적 %d단계"):format(level, level + 1))
-				end
+			if mySeat and (mySeat:GetAttribute(config.SeatAttributes.TurnOrder) or 0) > 0
+				and (mySeat:GetAttribute(config.SeatAttributes.CatchesLeft) or 0) <= 0 then
+				warning = "⚠ 분노한 해적"
 			end
-			local brave = model:GetAttribute(TABLE_ATTR.BraveLevel) or 0
-			if brave > 0 then
-				table.insert(parts, ("배짱 %d단계"):format(brave))
-			end
-			detail.Text = table.concat(parts, "   ·   ")
+			detail.Text = warning
 			if id ~= lastTurn then
 				lastTurn = id
 				if mine then
@@ -1814,11 +1716,11 @@ Run.Heartbeat:Connect(function()
 				sound("heart", 0.38 + 0.1 * tension, 0.05 + 0.22 * tension)
 			end
 		elseif current == "Starting" then
-			status.Text = "저주가 깨어납니다…"
+			status.Text = "시작!"
 		elseif current == "RoundEnding" then
-			status.Text = "5초 뒤 새로운 게임이 시작됩니다"
+			status.Text = ""
 		else
-			status.Text = "다른 참가자를 기다리는 중"
+			status.Text = "대기 중"
 		end
 		if current ~= "Playing" then
 			detail.Text = ""
@@ -1827,8 +1729,8 @@ Run.Heartbeat:Connect(function()
 			highlight.Adornee = nil
 		end
 	else
-		title.Text = "THE CURSED HARBOR"
-		status.Text = "가까운 의자에서 E · 모바일은 앉기 버튼  |  전시장에서 스킨을 바꿀 수 있어요"
+		title.Text = ""
+		status.Text = ""
 		detail.Text = ""
 		highlight.Adornee = nil
 		lastCountdown = nil
@@ -2024,14 +1926,14 @@ end)
 player:GetAttributeChangedSignal(SKIN_ATTR.Stab):Connect(function()
 	local skin = config.findSkin("Stab", player:GetAttribute(SKIN_ATTR.Stab))
 	if skin then
-		announce(skin.name .. " 모션 장착  ·  칼을 꽂을 때 모두가 봅니다", gold, 1.6)
+		announce(skin.name .. " 장착", gold, 1.2)
 	end
 end)
 player:GetAttributeChangedSignal(SKIN_ATTR.Barrel):Connect(function()
 	local skin = config.findSkin("Barrel", player:GetAttribute(SKIN_ATTR.Barrel))
 	if skin then
 		-- 통은 테이블마다 한 명의 것만 적용됩니다. 그 사실을 같이 알려 줍니다.
-		announce(skin.name .. " 장착  ·  테이블에서는 등급이 높은 통이 보입니다", gold, 2)
+		announce(skin.name .. " 장착", gold, 1.2)
 	end
 end)
 

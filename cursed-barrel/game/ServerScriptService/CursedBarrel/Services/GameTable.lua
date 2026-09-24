@@ -23,6 +23,7 @@ local TableConfig = require(Shared:WaitForChild("TableConfig"))
 local Utility = require(Shared:WaitForChild("Utility"))
 local SkinFX = require(Shared:WaitForChild("SkinFX"))
 local DrumStyle = require(Shared:WaitForChild("DrumStyle"))
+local ReleaseConfig = require(Shared:WaitForChild("ReleaseConfig"))
 
 local SlotBuilder = require(script.Parent.SlotBuilder)
 local BotRegistry = require(script.Parent.BotRegistry)
@@ -280,7 +281,7 @@ function GameTable:_ensurePrompt(seat)
 
 	local settings = GameConfig.SeatPrompt
 	prompt.ActionText = settings.ActionText
-	prompt.ObjectText = ("%s · %d번 자리"):format(self.config.DisplayName, seat:GetAttribute(SEAT_ATTR.SeatIndex) or 0)
+	prompt.ObjectText = "" -- 부제목 없음
 	prompt.HoldDuration = settings.HoldDuration
 	prompt.MaxActivationDistance = settings.MaxActivationDistance
 	prompt.RequiresLineOfSight = settings.RequiresLineOfSight
@@ -355,7 +356,8 @@ function GameTable:_onOccupantChanged(seat)
 	local previousPlayer = self.playerOfSeat[seat]
 
 	if not occupant then
-		if previousPlayer then
+		-- 바로 앉힌 AI 선원은 원래 Occupant 가 없다. 치우지 않는다.
+		if previousPlayer and not GameConfig.isBot(previousPlayer) then
 			self:_unseat(previousPlayer, seat)
 		end
 		self:_refresh()
@@ -435,9 +437,31 @@ function GameTable:_seat(player, seat)
 	self.RosterChanged:Fire(self, player, true)
 end
 
+-- AI 선원은 의자 물리(Seat:Sit)에 기대지 않고 바로 앉힌다.
+-- 막 만든 NPC 는 Seat:Sit 이 조용히 실패할 때가 있어서(몸이 갑판 아래로 떨어진다) AI 가 오지 않던 버그가 있었다.
+-- 몸은 BotService 가 의자 위에 고정해 두고, 클라이언트는 좌석의 BotCharacter 로 몸을 찾는다.
+function GameTable:SeatBot(bot, seat)
+	if self.destroyed or not GameConfig.isBot(bot) or not self:IsJoinable() then
+		return false
+	end
+	if self.playerOfSeat[seat] or seat.Occupant ~= nil or self.seatOfPlayer[bot] then
+		return false
+	end
+	local link = seat:FindFirstChild("BotCharacter") or Instance.new("ObjectValue")
+	link.Name = "BotCharacter"
+	link.Value = bot.Character
+	link.Parent = seat
+	self:_seat(bot, seat)
+	return true
+end
+
 function GameTable:_unseat(player, seat)
 	if self.playerOfSeat[seat] ~= player then
 		return
+	end
+	local link = seat:FindFirstChild("BotCharacter")
+	if link then
+		link:Destroy()
 	end
 
 	self.playerOfSeat[seat] = nil
@@ -481,12 +505,14 @@ function GameTable:_refresh()
 
 	local joinable = self:IsJoinable()
 	for _, seat in ipairs(self.seats) do
+		-- AI 선원이 앉은 의자는 비어 보이지만(Occupant 가 없다) 사람이 앉을 수 없다.
+		local botSeat = GameConfig.isBot(self.playerOfSeat[seat])
 		local prompt = seat:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
-			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil
+			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil and not botSeat
 		end
 
-		local shouldDisable = (not joinable) and seat.Occupant == nil
+		local shouldDisable = botSeat or ((not joinable) and seat.Occupant == nil)
 		if seat.Disabled ~= shouldDisable then
 			seat.Disabled = shouldDisable
 		end
@@ -697,10 +723,32 @@ function GameTable:_applyBarrelSkin(skin)
 	paint(parts.hoopUpper, skin.hoop, skin.hoopMaterial, skin.reflectance)
 	paint(parts.lid, skin.lid, skin.hoopMaterial, skin.reflectance)
 	paint(parts.glow, skin.glow, skin.glowMaterial or Enum.Material.Neon)
+
+	-- Phase 14 : 3D 모델(메시) ID 가 있으면 몸통을 그 모델로 바꾸고 쇠테 · 뚜껑 · 장식은 숨긴다.
+	-- (몸통 크기는 그대로라 칼 슬롯 자리는 바뀌지 않는다)
+	local meshSpec = ReleaseConfig.Meshes and ReleaseConfig.Meshes.Barrel and ReleaseConfig.Meshes.Barrel[skin.id]
+	local useMesh = meshSpec ~= nil and (tonumber(meshSpec.MeshId) or 0) > 0
+	local skinMesh = parts.body:FindFirstChild("SkinMesh")
+	if useMesh then
+		skinMesh = skinMesh or Instance.new("SpecialMesh")
+		skinMesh.Name = "SkinMesh"
+		skinMesh.MeshType = Enum.MeshType.FileMesh
+		skinMesh.MeshId = "rbxassetid://" .. tostring(meshSpec.MeshId)
+		skinMesh.TextureId = (tonumber(meshSpec.TextureId) or 0) > 0 and ("rbxassetid://" .. tostring(meshSpec.TextureId)) or ""
+		skinMesh.Scale = meshSpec.Scale or Vector3.new(1, 1, 1)
+		skinMesh.Offset = meshSpec.Offset or Vector3.new(0, 0, 0)
+		skinMesh.Parent = parts.body
+	elseif skinMesh then
+		skinMesh:Destroy()
+	end
+	if parts.lid and parts.lid:IsA("BasePart") then
+		parts.lid.Transparency = useMesh and 1 or 0
+	end
+
 	-- Phase 13 : 철제 드럼은 원래 쇠테 대신 DrumStyle 의 굴림 테 · 주름을 쓴다
 	for _, hoop in ipairs({ parts.hoopLower, parts.hoopUpper }) do
 		if hoop and hoop:IsA("BasePart") then
-			hoop.Transparency = skin.drum and 1 or 0
+			hoop.Transparency = (skin.drum or useMesh) and 1 or 0
 		end
 	end
 
@@ -715,7 +763,9 @@ function GameTable:_applyBarrelSkin(skin)
 			child:Destroy()
 		end
 	end
-	if skin.drum and parts.body:IsA("Part") and parts.body.Shape == Enum.PartType.Cylinder then
+	if useMesh then
+		-- 메시가 모양을 다 그린다
+	elseif skin.drum and parts.body:IsA("Part") and parts.body.Shape == Enum.PartType.Cylinder then
 		-- 마개는 뚜껑 · 빛 원판 중 더 높은 면 위에 얹는다
 		local top = nil
 		local frame = DrumStyle.upright(parts.body.CFrame)
@@ -744,15 +794,22 @@ function GameTable:_applyBarrelSkin(skin)
 	local detail = parts.model:FindFirstChild("BarrelDetail")
 	if detail then
 		local wooden = skin.bodyMaterial == Enum.Material.Wood or skin.bodyMaterial == Enum.Material.WoodPlanks
+		local plain = not skin.drum and not useMesh
 		for _, piece in ipairs(detail:GetChildren()) do
 			if piece:IsA("BasePart") then
 				if piece.Name == "StaveSeam" then
 					piece.Color = skin.body:Lerp(Color3.new(0, 0, 0), 0.45)
-					piece.Transparency = (wooden and not skin.ribbed) and 0 or 1
-				elseif piece.Name == "Rivet" then
-					piece.Transparency = skin.drum and 1 or 0
-					piece.Color = skin.hoop:Lerp(Color3.new(1, 1, 1), 0.2)
-					piece.Material = skin.hoopMaterial == Enum.Material.Neon and Enum.Material.Neon or Enum.Material.Metal
+					piece.Transparency = (wooden and not skin.ribbed and not useMesh) and 0 or 1
+				elseif piece.Name == "Stave" then
+					-- 판자마다 조금씩 다른 나뭇결 색
+					local shade = piece:GetAttribute("Shade") or 0
+					piece.Color = skin.body:Lerp(shade > 0 and Color3.new(1, 1, 1) or Color3.new(0, 0, 0), math.abs(shade))
+					piece.Material = skin.bodyMaterial or Enum.Material.Wood
+					piece.Transparency = (wooden and not skin.ribbed and not useMesh) and 0 or 1
+				elseif piece.Name == "Rivet" or piece.Name == "ChimeHoop" then
+					piece.Transparency = plain and 0 or 1
+					piece.Color = piece.Name == "Rivet" and skin.hoop:Lerp(Color3.new(1, 1, 1), 0.2) or skin.hoop
+					piece.Material = skin.hoopMaterial == Enum.Material.Neon and Enum.Material.Neon or (skin.hoopMaterial or Enum.Material.Metal)
 				end
 			end
 		end
@@ -793,6 +850,31 @@ function GameTable:_decorateBarrel()
 		seam.Material = Enum.Material.Wood
 		Utility.makeDecor(seam)
 		seam.Parent = folder
+	end
+	-- Phase 14 : 판자 한 장 건너 한 장씩 결 색을 살짝 달리한다 (한 덩어리 원통이 아니라 판자를 이어 붙인 통으로 보인다)
+	for index = 1, seams do
+		if index % 2 == 0 then
+			local angle = (index - 1) / seams * math.pi * 2
+			local stave = Instance.new("Part")
+			stave.Name = "Stave"
+			stave.Size = Vector3.new(length * 0.95, 0.02, 2 * math.pi * radius / seams * 0.92)
+			stave.CFrame = body.CFrame * CFrame.Angles(angle, 0, 0) * CFrame.new(0, radius + 0.003, 0)
+			stave.Material = Enum.Material.Wood
+			stave:SetAttribute("Shade", (index % 4 == 0) and 0.08 or -0.1)
+			Utility.makeDecor(stave)
+			stave.Parent = folder
+		end
+	end
+	-- 통 양 끝의 얇은 쇠테 (chime hoop)
+	for _, x in ipairs({ -0.46, 0.46 }) do
+		local chime = Instance.new("Part")
+		chime.Name = "ChimeHoop"
+		chime.Shape = Enum.PartType.Cylinder
+		chime.Size = Vector3.new(0.14, body.Size.Y * 1.025, body.Size.Z * 1.025)
+		chime.CFrame = body.CFrame * CFrame.new(length * x, 0, 0)
+		chime.Material = Enum.Material.Metal
+		Utility.makeDecor(chime)
+		chime.Parent = folder
 	end
 	for _, hoop in ipairs({ parts.hoopLower, parts.hoopUpper }) do
 		if hoop and hoop:IsA("Part") and hoop.Shape == Enum.PartType.Cylinder then

@@ -495,41 +495,41 @@ GameConfig.Skins = {
 
 	Knife = {
 		{
-			id = "classic", name = "낡은 단검", rarity = "common", price = 0,
+			id = "classic", shape = "dagger", name = "낡은 단검", rarity = "common", price = 0,
 			blade = Color3.fromRGB(206, 210, 214), bladeMaterial = Enum.Material.Metal,
 			handle = Color3.fromRGB(64, 42, 28), handleMaterial = Enum.Material.Wood,
 			guard = Color3.fromRGB(126, 104, 62), trail = Color3.fromRGB(226, 216, 190),
 		},
 		{
-			id = "bone", name = "뼈칼", rarity = "common", price = 7900,
+			id = "bone", shape = "bone", name = "뼈칼", rarity = "common", price = 7900,
 			blade = Color3.fromRGB(238, 232, 212), bladeMaterial = Enum.Material.Sand,
 			handle = Color3.fromRGB(206, 196, 170), handleMaterial = Enum.Material.Sand,
 			guard = Color3.fromRGB(96, 86, 68), trail = Color3.fromRGB(240, 236, 216),
 			fx = { emit = Color3.fromRGB(226, 220, 200), trail = Color3.fromRGB(240, 236, 216) },
 		},
 		{
-			id = "gold", name = "선장의 금검", rarity = "rare", price = 48900,
+			id = "gold", shape = "cutlass", name = "선장의 금검", rarity = "rare", price = 48900,
 			blade = Color3.fromRGB(246, 206, 106), bladeMaterial = Enum.Material.Metal,
 			handle = Color3.fromRGB(120, 78, 32), handleMaterial = Enum.Material.Wood,
 			guard = Color3.fromRGB(255, 226, 140), trail = Color3.fromRGB(255, 226, 140), glow = 0.45,
 			fx = { emit = Color3.fromRGB(255, 226, 140), spark = true, trail = Color3.fromRGB(255, 226, 140), halo = Color3.fromRGB(255, 206, 110), pulse = 1.4 },
 		},
 		{
-			id = "cursed", name = "저주받은 칼날", rarity = "epic", price = 128900,
+			id = "cursed", shape = "kris", name = "저주받은 칼날", rarity = "epic", price = 128900,
 			blade = Color3.fromRGB(120, 255, 214), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(26, 34, 40), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(84, 214, 186), trail = Color3.fromRGB(120, 255, 214), glow = 1,
 			fx = { emit = Color3.fromRGB(120, 255, 214), spark = true, trail = Color3.fromRGB(120, 255, 214), halo = Color3.fromRGB(84, 214, 186), pulse = 2.1 },
 		},
 		{
-			id = "ember", name = "잿불 단검", rarity = "legend", price = 291900,
+			id = "ember", shape = "dagger", name = "잿불 단검", rarity = "legend", price = 291900,
 			blade = Color3.fromRGB(255, 132, 62), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(46, 26, 20), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(255, 96, 48), trail = Color3.fromRGB(255, 150, 70), glow = 1,
 			fx = { emit = Color3.fromRGB(255, 132, 62), spark = true, trail = Color3.fromRGB(255, 150, 70), halo = Color3.fromRGB(255, 96, 48), pulse = 3.2, smoke = true },
 		},
 		{
-			id = "deep", name = "심해의 작살", rarity = "legend", price = 248900,
+			id = "deep", shape = "harpoon", name = "심해의 작살", rarity = "legend", price = 248900,
 			blade = Color3.fromRGB(126, 196, 255), bladeMaterial = Enum.Material.Ice,
 			handle = Color3.fromRGB(28, 58, 74), handleMaterial = Enum.Material.Slate,
 			guard = Color3.fromRGB(96, 168, 226), trail = Color3.fromRGB(150, 214, 255), glow = 0.6,
@@ -537,14 +537,14 @@ GameConfig.Skins = {
 		},
 		-- Phase 10 : 스타터 팩 · VIP 패스 전용 (코인으로는 살 수 없다)
 		{
-			id = "starter_hook", name = "선원의 갈고리", rarity = "rare", price = 0, pack = "starter",
+			id = "starter_hook", shape = "hook", name = "선원의 갈고리", rarity = "rare", price = 0, pack = "starter",
 			blade = Color3.fromRGB(176, 186, 196), bladeMaterial = Enum.Material.Metal,
 			handle = Color3.fromRGB(34, 64, 96), handleMaterial = Enum.Material.Fabric,
 			guard = Color3.fromRGB(226, 178, 86), trail = Color3.fromRGB(186, 220, 255),
 			fx = { emit = Color3.fromRGB(186, 220, 255), bubbles = true },
 		},
 		{
-			id = "vip_cutlass", name = "VIP 선장의 곡도", rarity = "legend", price = 0, vip = true,
+			id = "vip_cutlass", shape = "cutlass", name = "VIP 선장의 곡도", rarity = "legend", price = 0, vip = true,
 			blade = Color3.fromRGB(255, 222, 128), bladeMaterial = Enum.Material.Neon,
 			handle = Color3.fromRGB(96, 24, 36), handleMaterial = Enum.Material.Leather,
 			guard = Color3.fromRGB(255, 236, 170), trail = Color3.fromRGB(255, 222, 128), glow = 0.8,
@@ -857,9 +857,9 @@ GameConfig.Products = {
 		{ id = "coins_small", size = "소", name = "코인 15,000", coins = 15000, robux = 159, productId = 0 },
 		{ id = "coins_medium", size = "중", name = "코인 30,000", coins = 30000, robux = 319, productId = 0 },
 		{ id = "coins_large", size = "대", name = "코인 70,000", coins = 70000, robux = 369, productId = 0,
-			highlight = true, badge = "🔥 가장 인기 · 중보다 R$ 50만 더 내면 코인 2배 넘게!" },
-		{ id = "coins_huge", size = "특대", name = "코인 160,000", coins = 160000, robux = 799, productId = 0, badge = "👑 보물 상자 · 영웅 스킨 하나 값" },
-		{ id = "coins_vault", size = "금고", name = "코인 500,000", coins = 500000, robux = 1999, productId = 0, badge = "💎 선장의 금고 · 신화 스킨 하나 값" },
+			highlight = true, badge = "🔥 인기!" },
+		{ id = "coins_huge", size = "특대", name = "코인 160,000", coins = 160000, robux = 799, productId = 0, badge = "👑 추천" },
+		{ id = "coins_vault", size = "금고", name = "코인 500,000", coins = 500000, robux = 1999, productId = 0, badge = "💎 최고 가치" },
 	},
 	-- 로벅스 전용 스킨 (Phase 13 부터 비움 : 스킨은 코인으로만 산다). skin 에는 "Knife/ember" 처럼 적는다.
 	Skins = {},
@@ -869,7 +869,7 @@ GameConfig.Products = {
 	Starter = {
 		id = "starter", name = "선원 스타터 팩", robux = 99, productId = 0,
 		coins = 25000, skin = "Knife/starter_hook",
-		blurb = "코인 25,000 + 전용 칼 「선원의 갈고리」 · 계정당 한 번",
+		blurb = "코인 25,000 + 전용 칼",
 	},
 
 	-- Phase 10 : 게임패스. Creator Dashboard 에서 게임패스를 만들고 그 ID 를 gamePassId 에 적는다.
@@ -879,14 +879,14 @@ GameConfig.Products = {
 			id = "vip", name = "VIP 선장 패스", robux = 399, gamePassId = 0,
 			coinBonus = 0.2, -- 게임에서 버는 코인 +20% (퀘스트 · 업적 · 출석 보상에는 붙지 않는다)
 			skin = "Knife/vip_cutlass",
-			blurb = "게임 코인 +20% · 전용 칼 「VIP 선장의 곡도」 · 머리 위 VIP 표시",
+			blurb = "코인 +20% · 전용 칼 · VIP 표시",
 			attribute = "VIP",
 		},
 		-- Phase 12 : 현상금 부스터. 내가 이긴 판의 현상금이 늘어난다. (판정 · 확률에는 영향 없음)
 		Booster = {
 			id = "booster", name = "현상금 부스터", robux = 249, gamePassId = 0,
 			potBonus = 0.1, -- 내가 가져가는 현상금 +10%
-			blurb = "내가 이긴 판의 현상금 +10% · 금화가 더 크게 쏟아지는 승리 연출",
+			blurb = "현상금 +10%",
 			attribute = "Booster",
 		},
 	},
@@ -985,7 +985,7 @@ GameConfig.Wayfinder = {
 --------------------------------------------------
 GameConfig.Bots = {
 	Enabled = true,
-	FillDelay = 6, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다
+	FillDelay = 4, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다
 	TargetSeated = 3, -- AI 를 채워서 맞출 인원 (좌석이 모자라면 좌석 수 - 1)
 	KeepFreeSeats = 1, -- 사람이 들어올 자리는 항상 남겨 둔다
 	RewardScale = 0.6,
@@ -1194,7 +1194,7 @@ local themes = {
 }
 for _, t in ipairs(themes) do
  local fx={theme=t.theme,emit=t.color,trail=t.color,halo=t.accent,spark=true,pulse=1.2,accent=t.accent}
- table.insert(GameConfig.Skins.Knife,{id=t.id,name=t.name.."의 송곳니",rarity="mythic",price=499000,blade=t.color,bladeMaterial=Enum.Material.Neon,handle=Color3.fromRGB(19,27,40),handleMaterial=Enum.Material.Metal,guard=t.accent,trail=t.color,glow=0.6,fx=fx})
+ table.insert(GameConfig.Skins.Knife,{id=t.id,shape="fang",name=t.name.."의 송곳니",rarity="mythic",price=499000,blade=t.color,bladeMaterial=Enum.Material.Neon,handle=Color3.fromRGB(19,27,40),handleMaterial=Enum.Material.Metal,guard=t.accent,trail=t.color,glow=0.6,fx=fx})
  table.insert(GameConfig.Skins.Barrel,{id=t.id,name=t.name.."의 봉인",rarity="mythic",price=499000,body=Color3.fromRGB(24,36,49),bodyMaterial=Enum.Material.Slate,hoop=t.accent,hoopMaterial=Enum.Material.Metal,lid=t.color,glow=t.color,fx=fx})
  table.insert(GameConfig.Skins.Ghost,{id=t.id,name=t.name.."의 수호자",rarity="mythic",price=499000,coat=Color3.fromRGB(25,39,56),skin=t.color,hat=Color3.fromRGB(20,28,42),accent=t.accent,aura=t.color,fx=fx})
 end
@@ -1261,24 +1261,25 @@ GameConfig.World = {
 
 	-- 단계별 하늘. (WorldController 가 부드럽게 옮겨 간다)
 	Sky = {
-		day = { Ambient = Color3.fromRGB(122, 120, 116), OutdoorAmbient = Color3.fromRGB(154, 158, 168), Brightness = 2.8, ClockTime = 14.3, Exposure = 0,
+		day = { Ambient = Color3.fromRGB(128, 126, 122), OutdoorAmbient = Color3.fromRGB(160, 164, 174), Brightness = 3, ClockTime = 14.3, Exposure = 0.05,
 			Density = 0.26, Offset = 0.1, AirColor = Color3.fromRGB(226, 226, 220), Decay = Color3.fromRGB(150, 165, 185), Glare = 0, Haze = 0.6,
-			Tint = Color3.fromRGB(255, 252, 246), Saturation = 0.1, Contrast = 0.06, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(26, 58, 78) },
+			Tint = Color3.fromRGB(255, 252, 246), Saturation = 0.22, Contrast = 0.1, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(28, 104, 150), PlayerGlow = 0 },
 		dusk = { Ambient = Color3.fromRGB(132, 98, 82), OutdoorAmbient = Color3.fromRGB(176, 124, 102), Brightness = 2.2, ClockTime = 17.9, Exposure = 0.1,
 			Density = 0.32, Offset = 0.12, AirColor = Color3.fromRGB(255, 190, 150), Decay = Color3.fromRGB(180, 110, 90), Glare = 0.6, Haze = 1.4,
-			Tint = Color3.fromRGB(255, 226, 200), Saturation = 0.15, Contrast = 0.08, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(58, 52, 70) },
-		night = { Ambient = Color3.fromRGB(44, 52, 76), OutdoorAmbient = Color3.fromRGB(48, 60, 94), Brightness = 1.2, ClockTime = 0.2, Exposure = 0.35,
+			Tint = Color3.fromRGB(255, 226, 200), Saturation = 0.15, Contrast = 0.08, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(58, 52, 70), PlayerGlow = 0.35 },
+		-- 밤 · 안개 · 폭풍도 캄캄하지 않게 (등불이 없는 곳도 형체가 보인다)
+		night = { Ambient = Color3.fromRGB(88, 96, 132), OutdoorAmbient = Color3.fromRGB(98, 112, 152), Brightness = 1.7, ClockTime = 0.2, Exposure = 0.55,
 			Density = 0.36, Offset = 0.1, AirColor = Color3.fromRGB(110, 130, 170), Decay = Color3.fromRGB(40, 50, 80), Glare = 0, Haze = 1.2,
-			Tint = Color3.fromRGB(200, 215, 255), Saturation = -0.15, Contrast = 0.12, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(12, 24, 40) },
-		fog = { Ambient = Color3.fromRGB(74, 80, 88), OutdoorAmbient = Color3.fromRGB(94, 102, 114), Brightness = 1.4, ClockTime = 3.2, Exposure = 0.25,
+			Tint = Color3.fromRGB(200, 215, 255), Saturation = -0.15, Contrast = 0.12, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(12, 24, 40), PlayerGlow = 1.3 },
+		fog = { Ambient = Color3.fromRGB(98, 104, 114), OutdoorAmbient = Color3.fromRGB(120, 128, 140), Brightness = 1.6, ClockTime = 3.2, Exposure = 0.45,
 			Density = 0.62, Offset = 0.25, AirColor = Color3.fromRGB(170, 180, 190), Decay = Color3.fromRGB(120, 130, 140), Glare = 0, Haze = 3.4,
-			Tint = Color3.fromRGB(225, 232, 240), Saturation = -0.3, Contrast = 0.04, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(34, 44, 52) },
-		storm = { Ambient = Color3.fromRGB(40, 44, 56), OutdoorAmbient = Color3.fromRGB(52, 58, 76), Brightness = 0.9, ClockTime = 4.5, Exposure = 0.3,
+			Tint = Color3.fromRGB(225, 232, 240), Saturation = -0.3, Contrast = 0.04, Rain = 0, Lightning = 0, Sea = Color3.fromRGB(34, 44, 52), PlayerGlow = 1.0 },
+		storm = { Ambient = Color3.fromRGB(80, 86, 104), OutdoorAmbient = Color3.fromRGB(94, 102, 126), Brightness = 1.3, ClockTime = 4.5, Exposure = 0.5,
 			Density = 0.5, Offset = 0.2, AirColor = Color3.fromRGB(90, 100, 110), Decay = Color3.fromRGB(30, 40, 50), Glare = 0, Haze = 2.6,
-			Tint = Color3.fromRGB(205, 225, 220), Saturation = -0.25, Contrast = 0.18, Rain = 1, Lightning = 1, Sea = Color3.fromRGB(14, 30, 36) },
+			Tint = Color3.fromRGB(205, 225, 220), Saturation = -0.25, Contrast = 0.18, Rain = 1, Lightning = 1, Sea = Color3.fromRGB(14, 30, 36), PlayerGlow = 1.1 },
 		dawn = { Ambient = Color3.fromRGB(112, 98, 112), OutdoorAmbient = Color3.fromRGB(150, 130, 150), Brightness = 1.8, ClockTime = 6.6, Exposure = 0.1,
 			Density = 0.3, Offset = 0.1, AirColor = Color3.fromRGB(255, 200, 190), Decay = Color3.fromRGB(120, 110, 150), Glare = 0.4, Haze = 1.2,
-			Tint = Color3.fromRGB(255, 236, 230), Saturation = 0.05, Contrast = 0.06, Rain = 0.15, Lightning = 0, Sea = Color3.fromRGB(40, 52, 72) },
+			Tint = Color3.fromRGB(255, 236, 230), Saturation = 0.05, Contrast = 0.06, Rain = 0.15, Lightning = 0, Sea = Color3.fromRGB(40, 52, 72), PlayerGlow = 0.5 },
 	},
 	current = nil, -- 서버의 WorldService 가 지금 단계를 적어 둔다 (서버 전용)
 }

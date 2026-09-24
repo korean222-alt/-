@@ -1,0 +1,77 @@
+# Phase 14 : 부제목 · 설명을 걷어낸 짧은 문장, 만화풍 UI
+🔥 인기!	🔥 Popular!
+👑 추천	👑 Best pick
+💎 최고 가치	💎 Best value
+코인 25,000 + 전용 칼	25,000 coins + exclusive knife
+코인 +20% · 전용 칼 · VIP 표시	+20% coins · Exclusive knife · VIP tag
+현상금 +10%	+10% bounty
+🏆 토너먼트	🏆 Tournament
+눈에 명중!	Eye hit!
+명중!	Hit!
+자리를 고르세요	Pick a slot
+한 번 더!  +%d	Once more!  +%d
+봉인할 자리	Slot to seal
+⚠ 분노한 해적 주의	⚠ Enraged pirate ahead
+%s번	#%s
+손이 흔들린다!	Shaky hands!
+번호가 뒤섞였다!	Numbers scrambled!
+게임 방법	How to play
+① 의자에 앉기	① Sit on a chair
+② 내 차례에 칼 꽂을 자리 고르기	② On your turn, pick a slot
+③ 해적이 나오면 눌러서 잡기!	③ Tap when the pirate pops out!
+%s 잡는 중!	%s is catching!
+완벽!	Perfect!
+ 잡았다!	 caught it!
+분노한 해적!	Enraged pirate!
+ 탈락	 is out
+안전!	Safe!
+배짱 %d단계!	Nerve level %d!
+%s 배짱 %d단계!	%s nerve level %d!
+승자 없음	No winner
+ 승리	 wins
+시작 %d	Starting %d
+내 차례!	Your turn!
+ 차례	's turn
+⚠ 분노한 해적	⚠ Enraged pirate
+시작!	Start!
+대기 중	Waiting
+누가 살아남을까?	Who will survive?
+예측: %s	Pick: %s
+예측 적중!	Correct pick!
+항해	Voyage
+친구 +10% · 파티 +5%	Friend +10% · Party +5%
+화각 넓게	Wide view
+자리 비움	AFK
+확률	Odds
+💎 희귀 스킨	💎 Rare skin
+🎁 평범한 스킨	🎁 Common skin
+내일 또!	Tomorrow!
+🪙 %s 부족	Need 🪙 %s more
+🔥 오늘의 특가  ·  %s	🔥 Today's deal  ·  %s
+🪙 코인 충전  ·  🎁 첫 충전 2배!	🪙 Coin packs  ·  🎁 First purchase x2!
+🪙 코인 충전	🪙 Coin packs
+📅 출석 보상 받기! (%d/7)	📅 Claim daily reward! (%d/7)
+📅 출석 완료 (%d/7)	📅 Checked in (%d/7)
+📜 오늘의 퀘스트	📜 Today's quests
+🪙 %s 받기	Claim 🪙 %s
+🏅 업적	🏅 Achievements
+🎯 상대	🎯 Opponent
+😈 방해 아이템	😈 Sabotage items
+곧 시작!	Starting soon!
+내가 이겼다!	I won!
+빈 테이블	Empty table
+준비 완료	Ready
+🏆 %d/4 · %d점	🏆 %d/4 · %d pts
+▶ 내 차례!	▶ Your turn!
+연습 판!	Practice round!
+해적이 나오면 누르세요!	Tap when the pirate pops out!
+「한 번 더」 = 보너스 코인	"Once more" = bonus coins
+내 차례! 자리를 고르세요	Your turn! Pick a slot
+연습 끝!	Practice done!
+🐙 크라켄  %d:%02d	🐙 Kraken  %d:%02d
+🐙 크라켄 습격!	🐙 Kraken attack!
+크라켄 퇴치!  +%d	Kraken defeated!  +%d
+크라켄 퇴치!	Kraken defeated!
+크라켄이 물러났다  +%d	The Kraken retreated  +%d
+크라켄이 물러났다	The Kraken retreated
+🏆 %d점  +%d	🏆 %d pts  +%d

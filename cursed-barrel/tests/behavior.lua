@@ -73,7 +73,7 @@ workspace={GetServerTimeNow=function() return now end,GetAttribute=function(_,k)
 local cache={TableService={GetAllTables=function() return {} end,GetTableOfPlayer=function() return nil end},RankingService={RecordRound=function() end}}
 local function loadModule(name,source)
  local parent=node("Services")
- for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry","LocaleData","Locale","ShopService","PurchaseService","DrumStyle"}) do parent:WaitForChild(n) end
+ for _,n in ipairs({"TableService","RankingService","ProfileService","PurchaseService","GameConfig","ReleaseConfig","RoundService","WorldService","BotService","KrakenLayout","ShipLayout","KrakenTargets","BotRegistry","LocaleData","Locale","ShopService","PurchaseService","DrumStyle","SlotBuilder","TableBuilder","GameTable","PremiumFX","SkinFX"}) do parent:WaitForChild(n) end
  local env=setmetatable({script={Parent=parent}}, {__index=(getfenv and getfenv(1)) or _G})
  env.require=function(ref)
   local key=type(ref)=="table" and ref.Name or ref
@@ -1009,6 +1009,63 @@ check("buying a legend or mythic skin is announced to the whole server",function
  local deal=Config.dailyDealFor(Utility.today());if deal and deal.kind=="Knife" and deal.id=="deep" then d.coins=skin.price end
  assert(Shop:Buy(q,"Knife","deep"));assert(cue.last and cue.last[1]=="Announce" and cue.last[2].rarity=="legend" and cue.last[2].skin==skin.name)
  cue.last=nil;local cheap=Config.findSkin("Knife","bone");d.coins=cheap.price;d.owned.Knife.bone=nil;assert(Shop:Buy(q,"Knife","bone"));assert(cue.last==nil,"common skins are not announced")
+end)
+
+-- Phase 14 : AI 선원이 오지 않던 버그. 의자 물리(Seat:Sit) 없이 바로 앉히고, 2인 테이블도 채운다.
+check("AI crew fills duo tables and sits down without Seat:Sit",function()
+ local Bots=loadModule("BotService")
+ local function fake(n) local list={};for i=1,n do list[i]={} end;return {GetSeats=function() return list end,GetMinPlayers=function() return 2 end} end
+ assert(Bots:_targetSeated(fake(2))==2,"duo tables get one AI")
+ assert(Bots:_targetSeated(fake(4))==3 and Bots:_targetSeated(fake(6))==3)
+ local savedCFrame=CFrame
+ CFrame=CFrame or {new=function(x,y,z) return {x=x,y=y,z=z} end}
+ local seat=node("Seat");seat.Size=Vector3.new(2,1,2);seat.CFrame=setmetatable({},{__mul=function(_,b) return b end})
+ local seatedWith=nil
+ local t={destroyed=false,state="Waiting",config={},model=node("Table"),tableId="T_AI"}
+ function t:GetFreeSeats() return {seat} end
+ function t:GetPlayers() return {} end
+ function t:SeatBot(bot,where) seatedWith={bot,where};return true end
+ local model=node("Model");local root={Anchored=false};model.PrimaryPart=root
+ rawset(model,"PivotTo",function(self,cf) self.pivot=cf end)
+ local humanoid={}
+ Bots._folder=node("CursedBarrelBots")
+ Bots._buildCharacter=function() return model,humanoid end
+ local bot=Bots:_spawn(t)
+ CFrame=savedCFrame
+ assert(bot and seatedWith and seatedWith[1]==bot and seatedWith[2]==seat,"seated through GameTable:SeatBot")
+ assert(root.Anchored==true and humanoid.PlatformStand==true,"body is pinned to the chair, not dropped onto it")
+ assert(model.pivot and math.abs(model.pivot.y-2)<1e-6,"sits on the seat top like a Roblox seat (+1.5)")
+ assert(bot.Character==model)
+end)
+check("GameTable seats an AI directly, blocks the chair, and frees it again",function()
+ if not methods.Destroy then
+  function methods:Destroy() if self.Parent and self.Parent.children then self.Parent.children[self.Name]=nil end;rawset(self,"Parent",nil) end
+ end
+ TweenInfo=TweenInfo or {new=function(...) return {...} end}
+ local GameTable=loadModule("GameTable")
+ local seat=node("Seat");seat.attrs[Config.SeatAttributes.SeatIndex]=1
+ local other=node("Seat2")
+ local gt=setmetatable({destroyed=false,state="Waiting",seats={seat,other},slots={},playerOfSeat={},seatOfPlayer={},seatOrder={},seatCounter=0,
+  occupantConnections={},model=node("Table"),tableId="T",config={},RosterChanged=Utility.Signal.new()},GameTable)
+ local bot=makeBot();bot.Character=node("BotBody");bot.CharacterRemoving=Utility.Signal.new()
+ assert(gt:SeatBot(bot,seat))
+ assert(gt:HasPlayer(bot) and gt:GetHumanCount()==0 and #gt:GetFreeSeats()==1)
+ assert(seat.children.BotCharacter and seat.children.BotCharacter.Value==bot.Character,"clients find the AI body through BotCharacter")
+ assert(seat.attrs[Config.SeatAttributes.OccupantBot]==true and seat.Disabled==true,"nobody can sit on the AI's chair")
+ assert(not gt:SeatBot(bot,other),"one chair per AI")
+ gt:_onOccupantChanged(seat) -- 빈 Occupant 신호가 와도 AI 는 그대로 앉아 있다
+ assert(gt:HasPlayer(bot))
+ assert(gt:RemovePlayer(bot))
+ assert(not gt:HasPlayer(bot) and seat.children.BotCharacter==nil and seat.Disabled==false)
+end)
+check("dark phases keep the deck visible (ambient floor + player glow)",function()
+ for _,id in ipairs({"night","fog","storm"}) do
+  local sky=Config.World.Sky[id]
+  local a=sky.Ambient
+  assert((a[1]+a[2]+a[3])/3>=80,id.." ambient is not pitch black")
+  assert((sky.PlayerGlow or 0)>=1,id.." lights the player's surroundings")
+ end
+ assert(Config.World.Sky.day.PlayerGlow==0)
 end)
 
 local Ship=loadModule("ShipLayout")

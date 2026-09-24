@@ -53,6 +53,8 @@ gui.DisplayOrder = 16
 gui.IgnoreGuiInset = true
 gui.Enabled = false
 gui.Parent = player:WaitForChild("PlayerGui")
+-- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
+require(package.Shared:WaitForChild("UIKit")).restyle(gui)
 
 local hint = Instance.new("TextLabel")
 hint.BackgroundTransparency = 0.35
@@ -281,8 +283,8 @@ local function startAiming(data)
 	aiming = { cannon = data.cannon, muzzle = data.muzzle, outward = data.outward, yaw = 0, pitch = 6 }
 	table.clear(held)
 	gui.Enabled = true
-	local touch = Input.TouchEnabled and not Input.KeyboardEnabled
-	hint.Text = touch and "화면을 끌어 돌리고, 빛나는 약점 · 눈을 탭해서 쏘세요" or "A·D 돌리기 · W·S 위아래 · 클릭으로 발사  (빛나는 약점 · 눈 · 치켜든 다리)"
+	-- 조작 설명 부제목은 두지 않는다. (조준 표시와 발사 버튼이 대신 알려 준다)
+	hint.Text = ""
 	-- 움직이는 키를 대포 조준으로 쓴다 (캐릭터가 걸어가지 않게)
 	ContextActionService:BindActionAtPriority(ACTION, onAction, false, Enum.ContextActionPriority.High.Value + 50,
 		Enum.KeyCode.A, Enum.KeyCode.D, Enum.KeyCode.W, Enum.KeyCode.S, Enum.KeyCode.Left, Enum.KeyCode.Right, Enum.KeyCode.Up, Enum.KeyCode.Down,
@@ -414,18 +416,33 @@ local function recoil(cannonId)
 	local root = workspace:FindFirstChild("Lobby")
 	root = root and root:FindFirstChild("PlayableGalleon")
 	local model = root and root:FindFirstChild(cannonId, true)
-	local tube = model and model:FindFirstChild("CannonTube")
+	local tube = model and model:FindFirstChild("CannonTube", true)
 	if not tube or tube:GetAttribute("Recoiling") then
 		return
 	end
 	tube:SetAttribute("Recoiling", true)
-	local home = tube.CFrame
+	-- 포신 장식(테 · 포구 · 꼭지)은 Barrel 모델에 함께 있다. 통째로 뒤로 밀렸다가 돌아온다.
+	local barrel = tube.Parent:IsA("Model") and tube.Parent ~= model and tube.Parent or nil
 	local side = tube.Position.X < 0 and -1 or 1
-	tube.CFrame = home - Vector3.new(side * 0.9, 0, 0)
-	Tween:Create(tube, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = home }):Play()
+	local home = barrel and barrel:GetPivot() or tube.CFrame
+	local kicked = home - Vector3.new(side * 0.9, 0, 0)
+	local value = Instance.new("CFrameValue")
+	value.Value = kicked
+	local function apply(cf)
+		if barrel and barrel.Parent then
+			barrel:PivotTo(cf)
+		elseif tube.Parent then
+			tube.CFrame = cf
+		end
+	end
+	apply(kicked)
+	local connection = value.Changed:Connect(apply)
+	Tween:Create(value, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = home }):Play()
 	task.delay(0.55, function()
+		connection:Disconnect()
+		value:Destroy()
+		apply(home)
 		if tube.Parent then
-			tube.CFrame = home
 			tube:SetAttribute("Recoiling", nil)
 		end
 	end)
@@ -508,7 +525,7 @@ cannonCue.OnClientEvent:Connect(function(data)
 				elseif data.coins and data.coins > 0 then
 					text = ("명중!  +%d 코인"):format(data.coins)
 				else
-					text = data.hit == "eye" and "눈에 명중! (오늘 대포 코인은 다 받았어요)" or "명중! (오늘 대포 코인은 다 받았어요)"
+					text = data.hit == "eye" and "눈에 명중!" or "명중!"
 				end
 				showToast(text, data.hit == "slam" and teal or gold)
 			end

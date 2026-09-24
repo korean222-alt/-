@@ -63,4 +63,4 @@ task.defer(function()
 	MapBuilder:Start()
 end)
 
-print("[CursedBarrel] 서버 부팅 완료 (Phase 13: 출석판 · 룰렛 · 코인/로벅스 스킨 · 영어)")
+print("[CursedBarrel] 서버 부팅 완료 (Phase 14: AI 선원 · 밤 조명 · 크라켄 · 대포 · 만화풍 UI)")

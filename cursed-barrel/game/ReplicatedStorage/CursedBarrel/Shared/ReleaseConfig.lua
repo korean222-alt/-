@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "13.0.0-rewards"
+C.Version = "14.0.0-polish"
 C.StudioSolo = false
 C.FriendBonus = 0.10 -- one verified friend in the same round, non-stacking
 C.PartyBonus = 0.05
@@ -29,6 +29,20 @@ C.Audio = {
  Waves = 0, -- 파도 · 바람 (반복, 배경)
 }
 C.Textures = { Rain = 0 }
+-- Phase 14 : 3D 모델(메시) ID. 0 이면 코드로 만든 모양을 쓴다.
+--   Studio 에서 MeshPart 를 가져온 뒤 속성창의 MeshId · TextureID 숫자를 적는다.
+--   Scale 은 모양이 너무 크거나 작을 때만 고친다. (Offset 은 위치가 어긋날 때)
+--   Knife  : 스킨 id 마다 { MeshId = 0, TextureId = 0, Scale = Vector3.new(1, 1, 1) }  예) Knife = { gold = { MeshId = 123, TextureId = 456 } }
+--   Barrel : 스킨 id 마다 같은 모양. 통 몸통에 붙고 쇠테 · 뚜껑 장식은 숨긴다.
+--   Cannon : 대포 포신 하나. (8문 모두 같은 모델)
+C.Meshes = {
+ Knife = {},
+ Barrel = {},
+ Cannon = { MeshId = 0, TextureId = 0, Scale = Vector3.new(1, 1, 1), Offset = Vector3.new(0, 0, 0) },
+}
+-- Phase 14 : UI 그림 ID (0 이면 코드로 그린 것을 쓴다)
+--   Pattern : 창 머리띠에 깔리는 무늬 타일 (assets/ui/pattern_tile.png 를 올린 ID)
+C.UIImages = { Pattern = 0 }
 -- Phase 13 : 버튼 이미지 ID. 0 이면 코드로 그린 나무 버튼을 쓴다.
 --   Attendance : assets/branding/attendance_button.png 을 올린 이미지 ID (출석판 버튼)
 --   Roulette   : assets/branding/roulette_button.png 을 올린 이미지 ID (룰렛 버튼)

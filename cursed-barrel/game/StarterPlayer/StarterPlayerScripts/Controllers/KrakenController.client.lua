@@ -44,7 +44,7 @@ local BULB = Color3.fromRGB(255, 140, 60)
 local BULB_RAID = Color3.fromRGB(255, 70, 160)
 
 local folder = nil
-local arms = {} -- { spec, count, joints, segs, suckers, normal, sign, faded, bulb, flinchUntil }
+local arms = {} -- { spec, count, tube, normal, sign, faded, bulb, flinchUntil }
 local head = nil
 local animate = true
 local interval = 1 / 30
@@ -105,17 +105,162 @@ local function facing(position, n)
 end
 
 --------------------------------------------------
--- 다리
+-- 다리 (Phase 14 : 진짜 문어 다리처럼)
+--   · 마디를 촘촘히 하고, 뿌리(어두운 자주) → 끝(붉은 분홍)으로 색이 부드럽게 바뀐다. (줄무늬 없음)
+--   · 안쪽(빨판 쪽)은 밝은 배 살이 길게 드러난다.
+--   · 빨판은 테두리 + 오목한 속 두 겹이고, 두 줄로 엇갈려 붙으며 끝으로 갈수록 작아진다.
+--   · 끝은 위로 말려 올라간다. (연출만. 서버 판정 · 겹침 검사는 KrakenLayout 곡선 그대로다)
+--   · 젖은 살결처럼 살짝 반사한다.
 --------------------------------------------------
 
-local function tangentAt(samples, index)
-	local a = samples[math.max(index - 1, 1)].p
-	local b = samples[math.min(index + 1, #samples)].p
+local WET = 0.06
+local CURL_FROM = 0.8 -- 다리 길이의 이 지점부터 말린다
+local CURL_ANGLE = math.rad(240)
+
+local function skinAt(u)
+	u = math.clamp(u, 0, 1)
+	if u < 0.5 then
+		return COLORS.SkinDark:Lerp(COLORS.Skin, u / 0.5)
+	end
+	return COLORS.Skin:Lerp(COLORS.Tip, (u - 0.5) / 0.5)
+end
+
+-- 곡선 위 index 번째 점에서 안쪽(빨판 쪽) 방향. normal 은 다리가 놓인 평면의 법선.
+local function innerAt(points, index, normal, sign)
+	local a = points[math.max(index - 1, 1)]
+	local b = points[math.min(index + 1, #points)]
 	local t = b - a
 	if t.Magnitude < 1e-4 then
-		return Vector3.new(0, 1, 0)
+		return Vector3.new(0, -1, 0)
 	end
-	return t.Unit
+	local inner = normal:Cross(t.Unit) * sign
+	if inner.Magnitude < 1e-4 then
+		return Vector3.new(0, -1, 0)
+	end
+	return inner.Unit
+end
+
+-- 굵기 목록대로 관 하나를 세운다. detailed 면 배 살 · 빨판까지 붙인다.
+local function buildTube(model, radii, detailed)
+	local count = #radii
+	local tube = { joints = {}, segs = {}, bellies = {}, suckers = {}, radii = radii, parts = {} }
+	for i = 1, count do
+		local u = (i - 1) / (count - 1)
+		local r = radii[i]
+		local joint = part(model, "Joint", Enum.PartType.Ball, Vector3.new(r * 2, r * 2, r * 2), skinAt(u))
+		joint.Reflectance = WET
+		tube.joints[i] = joint
+		table.insert(tube.parts, joint)
+		if i > 1 then
+			local d = r + radii[i - 1]
+			local color = skinAt(u - 0.5 / (count - 1))
+			local seg = part(model, "Segment", Enum.PartType.Cylinder, Vector3.new(1, d, d), color)
+			seg.Reflectance = WET
+			tube.segs[i - 1] = seg
+			table.insert(tube.parts, seg)
+			if detailed then
+				local bd = d * 0.8
+				local belly = part(model, "Belly", Enum.PartType.Cylinder, Vector3.new(1, bd, bd), COLORS.Belly:Lerp(color, 0.2))
+				belly.Reflectance = WET
+				tube.bellies[i - 1] = belly
+				table.insert(tube.parts, belly)
+			end
+		end
+		if detailed and u >= 0.3 and u <= 0.97 and i < count then
+			local rim = part(model, "Sucker", Enum.PartType.Cylinder, Vector3.new(0.14, r * 0.7, r * 0.7), COLORS.Sucker)
+			local cup = part(model, "SuckerCup", Enum.PartType.Cylinder, Vector3.new(0.16, r * 0.36, r * 0.36), COLORS.SuckerCup)
+			table.insert(tube.suckers, { rim = rim, cup = cup, index = i, row = (i % 2 == 0) and 1 or -1 })
+			table.insert(tube.parts, rim)
+			table.insert(tube.parts, cup)
+		end
+	end
+	return tube
+end
+
+-- 관을 점들에 맞춰 옮긴다 (BulkMoveTo 에 쌓아 두기만 한다)
+local function placeTube(tube, points, normal, sign)
+	local count = #points
+	local inners = {}
+	for i = 1, count do
+		inners[i] = innerAt(points, i, normal, sign)
+	end
+	for i = 1, count do
+		local p = points[i]
+		table.insert(moveParts, tube.joints[i])
+		table.insert(moveFrames, CFrame.new(p))
+		local seg = tube.segs[i - 1]
+		if seg then
+			local a = points[i - 1]
+			local length = (p - a).Magnitude * 1.06
+			if math.abs(seg.Size.X - length) > 0.08 then
+				seg.Size = Vector3.new(length, seg.Size.Y, seg.Size.Z)
+			end
+			table.insert(moveParts, seg)
+			table.insert(moveFrames, along(a, p))
+			local belly = tube.bellies[i - 1]
+			if belly then
+				local inner = inners[i] + inners[i - 1]
+				inner = inner.Magnitude > 1e-4 and inner.Unit or inners[i]
+				local off = inner * (seg.Size.Y * 0.16)
+				if math.abs(belly.Size.X - length) > 0.08 then
+					belly.Size = Vector3.new(length, belly.Size.Y, belly.Size.Z)
+				end
+				table.insert(moveParts, belly)
+				table.insert(moveFrames, along(a + off, p + off))
+			end
+		end
+	end
+	for _, sucker in ipairs(tube.suckers) do
+		local i = sucker.index
+		local r = tube.radii[i]
+		local inner = inners[i]
+		local side = normal * sucker.row
+		local face = inner + side * 0.35
+		face = face.Magnitude > 1e-4 and face.Unit or inner
+		local at = points[i] + inner * r + side * (r * 0.42)
+		table.insert(moveParts, sucker.rim)
+		table.insert(moveFrames, facing(at, face))
+		table.insert(moveParts, sucker.cup)
+		table.insert(moveFrames, facing(at + face * 0.04, face))
+	end
+end
+
+-- 다리 끝을 빨판 반대쪽(쉬는 끝에서는 위쪽)으로 돌돌 만다. 길이는 그대로 둔다.
+local function curlTip(points, normal, sign)
+	local n = #points
+	local k = math.floor((n - 1) * CURL_FROM) + 1
+	if k < 2 or k >= n - 1 then
+		return points
+	end
+	local d = points[k] - points[k - 1]
+	if d.Magnitude < 1e-4 then
+		return points
+	end
+	d = d.Unit
+	local up = -innerAt(points, k, normal, sign)
+	up -= d * up:Dot(d)
+	if up.Magnitude < 1e-4 then
+		return points
+	end
+	up = up.Unit
+	local lengths, total = {}, 0
+	for j = k + 1, n do
+		lengths[j] = (points[j] - points[j - 1]).Magnitude
+		total += lengths[j]
+	end
+	if total < 1e-3 then
+		return points
+	end
+	local out = table.clone(points)
+	local walked = 0
+	local position = points[k]
+	for j = k + 1, n do
+		local theta = CURL_ANGLE * ((walked + lengths[j] * 0.5) / total) ^ 1.7
+		position += (d * math.cos(theta) + up * math.sin(theta)) * lengths[j]
+		out[j] = position
+		walked += lengths[j]
+	end
+	return out
 end
 
 local function buildArm(spec, index)
@@ -126,45 +271,24 @@ local function buildArm(spec, index)
 
 	local samples = K.sample(spec, nil, count)
 	local root = spec.waypoints[1].p
+	local radii = {}
+	for i, s in ipairs(samples) do
+		radii[i] = s.r
+	end
+	local tube = buildTube(model, radii, quality == "High")
 	local arm = {
 		spec = spec,
 		index = index,
 		count = count,
 		model = model,
-		joints = {},
-		segs = {},
-		suckers = {},
+		tube = tube,
 		normal = K.planeNormal(spec),
 		sign = K.innerSign(spec, count),
 		faded = false,
-		parts = {},
+		parts = tube.parts,
 		flinchUntil = 0,
 		outward = Vector3.new(root.X, 0, root.Z).Magnitude > 1 and Vector3.new(root.X, 0, root.Z).Unit or Vector3.new(1, 0, 0),
 	}
-
-	for i, s in ipairs(samples) do
-		local shade = (i % 2 == 0) and COLORS.Skin or COLORS.Skin:Lerp(COLORS.SkinDark, 0.35)
-		local joint = part(model, "Joint", Enum.PartType.Ball, Vector3.new(s.r * 2, s.r * 2, s.r * 2), shade)
-		arm.joints[i] = joint
-		table.insert(arm.parts, joint)
-		if i > 1 then
-			local previous = samples[i - 1]
-			local length = (s.p - previous.p).Magnitude * 1.08
-			local diameter = s.r + previous.r
-			local seg = part(model, "Segment", Enum.PartType.Cylinder, Vector3.new(length, diameter, diameter), shade)
-			arm.segs[i - 1] = seg
-			table.insert(arm.parts, seg)
-		end
-	end
-
-	if quality == "High" then
-		for i = 4, count - 1, 2 do
-			local r = samples[i].r
-			local disc = part(model, "Sucker", Enum.PartType.Cylinder, Vector3.new(0.14, r * 1.15, r * 1.15), COLORS.Sucker)
-			table.insert(arm.suckers, { part = disc, index = i })
-			table.insert(arm.parts, disc)
-		end
-	end
 
 	-- Phase 12 : 빛나는 약점 (대포 과녁). 서버가 판정에 쓰는 바로 그 점에 있다.
 	local bulb = part(model, "WeakSpot", Enum.PartType.Ball, Vector3.new(3.6, 3.6, 3.6), BULB, Enum.Material.Neon)
@@ -207,24 +331,15 @@ local function queueArm(arm, t, now)
 			end
 		end
 	end
+	local points = {}
 	for i, s in ipairs(samples) do
-		table.insert(moveParts, arm.joints[i])
-		table.insert(moveFrames, CFrame.new(s.p))
-		local seg = arm.segs[i - 1]
-		if seg then
-			table.insert(moveParts, seg)
-			table.insert(moveFrames, along(samples[i - 1].p, s.p))
-		end
+		points[i] = s.p
 	end
-	for _, sucker in ipairs(arm.suckers) do
-		local s = samples[sucker.index]
-		local inner = arm.normal:Cross(tangentAt(samples, sucker.index)) * arm.sign
-		if inner.Magnitude > 1e-4 then
-			inner = inner.Unit
-			table.insert(moveParts, sucker.part)
-			table.insert(moveFrames, facing(s.p + inner * (s.r * 0.9), inner))
-		end
+	points = curlTip(points, arm.normal, arm.sign)
+	for i, s in ipairs(samples) do
+		s.p = points[i]
 	end
+	placeTube(arm.tube, points, arm.normal, arm.sign)
 	return samples
 end
 
@@ -273,6 +388,8 @@ local function buildHead()
 	h.low = part(model, "Mantle", Enum.PartType.Ball, Vector3.new(spec.mantle, spec.mantle, spec.mantle), COLORS.Skin)
 	local back = spec.mantle * 0.8
 	h.high = part(model, "MantleTop", Enum.PartType.Ball, Vector3.new(back, back, back), COLORS.SkinDark)
+	h.low.Reflectance = WET
+	h.high.Reflectance = WET
 	h.highOffset = Vector3.new(0, spec.mantle * 0.2, 0)
 	h.highBack = spec.mantle * 0.16
 
@@ -367,33 +484,23 @@ end
 --------------------------------------------------
 -- 내려치는 다리 (습격)
 --------------------------------------------------
-local slams = {} -- [id] = { data, model, joints, segs, count, impacted, gone }
-local SLAM_COUNT = 16
+local slams = {} -- [id] = { data, model, tube, count, impacted, bulb }
+local SLAM_COUNT = 22
 
 local function slamRadius(u)
 	return 0.6 + (3.6 - 0.6) * (1 - u) ^ 1.1
 end
 
 local function buildSlam(data)
-	local count = (quality == "Low") and 11 or SLAM_COUNT
+	local count = (quality == "Low") and 12 or SLAM_COUNT
 	local model = Instance.new("Model")
 	model.Name = "SlamTentacle_" .. tostring(data.id)
 	model.Parent = folder
-	local slam = { data = data, model = model, joints = {}, segs = {}, suckers = {}, count = count, impacted = false }
+	local radii = {}
 	for i = 1, count do
-		local u = (i - 1) / (count - 1)
-		local r = slamRadius(u)
-		local shade = (i % 2 == 0) and COLORS.Skin or COLORS.Skin:Lerp(COLORS.SkinDark, 0.35)
-		slam.joints[i] = part(model, "Joint", Enum.PartType.Ball, Vector3.new(r * 2, r * 2, r * 2), shade)
-		if i > 1 then
-			local rPrev = slamRadius((i - 2) / (count - 1))
-			slam.segs[i - 1] = part(model, "Segment", Enum.PartType.Cylinder, Vector3.new(1, r + rPrev, r + rPrev), shade)
-		end
-		if quality == "High" and i > 4 and i % 2 == 0 then
-			local disc = part(model, "Sucker", Enum.PartType.Cylinder, Vector3.new(0.16, r * 1.2, r * 1.2), COLORS.Sucker)
-			table.insert(slam.suckers, { part = disc, index = i })
-		end
+		radii[i] = slamRadius((i - 1) / (count - 1))
 	end
+	local slam = { data = data, model = model, tube = buildTube(model, radii, quality == "High"), count = count, impacted = false }
 	-- 치켜든 다리 끝에도 약점이 빛난다 (여기를 맞히면 막는다)
 	slam.bulb = part(model, "SlamWeakSpot", Enum.PartType.Ball, Vector3.new(2.6, 2.6, 2.6), BULB_RAID, Enum.Material.Neon)
 	slams[data.id] = slam
@@ -506,33 +613,8 @@ local function queueSlam(slam, now, inStage)
 	if inStage then
 		return
 	end
-	local spine = T.slamSpine(data, tip, slam.count)
-	for i, p in ipairs(spine) do
-		table.insert(moveParts, slam.joints[i])
-		table.insert(moveFrames, CFrame.new(p))
-		local seg = slam.segs[i - 1]
-		if seg then
-			local a = spine[i - 1]
-			local length = (p - a).Magnitude * 1.1
-			if math.abs(seg.Size.X - length) > 0.05 then
-				seg.Size = Vector3.new(length, seg.Size.Y, seg.Size.Z)
-			end
-			table.insert(moveParts, seg)
-			table.insert(moveFrames, along(a, p))
-		end
-	end
-	for _, sucker in ipairs(slam.suckers) do
-		local i = sucker.index
-		local a, b = spine[math.max(1, i - 1)], spine[math.min(#spine, i + 1)]
-		local tangent = (b - a).Magnitude > 1e-4 and (b - a).Unit or Vector3.new(0, 1, 0)
-		local under = tangent:Cross(Vector3.new(0, 0, 1)) * -data.side
-		if under.Magnitude > 1e-4 then
-			under = under.Unit
-			local r = slamRadius((i - 1) / (slam.count - 1))
-			table.insert(moveParts, sucker.part)
-			table.insert(moveFrames, facing(spine[i] + under * (r * 0.9), under))
-		end
-	end
+	-- 다리가 놓인 평면은 배의 옆(x)과 위(y). 빨판은 아래(갑판)를 본다.
+	placeTube(slam.tube, T.slamSpine(data, tip, slam.count), Vector3.new(0, 0, 1), data.side)
 	local blockable = T.slamBlockable(data, now)
 	slam.bulb.Transparency = blockable and (0.1 + 0.3 * math.abs(math.sin(now * 10))) or 1
 	table.insert(moveParts, slam.bulb)
