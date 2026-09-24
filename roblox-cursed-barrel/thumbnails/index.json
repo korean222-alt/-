@@ -1,0 +1,266 @@
+[
+ {
+  "kind": "Knife",
+  "id": "classic",
+  "name": "낡은 단검",
+  "rarity": "common",
+  "price": 0,
+  "file": "Knife_classic.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "bone",
+  "name": "뼈칼",
+  "rarity": "common",
+  "price": 7900,
+  "file": "Knife_bone.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "gold",
+  "name": "선장의 금검",
+  "rarity": "rare",
+  "price": 48900,
+  "file": "Knife_gold.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "cursed",
+  "name": "저주받은 칼날",
+  "rarity": "epic",
+  "price": 128900,
+  "file": "Knife_cursed.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "ember",
+  "name": "잿불 단검",
+  "rarity": "legend",
+  "price": 291900,
+  "file": "Knife_ember.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "deep",
+  "name": "심해의 작살",
+  "rarity": "legend",
+  "price": 248900,
+  "file": "Knife_deep.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "starter_hook",
+  "name": "선원의 갈고리",
+  "rarity": "rare",
+  "price": 0,
+  "file": "Knife_starter_hook.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "vip_cutlass",
+  "name": "VIP 선장의 곡도",
+  "rarity": "legend",
+  "price": 0,
+  "file": "Knife_vip_cutlass.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "tide_dragon",
+  "name": "청해룡의 송곳니",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Knife_tide_dragon.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "crimson_dragon",
+  "name": "적염룡의 송곳니",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Knife_crimson_dragon.png"
+ },
+ {
+  "kind": "Knife",
+  "id": "moon_dragon",
+  "name": "월백룡의 송곳니",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Knife_moon_dragon.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "oak",
+  "name": "참나무 통",
+  "rarity": "common",
+  "price": 0,
+  "file": "Barrel_oak.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "drum",
+  "name": "기름 드럼통",
+  "rarity": "common",
+  "price": 6900,
+  "file": "Barrel_drum.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "steel",
+  "name": "폐유 드럼통",
+  "rarity": "common",
+  "price": 6900,
+  "file": "Barrel_steel.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "blue_drum",
+  "name": "파란 철제 드럼",
+  "rarity": "rare",
+  "price": 0,
+  "file": "Barrel_blue_drum.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "treasure",
+  "name": "보물 상자",
+  "rarity": "rare",
+  "price": 44900,
+  "file": "Barrel_treasure.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "kimchi",
+  "name": "김치통",
+  "rarity": "rare",
+  "price": 44900,
+  "file": "Barrel_kimchi.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "abyss",
+  "name": "심연의 통",
+  "rarity": "legend",
+  "price": 209900,
+  "file": "Barrel_abyss.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "volcano",
+  "name": "화산의 통",
+  "rarity": "epic",
+  "price": 112900,
+  "file": "Barrel_volcano.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "frost",
+  "name": "유빙의 통",
+  "rarity": "epic",
+  "price": 112900,
+  "file": "Barrel_frost.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "tide_dragon",
+  "name": "청해룡의 봉인",
+  "rarity": "mythic",
+  "price": 399000,
+  "file": "Barrel_tide_dragon.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "crimson_dragon",
+  "name": "적염룡의 봉인",
+  "rarity": "mythic",
+  "price": 399000,
+  "file": "Barrel_crimson_dragon.png"
+ },
+ {
+  "kind": "Barrel",
+  "id": "moon_dragon",
+  "name": "월백룡의 봉인",
+  "rarity": "mythic",
+  "price": 399000,
+  "file": "Barrel_moon_dragon.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "captain",
+  "name": "저주받은 선장",
+  "rarity": "common",
+  "price": 0,
+  "file": "Ghost_captain.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "skull",
+  "name": "해골 선장",
+  "rarity": "common",
+  "price": 9900,
+  "file": "Ghost_skull.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "kraken",
+  "name": "크라켄",
+  "rarity": "rare",
+  "price": 61900,
+  "file": "Ghost_kraken.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "cook",
+  "name": "좀비 요리사",
+  "rarity": "rare",
+  "price": 61900,
+  "file": "Ghost_cook.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "ember",
+  "name": "잿불 망령",
+  "rarity": "legend",
+  "price": 298900,
+  "file": "Ghost_ember.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "siren",
+  "name": "심해의 인어",
+  "rarity": "legend",
+  "price": 255900,
+  "file": "Ghost_siren.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "voidking",
+  "name": "공허의 왕",
+  "rarity": "epic",
+  "price": 144900,
+  "file": "Ghost_voidking.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "tide_dragon",
+  "name": "청해룡의 수호자",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Ghost_tide_dragon.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "crimson_dragon",
+  "name": "적염룡의 수호자",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Ghost_crimson_dragon.png"
+ },
+ {
+  "kind": "Ghost",
+  "id": "moon_dragon",
+  "name": "월백룡의 수호자",
+  "rarity": "mythic",
+  "price": 499000,
+  "file": "Ghost_moon_dragon.png"
+ }
+]
