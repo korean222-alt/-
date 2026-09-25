@@ -30,7 +30,8 @@ gui.ResetOnSpawn = false
 gui.DisplayOrder = 13
 gui.Parent = player:WaitForChild("PlayerGui")
 -- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
-require(RS:WaitForChild("CursedBarrel").Shared:WaitForChild("UIKit")).restyle(gui)
+local UIKit = require(RS:WaitForChild("CursedBarrel").Shared:WaitForChild("UIKit"))
+UIKit.restyle(gui)
 
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(1, 0.5)
@@ -42,6 +43,8 @@ panel.BackgroundTransparency = 0.12
 panel.Visible = false
 panel.Parent = gui
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+-- Phase 24 : 휴대폰에서는 버튼 줄처럼 같이 줄인다
+UIKit.autoScale(panel, UIKit.phoneFactor)
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 6)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -72,7 +75,13 @@ local toast = Instance.new("TextLabel")
 toast.BackgroundTransparency = 1
 toast.AnchorPoint = Vector2.new(0.5, 0)
 toast.Position = UDim2.new(0.5, 0, 0.3, 0)
-toast.Size = UDim2.fromOffset(520, 40)
+-- Phase 24 : 폭을 520 으로 못 박지 않는다. 화면 폭 - 좌우 여백 16 씩, 넓은 화면에서도 520 까지만. 길면 줄을 바꾼다.
+toast.Size = UDim2.new(1, -32, 0, 40)
+toast.AutomaticSize = Enum.AutomaticSize.Y
+toast.TextWrapped = true
+local toastLimit = Instance.new("UISizeConstraint")
+toastLimit.MaxSize = Vector2.new(520, math.huge)
+toastLimit.Parent = toast
 toast.Font = Enum.Font.GothamBlack
 toast.TextSize = 22
 toast.TextStrokeTransparency = 0.4
@@ -164,9 +173,27 @@ local function redraw(model)
 		b.Parent = panel
 		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
 		b.Activated:Connect(function()
+			UIKit.click()
 			predict:FireServer(model, entry.userId)
 		end)
 		table.insert(buttons, b)
+	end
+end
+
+-- Phase 24 : 관전 중에는 오른쪽 가운데(같은 Y=0.55)에 "관전 종료 · 다음 판 참가" 묶음이 뜬다.
+--   두 패널이 겹치지 않게, 그때는 예측 창을 화면 아래 가운데로 옮긴다 (아래를 붙이고 위로 자란다).
+local function spectateBarShown()
+	local voyage = player.PlayerGui:FindFirstChild("CursedBarrel_Voyage")
+	local bar = voyage and voyage:FindFirstChild("SpectateBar")
+	return bar ~= nil and bar:IsA("GuiObject") and bar.Visible
+end
+local function placePanel()
+	if spectateBarShown() then
+		panel.AnchorPoint = Vector2.new(0.5, 1)
+		panel.Position = UDim2.new(0.5, 0, 1, -18)
+	else
+		panel.AnchorPoint = Vector2.new(1, 0.5)
+		panel.Position = UDim2.new(1, -12, 0.55, 0)
 	end
 end
 
@@ -177,6 +204,7 @@ Run.Heartbeat:Connect(function()
 		return
 	end
 	checkAt = os.clock() + 0.5
+	placePanel()
 	local model = config.Prediction.Enabled and candidateTable() or nil
 	local list = model and participants(model) or {}
 	panel.Visible = model ~= nil and #list > 1

@@ -150,6 +150,8 @@ function Round.new(gameTable)
 
 	-- Phase 8 : 방해 아이템
 	self.turnCut = {} -- [Player] = 다음 턴을 깎을 비율
+	self.turnCutFrom = {} -- Phase 24 : [Player] = { actor, onVoid } 재촉을 건 사람 (발동 전에 판이 끝나면 돌려준다)
+	self.pendingSabotage = {} -- Phase 24 : [Player] = { { item, actor, onVoid } } 그 사람 차례가 오면 발동할 방해
 	self.sabotageUses = {} -- [Player] = 이번 라운드에 쓴 횟수
 
 	-- Phase 10
@@ -161,6 +163,7 @@ function Round.new(gameTable)
 	self.carry = 0 -- Phase 11 : 다음 판으로 넘어갈 현상금 (테이블에 남는다)
 	self.practice = false -- Phase 11 : AI 선원이 낀 연습 판인가
 	self.picks = 0 -- 이번 판에 꽂힌 칼 수
+	self.playerPicks = {} -- Phase 24 : [Player] = 이번 판에 직접 꽂은 칼 수 (기권승 보상 조건)
 	self.pirateOuts = 0 -- 이번 판에 해적에게 탈락한 사람 수 (스스로 나간 사람은 세지 않는다)
 	self.afk = {}
 	self.forfeited = {}
@@ -202,6 +205,7 @@ function Round:Destroy()
 	self.catch = nil
 
 	self.cleaner:clean()
+	self:_voidAllSabotage()
 	table.clear(self.participants)
 	table.clear(self.roundRoster)
 	table.clear(self.isParticipant)
@@ -306,7 +310,7 @@ end
 -- Phase 15 : 최후의 1인 · 라운드
 --------------------------------------------------
 
--- 최후의 1인이 전부 가져가는 테이블인가 (4인 이상 테이블. 처음 온 사람의 연습 판은 빼 준다)
+-- 최후의 1인이 전부 가져가는 테이블인가 (3인 이상 테이블 · TableConfig. 처음 온 사람의 연습 판은 빼 준다)
 function Round:_winnerTakesAll()
 	return self.gameTable.config.WinnerTakesAll == true and not self.tutorialPlayer
 end
@@ -573,6 +577,7 @@ function Round:_beginRound()
 	self.braveLevel = 0
 	self.braveOffer = nil
 	self.picks = 0
+	self.playerPicks = {}
 	self.pirateOuts = 0
 	self.pot = 0
 	self.surgeMiss = 0
@@ -614,6 +619,7 @@ function Round:_beginRound()
 	self.catchCount = 0
 	self:_set(TABLE_ATTR.CatchCount, 0)
 	table.clear(self.isParticipant)
+	self:_voidAllSabotage()
 	table.clear(self.turnCut)
 	table.clear(self.sabotageUses)
 	for _, player in ipairs(participants) do
@@ -762,6 +768,7 @@ function Round:_beginTurn(index, braveContinue)
 	local cut = self.turnCut[player]
 	if cut and duration > 0 then
 		self.turnCut[player] = nil
+		self.turnCutFrom[player] = nil
 		duration = math.max(2, duration * (1 - math.clamp(cut, 0, 0.6)))
 	end
 
@@ -781,6 +788,11 @@ function Round:_beginTurn(index, braveContinue)
 	end
 
 	GameConfig.log(("%s 턴 %d/%d · %s"):format(self.gameTable.tableId, index, count, player.Name))
+
+	-- Phase 24 : 이 사람에게 예약돼 있던 방해(흔들기 · 뒤섞기 · 먹물 · 포효)는 이 사람 차례가 열린 지금 발동한다.
+	if self.gameTable.state == STATES.Playing then
+		self:_flushSabotage(player)
+	end
 
 	if GameConfig.isBot(player) and self.gameTable.state == STATES.Playing then
 		self:_botThink(player, token)
@@ -852,7 +864,7 @@ function Round:_botCatch(bot, catch)
 		if self.destroyed or token ~= self.catchToken then
 			return
 		end
-		self:HandleCatchInput(bot, GameConfig.now())
+		self:HandleCatchInput(bot, GameConfig.now(), true)
 	end)
 end
 
@@ -977,6 +989,8 @@ function Round:_resolvePick(player, slotIndex, source)
 
 	self.resolving = true
 	self.picks = (self.picks or 0) + 1
+	self.playerPicks = self.playerPicks or {}
+	self.playerPicks[player] = (self.playerPicks[player] or 0) + 1
 	self.turnToken += 1 -- 이번 턴의 제한 시간 타이머를 무효로 만든다
 	-- Phase 12 : 한 바퀴를 돌면 관전 예측을 닫는다 (결과가 뻔해진 뒤에는 받지 않는다)
 	if self.picks >= math.max(2, self.startingCount or 2) then
@@ -1345,8 +1359,20 @@ function Round:_beginCatch(player, slotIndex)
 	end)
 end
 
+-- Phase 24 : 이 사람의 한쪽 방향 지연(초). 서버가 잰 왕복 지연(GetNetworkPing)의 절반, MaxLatency 이하.
+local function oneWayLatency(player)
+	local ok, ping = pcall(function()
+		return player:GetNetworkPing()
+	end)
+	if ok and typeof(ping) == "number" and ping == ping and ping > 0 then
+		return math.clamp(ping * 0.5, 0, CATCH.MaxLatency)
+	end
+	return 0
+end
+
 -- 클라이언트가 "지금 눌렀다"고 알려 왔을 때.
-function Round:HandleCatchInput(player, tappedAt)
+-- trusted : 서버가 만든 입력 (AI 선원). 사람의 입력은 항상 false.
+function Round:HandleCatchInput(player, tappedAt, trusted)
 	local catch = self.catch
 	if not catch or catch.resolved or catch.player ~= player or catch.spent then
 		return
@@ -1356,12 +1382,19 @@ function Round:HandleCatchInput(player, tappedAt)
 
 	-- 보내온 시각을 그대로 믿지 않는다.
 	--   · 미래의 시각은 인정하지 않는다 (now 가 상한)
-	--   · 왕복 지연 상한보다 더 과거도 인정하지 않는다
+	--   · Phase 24 : 과거로는 "서버가 잰 이 사람의 지연 + 약간의 여유" 만큼만 인정한다.
+	--     (예전에는 누구에게나 0.25초를 인정해서, 늦게 누르고 이른 시각을 보내 성공 · 완벽을 노릴 수 있었다)
 	local claimed = tonumber(tappedAt)
 	if not claimed or claimed ~= claimed then
 		claimed = now
 	end
-	claimed = math.clamp(claimed, now - CATCH.MaxLatency, now)
+	local serverTap = claimed
+	if not trusted then
+		local oneWay = oneWayLatency(player)
+		local allowance = math.min(CATCH.MaxLatency, oneWay + (tonumber(CATCH.LatencySlack) or 0.05))
+		claimed = math.clamp(claimed, now - allowance, now)
+		serverTap = now - oneWay -- 서버가 추정한 "실제로 누른 시각"
+	end
 
 	if claimed < catch.opensAt then
 		-- 칼을 고른 바로 그 손가락이 한 번 더 눌린 것은 버린다.
@@ -1380,7 +1413,10 @@ function Round:HandleCatchInput(player, tappedAt)
 
 	local limit = catch.opensAt + catch.window + CATCH.Grace
 	if claimed <= limit then
-		catch.accuracy = math.clamp(1 - (claimed - catch.opensAt) / math.max(catch.window, 0.01), 0, 1)
+		-- Phase 24 : 정확도(완벽 판정)는 클라이언트 시각과 서버 추정 시각 중 더 늦은 쪽으로 잰다.
+		--   클라이언트가 보낸 시각만으로는 "완벽"이 확정되지 않는다.
+		local judged = math.max(claimed, math.max(serverTap, catch.opensAt))
+		catch.accuracy = math.clamp(1 - (judged - catch.opensAt) / math.max(catch.window, 0.01), 0, 1)
 		self:_resolveCatch(true, "caught")
 	else
 		self:_resolveCatch(false, "late")
@@ -1486,7 +1522,7 @@ end
 -- 여기서는 "지금 이 테이블에서 정말 쓸 수 있는 상황인가"만 다시 본다.
 --------------------------------------------------
 
-function Round:CanSabotage(actor, target)
+function Round:CanSabotage(actor, target, item)
 	if self.destroyed or self.gameTable.destroyed then
 		return false, REJECT.NotPlaying
 	end
@@ -1510,29 +1546,36 @@ function Round:CanSabotage(actor, target)
 	if used >= GameConfig.Sabotage.PerRoundLimit then
 		return false, REJECT.SabotageCooldown
 	end
+	-- Phase 24 : 같은 상대에게 같은 방해가 이미 걸려(예약돼) 있으면 받지 않는다. (겹치면 효과 없이 사용권만 사라진다)
+	if item then
+		if item.turnCut and self.turnCut[target] then
+			return false, "이미 재촉을 받은 상대입니다 / Already hurried"
+		end
+		for _, entry in ipairs(self.pendingSabotage[target] or {}) do
+			if entry.item.id == item.id then
+				return false, "이미 같은 방해가 예약돼 있어요 / Already queued"
+			end
+		end
+	end
 	return true, nil
 end
 
-function Round:ApplySabotage(actor, target, item)
-	local ok, reason = self:CanSabotage(actor, target)
-	if not ok then
-		return false, reason
-	end
+-- 지금 target 이 칼을 고르는 중인가 (시간이 정해진 방해를 바로 걸어도 되는가)
+function Round:_isPicking(target)
+	return self.gameTable.state == STATES.Playing and not self.resolving and self.participants[self.turnIndex] == target
+end
 
-	self.sabotageUses[actor] = (self.sabotageUses[actor] or 0) + 1
-
-	if item.turnCut then
-		self.turnCut[target] = math.max(self.turnCut[target] or 0, item.turnCut)
-	end
-
+function Round:_fireSabotage(actor, target, item)
 	-- 당한 사람에게는 효과를, 나머지에게는 "누가 누구에게 썼다"만 보낸다.
-	sabotageCue:FireClient(target, self.gameTable.model, {
-		id = item.id,
-		mine = true,
-		duration = item.duration,
-		fromUserId = actor.UserId,
-		fromName = actor.DisplayName or actor.Name,
-	})
+	if target.Parent == Players then
+		sabotageCue:FireClient(target, self.gameTable.model, {
+			id = item.id,
+			mine = true,
+			duration = item.duration,
+			fromUserId = actor.UserId,
+			fromName = actor.DisplayName or actor.Name,
+		})
+	end
 	for _, other in ipairs(self.participants) do
 		if other ~= target and not GameConfig.isBot(other) then
 			sabotageCue:FireClient(other, self.gameTable.model, {
@@ -1545,10 +1588,81 @@ function Round:ApplySabotage(actor, target, item)
 			})
 		end
 	end
+end
 
+function Round:_flushSabotage(target)
+	local list = self.pendingSabotage[target]
+	if not list then
+		return
+	end
+	self.pendingSabotage[target] = nil
+	for _, entry in ipairs(list) do
+		self:_fireSabotage(entry.actor, target, entry.item)
+		GameConfig.log(("%s · %s 차례에 예약된 방해(%s) 발동"):format(self.gameTable.tableId, target.Name, entry.item.id))
+	end
+end
+
+-- 발동하지 못하고 사라지는 방해는 onVoid 로 알린다 (SabotageService 가 사용권을 돌려준다).
+function Round:_voidSabotage(target)
+	local list = self.pendingSabotage[target]
+	self.pendingSabotage[target] = nil
+	for _, entry in ipairs(list or {}) do
+		if entry.onVoid then
+			task.spawn(entry.onVoid, entry.item)
+		end
+	end
+	local cutFrom = self.turnCutFrom[target]
+	self.turnCutFrom[target] = nil
+	self.turnCut[target] = nil
+	if cutFrom and cutFrom.onVoid then
+		task.spawn(cutFrom.onVoid, cutFrom.item)
+	end
+end
+
+function Round:_voidAllSabotage()
+	local targets = {}
+	for target in pairs(self.pendingSabotage) do
+		targets[target] = true
+	end
+	for target in pairs(self.turnCutFrom) do
+		targets[target] = true
+	end
+	for target in pairs(targets) do
+		self:_voidSabotage(target)
+	end
+end
+
+-- Phase 24 : 세 번째 반환값 queued 가 참이면 "상대 차례가 오면 발동"으로 예약된 것이다.
+--   시간이 정해진 방해(흔들기 · 뒤섞기 · 먹물 · 포효)는 상대가 칼을 고르는 동안에만 의미가 있다.
+--   예전에는 바로 걸려서, 상대 차례가 오기 전에 끝나 버리면 사용권만 사라졌다.
+--   onVoid(item) : 발동하기 전에 상대가 떨어지거나 판이 끝나면 불린다 (사용권 환불용)
+function Round:ApplySabotage(actor, target, item, onVoid)
+	local ok, reason = self:CanSabotage(actor, target, item)
+	if not ok then
+		return false, reason
+	end
+
+	self.sabotageUses[actor] = (self.sabotageUses[actor] or 0) + 1
+
+	if item.turnCut then
+		self.turnCut[target] = math.max(self.turnCut[target] or 0, item.turnCut)
+		self.turnCutFrom[target] = { actor = actor, item = item, onVoid = onVoid }
+		self:_fireSabotage(actor, target, item)
+		GameConfig.log(("%s · %s → %s 방해(%s)"):format(self.gameTable.tableId, actor.Name, target.Name, item.id))
+		return true, nil, false
+	end
+
+	if item.duration and not self:_isPicking(target) then
+		self.pendingSabotage[target] = self.pendingSabotage[target] or {}
+		table.insert(self.pendingSabotage[target], { item = item, actor = actor, onVoid = onVoid })
+		GameConfig.log(("%s · %s → %s 방해(%s) 예약 (상대 차례에 발동)"):format(self.gameTable.tableId, actor.Name, target.Name, item.id))
+		return true, nil, true
+	end
+
+	self:_fireSabotage(actor, target, item)
 	GameConfig.log(("%s · %s → %s 방해(%s)")
 		:format(self.gameTable.tableId, actor.Name, target.Name, item.id))
-	return true, nil
+	return true, nil, false
 end
 
 function Round:GetOpponents(player)
@@ -1598,6 +1712,7 @@ function Round:_eliminate(player)
 
 	gameTable:SetSeatAlive(player, false)
 	ProfileService:BreakStreak(player)
+	self:_voidSabotage(player)
 
 	-- place : 이번 판 순위 (4명 중 처음 떨어지면 4위)
 	local defeatedRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -1665,6 +1780,17 @@ function Round:_isFullWin()
 	return (self.picks or 0) >= need
 end
 
+-- Phase 24 : 기권승에 보상을 줄 만큼 판이 진행됐는가.
+--   아무도(또는 이긴 사람이) 칼을 꽂지 않은 채 상대가 전부 나간 판은 "무효 판"이다.
+--   여러 계정으로 앉았다 나가기를 반복해 보상 · 판수 · 퀘스트를 쌓는 것을 막는다.
+function Round:_forfeitEarned(player)
+	local rule = GameConfig.ForfeitWin
+	local perPlayer = tonumber(rule.MinPicksForReward) or 1
+	local own = tonumber(rule.MinOwnPicksForReward) or 1
+	local need = math.max(1, self.startingCount or 1) * perPlayer
+	return (self.picks or 0) >= need and ((self.playerPicks or {})[player] or 0) >= own
+end
+
 function Round:_declareWinner(player)
 	if self.settled or self.destroyed or self.gameTable.destroyed then
 		return
@@ -1685,11 +1811,18 @@ function Round:_declareWinner(player)
 	local credited = fullWin and player or nil
 	local halfWinner = (player ~= nil and not botWinner and not fullWin) and player or nil
 	local share = tonumber(GameConfig.ForfeitWin.RewardShare) or 0.5
+	-- Phase 24 : 진행이 거의 없던 기권승은 무효 판. 보상 · 판수 · 퀘스트 · 랭킹 · 토너먼트 · 예측 모두 없다. 현상금은 전부 이월.
+	local noContest = halfWinner ~= nil and not self:_forfeitEarned(halfWinner)
+	if noContest then
+		halfWinner = nil
+	end
 
 	local potTotal = math.max(0, math.floor(self.pot or 0))
 	local paid, carried = 0, 0
 	if credited then
 		paid = potTotal
+	elseif noContest then
+		carried = self:_carryOver(potTotal)
 	elseif halfWinner then
 		paid = math.floor(potTotal * share)
 		carried = self:_carryOver(potTotal - paid)
@@ -1697,12 +1830,12 @@ function Round:_declareWinner(player)
 		carried = self:_carryOver(botWinner and math.floor(potTotal * 0.5) or potTotal)
 	end
 
-	self:_set(TABLE_ATTR.WinForfeit, halfWinner ~= nil)
+	self:_set(TABLE_ATTR.WinForfeit, halfWinner ~= nil or noContest)
 	if player then
 		self:_set(TABLE_ATTR.WinnerUserId, player.UserId)
 		self:_set(TABLE_ATTR.WinnerName, player.DisplayName or player.Name)
 		GameConfig.log(("%s 라운드 %d 승자: %s%s"):format(gameTable.tableId, self.roundId, player.Name,
-			(botWinner and " (AI)") or (fullWin and "") or " (기권승)"))
+			(botWinner and " (AI)") or (fullWin and "") or (noContest and " (무효 판 · 보상 없음)") or " (기권승)"))
 	else
 		self:_set(TABLE_ATTR.WinnerUserId, 0)
 		self:_set(TABLE_ATTR.WinnerName, "")
@@ -1710,13 +1843,16 @@ function Round:_declareWinner(player)
 	end
 
 	-- 기록과 보상 (Phase 7 : 승자뿐 아니라 참가자 전원의 판수가 저장된다)
-	ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, paid, {
-		halfWinner = halfWinner,
-		practice = self.practice == true,
-		winnerTakesAll = self:_winnerTakesAll(),
-	})
-	-- 연습 판(AI 동석)의 승리는 랭킹에 넣지 않는다.
-	RankingService:RecordRound(gameTable, self.roundRoster or {}, (not self.practice) and credited or nil)
+	-- Phase 24 : 무효 판은 기록하지 않는다.
+	if not noContest then
+		ProfileService:RecordRound(gameTable, self.roundRoster or {}, credited, self.forfeited, self.bonuses, paid, {
+			halfWinner = halfWinner,
+			practice = self.practice == true,
+			winnerTakesAll = self:_winnerTakesAll(),
+		})
+		-- 연습 판(AI 동석)의 승리는 랭킹에 넣지 않는다.
+		RankingService:RecordRound(gameTable, self.roundRoster or {}, (not self.practice) and credited or nil)
+	end
 	if player and not botWinner then
 		task.spawn(function()
 			local analytics = game:GetService("AnalyticsService")
@@ -1736,7 +1872,8 @@ function Round:_declareWinner(player)
 		streak = (credited and not self.practice) and (credited:GetAttribute(GameConfig.PlayerAttributes.Streak) or 0) or 0,
 		skin = player and player:GetAttribute("VictorySkin") or "classic",
 		duration = os.clock() - (self.roundStartedAt or os.clock()),
-		forfeit = halfWinner ~= nil,
+		forfeit = halfWinner ~= nil or noContest,
+		noContest = noContest or nil,
 		pot = paid,
 		carry = carried,
 		bot = botWinner or nil,
@@ -1752,6 +1889,7 @@ function Round:_declareWinner(player)
 		credited = credited,
 		halfWinner = halfWinner,
 		botWinner = botWinner,
+		noContest = noContest,
 		practice = self.practice == true,
 		roster = table.clone(self.roundRoster or {}),
 		outOrder = table.clone(self.outOrder or {}),
@@ -1799,12 +1937,14 @@ function Round:_resetTable()
 	table.clear(self.participants)
 	table.clear(self.isParticipant)
 	table.clear(self.dangerSlots)
+	self:_voidAllSabotage()
 	table.clear(self.turnCut)
 	table.clear(self.sabotageUses)
 	table.clear(self.catchesUsed)
 	table.clear(self.hardSteps)
 	self.pot = 0
 	self.picks = 0
+	self.playerPicks = {}
 	self.pirateOuts = 0
 	self.outOrder = {}
 	self.turnIndex = 0
@@ -1867,7 +2007,7 @@ function Round:RemoveParticipant(player)
 	end
 	local index = table.find(self.participants, player)
 	self.isParticipant[player] = nil
-	self.turnCut[player] = nil
+	self:_voidSabotage(player)
 
 	if not index then
 		self:_writeSeatOrder()

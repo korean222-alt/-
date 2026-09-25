@@ -78,7 +78,7 @@ function TournamentService:_publish(player, entry)
 end
 
 function TournamentService:OnSettled(info, now)
-	if not TOURNEY.Enabled or info.practice or not info.gameTable or not info.gameTable.config.Tournament then
+	if not TOURNEY.Enabled or info.practice or info.noContest or not info.gameTable or not info.gameTable.config.Tournament then
 		return
 	end
 	now = now or os.clock()

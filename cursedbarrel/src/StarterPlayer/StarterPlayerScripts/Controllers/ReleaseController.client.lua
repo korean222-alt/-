@@ -6,10 +6,20 @@ local Input=game:GetService("UserInputService")
 local SoundService=game:GetService("SoundService")
 local Social=game:GetService("SocialService")
 local player=Players.LocalPlayer
-local package=RS:WaitForChild("CursedBarrel")
-local Config=require(package.Shared.GameConfig)
-local Release=require(package.Shared.ReleaseConfig)
-local FX=require(package.Shared.PremiumFX)
+-- Phase 24 : 시작 직후에는 Shared 의 모듈이 아직 복제되지 않았을 수 있다. 하나씩 기다리고, 늦으면 경고를 남기며 계속 기다린다.
+local function need(parent,name)
+ local child=parent:WaitForChild(name,10)
+ while not child do
+  warn(("[CursedBarrel] %s.%s 를 기다리는 중…"):format(parent:GetFullName(),name))
+  child=parent:WaitForChild(name,10)
+ end
+ return child
+end
+local package=need(RS,"CursedBarrel")
+local sharedFolder=need(package,"Shared")
+local Config=require(need(sharedFolder,"GameConfig"))
+local Release=require(need(sharedFolder,"ReleaseConfig"))
+local FX=require(need(sharedFolder,"PremiumFX"))
 local remotes=package:WaitForChild("Remotes")
 local request=remotes:WaitForChild("VoyageRequest")
 local stateRemote=remotes:WaitForChild("VoyageState")
@@ -26,7 +36,8 @@ local function currentTable()
  while node and node~=workspace do if Tags:HasTag(node,Config.Tags.Table) then return node end;node=node.Parent end
  return nil
 end
-local UIKit=require(package.Shared.UIKit)
+local UIKit=require(need(sharedFolder,"UIKit"))
+local TableConfig=require(need(sharedFolder,"TableConfig"))
 local gui=Instance.new("ScreenGui");gui.Name="CursedBarrel_Voyage";gui.DisplayOrder=22;gui.ResetOnSpawn=false;gui.IgnoreGuiInset=false;gui.Parent=player.PlayerGui
 -- Phase 14 : 만화풍 버튼 · 창 (UIKit)
 local function button(parent,text,pos,size,callback,themeName)
@@ -48,6 +59,20 @@ end
 local draw
 local pendingClaim=nil -- Phase 21 : 방금 누른 보상 (받으면 "획득!" 창에 띄운다)
 local function refresh() request:FireServer("sync") end
+-- Phase 24 : 설정은 바로 보내지 않고 0.35초 동안 모았다가 마지막 값만 한 번에 보낸다.
+--   서버가 확정한 값이 돌아오면(VoyageState) 그 값으로 다시 그린다. 보내기 전에 도착한 옛 상태는 모아 둔 값으로 덮어 보여 준다.
+local pendingSettings={}
+local settingsToken=0
+local function queueSetting(key,value)
+ if data and data.settings then data.settings[key]=value end
+ pendingSettings[key]=value
+ settingsToken+=1;local token=settingsToken
+ task.delay(0.35,function()
+  if token~=settingsToken or next(pendingSettings)==nil then return end
+  local batch=pendingSettings;pendingSettings={}
+  request:FireServer("settings",batch)
+ end)
+end
 local function action(r,text,fn) return button(r,text,UDim2.new(1,-160,0.5,-22),UDim2.fromOffset(146,44),fn,"blue") end
 local function spectate(model)
  selected=model
@@ -84,6 +109,29 @@ local spectateTitle=UIKit.label(spectateBar,{text="👀 관전 중",position=UDi
 local function stopSpectate() player:SetAttribute("SpectateTableId",nil);selected=nil end
 local spectateExit=button(spectateBar,"관전 종료",UDim2.fromOffset(5,40),UDim2.fromOffset(180,50),stopSpectate,"red")
 local rejoin=button(spectateBar,"다음 판 참가",UDim2.fromOffset(5,98),UDim2.fromOffset(180,50),function() if selected then request:FireServer("rejoin",selected) end end,"green")
+-- Phase 24 : 테이블에 앉아 사람을 기다리는 동안 화면 아래 가운데에 "🤖 AI 선원 켬/끔" 버튼.
+--   (오른쪽 · 왼쪽은 버튼 줄, 휴대폰은 아래 양 끝에 이동 · 점프 버튼이 있어 가운데 아래를 쓴다)
+--   누르면 설정(aiCrew)이 저장되어 다시 바꿀 때까지 어느 테이블에서나 그대로 간다. (설정 탭에도 같은 항목이 있다)
+--   앉은 사람 중 한 명이라도 끄면 그 테이블에는 AI 가 오지 않는다.
+local aiBar=Instance.new("Frame");aiBar.Name="AiCrewBar";aiBar.AnchorPoint=Vector2.new(0.5,1);aiBar.Position=UDim2.new(0.5,0,1,-18)
+aiBar.Size=UDim2.fromOffset(240,94);aiBar.BackgroundTransparency=1;aiBar.Visible=false;aiBar.Parent=gui
+UIKit.autoScale(aiBar,UIKit.phoneFactor)
+local aiHint=UIKit.label(aiBar,{text="",position=UDim2.fromOffset(0,0),size=UDim2.new(1,0,0,30),textSize=16,color=UIKit.Colors.Cream,stroke=2,wrap=true})
+local function aiCrewOn() return player:GetAttribute("Setting_aiCrew")~=false end
+local aiButton
+local function drawAiBar()
+ local on=aiCrewOn()
+ if data and data.settings and data.settings.aiCrew~=nil then on=data.settings.aiCrew~=false end
+ aiButton.Text=on and "🤖 AI 선원 켬" or "🤖 AI 선원 끔"
+ UIKit.setTheme(aiButton,on and "green" or "grey")
+ aiHint.Text=on and "혼자면 잠시 뒤 AI 가 와요" or "사람만 기다려요"
+end
+aiButton=button(aiBar,"🤖 AI 선원 켬",UDim2.fromOffset(20,38),UDim2.fromOffset(200,52),function()
+ local on=aiCrewOn()
+ if data and data.settings and data.settings.aiCrew~=nil then on=data.settings.aiCrew~=false end
+ queueSetting("aiCrew",not on);drawAiBar()
+end,"green")
+player:GetAttributeChangedSignal("Setting_aiCrew"):Connect(drawAiBar)
 local function tableById(id)
  if not id then return nil end
  for _,t in ipairs(Tags:GetTagged(Config.Tags.Table)) do if t:GetAttribute("TableId")==id then return t end end
@@ -139,7 +187,7 @@ function draw()
    {"🎯 내 차례에 칼 꽂을 자리를 고르세요","🎯 On your turn, pick a slot"},
    {"☠ 해적이 나오면 눌러서 잡기! 먼저 누르면 탈락","☠ Tap when the pirate pops out! Too early = out"},
    {"🔥 한 번 더 : 더 찌를수록 현상금이 커져요","🔥 Once more: every extra stab grows the bounty"},
-   {"👑 4인 이상 테이블은 마지막 1명이 전부 가져가요","👑 4+ seat tables: the last survivor takes it all"},
+   {"👑 3인 이상 테이블은 마지막 1명이 전부 가져가요","👑 3+ seat tables: the last survivor takes it all"},
    {"😈 방해 : 게임 중 왼쪽 😈 버튼 → 상대 고르기 → 사용","😈 Sabotage: in a game, tap 😈 → pick a rival → use"},
    {"🃏 카드 : 카드 테이블에서 내 차례에 칼 고르는 창 위 버튼","🃏 Cards: on your turn at the card table, above the slot picker"},
    {"🧭 수첩 : 관전 · 주간 의뢰 · 파티 · 설정","🧭 Voyage: spectate · weekly quests · party · settings"},
@@ -150,21 +198,23 @@ function draw()
    -- Phase 22 : − / + 로 10% 씩 (예전에는 +25% 만 눌러서 돌아가는 버튼 하나였다)
    local value=set[def[1]] or 0;local r=row((def[1]=="music" and "🎵 " or "🔊 ")..lang(def[2],def[3]).."  "..math.floor(value*100+0.5).."%")
    local key=def[1]
-   local function set01(v) v=math.clamp(math.floor(v*10+0.5)/10,0,1);set[key]=v;request:FireServer("setting",key,v);draw() end
+   local function set01(v) v=math.clamp(math.floor(v*10+0.5)/10,0,1);queueSetting(key,v);draw() end
    button(r,"−",UDim2.new(1,-236,0.5,-22),UDim2.fromOffset(70,44),function() set01(value-0.1) end,"red")
    button(r,"+",UDim2.new(1,-160,0.5,-22),UDim2.fromOffset(70,44),function() set01(value+0.1) end,"green")
    button(r,value>0 and "🔇" or "🔈",UDim2.new(1,-84,0.5,-22),UDim2.fromOffset(70,44),function() set01(value>0 and 0 or 0.5) end,"grey")
   end
-  for _,def in ipairs({{"shake","화면 흔들림","Camera shake"},{"reducedFX","번쩍임·연출 줄이기","Reduce effects"},{"camera","테이블 카메라","Table camera"},{"wide","화각 넓게","Wide view"}}) do
-   local key=def[1];local r=row(lang(def[2],def[3]));action(r,set[key] and "ON" or "OFF",function() request:FireServer("setting",key,not set[key]) end)
+  for _,def in ipairs({{"aiCrew","🤖 AI 선원 채우기","🤖 AI crew fill-in"},{"shake","화면 흔들림","Camera shake"},{"reducedFX","번쩍임·연출 줄이기","Reduce effects"},{"camera","테이블 카메라","Table camera"},{"wide","화각 넓게","Wide view"}}) do
+   local key=def[1];local r=row(lang(def[2],def[3]));action(r,set[key] and "ON" or "OFF",function() queueSetting(key,not set[key]);draw() end)
   end
-  local q=row(lang("이펙트 품질","Effect quality"));action(q,set.quality,function() request:FireServer("setting","quality",({Auto="High",High="Low",Low="Auto"})[set.quality] or "Auto") end)
-  local l=row(lang("언어","Language"));action(l,set.language,function() request:FireServer("setting","language",locale=="ko" and "en" or "ko") end)
+  local q=row(lang("이펙트 품질","Effect quality"));action(q,set.quality,function() queueSetting("quality",({Auto="High",High="Low",Low="Auto"})[set.quality] or "Auto");draw() end)
+  local l=row(lang("언어","Language"));action(l,set.language,function() queueSetting("language",locale=="ko" and "en" or "ko");draw() end)
   local a=row(lang("자리 비움","AFK"));action(a,player:GetAttribute("AFK") and "ON" or "OFF",function() request:FireServer("afk",not player:GetAttribute("AFK")) end)
  end
 end
 stateRemote.OnClientEvent:Connect(function(new)
  if typeof(new)~="table" then return end;data=new
+ -- 아직 보내지 않은(모으는 중인) 설정은 화면에서 그대로 유지한다
+ if typeof(new.settings)=="table" then for k,v in pairs(pendingSettings) do new.settings[k]=v end end
  local chosen=new.settings.language;locale=chosen=="Auto" and (player.LocaleId:sub(1,2)=="ko" and "ko" or "en") or chosen
  message.Text=new.message or "";if panel.Visible then draw() end
  local said=new.message or ""
@@ -305,6 +355,13 @@ local heartbeat=Run.Heartbeat:Connect(function()
  else idleSince=nil end
  local watching=player:GetAttribute("SpectateTableId")~=nil
  spectateBar.Visible=watching and player:GetAttribute("PirateFocus")~=true
+ -- Phase 24 : 앉아서 기다리는 동안(대기 · 카운트다운)만 AI 선원 버튼을 보인다. AI 가 오지 않는 토너먼트 테이블은 뺀다
+ local waitingAt=t and t:GetAttribute(Config.TableAttributes.State)
+ local tableType=t and t:GetAttribute(Config.TableAttributes.TableType)
+ local botsAllowed=t~=nil and not (tableType and TableConfig.Types[tableType] and TableConfig.Types[tableType].NoBots)
+ local showAi=botsAllowed and (waitingAt==Config.States.Waiting or waitingAt==Config.States.Countdown) and (t:GetAttribute(Config.TableAttributes.Tutorial) or 0)==0
+ if showAi and not aiBar.Visible then drawAiBar() end
+ aiBar.Visible=showAi
  local camera=workspace.CurrentCamera
  local q=FX.quality();local reduced=player:GetAttribute("Setting_reducedFX")==true
  for e,rate in pairs(emitters) do

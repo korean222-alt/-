@@ -93,6 +93,16 @@ TournamentService:Start()
 RewardService:Start()
 RescueService:Start()
 
+-- Phase 24 : 출시 전 점검 — ReleaseConfig 에 아직 0 으로 남은 ID 를 출력창에 모아 적는다.
+do
+	local okRelease, Release = pcall(require, game:GetService("ReplicatedStorage").CursedBarrel.Shared.ReleaseConfig)
+	if okRelease and Release.missingIds then
+		for _, group in ipairs(Release.missingIds()) do
+			warn(("[CursedBarrel] 미등록 ID · %s : %s"):format(group.label, table.concat(group.keys, ", ")))
+		end
+	end
+end
+
 -- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
 task.defer(function()
 	MapBuilder:Start()

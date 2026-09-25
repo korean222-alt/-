@@ -84,22 +84,41 @@ local function entryFor(self, player)
 	return entry
 end
 
+-- Phase 24 : 이 서버 순위는 프로필 값을 그대로 옮긴다. (프로필이 기록의 주인이다)
+--   예전에는 ProfileChanged 에서 이미 오른 승수 · 판수를 받은 뒤 여기서 또 1 을 더해 두 번 셌다.
+local function copyProfile(entry, player)
+	local profile = ProfileService:Get(player)
+	if not profile then
+		return false
+	end
+	entry.wins = profile.wins
+	entry.games = profile.games
+	entry.streak = profile.streak
+	entry.bestStreak = math.max(entry.bestStreak, profile.bestStreak or 0, profile.streak or 0)
+	entry.coins = profile.coins
+	return true
+end
+
 -- 라운드가 끝날 때 RoundService 가 부른다. (ProfileService 다음에 불린다)
 function RankingService:RecordRound(gameTable, roster, winner)
 	for _, player in ipairs(roster or {}) do
 		if player and player.Parent == Players then
 			local entry = entryFor(self, player)
-			entry.games += 1
-			entry.streak = player:GetAttribute(PLAYER_ATTR.Streak) or 0
-			entry.bestStreak = math.max(entry.bestStreak, entry.streak)
+			if not copyProfile(entry, player) then
+				entry.games += 1
+				entry.streak = player:GetAttribute(PLAYER_ATTR.Streak) or 0
+				entry.bestStreak = math.max(entry.bestStreak, entry.streak)
+			end
 		end
 	end
 
 	if winner and winner.Parent == Players then
 		local entry = entryFor(self, winner)
-		entry.wins += 1
-		entry.streak = winner:GetAttribute(PLAYER_ATTR.Streak) or 0
-		entry.bestStreak = math.max(entry.bestStreak, entry.streak)
+		if not copyProfile(entry, winner) then
+			entry.wins += 1
+			entry.streak = winner:GetAttribute(PLAYER_ATTR.Streak) or 0
+			entry.bestStreak = math.max(entry.bestStreak, entry.streak)
+		end
 		if not entry.tester then
 			local profile = ProfileService:Get(winner)
 			self:_publish(winner.UserId, "wins", profile and profile.wins or entry.wins)
@@ -184,17 +203,26 @@ function RankingService:_publish(userId, boardId, value)
 		return
 	end
 	seen[boardId] = value
+	-- Phase 24 : 실패하면 두 번 더 해 본다. 그래도 안 되면 "올린 값" 기록을 지워 다음 정기 전송(_flush)이 다시 올린다.
 	task.spawn(function()
-		local ok, err = pcall(function()
-			if spec.keepMax then
-				store:UpdateAsync(tostring(userId), function(old)
-					return math.max(tonumber(old) or 0, value)
-				end)
-			else
-				store:SetAsync(tostring(userId), value)
+		local ok, err
+		for attempt = 1, 3 do
+			ok, err = pcall(function()
+				if spec.keepMax then
+					store:UpdateAsync(tostring(userId), function(old)
+						return math.max(tonumber(old) or 0, value)
+					end)
+				else
+					store:SetAsync(tostring(userId), value)
+				end
+			end)
+			-- 성공했거나, 그 사이 더 새 값이 올라가기 시작했으면 그만한다
+			if ok or seen[boardId] ~= value then
+				break
 			end
-		end)
-		if not ok then
+			task.wait(attempt * 5)
+		end
+		if not ok and seen[boardId] == value then
 			seen[boardId] = nil
 			warn("[CursedBarrel] 전체 순위 기록 실패 (" .. boardId .. "): " .. tostring(err))
 		end
@@ -253,14 +281,14 @@ function RankingService:_pullGlobal()
 end
 
 -- 코인 · 연승은 모아 두었다가 한 번에 올린다
+-- Phase 24 : 승수도 함께 올린다. (이긴 순간의 기록이 실패했을 때 다음 승리까지 순위가 뒤처지지 않게.
+--   값이 그대로면 _publish 가 건너뛰므로 쓰기 한도를 더 쓰지 않는다)
 function RankingService:_flush()
 	for _, player in ipairs(Players:GetPlayers()) do
 		local profile = ProfileService:Get(player)
 		if profile and not profile.devTester then
 			for boardId, spec in pairs(BOARDS) do
-				if boardId ~= "wins" then
-					self:_publish(player.UserId, boardId, profile[spec.stat])
-				end
+				self:_publish(player.UserId, boardId, profile[spec.stat])
 			end
 		end
 	end
@@ -454,8 +482,8 @@ function RankingService:Start()
 	-- ProfileChanged 는 코인이 오를 때마다 오므로, 판을 다시 그리는 것은 한 박자 묶는다.
 	self._cleaner:add(ProfileService.ProfileChanged:Connect(function(player, profile)
 		local entry = entryFor(self, player)
-		entry.wins = math.max(entry.wins, profile.wins)
-		entry.games = math.max(entry.games, profile.games)
+		entry.wins = profile.wins
+		entry.games = profile.games
 		entry.streak = profile.streak
 		entry.bestStreak = math.max(entry.bestStreak, profile.bestStreak or 0)
 		entry.coins = profile.coins
@@ -478,9 +506,7 @@ function RankingService:Start()
 		local profile = ProfileService:Get(player)
 		if profile and not profile.devTester then
 			for boardId, spec in pairs(BOARDS) do
-				if boardId ~= "wins" then
-					self:_publish(player.UserId, boardId, profile[spec.stat])
-				end
+				self:_publish(player.UserId, boardId, profile[spec.stat])
 			end
 		end
 		self._published[player.UserId] = nil

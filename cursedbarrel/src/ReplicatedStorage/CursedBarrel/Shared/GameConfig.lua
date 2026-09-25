@@ -262,7 +262,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
-	LikeOnly = "👥 그룹 가입 보상이에요 (계단 아래 파란 드럼)",
+	LikeOnly = "🎟 코드 선물이에요 (코드에 love 입력 · 2층 뒤쪽 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -372,6 +372,7 @@ GameConfig.Catch = {
 	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
 	Grace = 0.12,
 	MaxLatency = 0.25, -- 지연 보정 상한. 이보다 큰 차이는 조작으로 본다.
+	LatencySlack = 0.05, -- Phase 24 : 서버가 잰 그 사람의 지연에 더해 주는 여유. 보정은 (지연 + 여유)와 MaxLatency 중 작은 값까지만
 	Timeout = 2.2, -- 창이 열리고 이 시간이 지나면 서버가 실패로 확정한다
 	Hold = 1.6, -- 결과를 보여주고 다음 턴으로 넘어가기까지
 	PerfectAccuracy = 0.72, -- 이 정확도 이상이면 "완벽한 잡기"
@@ -447,6 +448,10 @@ GameConfig.ForfeitWin = {
 	-- ★ Phase 11 : 기권승은 승리 보상과 현상금을 절반만 받는다. (승수 · 연승 · 랭킹에는 들어가지 않는다)
 	--   남은 현상금 절반은 이 테이블의 다음 판으로 이월된다.
 	RewardShare = 0.5,
+	-- ★ Phase 24 : 기권승 보상 조건. 판 전체에 (시작 인원 × MinPicksForReward) 자루 이상 꽂혔고,
+	--   이긴 사람이 직접 MinOwnPicksForReward 자루 이상 꽂았어야 한다. 아니면 "무효 판"(보상 · 판수 · 퀘스트 없음).
+	MinPicksForReward = 1,
+	MinOwnPicksForReward = 1,
 }
 
 --------------------------------------------------
@@ -624,7 +629,7 @@ GameConfig.Skins = {
 		},
 		-- Phase 13 : 파란 철제 드럼 (진짜 200리터 드럼처럼 : 광택 파란 페인트 · 굴림 테 두 줄 · 위아래 주름 · 뚜껑 마개 둘)
 		{
-			-- Phase 16 : 그룹 가입 보상 (상점에서는 팔지 않는다 · 스폰 옆 받침대에서 받는다)
+			-- Phase 16 : 그룹 가입 보상 (상점에서는 팔지 않는다) → Phase 22 부터 출시 기념 코드 love 선물 (2층 뒤쪽 받침대에서 안내)
 			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 0, reward = "like",
 			body = Color3.fromRGB(26, 70, 178), bodyMaterial = Enum.Material.SmoothPlastic, reflectance = 0.16,
 			hoop = Color3.fromRGB(34, 84, 196), hoopMaterial = Enum.Material.SmoothPlastic,
@@ -838,6 +843,8 @@ GameConfig.Sabotage = {
 	Cooldown = 25, -- 같은 사람이 다시 쓰기까지(초)
 	PerRoundLimit = 3, -- 한 라운드에 한 사람이 쓸 수 있는 횟수
 	TargetMustBeAlive = true,
+	-- ★ Phase 24 : duration 이 있는 방해(먹물 · 흔들기 · 뒤섞기 · 포효)는 상대가 칼을 고르는 차례에 발동한다.
+	--   지금 상대 차례면 바로, 아니면 상대 차례가 열릴 때 발동한다. 발동 전에 상대가 떨어지거나 판이 끝나면 사용권을 돌려준다.
 
 	Items = {
 		{
@@ -845,14 +852,14 @@ GameConfig.Sabotage = {
 			icon = "🖤", color = Color3.fromRGB(58, 52, 74),
 			duration = 6,
 			blurb = "상대 화면을 먹물로 덮습니다",
-			detail = "다음 6초 동안 상대 화면 가장자리가 먹물로 얼룩집니다. 자리 번호는 계속 읽을 수 있습니다.",
+			detail = "상대 차례가 오면 6초 동안 상대 화면 가장자리가 먹물로 얼룩집니다. 자리 번호는 계속 읽을 수 있습니다.",
 		},
 		{
 			id = "shake", name = "흔들리는 손", robux = 25, productId = 0,
 			icon = "🌀", color = Color3.fromRGB(120, 180, 226),
 			duration = 7,
 			blurb = "상대의 자리 버튼이 흔들립니다",
-			detail = "상대의 칼 선택 버튼이 7초 동안 좌우로 흔들립니다. 누를 수는 있지만 조준이 어려워집니다.",
+			detail = "상대 차례가 오면 칼 선택 버튼이 7초 동안 좌우로 흔들립니다. 누를 수는 있지만 조준이 어려워집니다.",
 		},
 		{
 			id = "hurry", name = "저주의 재촉", robux = 35, productId = 0,
@@ -866,14 +873,14 @@ GameConfig.Sabotage = {
 			icon = "🔀", color = Color3.fromRGB(196, 130, 255),
 			duration = 9,
 			blurb = "상대 화면의 자리 번호가 뒤섞입니다",
-			detail = "상대 화면에서만 버튼 위 숫자가 뒤섞입니다. 누른 자리는 화면에 보이는 그 자리가 맞습니다. (엉뚱한 곳에 꽂히지는 않습니다)",
+			detail = "상대 차례가 오면 상대 화면에서만 버튼 위 숫자가 9초 동안 뒤섞입니다. 누른 자리는 화면에 보이는 그 자리가 맞습니다. (엉뚱한 곳에 꽂히지는 않습니다)",
 		},
 		{
 			id = "roar", name = "해적의 포효", robux = 55, productId = 0,
 			icon = "💀", color = Color3.fromRGB(255, 96, 78),
 			duration = 3,
 			blurb = "상대 앞에 가짜 해적이 튀어나옵니다",
-			detail = "상대 화면에만 가짜 해적이 한 번 튀어나옵니다. 잡기 창은 열리지 않고 판정에도 영향이 없습니다.",
+			detail = "상대 차례가 오면 상대 화면에만 가짜 해적이 한 번 튀어나옵니다. 잡기 창은 열리지 않고 판정에도 영향이 없습니다.",
 		},
 	},
 }
@@ -1033,7 +1040,7 @@ GameConfig.Wayfinder = {
 --------------------------------------------------
 GameConfig.Bots = {
 	Enabled = true,
-	FillDelay = 4, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다
+	FillDelay = 10, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다 (Phase 24 : 4초 → 10초. 사람이 모일 틈을 준다)
 	TargetSeated = 3, -- AI 를 채워서 맞출 인원 (좌석이 모자라면 좌석 수 - 1)
 	KeepFreeSeats = 1, -- 사람이 들어올 자리는 항상 남겨 둔다
 	RewardScale = 0.6,

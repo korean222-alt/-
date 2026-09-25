@@ -53,18 +53,56 @@ function RewardService:ClaimAttendance(player, today)
 	if profile.attendDay == today then
 		return false, REJECT.AlreadyClaimed
 	end
+	-- Phase 24 : VIP 패스 확인이 아직 끝나지 않았으면 잠깐(최대 4초) 기다린다.
+	--   그래도 안 끝나면 일반 보상을 주고, 뒤에 VIP 가 확인되면 차액을 그날 한 번만 더 준다 (TopUpVipAttendance).
+	local waitUntil = os.clock() + 4
+	while player:GetAttribute("VipChecked") ~= true and os.clock() < waitUntil and player.Parent == Players do
+		task.wait(0.2)
+	end
+	profile = ProfileService:Get(player)
+	if not profile or profile.attendDay == today then
+		return false, REJECT.AlreadyClaimed
+	end
 	local index = RewardService.nextDay(profile)
 	local reward = ATTEND.Days[index]
-	local coins = tonumber(reward.coins) or 0
+	local base = tonumber(reward.coins) or 0
+	local coins = base
 	local vip = player:GetAttribute(GameConfig.PlayerAttributes.VIP) == true
 	if vip then
-		coins = math.floor(coins * (ATTEND.VipMultiplier or 1))
+		coins = math.floor(base * (ATTEND.VipMultiplier or 1))
 	end
 	profile.attendDay = today
 	profile.attendCount = index >= #ATTEND.Days and 0 or index
+	profile.attendBase = base -- 오늘 받은 칸의 기본 코인 (VIP 차액 계산용)
+	profile.attendVipDay = vip and today or "" -- VIP 배율로 받은 날
 	profile.coins += coins
 	ProfileService:_touch(player)
 	return true, { day = index, coins = coins, vip = vip, full = index >= #ATTEND.Days }
+end
+
+-- Phase 24 : 오늘 출석을 일반 보상으로 받은 뒤 VIP 가 확인되었다 (확인이 늦었거나 방금 VIP 를 샀다).
+--   차액(기본 × (배율 - 1))을 오늘 한 번만 더 준다.
+function RewardService:TopUpVipAttendance(player)
+	if not ATTEND.Enabled or player:GetAttribute(GameConfig.PlayerAttributes.VIP) ~= true then
+		return
+	end
+	local profile = ProfileService:Get(player)
+	local today = Utility.today()
+	if not profile or profile.attendDay ~= today or profile.attendVipDay == today then
+		return
+	end
+	local base = tonumber(profile.attendBase) or 0
+	local extra = math.floor(base * (ATTEND.VipMultiplier or 1)) - base
+	profile.attendVipDay = today
+	if extra <= 0 then
+		ProfileService:_touch(player)
+		return
+	end
+	profile.coins += extra
+	ProfileService:_touch(player)
+	if self._cue then
+		self._cue:FireClient(player, "vipTopUp", true, { coins = extra })
+	end
 end
 
 --------------------------------------------------
@@ -271,15 +309,27 @@ function RewardService:Start()
 	end)
 
 	-- 자정(UTC)이 지나면 버튼 위 빨간 점을 다시 켠다
+	-- Phase 24 : 점만 켜지 않고 새 날의 전체 상태(출석 · 룰렛 · 일일 퀘스트)를 한 번 내려보낸다.
+	--   (예전에는 점만 바뀌고 출석 · 룰렛 창은 어제 상태라, 무료 룰렛이 생겨도 버튼이 요청을 보내지 않았다)
+	local lastDay = {}
+	Players.PlayerRemoving:Connect(function(player)
+		lastDay[player] = nil
+	end)
 	task.spawn(function()
 		while self._started do
-			task.wait(60)
+			task.wait(30)
 			local today = Utility.today()
 			for _, player in ipairs(Players:GetPlayers()) do
 				local profile = ProfileService:Get(player)
 				if profile then
 					player:SetAttribute("AttendReady", ATTEND.Enabled and profile.attendDay ~= today)
 					player:SetAttribute("FreeSpin", ROULETTE.Enabled and profile.freeSpinDay ~= today)
+					if lastDay[player] and lastDay[player] ~= today then
+						ProfileService:_rollDaily(player, profile)
+						ProfileService:_touch(player)
+						require(script.Parent.ShopService):Sync(player, nil, true, true)
+					end
+					lastDay[player] = today
 				end
 			end
 		end

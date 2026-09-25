@@ -196,7 +196,9 @@ spinButton.Activated:Connect(function()
 		return
 	end
 	local info = state and state.roulette
-	if info and info.free then
+	-- Phase 24 : 화면 상태가 늦었어도 서버가 "무료 룰렛 있음"(FreeSpin)이라고 알려 왔으면 돌린다. 판단은 서버가 다시 한다
+	if info and (info.free or player:GetAttribute("FreeSpin") == true) then
+		info.free = true
 		spinning = true
 		spinToken += 1
 		local token = spinToken
@@ -285,16 +287,19 @@ local function closeOthers(keep)
 	end
 end
 
+-- Phase 24 : 창을 열 때마다 서버에 최신 상태를 다시 달라고 한다 (자정이 지난 뒤에도 화면이 어제 상태로 남지 않게)
 local function openAttendance()
 	closeOthers(attendWindow)
 	drawAttendance()
 	attend.open()
+	shopRequest:FireServer("sync")
 end
 
 local function openRoulette()
 	closeOthers(rouletteWindow)
 	drawRoulette()
 	roulette.open()
+	shopRequest:FireServer("sync")
 end
 
 local attendButton, attendDot = launcher("AttendanceButton", "Attendance", "출석", tonumber(Release.Images and Release.Images.Attendance) or 0, 3, "purple", function()
@@ -508,7 +513,13 @@ local function refreshDots()
 	UIKit.setDot(rouletteDot, player:GetAttribute("FreeSpin") == true and 1 or 0)
 end
 for _, name in ipairs({ "AttendReady", "FreeSpin" }) do
-	player:GetAttributeChangedSignal(name):Connect(refreshDots)
+	player:GetAttributeChangedSignal(name):Connect(function()
+		refreshDots()
+		-- Phase 24 : 빨간 점만 바뀌고 창은 어제 상태로 남던 문제. 받을 것이 새로 생기면 전체 상태를 다시 받는다
+		if player:GetAttribute(name) == true then
+			shopRequest:FireServer("sync")
+		end
+	end)
 end
 refreshDots()
 
@@ -592,6 +603,12 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 			spinning = false
 			resultLabel.Text = tostring(result)
 			drawRoulette()
+		end
+	elseif kind == "vipTopUp" then
+		-- Phase 24 : VIP 확인이 늦어 일반 출석을 받았던 날, 차액이 들어왔다
+		local coins = typeof(result) == "table" and tonumber(result.coins) or 0
+		if coins > 0 then
+			UIKit.rewardPopup({ text = ("👑 VIP 출석 추가 %s 코인"):format(Utility.comma(coins)), money = "crown" })
 		end
 	elseif kind == "notice" then
 		resultLabel.Text = tostring(result)

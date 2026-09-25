@@ -38,6 +38,7 @@ ShopService._started = false
 ShopService._cleaner = Utility.Cleaner.new()
 ShopService._limiter = Utility.RateLimiter.new(0.2)
 ShopService._lastSync = {} -- [Player] = 마지막으로 상태를 내려보낸 시각
+ShopService._trailing = {} -- Phase 24 : [Player] = 제한 시간이 끝나면 마지막 상태를 보내기로 예약함
 
 local function remote(name)
 	local folder = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild(GameConfig.Remotes.Folder)
@@ -176,6 +177,17 @@ function ShopService:Sync(player, message, ok, force)
 	if not force and not message then
 		local last = self._lastSync[player]
 		if last and (os.clock() - last) < SYNC_INTERVAL then
+			-- Phase 24 : 묶인 요청을 버리지 않는다. 제한 시간이 끝나면 그때의 최신 상태를 한 번 보낸다.
+			--   (예전에는 2초 안의 마지막 변화가 사라져, 코인을 얻은 뒤에도 상점이 "부족"으로 보였다)
+			if not self._trailing[player] then
+				self._trailing[player] = true
+				task.delay(SYNC_INTERVAL - (os.clock() - last) + 0.05, function()
+					self._trailing[player] = nil
+					if player.Parent == Players then
+						self:Sync(player, nil, true)
+					end
+				end)
+			end
 			return
 		end
 	end
@@ -298,12 +310,16 @@ function ShopService:_registerProducts()
 			if GameConfig.FirstPurchase.Enabled and not profile.coinPackBought then
 				multiplier = GameConfig.FirstPurchase.CoinMultiplier
 			end
-			profile.coins = profile.coins + pack.coins * multiplier
+			local amount = pack.coins * multiplier
+			profile.coins = profile.coins + amount
 			profile.coinPackBought = true
-			return true
-		end, function(player)
+			return true, { coins = amount, doubled = multiplier > 1 }
+		end, function(player, _, detail)
 			-- Phase 21 : 결제가 끝나면 화면에 "획득!" 이 뜨도록 알린다
-			self:Sync(player, ("%s 코인 구매 완료"):format(Utility.comma(pack.coins)), true)
+			-- Phase 24 : 첫 구매 2배처럼 실제로 들어간 코인 수를 그대로 보여 준다
+			local amount = typeof(detail) == "table" and tonumber(detail.coins) or pack.coins
+			local suffix = (typeof(detail) == "table" and detail.doubled) and " (첫 구매 2배!)" or ""
+			self:Sync(player, ("%s 코인 구매 완료%s"):format(Utility.comma(amount), suffix), true)
 		end)
 	end
 
@@ -347,9 +363,14 @@ function ShopService:_setVip(player, owned)
 	if owned then
 		player:SetAttribute(PLAYER_ATTR.VIP, true)
 		self:_grantVipSkin(player)
+		-- Phase 24 : 확인 전에 일반 출석을 받았으면(또는 오늘 VIP 를 샀으면) 차액을 한 번 준다
+		task.spawn(function()
+			require(script.Parent.RewardService):TopUpVipAttendance(player)
+		end)
 	elseif player:GetAttribute(PLAYER_ATTR.VIP) == nil then
 		player:SetAttribute(PLAYER_ATTR.VIP, false)
 	end
+	player:SetAttribute("VipChecked", true)
 end
 
 -- 자료를 다 읽은 뒤에만 줄 수 있다. 소유 확인이 먼저 끝나면 ProfileChanged 에서 다시 부른다.
@@ -366,6 +387,7 @@ end
 function ShopService:_checkVip(player)
 	local passId = tonumber(VIP.gamePassId) or 0
 	if passId <= 0 then
+		player:SetAttribute("VipChecked", true)
 		return
 	end
 	task.spawn(function()
@@ -376,6 +398,22 @@ function ShopService:_checkVip(player)
 				return
 			end
 			task.wait(attempt * 2)
+		end
+		-- Phase 24 : 세 번 다 실패했다. 일단 "확인 끝(아님)"으로 두어 출석이 막히지 않게 하고,
+		--   뒤에서 천천히 다시 확인한다. VIP 로 확인되면 _setVip 이 출석 차액까지 챙긴다.
+		if player.Parent == Players then
+			player:SetAttribute("VipChecked", true)
+		end
+		for attempt = 1, 10 do
+			task.wait(30)
+			if player.Parent ~= Players or player:GetAttribute(PLAYER_ATTR.VIP) == true then
+				return
+			end
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				self:_setVip(player, owned == true)
+				return
+			end
 		end
 	end)
 end
@@ -559,6 +597,7 @@ function ShopService:Start()
 	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
 		self._limiter:forget(player.UserId)
 		self._lastSync[player] = nil
+		self._trailing[player] = nil
 	end))
 
 	-- VIP 게임패스

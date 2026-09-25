@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "21.0.0"
+C.Version = "24.0.0"
 
 --------------------------------------------------
 -- Phase 17 : 출시에 필요한 ID 는 전부 이 파일에 적는다 (숫자만)
@@ -56,6 +56,9 @@ C.Audio = {
  Hit = 0, -- 포탄이 크라켄에 맞는 소리
  Coins = 0, -- 금화 쏟아지는 소리
  Waves = 0, -- 파도 · 바람 (반복, 배경)
+ -- Phase 24 : 화면 버튼 소리 (0 이면 Roblox 기본 "딸깍" 소리를 높여서 쓴다)
+ Click = 0, -- 버튼 · 탭 · 퀘스트 받기 등을 누를 때
+ Open = 0, -- 창(상점 · 출석 · 항해 수첩 …)이 열릴 때
 }
 C.Textures = { Rain = 0 }
 -- Phase 14 : 3D 모델(메시) ID. 0 이면 코드로 만든 모양을 쓴다.
@@ -119,6 +122,14 @@ C.Images.Skins = {
  ["Ghost/tide_dragon"] = 0,
  ["Ghost/crimson_dragon"] = 0,
  ["Ghost/moon_dragon"] = 0,
+ -- Phase 24 : 모션 · 의자 · 탈락 · 승리 카드 그림 자리 (0 이면 동작 · 테마 그림 + "눌러서 미리보기" 가 보인다)
+ ["Stab/classic"] = 0, ["Stab/overhead"] = 0, ["Stab/triple"] = 0, ["Stab/spin"] = 0,
+ ["Stab/flourish"] = 0, ["Stab/ember_slam"] = 0, ["Stab/dragon_dive"] = 0, ["Stab/storm_strike"] = 0,
+ ["Chair/classic"] = 0, ["Chair/captain"] = 0, ["Chair/dragon_throne"] = 0,
+ ["Elimination/classic"] = 0, ["Elimination/rift"] = 0, ["Elimination/dragon_devour"] = 0,
+ ["Elimination/ink_burst"] = 0, ["Elimination/ember_ash"] = 0, ["Elimination/frost_shatter"] = 0,
+ ["Victory/classic"] = 0, ["Victory/solar_crown"] = 0, ["Victory/dragon_ascension"] = 0, ["Victory/gold_rain"] = 0,
+ ["Victory/frost_crown"] = 0, ["Victory/kraken_embrace"] = 0, ["Victory/storm_lord"] = 0,
 }
 -- Phase 17 : 꽃잎 그림 (선택). roblox-cursed-barrel/fx/petal.png 를 올린 ID. 신화 스킨에 꽃잎 입자가 더 붙는다
 --   0 이어도 Blender 꽃잎 조각은 흩날린다.
@@ -146,7 +157,9 @@ C.Season = {
   {xp=1300,kind="Stab",skin="storm_strike"}, -- Phase 12 : 시즌 한정 칼 모션
  },
 }
-C.Settings = {music=0.35,sfx=0.65,shake=true,reducedFX=false,quality="Auto",language="Auto",camera=true,wide=true}
+-- Phase 24 : aiCrew = 혼자 기다릴 때 AI 선원을 채워 줄지. 한 번 바꾸면 저장되어 다시 바꿀 때까지 그대로 간다.
+--   앉은 사람 중 한 명이라도 끄면 그 테이블에는 AI 가 오지 않는다 (사람끼리 하고 싶을 때). "연습 한 판"은 예외.
+C.Settings = {music=0.35,sfx=0.65,shake=true,reducedFX=false,quality="Auto",language="Auto",camera=true,wide=true,aiCrew=true}
 C.Cards = {
  skip={name="한 번 넘기기",en="Pass once"},
  rotate={name="통 회전",en="Rotate barrel"},
@@ -165,5 +178,28 @@ function C.text(key,locale)
 end
 function C.seasonActive(now)
  return C.Season.Enabled and now>=C.Season.StartsAt and now<C.Season.EndsAt
+end
+-- Phase 24 : 출시 전 점검. 아직 0 인(등록하지 않은) ID 를 종류별로 모아 돌려준다. 서버가 켜질 때 출력창에 한 번 적는다.
+--   필수 : 방해 상품(0 이면 출시 서버에서 살 수 없다) · 선택 : 음원 · 그림 · 배지 · 그룹 (0 이면 대체 표현을 쓰거나 건너뛴다)
+function C.missingIds()
+ local out={}
+ local function scan(label,list,skip)
+  local keys={}
+  for key,value in pairs(list or {}) do
+   if typeof(value)=="number" and value<=0 and not (skip and skip[key]) then table.insert(keys,tostring(key)) end
+  end
+  table.sort(keys)
+  if #keys>0 then table.insert(out,{label=label,keys=keys}) end
+ end
+ scan("Developer Product (ProductIds)",C.ProductIds)
+ scan("Game Pass (GamePassIds)",C.GamePassIds)
+ scan("Badge (Badges)",C.Badges)
+ scan("Audio (Audio)",C.Audio)
+ scan("Image (Images)",C.Images,{Buttons=true,Money=true,Skins=true,Petal=true})
+ scan("Image (Images.Money)",C.Images.Money)
+ scan("Image (Images.Skins)",C.Images.Skins)
+ scan("Image (UIImages · Textures · Branding)",{Pattern=C.UIImages.Pattern,Rain=C.Textures.Rain,ShopImage=C.Branding.ShopImage,Petal=C.Images.Petal})
+ if (tonumber(C.GroupId) or 0)<=0 then table.insert(out,{label="Group (GroupId)",keys={"GroupId"}}) end
+ return out
 end
 return C

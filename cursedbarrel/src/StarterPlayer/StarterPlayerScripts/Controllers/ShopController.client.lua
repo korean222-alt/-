@@ -296,9 +296,10 @@ local function clearGrid()
 end
 
 -- 카드를 왼쪽 위부터 차례로 놓는다. span = 2 인 카드는 두 칸을 차지한다.
-local flowColumn, flowRow = 0, 0
+-- flowTop : Phase 24 분류 설명 띠가 차지한 높이 (카드는 그 아래부터)
+local flowColumn, flowRow, flowTop = 0, 0, 0
 local function resetFlow()
-	flowColumn, flowRow = 0, 0
+	flowColumn, flowRow, flowTop = 0, 0, 0
 end
 local function card(span, themeName)
 	span = math.clamp(span or 1, 1, COLUMNS)
@@ -310,7 +311,7 @@ local function card(span, themeName)
 	local f = Instance.new("Frame")
 	f.Name = "Card"
 	f.Size = UDim2.fromOffset(span * CARD_W + (span - 1) * GAP, CARD_H)
-	f.Position = UDim2.fromOffset(flowColumn * (CARD_W + GAP) + 10, flowRow * (CARD_H + GAP) + 16)
+	f.Position = UDim2.fromOffset(flowColumn * (CARD_W + GAP) + 10, flowTop + flowRow * (CARD_H + GAP) + 16)
 	f.BackgroundColor3 = Color3.new(1, 1, 1)
 	f.Parent = grid
 	UIKit.gradient(f, t[1]:Lerp(UIKit.Colors.Body, 0.3), t[2]:Lerp(UIKit.Colors.BodyDark, 0.5), 90)
@@ -318,7 +319,7 @@ local function card(span, themeName)
 	UIKit.outline(f, 3.5)
 	UIKit.gloss(f, 12)
 	flowColumn += span
-	grid.CanvasSize = UDim2.fromOffset(0, (flowRow + 1) * (CARD_H + GAP) + 28)
+	grid.CanvasSize = UDim2.fromOffset(0, flowTop + (flowRow + 1) * (CARD_H + GAP) + 28)
 	return f
 end
 local function nextRow()
@@ -346,6 +347,20 @@ end
 local SkinPreview = require(Shared:WaitForChild("SkinPreview"))
 local spinning = {} -- Phase 17.2 : 돌아가는 카드 그림 { frame, camera, focus, distance, angle }
 local THUMB_ICONS = { Stab = "🗡", Victory = "🏆", Elimination = "💥" }
+-- Phase 24 : 동작 · 연출 카드가 전부 같은 그림(🗡 · 🏆 · 💥)이라 무엇인지 알 수 없었다.
+--   동작(style) · 테마(fx.theme)마다 다른 그림을 크게, 종류 그림은 작게 모서리에, 아래에 "▶ 눌러서 미리보기".
+local STYLE_ICONS = { classic = "🗡", overhead = "⬇", triple = "⚔", spin = "🌀", flourish = "🤹", slam = "💥", dive = "🐉", bolt = "⚡" }
+local THEME_ICONS = { solar = "☀", frost = "❄", kraken = "🐙", void = "🌌", phoenix = "🔥", dragon = "🐉" }
+local function thumbIcon(kind, skin)
+	if kind == "Stab" then
+		return STYLE_ICONS[skin.style or "classic"] or "🗡"
+	end
+	local theme = skin.fx and skin.fx.theme
+	if theme and THEME_ICONS[theme] then
+		return THEME_ICONS[theme]
+	end
+	return kind == "Victory" and "🎖" or (kind == "Elimination" and "👻" or THUMB_ICONS[kind])
+end
 local function skinImage(parent, kind, id, size, position)
 	local skin = GameConfig.findSkin(kind, id)
 	if not skin or skin.id ~= id then
@@ -367,11 +382,7 @@ local function skinImage(parent, kind, id, size, position)
 		image:SetAttribute("NoStyle", true)
 		image.Parent = parent
 		image.Activated:Connect(function()
-			if kind == "Stab" then
-				require(Shared.StabMotion).preview(localPlayer.Character, skin.style or "classic")
-			else
-				SkinPreview.show(kind, id)
-			end
+			SkinPreview.show(kind, id)
 		end)
 		return image
 	end
@@ -398,11 +409,8 @@ local function skinImage(parent, kind, id, size, position)
 	tap:SetAttribute("NoStyle", true)
 	tap.Parent = frame
 	tap.Activated:Connect(function()
-		if kind == "Stab" then
-			require(Shared.StabMotion).preview(localPlayer.Character, skin.style or "classic")
-		else
-			SkinPreview.show(kind, id)
-		end
+		-- Phase 24 : 모션도 미리보기 창에서 선원 인형이 직접 보여 준다 (예전에는 창 뒤의 내 캐릭터가 움직여 보이지 않았다)
+		SkinPreview.show(kind, id)
 	end)
 	local icon = THUMB_ICONS[kind]
 	if icon then
@@ -411,8 +419,11 @@ local function skinImage(parent, kind, id, size, position)
 			frame.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.45)
 			frame.BackgroundTransparency = 0.1
 		end
-		local l = UIKit.label(frame, { text = icon, size = UDim2.fromScale(1, 1), textSize = 64, stroke = 2, zIndex = frame.ZIndex + 1 })
+		local l = UIKit.label(frame, { text = thumbIcon(kind, skin), size = UDim2.new(1, 0, 1, -22), textSize = 58, stroke = 2, zIndex = frame.ZIndex + 1 })
 		l.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+		local badge = UIKit.label(frame, { text = icon, size = UDim2.fromOffset(30, 30), position = UDim2.fromOffset(4, 2), textSize = 22, stroke = 1.5, zIndex = frame.ZIndex + 2 })
+		badge.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+		UIKit.label(frame, { text = "▶ 눌러서 미리보기", size = UDim2.new(1, -8, 0, 20), position = UDim2.new(0, 4, 1, -22), textSize = 14, color = UIKit.Colors.Cream, stroke = 1.5, zIndex = frame.ZIndex + 2 })
 		return frame
 	end
 	-- Phase 17.1 : 해적은 밝은 살색 · 빛나는 손 · 안개 꼬리라 카드에서 너무 환했다 → 조명을 낮춘다
@@ -491,8 +502,9 @@ local function skinButton(f, entry, x, width)
 	elseif entry.season then
 		cardButton(f, "시즌 보상", "grey", x, width).Active = false
 	elseif entry.reward == "like" then
-		cardButton(f, "👥 그룹 보상", "blue", x, width).Activated:Connect(function()
-			showToast("계단 아래 파란 드럼에서 그룹에 가입하면 받아요!", true)
+		-- Phase 24 : 실제로는 2층(후갑판) 맨 뒤 받침대에서 안내하는 출시 기념 코드(love) 선물이다
+		cardButton(f, "🎟 코드 선물", "blue", x, width).Activated:Connect(function()
+			showToast("🎟 코드에 love 를 입력하면 받아요! (2층 뒤쪽 받침대)", true)
 		end)
 	elseif entry.vip or entry.pack then
 		local offer = entry.vip and state.vip or state.starter
@@ -610,6 +622,31 @@ local function dealCard()
 end
 
 local shownKind = nil
+-- Phase 24 : 분류마다 "이게 뭐고 어디에 쓰는지" 한 줄 띠 (모션 · 의자 · 탈락 · 승리가 무엇인지 몰랐다)
+local KIND_TITLES = { Knife = "🗡 칼", Barrel = "🛢 통", Ghost = "👻 해적", Stab = "🤺 모션", Chair = "🪑 의자", Elimination = "💥 탈락 연출", Victory = "🏆 승리 연출" }
+local function usageBanner(kind)
+	local usage = SkinPreview.Usage and SkinPreview.Usage[kind]
+	if not usage then
+		return
+	end
+	local width = COLUMNS * CARD_W + (COLUMNS - 1) * GAP
+	local f = Instance.new("Frame")
+	f.Name = "Usage"
+	f.Size = UDim2.fromOffset(width, 60)
+	f.Position = UDim2.fromOffset(10, 12)
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
+	f.Parent = grid
+	UIKit.gradient(f, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
+	UIKit.corner(f, 12)
+	UIKit.outline(f, 3)
+	UIKit.label(f, {
+		text = (KIND_TITLES[kind] or "") .. " : " .. usage .. (kind ~= "Knife" and kind ~= "Barrel" and kind ~= "Ghost" and "  (그림을 누르면 미리보기)" or ""),
+		size = UDim2.new(1, -24, 1, -8), position = UDim2.fromOffset(12, 4), textSize = 18,
+		color = UIKit.Colors.Cream, alignX = Enum.TextXAlignment.Left, wrap = true, stroke = 2, zIndex = f.ZIndex + 1,
+	})
+	flowTop = 66
+end
+
 redrawShop = function()
 	-- 분류를 바꿀 때만 맨 위로 (사고 나서 다시 그릴 때는 보던 자리 그대로)
 	local keepScroll = shownKind == currentKind
@@ -643,6 +680,7 @@ redrawShop = function()
 			UIKit.label(grid, { text = "준비 중", size = UDim2.fromOffset(300, 40), position = UDim2.fromOffset(10, 10), textSize = 24, color = PALETTE.Dim })
 		end
 	else
+		usageBanner(currentKind)
 		for _, entry in ipairs(state.catalog[currentKind] or {}) do
 			skinCard(entry)
 		end
@@ -790,9 +828,13 @@ local function drawSabotage()
 	end
 	for _, item in ipairs(items) do
 		order += 1
-		local row = makeRow(order, 84, "purple")
+		-- Phase 24 : 한 줄 요약 아래에 "언제 · 얼마나" 를 적은 설명(detail)도 보여 준다
+		local row = makeRow(order, 118, "purple")
 		label(row, ("%s  %s"):format(item.icon or "", item.name), UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 8), 22, item.color or UIKit.Colors.White)
-		label(row, item.blurb or "", UDim2.new(1, -220, 0, 30), UDim2.fromOffset(24, 44), 16, PALETTE.Cream)
+		label(row, item.blurb or "", UDim2.new(1, -220, 0, 24), UDim2.fromOffset(24, 40), 16, PALETTE.Cream)
+		local detail = label(row, item.detail or "", UDim2.new(1, -220, 0, 44), UDim2.fromOffset(24, 66), 13, PALETTE.Dim)
+		detail.TextWrapped = true
+		detail.TextYAlignment = Enum.TextYAlignment.Top
 
 		local usable = (item.ready or (item.owned or 0) > 0) and selectedTarget ~= nil
 		local buy = textButton(row, (item.owned or 0) > 0 and ("사용 ×%d"):format(item.owned) or (item.ready and ("R$ %d"):format(item.robux) or "준비 중"),
@@ -894,7 +936,7 @@ local function refreshPedestal(pedestal)
 	elseif entry.pack then
 		prompt.ActionText = "스타터 팩 전용"
 	elseif entry.reward == "like" then
-		prompt.ActionText = "👥 그룹 가입 보상"
+		prompt.ActionText = "🎟 코드 love 선물"
 	elseif entry.robux > 0 and entry.price <= 0 then
 		prompt.ActionText = ("R$ %d"):format(entry.robux)
 	else
@@ -924,7 +966,11 @@ shopResult.OnClientEvent:Connect(function(ok, message, payload)
 		if ok then
 			local coins = message:match("^([%d,]+) 코인 구매 완료")
 			local name = message:match("^(.-) 구매 완료") or message:match("^(.-) 을%(를%) 받았습니다")
-			if coins then
+			-- Phase 24 : 퀘스트 보상도 "획득!" 창과 동전 소리로 알려 준다
+			local questCoins = message:match("^퀘스트 완료 · %+([%d,]+) 코인")
+			if questCoins then
+				UIKit.rewardPopup({ text = questCoins .. " 코인", money = "cash2" })
+			elseif coins then
 				UIKit.rewardPopup({ text = coins .. " 코인", money = "cash3" })
 			elseif name then
 				UIKit.rewardPopup({ text = "「" .. name .. "」", emoji = "🎁" })
@@ -951,9 +997,9 @@ sabotageCue.OnClientEvent:Connect(function(_, data)
 		end
 		return
 	end
-	if data.id == "deny" or data.id == "done" then
+	if data.id == "deny" or data.id == "done" or data.id == "refund" then
 		if window.Visible and currentTab == "sabotage" then
-			showToast(data.message, data.id == "done")
+			showToast(data.message, data.id ~= "deny")
 			sabotageRemote:FireServer("list")
 		end
 	end
@@ -980,6 +1026,14 @@ end
 local previousCoins = localPlayer:GetAttribute("Coins") or 0
 localPlayer:GetAttributeChangedSignal("Coins"):Connect(function()
 	local now = localPlayer:GetAttribute("Coins") or 0
+	-- Phase 24 : 상점 상태(state.coins)도 실제 잔액을 따라간다. (서버의 상태 전송은 2초에 한 번으로 묶여 늦을 수 있다)
+	if state and state.coins ~= now then
+		state.coins = now
+		coinLabel.Text = Utility.comma(now)
+		if window.Visible then
+			redraw()
+		end
+	end
 	if now > previousCoins then
 		local reward = UIKit.label(launcher, {
 			text = "+" .. Utility.comma(now - previousCoins), size = UDim2.fromOffset(200, 34), position = UDim2.fromOffset(60, -24),

@@ -46,8 +46,12 @@ local SabotageService = {}
 SabotageService._started = false
 SabotageService._cleaner = Utility.Cleaner.new()
 SabotageService._limiter = Utility.RateLimiter.new(0.5)
+SabotageService._listLimiter = Utility.RateLimiter.new(0.2) -- Phase 24 : 목록 새로고침은 "사용" 과 따로 센다
 SabotageService._cooldown = {} -- [Player] = 다시 쓸 수 있는 시각
-SabotageService._intent = {} -- [Player] = { itemId, targetUserId, at }
+-- Phase 24 : [Player] = { [itemId] = { targetUserId, at } } 상품마다 따로 기억한다.
+--   (예전에는 한 칸이라 연달아 누르면 앞의 대상이 덮이고, 상품이 맞는지 보기 전에 지워졌다)
+SabotageService._intent = {}
+SabotageService._busy = {} -- [Player] = 사용권을 쓰는 중 (저장이 끝날 때까지 두 번 쓰지 못하게)
 
 local function remote(name)
 	local folder = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild(GameConfig.Remotes.Folder)
@@ -99,7 +103,7 @@ function SabotageService:_validate(player, itemId, targetUserId)
 		return nil, nil, nil, REJECT.NoTarget
 	end
 
-	local ok, reason = round:CanSabotage(player, target)
+	local ok, reason = round:CanSabotage(player, target, item)
 	if not ok then
 		return nil, nil, nil, reason
 	end
@@ -111,19 +115,81 @@ end
 -- 효과 넣기
 --------------------------------------------------
 
-function SabotageService:_apply(player, itemId, targetUserId)
+-- onVoid : 예약된 방해가 발동하지 못하고 사라질 때 부른다 (사용권 환불)
+function SabotageService:_apply(player, itemId, targetUserId, onVoid)
 	local item, target, round, reason = self:_validate(player, itemId, targetUserId)
 	if not item then
 		return false, reason
 	end
 
-	local ok, why = round:ApplySabotage(player, target, item)
+	local ok, why, queued = round:ApplySabotage(player, target, item, onVoid)
 	if not ok then
 		return false, why
 	end
 
 	self._cooldown[player] = os.clock() + SABOTAGE.Cooldown
-	return true, ("%s → %s"):format(item.name, target.DisplayName or target.Name)
+	local name = target.DisplayName or target.Name
+	if queued then
+		return true, ("%s → %s (상대 차례에 발동)"):format(item.name, name)
+	end
+	return true, ("%s → %s"):format(item.name, name)
+end
+
+-- Phase 24 : 사용권은 "먼저 줄여서 저장하고" 쓴다.
+--   예전에는 효과를 넣은 뒤 메모리에서만 줄여서, 저장 전에 서버가 꺼지면 사용권이 되살아나 다시 쓸 수 있었다.
+--   · 저장에 실패하면 줄인 것을 되돌리고 쓰지 않는다.
+--   · 저장 뒤 상대가 없어졌거나, 예약된 방해가 발동하지 못하고 판이 끝나면 사용권을 돌려준다.
+function SabotageService:_refund(player, item)
+	local profile = ProfileService:Get(player)
+	if not profile or player.Parent ~= Players then
+		return
+	end
+	profile.consumables[item.id] = (profile.consumables[item.id] or 0) + 1
+	ProfileService:_touch(player)
+	self._cue:FireClient(player, nil, { id = "refund", message = ("%s 사용권을 돌려받았어요 (발동하지 못함)"):format(item.name) })
+	self:_sendList(player)
+end
+
+function SabotageService:_spendCharge(player, item, targetUserId)
+	if self._busy[player] then
+		return false, "처리 중입니다"
+	end
+	local profile = ProfileService:Get(player)
+	if not profile or (profile.consumables[item.id] or 0) <= 0 then
+		return false, "사용권이 없습니다"
+	end
+	local _, _, _, reason = self:_validate(player, item.id, targetUserId)
+	if reason then
+		return false, reason
+	end
+	self._busy[player] = true
+	profile.consumables[item.id] -= 1
+	ProfileService:_touch(player)
+	-- 저장할 수 있는 자료면 쓰기 전에 저장까지 끝낸다. (Studio 처럼 저장이 없는 곳은 메모리만)
+	local durable = ProfileService._writable[player] == true
+	local saved = (not durable) or ProfileService:Save(player, "sabotage")
+	-- 저장하는 동안 자료 표가 새로 바뀌었을 수 있다 (영수증 처리). 항상 다시 가져온다.
+	profile = ProfileService:Get(player)
+	if not saved then
+		self._busy[player] = nil
+		if profile then
+			profile.consumables[item.id] = (profile.consumables[item.id] or 0) + 1
+			ProfileService:_touch(player)
+		end
+		return false, "저장이 늦어져 쓰지 못했어요. 다시 눌러 주세요"
+	end
+	local ok, message = self:_apply(player, item.id, targetUserId, function()
+		self:_refund(player, item)
+	end)
+	self._busy[player] = nil
+	if not ok then
+		-- 저장 사이에 상황이 바뀌었다 : 사용권을 돌려준다
+		if profile then
+			profile.consumables[item.id] = (profile.consumables[item.id] or 0) + 1
+			ProfileService:_touch(player)
+		end
+	end
+	return ok, message
 end
 
 --------------------------------------------------
@@ -165,18 +231,21 @@ function SabotageService:_sendList(player)
 end
 
 function SabotageService:_onRequest(player, action, itemId, targetUserId)
-	if not self._limiter:check(player.UserId) then
-		return
-	end
 	if typeof(action) ~= "string" then
 		return
 	end
 
 	if action == "list" then
-		self:_sendList(player)
+		-- Phase 24 : 목록은 따로 센다. (사용 직후의 새로고침이 사용 요청의 0.5초 제한에 걸려 버려지던 문제)
+		if self._listLimiter:check(player.UserId) then
+			self:_sendList(player)
+		end
 		return
 	end
 
+	if not self._limiter:check(player.UserId) then
+		return
+	end
 	if action ~= "use" then
 		return
 	end
@@ -189,9 +258,10 @@ function SabotageService:_onRequest(player, action, itemId, targetUserId)
 
 	local profile=ProfileService:Get(player)
  if profile and (profile.consumables[item.id] or 0)>0 then
-  local ok,message=self:_apply(player,item.id,target.UserId)
-  if ok then profile.consumables[item.id]=profile.consumables[item.id]-1;ProfileService:_touch(player) end
-  self._cue:FireClient(player,nil,{id=ok and "done" or "deny",message=message});return
+  local ok,message=self:_spendCharge(player,item,target.UserId)
+  -- Phase 24 : 결과에 최신 목록을 함께 보낸다 (수량 · 쿨타임이 바로 맞는다)
+  self._cue:FireClient(player,nil,{id=ok and "done" or "deny",message=message})
+  self:_sendList(player);return
  end
  local productId = tonumber(item.productId) or 0
  if productId>0 and not ProfileService:CanPurchase(player) then self._cue:FireClient(player,nil,{id="deny",message="저장 연결이 필요합니다"});return end
@@ -201,21 +271,25 @@ function SabotageService:_onRequest(player, action, itemId, targetUserId)
 		if SABOTAGE.StudioFreeTest and RunService:IsStudio() then
 			local ok, message = self:_apply(player, item.id, target.UserId)
 			self._cue:FireClient(player, nil, { id = ok and "done" or "deny", message = message })
+			self:_sendList(player)
 		else
 			self._cue:FireClient(player, nil, { id = "deny", message = "이 아이템은 아직 준비 중입니다" })
 		end
 		return
 	end
 
-	-- 결제가 끝나면 무엇을 누구에게 쓸지 기억해 둔다.
-	self._intent[player] = { itemId = item.id, targetUserId = target.UserId, at = os.clock() }
+	-- 결제가 끝나면 무엇을 누구에게 쓸지 상품마다 기억해 둔다.
+	self._intent[player] = self._intent[player] or {}
+	self._intent[player][item.id] = { targetUserId = target.UserId, at = os.clock() }
 
 	local ok, err = pcall(function()
 		MarketplaceService:PromptProductPurchase(player, productId)
 	end)
 	if not ok then
 		warn("[CursedBarrel] 방해 아이템 구매창을 띄우지 못했습니다: " .. tostring(err))
-		self._intent[player] = nil
+		if self._intent[player] then
+			self._intent[player][item.id] = nil
+		end
 	end
 end
 
@@ -232,21 +306,22 @@ function SabotageService:_registerProducts()
   end,function(player)
    -- Phase 15 : 결제가 끝나면 누른 상대에게 곧바로 쓴다. (예전에는 사 두기만 하고 "사용"을 한 번 더 눌러야 했다)
    --   그 사이 판이 끝났거나 상대가 없어졌으면 가방에 남겨 두고 알려 준다.
-   local intent=self._intent[player]
-   self._intent[player]=nil
-   local profile=ProfileService:Get(player)
-   if intent and intent.itemId==item.id and os.clock()-intent.at<=INTENT_TTL and profile and (profile.consumables[item.id] or 0)>0 then
-    local ok,message=self:_apply(player,item.id,intent.targetUserId)
+   -- Phase 24 : 이 상품의 기억만 꺼내 쓰고 지운다. 다른 상품의 기억은 그대로 둔다.
+   --   (PurchaseService 는 영수증마다 이 함수를 한 번만 부른다)
+   local byItem=self._intent[player]
+   local intent=byItem and byItem[item.id]
+   if byItem then byItem[item.id]=nil end
+   if intent and os.clock()-intent.at<=INTENT_TTL then
+    local ok,message=self:_spendCharge(player,item,intent.targetUserId)
     if ok then
-     profile.consumables[item.id]=profile.consumables[item.id]-1
-     ProfileService:_touch(player)
      self._cue:FireClient(player,nil,{id="done",message=message})
      self:_sendList(player)
      return
     end
    end
+   local profile=ProfileService:Get(player)
    local count=profile and (profile.consumables[item.id] or 0) or 0
-   self._cue:FireClient(player,nil,{id="done",message=("%s 구매 완료 · 가방 %d개"):format(item.name,count)})
+   self._cue:FireClient(player,nil,{id="done",message=("%s 구매 완료 · 가방 %d개 (상대가 없어 보관)"):format(item.name,count)})
    self:_sendList(player)
   end)
  end
@@ -274,8 +349,10 @@ function SabotageService:Start()
 
 	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
 		self._limiter:forget(player.UserId)
+		self._listLimiter:forget(player.UserId)
 		self._cooldown[player] = nil
 		self._intent[player] = nil
+		self._busy[player] = nil
 	end))
 
 	local ready = 0

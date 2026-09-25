@@ -16,9 +16,11 @@ function P:Start()
   local player=Players:GetPlayerByUserId(receipt.PlayerId)
   local handler=self._handlers[receipt.ProductId]
   if not player or not handler then return Enum.ProductPurchaseDecision.NotProcessedYet end
-  if Profiles:ProcessReceipt(player,receipt,handler) then
+  local saved,runAfter,detail=Profiles:ProcessReceipt(player,receipt,handler)
+  if saved then
+   -- Phase 24 : 후속 처리는 영수증마다 한 번만 (이미 처리된 영수증이 다시 와도 효과 · 팝업을 되풀이하지 않는다)
    local after=self._after[receipt.ProductId]
-   if after then task.spawn(function() local ok,err=pcall(after,player,receipt);if not ok then warn("[CursedBarrel] After purchase: "..tostring(err)) end end) end
+   if after and runAfter then task.spawn(function() local ok,err=pcall(after,player,receipt,detail);if not ok then warn("[CursedBarrel] After purchase: "..tostring(err)) end end) end
    return Enum.ProductPurchaseDecision.PurchaseGranted
   end
   return Enum.ProductPurchaseDecision.NotProcessedYet

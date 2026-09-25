@@ -88,7 +88,8 @@ gui.DisplayOrder = 8
 gui.Enabled = false
 gui.Parent = playerGui
 -- Phase 14 : 만화풍 굵은 테두리 · 글자 외곽선
-require(Shared:WaitForChild("UIKit")).restyle(gui)
+local UIKitShared = require(Shared:WaitForChild("UIKit"))
+UIKitShared.restyle(gui)
 
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
@@ -395,6 +396,7 @@ local function buildButtons(count)
 
 		-- 클릭(PC)과 탭(모바일)이 모두 이 신호로 들어온다.
 		button.Activated:Connect(function()
+			UIKitShared.click() -- Phase 24 : 누르는 소리
 			requestSlot(index)
 		end)
 
@@ -590,12 +592,16 @@ local function requestBrave()
 	end
 end
 
-braveButton.Activated:Connect(requestBrave)
+braveButton.Activated:Connect(function()
+	UIKitShared.click()
+	requestBrave()
+end)
 for card, button in pairs(cardButtons) do
 	button.Activated:Connect(function()
 		if not button.Active then
 			return
 		end
+		UIKitShared.click()
 		if card == "seal" then
 			sealMode = not sealMode
 			refresh()

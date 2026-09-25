@@ -328,6 +328,17 @@ function BotService:_botsAt(gameTable)
 	return list
 end
 
+-- Phase 24 : 앉은 사람 중 누군가 "AI 선원 끄기"(설정 aiCrew = false)를 해 두었는가
+--   설정은 저장되므로 한 번 꺼 두면 다시 켤 때까지 어느 테이블에서나 AI 가 오지 않는다.
+function BotService:_humansWantBots(gameTable)
+	for _, occupant in ipairs(gameTable:GetPlayers()) do
+		if not GameConfig.isBot(occupant) and occupant:GetAttribute("Setting_aiCrew") == false then
+			return false
+		end
+	end
+	return true
+end
+
 -- AI 를 채워 맞출 전체 인원
 -- 2인 테이블은 빈자리를 남기면 AI 가 영영 못 앉는다. 시작 인원만큼은 꼭 채운다.
 function BotService:_targetSeated(gameTable)
@@ -371,7 +382,9 @@ function BotService:_tick(gameTable)
 	end
 
 	-- 사람이 없거나, 사람만으로 시작 인원이 찼으면 AI 는 비켜 준다.
-	if humans == 0 or humans >= minPlayers then
+	-- Phase 24 : 앉은 사람 중 누가 AI 를 꺼 두었어도 비켜 준다 (연습 판은 직접 부른 것이라 예외)
+	local practiceTable = tutorialId and tutorialId ~= 0
+	if humans == 0 or humans >= minPlayers or (not practiceTable and not self:_humansWantBots(gameTable)) then
 		self._waitingSince[gameTable] = nil
 		for _, bot in ipairs(bots) do
 			self:_despawn(bot)

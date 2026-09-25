@@ -110,7 +110,8 @@ function PredictionService:OnSettled(info)
 		return
 	end
 	self.byTable[info.gameTable] = nil
-	local winnerId = info.winner and info.winner.UserId or 0
+	-- Phase 24 : 무효 판(진행 없이 상대가 전부 나간 기권승)은 예측을 정산하지 않는다.
+	local winnerId = (not info.noContest) and info.winner and info.winner.UserId or 0
 	local count = #(info.roster or {})
 	local coins = math.min(PREDICT.MaxCoins, PREDICT.BaseCoins + PREDICT.PerPlayer * count)
 	for player, pick in pairs(entry.picks) do

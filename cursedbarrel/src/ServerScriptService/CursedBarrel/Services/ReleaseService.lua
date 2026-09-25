@@ -12,7 +12,7 @@ local Profiles=require(script.Parent.ProfileService)
 local Tables=require(script.Parent.TableService)
 local Rounds=require(script.Parent.RoundService)
 local Bots=require(script.Parent.BotService)
-local Service={parties={},invites={},badgePending={},badgeDone={},limits=Utility.RateLimiter.new(0.25)}
+local Service={parties={},invites={},badgePending={},badgeDone={},limits=Utility.RateLimiter.new(0.25),practiceLimits=Utility.RateLimiter.new(1),settingLimits=Utility.RateLimiter.new(0.2)}
 local function remote(name)
  local r=RS.CursedBarrel.Remotes:FindFirstChild(name)
  if not r then r=Instance.new("RemoteEvent");r.Name=name;r.Parent=RS.CursedBarrel.Remotes end
@@ -95,7 +95,29 @@ function Service:settings(player,key,value)
  if key=="quality" and value~="Low" and value~="High" and value~="Auto" then return end
  p.settings[key]=value;player:SetAttribute("Setting_"..key,value);Profiles:_touch(player)
 end
+-- Phase 24 : "연습 한 판" 은 결과를 반드시 돌려준다 (요청 제한 · 자료 로딩 중이어도). 안내창은 이 답을 보고 닫힌다.
+function Service:practice(player)
+ local reply=self.practiceResult
+ if not self.practiceLimits:check(player.UserId) then reply:FireClient(player,false,"잠시 후 다시 눌러 주세요 / Please try again in a moment");return end
+ if not Profiles:Get(player) then reply:FireClient(player,false,"자료를 불러오는 중이에요. 잠시 후 다시 눌러 주세요 / Loading your data, try again soon");return end
+ local ok,why=Bots:SeatForPractice(player)
+ reply:FireClient(player,ok==true,why)
+ self:sync(player,why)
+end
+-- Phase 24 : 설정은 화면에서 모아 둔 마지막 값들을 한 번에 받는다 (연타한 음량이 요청 제한에 버려져 화면과 저장값이 어긋나던 문제).
+--   다른 요청과 제한을 따로 세고, 처리한 뒤 확정된 값을 돌려보낸다(sync). 화면은 그 값으로 다시 그린다.
+function Service:settingsBatch(player,batch)
+ if typeof(batch)~="table" or not self.settingLimits:check(player.UserId) or not Profiles:Get(player) then return end
+ local count=0
+ for key,value in pairs(batch) do
+  count+=1;if count>12 then break end
+  if typeof(key)=="string" then self:settings(player,key,value) end
+ end
+ self:sync(player)
+end
 function Service:onRequest(player,action,a,b,c,d,e)
+ if action=="practice" then self:practice(player);return end
+ if action=="settings" then self:settingsBatch(player,a);return end
  if not self.limits:check(player.UserId) or typeof(action)~="string" then return end
  local p=Profiles:Get(player);if not p then return end
  local message=nil
@@ -110,7 +132,6 @@ function Service:onRequest(player,action,a,b,c,d,e)
  elseif action=="afk" and typeof(a)=="boolean" then
   player:SetAttribute("AFK",a);if a then local t=Tables:GetTableOfPlayer(player);if t then t:RemovePlayer(player) end end
  elseif action=="rejoin" then message=self:rejoin(player,a) and "참가했습니다 / Joined" or "테이블이 대기 상태일 때 가까이에서 눌러 주세요 / Join a nearby waiting table"
- elseif action=="practice" then local _,why=Bots:SeatForPractice(player);message=why
  elseif action=="card" then
   local t=typeof(a)=="Instance" and Tables:GetTableFromModel(a)
   local r=t and Rounds:GetRound(t)
@@ -122,13 +143,28 @@ function Service:onRequest(player,action,a,b,c,d,e)
 end
 -- Phase 12 : 친구 초대 보상. 초대 링크로 처음 들어온 사람과 초대한 사람이 같은 서버에 있으면 둘 다 받는다.
 -- (한 사람을 두 번 초대해도 한 번만 · 초대한 사람은 하루 GameConfig.Referral.DailyCap 번까지)
+-- Phase 24 : 들어올 때 한 번만 보던 것을 "대기 → 두 사람 자료가 다 읽히면 처리"로 바꿨다.
+--   초대한 사람이 아직 자료를 읽는 중이면 기다렸다가, 그 사람의 자료가 준비되는 순간 다시 처리한다.
+--   (한 사람에게 두 번 주지 않는 기록 host.referrals · newcomer.referralClaimed 는 그대로 쓴다)
+Service.referralPending={} -- [새로 온 Player] = 초대한 사람 UserId
 function Service:referral(player)
  local R=Config.Referral;if not R or not R.Enabled then return end
  local ok,join=pcall(player.GetJoinData,player)
  local refId=ok and typeof(join)=="table" and tonumber(join.ReferredByPlayerId) or 0
  if not refId or refId<=0 or refId==player.UserId then return end
- local newcomer=Profiles:Get(player);local inviter=Players:GetPlayerByUserId(refId);local host=inviter and Profiles:Get(inviter)
- if not newcomer or not host or newcomer.referralClaimed or (newcomer.games or 0)>0 then return end
+ local newcomer=Profiles:Get(player)
+ if not newcomer or newcomer.referralClaimed or (newcomer.games or 0)>0 then return end
+ self.referralPending[player]=refId
+ self:tryReferral(player)
+end
+function Service:tryReferral(player)
+ local R=Config.Referral;local refId=self.referralPending[player]
+ if not R or not R.Enabled or not refId then return end
+ local newcomer=Profiles:Get(player)
+ if not newcomer or newcomer.referralClaimed or player.Parent~=Players then self.referralPending[player]=nil;return end
+ local inviter=Players:GetPlayerByUserId(refId);local host=inviter and Profiles:Get(inviter)
+ if not host then return end -- 초대한 사람이 없거나 아직 자료를 읽는 중 : 준비되면 다시 부른다
+ self.referralPending[player]=nil
  local key=tostring(player.UserId)
  if host.referrals[key] then return end
  local today=Utility.today()
@@ -166,11 +202,15 @@ function Service:bindTable(t)
  t.cleaner:add(t.RosterChanged:Connect(chairs));chairs()
 end
 function Service:Start()
- self.request=remote("VoyageRequest");self.state=remote("VoyageState")
+ self.request=remote("VoyageRequest");self.state=remote("VoyageState");self.practiceResult=remote("PracticeResult")
  self.request.OnServerEvent:Connect(function(player,...)
   local ok,err=pcall(self.onRequest,self,player,...);if not ok then warn("[CursedBarrel] Voyage: "..tostring(err)) end
  end)
  Profiles.ProfileChanged:Connect(function(player,p)
+  -- Phase 24 : 이 사람을 기다리던 친구 초대 보상이 있으면 지금 처리한다
+  for newcomer,refId in pairs(self.referralPending) do
+   if refId==player.UserId then task.spawn(function() pcall(self.tryReferral,self,newcomer) end) end
+  end
   for k,v in pairs(p.settings) do if Release.Settings[k]~=nil then player:SetAttribute("Setting_"..k,v) end end
   player:SetAttribute("TutorialDone",p.tutorialDone)
   self:badges(player,p)
@@ -202,7 +242,7 @@ function Service:Start()
  Players.PlayerRemoving:Connect(function(p)
   local duration=os.clock()-(joinedAt[p] or os.clock());joinedAt[p]=nil
   task.spawn(function() pcall(Analytics.LogCustomEvent,Analytics,p,"SessionDuration",duration) end)
-  self:leaveParty(p);self.invites[p]=nil;self.badgePending[p]=nil;self.badgeDone[p]=nil;self.limits:forget(p.UserId)
+  self:leaveParty(p);self.invites[p]=nil;self.referralPending[p]=nil;self.badgePending[p]=nil;self.badgeDone[p]=nil;self.limits:forget(p.UserId);self.practiceLimits:forget(p.UserId);self.settingLimits:forget(p.UserId)
   for _,other in ipairs(Players:GetPlayers()) do other:SetAttribute("Friend_"..p.UserId,nil);if self.invites[other] then self.invites[other][p]=nil end end
  end)
  -- Server-owned completion metrics; no personal text or raw client event ingestion.

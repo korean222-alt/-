@@ -105,6 +105,8 @@ local function defaultProfile()
 		referralClaimed = false, -- Phase 12 : 초대받아 온 사람의 환영 선물은 한 번
 		attendCount = 0, -- Phase 13 : 출석판에서 이번 판(7칸)에 받은 칸 수
 		attendDay = "", -- Phase 13 : 마지막으로 출석을 받은 날짜
+		attendBase = 0, -- Phase 24 : 그날 받은 출석 칸의 기본 코인 (VIP 차액용)
+		attendVipDay = "", -- Phase 24 : VIP 배율로 출석을 받은 날짜 (차액은 하루 한 번)
 		freeSpinDay = "", -- Phase 13 : 오늘 무료 룰렛을 쓴 날짜
 		spinCount = 0, -- Phase 13 : 룰렛을 돌린 횟수 (통계)
 		coinPackBought = false, -- Phase 13 : 코인 충전을 한 번이라도 했는가 (첫 구매 2배)
@@ -138,7 +140,7 @@ local function migrate(raw)
 
 	for _, key in ipairs({ "coins", "wins", "games", "streak", "bestStreak", "bestStreakToday", "catches", "safePicks", "duoGames", "partyGames", "bravePicks", "perfectCatches", "loginStreak",
 		"cannonHits", "raidWins", "predictWins", "crewWins", "bestSeries", "cannonCoins", "predictCount", "inviteCount",
-		"attendCount", "spinCount" }) do
+		"attendCount", "spinCount", "attendBase" }) do
 		local value = tonumber(raw[key])
 		if value and value == value and value < math.huge then
 			profile[key] = math.max(0, math.floor(value))
@@ -160,7 +162,7 @@ local function migrate(raw)
 		end
 	end
 	-- Phase 12
-	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay", "attendDay", "freeSpinDay" }) do
+	for _, key in ipairs({ "cannonDay", "predictDay", "inviteDay", "attendDay", "freeSpinDay", "attendVipDay" }) do
 		if typeof(raw[key]) == "string" then
 			profile[key] = raw[key]
 		end
@@ -261,18 +263,36 @@ function ProfileService:_getStore()
 	return self._store or nil
 end
 
+-- Phase 24 : 서버가 Kick 으로 띄우는 글은 화면 번역(LocaleController)이 닿지 않는다.
+--   그래서 그 사람 언어(설정 · 없으면 Roblox 계정 언어)를 먼저 쓰고, 다른 언어를 함께 적는다.
+local function kickText(player, ko, en)
+	local ok, Locale = pcall(require, Shared:WaitForChild("Locale"))
+	local english = ok and Locale.language(player) == "en"
+	return english and (en .. " / " .. ko) or (ko .. " / " .. en)
+end
+
 local function keyOf(userId)
 	return "u_" .. tostring(userId)
 end
 
 -- 실패하면 2초 · 4초 · 8초 … 로 늘려가며 다시 시도한다.
-local function retry(action)
+-- Phase 24 : deadline(os.clock 기준)을 넘기지 않는다. 서버 종료 중에는 모두가 같은 종료 마감을 나눠 쓴다.
+--   마감 전에 한 번 더 시도할 시간(요청 자체에 걸리는 약 1초)이 없으면 기다리지 않고 바로 실패로 돌려준다.
+local function retry(action, deadline)
+	-- 서버 종료가 시작되면(ProfileService._closeDeadline) 이미 돌고 있던 재시도도 그 마감을 따른다
+	local function limit()
+		return math.min(deadline or math.huge, ProfileService._closeDeadline or math.huge)
+	end
 	local wait = 2
+	local lastError = nil
 	for attempt = 1, MAX_RETRY do
+		if os.clock() >= limit() then
+			return false, lastError or "deadline"
+		end
 		local ok, result = pcall(function()
-            local deadline=os.clock()+5
+            local budgetDeadline=math.min(os.clock()+5,limit())
             while DataStoreService:GetRequestBudgetForRequestType(Enum.DataStoreRequestType.UpdateAsync)<1 do
-                if os.clock()>deadline then error("DataStore request budget exhausted") end
+                if os.clock()>budgetDeadline then error("DataStore request budget exhausted") end
                 task.wait(0.25)
             end
             return action()
@@ -280,13 +300,18 @@ local function retry(action)
 		if ok then
 			return true, result
 		end
+		lastError = result
 		if attempt == MAX_RETRY then
 			return false, result
 		end
-		task.wait(wait)
+		local pause = math.min(wait, limit() - os.clock() - 1)
+		if pause <= 0 then
+			return false, result
+		end
+		task.wait(pause)
 		wait *= 2
 	end
-	return false, nil
+	return false, lastError
 end
 
 --------------------------------------------------
@@ -405,10 +430,51 @@ function ProfileService:CanPurchase(player)
  return self._writable[player]==true and self._profiles[player]~=nil and not self._closingPlayer[player]
 end
 ProfileService._closingPlayer={}
+-- Phase 24 : 퇴장 저장에 실패한 자료. [UserId] = 떠난 Player (자료는 _profiles[그 Player] 에 그대로 남아 있다)
+ProfileService._pendingRelease={}
+ProfileService._closeDeadline=nil -- 서버 종료 중이면 모든 저장이 나눠 쓰는 마감 (os.clock 기준)
+function ProfileService:_deadline(limit)
+ if self._closeDeadline then return math.min(limit or math.huge,self._closeDeadline) end
+ return limit or math.huge
+end
+function ProfileService:_forget(player)
+ self._profiles[player]=nil;self._dirty[player]=nil;self._writable[player]=nil
+ self._revisions[player]=nil;self._closingPlayer[player]=nil
+ if self._pendingRelease[player.UserId]==player then self._pendingRelease[player.UserId]=nil end
+ for id,pending in pairs(self._afterPending) do if pending.player==player then self._afterPending[id]=nil end end
+end
+-- 저장이 안 된 채 떠난 사람의 자료를 버리지 않고 다시 저장해 본다.
+--   · 다른 서버가 세션을 가져갔으면(lost) 더 새 자료가 있다는 뜻이라 여기서 멈춘다.
+--   · 같은 사람이 이 서버로 다시 들어오면 _load 가 이 자료를 이어받는다.
+function ProfileService:_retryRelease(player)
+ local userId=player.UserId
+ local pause=5
+ while self._pendingRelease[userId]==player and not self._closeDeadline do
+  task.wait(pause);pause=math.min(pause*2,60)
+  if self._pendingRelease[userId]~=player or self._closeDeadline then return end
+  if not self._writable[player] or not self._profiles[player] then break end
+  if self:Save(player,"release-retry",true) then break end
+ end
+ if self._pendingRelease[userId]==player and not self._closeDeadline then self:_forget(player) end
+end
 function ProfileService:_load(player)
  local profile=defaultProfile()
  local store=self:_getStore()
  local writable=false
+ -- Phase 24 : 저장이 밀린 채 떠났던 사람이 이 서버로 돌아왔다. 메모리에 남은 최신 자료를 이어받는다.
+ --   먼저 재시도 줄에서 빼서(다시 저장하지 않게) 진행 중인 저장이 끝나기를 기다린 뒤 복사한다.
+ local takeover=nil
+ local previous=self._pendingRelease[player.UserId]
+ if previous and previous~=player then
+  self._pendingRelease[player.UserId]=nil
+  local waitUntil=os.clock()+30
+  while self._saving[previous] and os.clock()<waitUntil do task.wait(0.05) end
+  if self._profiles[previous] and self._writable[previous] then
+   takeover=deepCopy(self._profiles[previous])
+  end
+ else
+  previous=nil
+ end
  if store then
   local ok,raw=retry(function()
    local locked=false
@@ -416,18 +482,27 @@ function ProfileService:_load(player)
     if typeof(old)=="table" and typeof(old.session)=="table" and old.session.id~=self._session and (tonumber(old.session.expires) or 0)>os.time() then locked=true;return nil end
     locked=false
     if typeof(old)=="table" and (tonumber(old.schema) or 0)>SCHEMA then error("Profile requires newer game version") end
-    local data=migrate(old)
+    local data=takeover and deepCopy(takeover) or migrate(old)
     data.session={id=self._session,expires=os.time()+300}
     return data
    end)
    if locked or not result then error("Profile session busy") end
    return result
-  end)
+  end,self:_deadline())
   if ok then profile=migrate(raw);writable=true end
+ end
+ if previous then
+  if writable or not self._dirty[previous] or not self._writable[previous] then
+   self:_forget(previous)
+  else
+   -- 이어받기에 실패했다 : 떠난 자료는 다시 재시도 줄로 돌려보낸다 (버리지 않는다)
+   self._pendingRelease[player.UserId]=previous
+   task.spawn(self._retryRelease,self,previous)
+  end
  end
  -- Never allow default fallback data to overwrite a real profile.
  if not writable and not RunService:IsStudio() then
-  if player.Parent==Players then player:Kick("저장 데이터를 안전하게 불러오지 못했습니다. 잠시 후 다시 접속해 주세요. / Data unavailable; please rejoin.") end
+  if player.Parent==Players then player:Kick(kickText(player, "저장 데이터를 안전하게 불러오지 못했습니다. 잠시 후 다시 접속해 주세요.","Your saved data could not be loaded safely. Please rejoin in a moment.")) end
   return
  end
  self._profiles[player]=profile
@@ -442,7 +517,7 @@ function ProfileService:Save(player,reason,release)
  if not self._writable[player] then return false end
  local deadline=os.clock()+24
  while self._saving[player] do
-  if os.clock()>deadline then return false end
+  if os.clock()>self:_deadline(deadline) then return false end
   task.wait(0.05)
  end
  local profile=self._profiles[player];local store=self:_getStore()
@@ -458,11 +533,11 @@ function ProfileService:Save(player,reason,release)
    return snapshot
   end)
   return saved
- end)
+ end,self:_deadline())
  self._saving[player]=nil
  if lost then
   self._writable[player]=false
-  if player.Parent==Players then player:SetAttribute("DataWritable",false);player:Kick("데이터 세션이 변경되었습니다. 다시 접속해 주세요.") end
+  if player.Parent==Players then player:SetAttribute("DataWritable",false);player:Kick(kickText(player, "데이터 세션이 변경되었습니다. 다시 접속해 주세요.","Your data session moved to another server. Please rejoin.")) end
   return false
  end
  if not ok or not result then
@@ -476,23 +551,43 @@ function ProfileService:_release(player)
  self._closingPlayer[player]=true
  -- Roster removal must break streaks before the final snapshot is taken.
  task.wait()
- local deadline=os.clock()+24
+ local deadline=self:_deadline(os.clock()+24)
  while self._receiptBusy[player] and os.clock()<deadline do task.wait(0.05) end
- self:Save(player,"release",true)
- self._profiles[player]=nil;self._dirty[player]=nil;self._writable[player]=nil
- self._revisions[player]=nil;self._closingPlayer[player]=nil
+ local saved=self:Save(player,"release",true)
+ -- 서버 종료 중이면 마감 안에서 몇 번 더 해 본다
+ while not saved and self._closeDeadline and os.clock()<self._closeDeadline and self._writable[player] and self._profiles[player] do
+  task.wait(0.5)
+  saved=self:Save(player,"shutdown",true)
+ end
+ -- Phase 24 : 마지막 저장이 실패했는데 아직 이 서버가 세션을 쥐고 있으면 자료를 버리지 않는다.
+ --   (예전에는 결과를 보지 않고 지워서 최근 코인 · 진행이 사라질 수 있었다)
+ if not saved and not self._closeDeadline and self._writable[player] and self._profiles[player] and self:_getStore() then
+  self._pendingRelease[player.UserId]=player
+  warn("[CursedBarrel] 퇴장 저장 실패 · 다시 시도합니다: "..tostring(player.UserId))
+  task.spawn(self._retryRelease,self,player)
+  return
+ end
+ self:_forget(player)
 end
+-- Phase 24 : 두 번째 값(runAfter)은 "이 영수증의 후속 처리(팝업 · 방해 자동 사용)를 지금 한 번 해도 된다"는 뜻이다.
+--   지급이 이 서버에서 처음 일어났고, 그 지급이 저장까지 끝난 순간에만 한 번 참이 된다.
+--   이미 처리해 저장된 영수증이 다시 들어오면(Roblox 재전송 · 재접속) 지급도 후속 처리도 하지 않는다.
+--   granted(선택) : 지급 함수가 돌려준 실제 지급 내용 (예: 첫 구매 2배 코인 수)
+ProfileService._afterPending={} -- [PurchaseId] = { player, granted }
 function ProfileService:ProcessReceipt(player,receipt,grant)
  if not self:CanPurchase(player) or self._receiptBusy[player] then return false end
  self._receiptBusy[player]=true
+ local id=tostring(receipt.PurchaseId)
  local ok,result=pcall(function()
-  local profile=self._profiles[player];local id=tostring(receipt.PurchaseId)
+  local profile=self._profiles[player]
   if not profile.receipts[id] then
    -- Registered grants are non-yielding profile mutations only.
    local draft=deepCopy(profile)
-   if grant(draft,receipt)~=true then return false end
+   local granted,detail=grant(draft,receipt)
+   if granted~=true then return false end
    draft.receipts[id]=true
    self._profiles[player]=draft
+   self._afterPending[id]={player=player,detail=detail}
    self:_touch(player)
   end
   -- Includes both the grant and receipt ID in the same saved value.
@@ -500,7 +595,11 @@ function ProfileService:ProcessReceipt(player,receipt,grant)
  end)
  self._receiptBusy[player]=nil
  if not ok then warn("[CursedBarrel] Receipt: "..tostring(result));return false end
- return result==true
+ if result~=true then return false end
+ local pending=self._afterPending[id]
+ self._afterPending[id]=nil
+ if pending and pending.player==player then return true,true,pending.detail end
+ return true,false,nil
 end
 
 --------------------------------------------------
@@ -956,7 +1055,7 @@ function ProfileService:Start()
  local function join(player)
   task.spawn(function()
    local ok,err=pcall(function() self:_load(player) end)
-   if not ok then warn("[CursedBarrel] Load: "..tostring(err));if player.Parent==Players then player:Kick("데이터 로딩 오류. 다시 접속해 주세요.") end end
+   if not ok then warn("[CursedBarrel] Load: "..tostring(err));if player.Parent==Players then player:Kick(kickText(player, "데이터 로딩 오류. 다시 접속해 주세요.","Could not load your data. Please rejoin.")) end end
    -- Renew locks even when no coins or stats have changed.
    task.wait(math.random(30,60))
    while player.Parent==Players and self._profiles[player] do self:Save(player,"autosave");task.wait(60) end
@@ -966,12 +1065,28 @@ function ProfileService:Start()
  for _,p in ipairs(Players:GetPlayers()) do join(p) end
  self._cleaner:add(Players.PlayerRemoving:Connect(function(p) self:_release(p) end))
  game:BindToClose(function()
+  -- Phase 24 : 종료 대기는 30초 안에 끝나야 한다. 모든 저장이 같은 마감(25초)을 나눠 쓰고,
+  --   마감 뒤에 시작하는 재시도는 없다. 마지막으로 시작한 요청이 끝날 여유를 3초 더 둔다.
+  local started=os.clock()
+  self._closeDeadline=started+25
   local pending=0
   for p in pairs(self._profiles) do
-   pending=pending+1
-   task.spawn(function() self:_release(p);pending=pending-1 end)
+   if self._pendingRelease[p.UserId]==p then
+    -- 이미 떠났지만 저장이 밀려 있던 사람 : 마감 안에서 한 번 더 저장한다.
+    pending=pending+1
+    task.spawn(function()
+     while os.clock()<self._closeDeadline and self._writable[p] and self._profiles[p] do
+      if self:Save(p,"shutdown",true) then break end
+      task.wait(0.5)
+     end
+     self:_forget(p);pending=pending-1
+    end)
+   elseif not self._closingPlayer[p] then
+    pending=pending+1
+    task.spawn(function() self:_release(p);pending=pending-1 end)
+   end
   end
-  local deadline=os.clock()+27
+  local deadline=started+28
   while (pending>0 or next(self._saving)~=nil or next(self._closingPlayer)~=nil) and os.clock()<deadline do task.wait(0.05) end
  end)
 end

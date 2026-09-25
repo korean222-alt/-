@@ -307,6 +307,34 @@ catchButton.AutoButtonColor = false
 catchButton.ZIndex = 16
 catchButton.Parent = catchGui
 
+-- Phase 24 : 고리 · 과녁 · 글자를 한 무대(catchStage)에 모아 화면 크기에 맞춰 통째로 줄인다.
+--   예전에는 고리가 최대 740px · 안내가 520px 로 고정이라 휴대폰 세로 화면에서 잘리거나 다른 UI 를 덮었다.
+--   (누르는 버튼 catchButton 은 무대 밖에 두어 여전히 화면 어디를 눌러도 잡힌다)
+local catchStage = Instance.new("Frame")
+catchStage.Name = "Stage"
+catchStage.AnchorPoint = Vector2.new(0.5, 0.5)
+catchStage.Position = UDim2.fromScale(0.5, 0.5)
+catchStage.Size = UDim2.fromScale(1, 1)
+catchStage.BackgroundTransparency = 1
+catchStage.ZIndex = 17
+catchStage.Parent = catchGui
+local catchScale = Instance.new("UIScale")
+catchScale.Parent = catchStage
+local catchRingMax = 740 -- 무대 배율을 넣기 전 크기 기준. 화면의 짧은 쪽을 넘지 않게 fitCatch 가 줄인다
+local function fitCatch()
+	local area = gui.AbsoluteSize
+	if area.X <= 0 or area.Y <= 0 then
+		local camera = workspace.CurrentCamera
+		area = camera and camera.ViewportSize or Vector2.new(1280, 720)
+	end
+	-- 안전 영역(노치 · 홈 막대)을 조금 비워 둔다
+	local inset = GuiService:GetGuiInset()
+	local short = math.max(200, math.min(area.X, area.Y - inset.Y) - 24)
+	local s = math.clamp(short / 560, 0.45, 1)
+	catchScale.Scale = s
+	catchRingMax = math.min(740, short / s)
+end
+
 local catchRing = Instance.new("Frame")
 catchRing.Name = "Ring"
 catchRing.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -314,7 +342,7 @@ catchRing.Position = UDim2.fromScale(0.5, 0.44)
 catchRing.Size = UDim2.fromOffset(320, 320)
 catchRing.BackgroundTransparency = 1
 catchRing.ZIndex = 17
-catchRing.Parent = catchGui
+catchRing.Parent = catchStage
 Instance.new("UICorner", catchRing).CornerRadius = UDim.new(1, 0)
 local ringStroke = Instance.new("UIStroke")
 ringStroke.Thickness = 6
@@ -328,7 +356,7 @@ catchTarget.Position = UDim2.fromScale(0.5, 0.44)
 catchTarget.Size = UDim2.fromOffset(150, 150)
 catchTarget.BackgroundTransparency = 1
 catchTarget.ZIndex = 17
-catchTarget.Parent = catchGui
+catchTarget.Parent = catchStage
 Instance.new("UICorner", catchTarget).CornerRadius = UDim.new(1, 0)
 local targetStroke = Instance.new("UIStroke")
 targetStroke.Thickness = 3
@@ -347,14 +375,19 @@ catchText.TextSize = 64
 catchText.TextColor3 = cream
 catchText.Text = ""
 catchText.ZIndex = 18
-catchText.Parent = catchGui
+catchText.Parent = catchStage
 UIKit.textStroke(catchText, UIKit.strokeFor(64, 3))
 
 local catchHint = Instance.new("TextLabel")
 catchHint.Name = "Hint"
 catchHint.AnchorPoint = Vector2.new(0.5, 0)
 catchHint.Position = UDim2.fromScale(0.5, 0.62)
-catchHint.Size = UDim2.fromOffset(520, 30)
+catchHint.Size = UDim2.new(0.96, 0, 0, 30)
+catchHint.AutomaticSize = Enum.AutomaticSize.Y
+catchHint.TextWrapped = true
+local hintLimit = Instance.new("UISizeConstraint")
+hintLimit.MaxSize = Vector2.new(520, math.huge)
+hintLimit.Parent = catchHint
 catchHint.BackgroundTransparency = 1
 catchHint.Font = Enum.Font.GothamBold
 catchHint.TextSize = 18
@@ -362,7 +395,9 @@ catchHint.TextColor3 = cream
 catchHint.TextTransparency = 0.25
 catchHint.Text = ""
 catchHint.ZIndex = 18
-catchHint.Parent = catchGui
+catchHint.Parent = catchStage
+fitCatch()
+gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitCatch)
 
 --------------------------------------------------
 -- 방해 아이템: 먹물 얼룩 (화면 가장자리만 덮습니다. 가운데는 가리지 않습니다)
@@ -390,7 +425,12 @@ for index = 1, 7 do
 	inkBlots[index] = blot
 end
 
+-- Phase 24 : 먹물을 연달아 맞으면 앞 먹물의 "걷히는 예약"이 새 먹물까지 지웠다.
+--   먹물마다 번호(inkToken)를 붙이고, 가장 최근 먹물의 예약만 화면을 걷는다.
+local inkToken = 0
 local function showInk(duration)
+	inkToken += 1
+	local token = inkToken
 	local camera = workspace.CurrentCamera
 	local width = camera and camera.ViewportSize.X or 1280
 	local height = camera and camera.ViewportSize.Y or 720
@@ -408,11 +448,16 @@ local function showInk(duration)
 	end
 	inkLayer.Visible = true
 	task.delay(duration or 6, function()
+		if token ~= inkToken then
+			return
+		end
 		for _, blot in ipairs(inkBlots) do
 			Tween:Create(blot, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 		end
 		task.delay(0.55, function()
-			inkLayer.Visible = false
+			if token == inkToken then
+				inkLayer.Visible = false
+			end
 		end)
 	end)
 end
@@ -435,7 +480,7 @@ local tutorial = Instance.new("Frame")
 tutorial.Name = "Tutorial"
 tutorial.AnchorPoint = Vector2.new(0, 0.5)
 tutorial.Position = UDim2.new(0, 22, 0.5, 0)
-tutorial.Size = UDim2.fromOffset(340, 210)
+tutorial.Size = UDim2.fromOffset(340, 236)
 tutorial.BackgroundColor3 = Color3.new(1, 1, 1)
 tutorial.BorderSizePixel = 0
 tutorial.ZIndex = 14
@@ -455,12 +500,59 @@ tutorialLine("① 의자에 앉기", 52, cream, 20)
 tutorialLine("② 내 차례에 칼 꽂을 자리 고르기", 84, cream, 20)
 tutorialLine("③ 해적이 나오면 눌러서 잡기!", 116, teal, 20)
 -- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
-button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function()
-	tutorial.Visible = false
-	local r = remotes:FindFirstChild("VoyageRequest")
-	if r then
-		r:FireServer("practice")
+-- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
+local practiceStatus = tutorialLine("", 148, Color3.fromRGB(255, 150, 130), 14)
+practiceStatus.TextWrapped = true
+local practiceBusy = false
+local practiceSerial = 0
+button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function(b)
+	if practiceBusy then
+		return
 	end
+	local r = remotes:FindFirstChild("VoyageRequest")
+	local reply = remotes:WaitForChild("PracticeResult", 5)
+	if not r or not reply then
+		practiceStatus.Text = "서버 준비 중이에요. 잠시 후 다시 눌러 주세요"
+		b.Text = "다시 시도"
+		return
+	end
+	practiceBusy = true
+	practiceSerial += 1
+	local serial = practiceSerial
+	b.Text = "입장 중…"
+	practiceStatus.TextColor3 = cream
+	practiceStatus.Text = "빈 테이블을 찾는 중…"
+	local answered = false
+	local connection
+	connection = reply.OnClientEvent:Connect(function(ok, why)
+		if serial ~= practiceSerial or answered then
+			return
+		end
+		answered = true
+		connection:Disconnect()
+		practiceBusy = false
+		if ok then
+			practiceStatus.Text = ""
+			b.Text = "연습 한 판"
+			tutorial.Visible = false
+		else
+			practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
+			practiceStatus.Text = typeof(why) == "string" and why or "지금은 연습 판을 열 수 없어요"
+			b.Text = "다시 시도"
+		end
+	end)
+	r:FireServer("practice")
+	task.delay(8, function()
+		if answered or serial ~= practiceSerial then
+			return
+		end
+		answered = true
+		connection:Disconnect()
+		practiceBusy = false
+		practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
+		practiceStatus.Text = "응답이 없어요. 다시 눌러 주세요"
+		b.Text = "다시 시도"
+	end)
 end)
 button(tutorial, "알겠어요", UDim2.new(1, -124, 1, -54), UDim2.fromOffset(110, 42), function()
 	tutorial.Visible = false
@@ -488,7 +580,7 @@ local function sound(kind, pitch, volume)
 	local s = Instance.new("Sound")
 	s.SoundId = "rbxasset://sounds/" .. (paths[kind] or paths.tick)
 	s.Volume = (volume or (kind == "danger" and 0.22 or 0.25))*(player:GetAttribute("Setting_sfx") or 0.65)
-    local audio=require(package.Shared.ReleaseConfig).Audio
+    local audio=require(package.Shared:WaitForChild("ReleaseConfig")).Audio
     local id=({danger=audio.Dragon,pick=audio.Impact,win=audio.Win,heartbeat=audio.Heartbeat,jackpot=audio.Jackpot})[kind]
     if id and id>0 then s.SoundId="rbxassetid://"..id end
 	s.PlaybackSpeed = pitch or 1
@@ -1604,9 +1696,9 @@ sabotageCue.OnClientEvent:Connect(function(model, data)
 		return
 	end
 
-	if data.id == "deny" or data.id == "done" then
+	if data.id == "deny" or data.id == "done" or data.id == "refund" then
 		if data.message then
-			announce(data.message, data.id == "done" and teal or red, 1.8)
+			announce(data.message, data.id == "deny" and red or teal, 1.8)
 		end
 		return
 	end
@@ -1764,7 +1856,10 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			end
 			local won = data.userId ~= 0 and data.userId == player.UserId
 			local text, color
-			if won then
+			if won and data.noContest then
+				-- Phase 24 : 아무도 제대로 꽂기 전에 상대가 전부 나간 판. 보상 없이 끝난다
+				text, color = "무효 판 · 보상 없음", cream
+			elseif won then
 				local potText = (data.pot and data.pot > 0) and ("  +%s"):format(Utility.comma(data.pot)) or ""
 				local streakText = (data.streak and data.streak >= 2) and ("  🔥%d"):format(data.streak) or ""
 				text, color = "승리!" .. potText .. streakText, gold
@@ -1778,7 +1873,7 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			else
 				text, color = ("%s 승리"):format(data.name or ""), gold
 			end
-			resultText, resultColor = won and "승리!" or (wasIn and "패배" or text), color
+			resultText, resultColor = (won and not data.noContest) and "승리!" or (wasIn and not won and "패배" or text), color
 			local alreadyOut = placeShown[model] == true
 			placeShown[model] = nil
 			if text then
@@ -1841,7 +1936,7 @@ local potBase = potLabel.TextSize
 --   게임 내내 뛴다. 라운드가 올라갈수록 빨라지고(분당 64 → 라운드마다 +14, 결승은 +10 더),
 --   남은 자리가 적을수록(위험할수록) 더 빠르고 크게 뛴다. heartbeat.ogg(ReleaseConfig.Audio.Heartbeat)가 있으면 그 소리.
 --------------------------------------------------
-local AUDIO = require(package.Shared.ReleaseConfig).Audio
+local AUDIO = require(package.Shared:WaitForChild("ReleaseConfig")).Audio
 local function heartRate(stage, stages, danger)
 	local round = math.max(1, tonumber(stage) or 1)
 	local bpm = 64 + 14 * (round - 1)
@@ -2180,7 +2275,8 @@ Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, f
 	local window = catch.window or 0.6
 	if now < catch.opensAt then
 		local wait = math.clamp((catch.opensAt - now) / 0.9, 0, 1)
-		catchRing.Size = UDim2.fromOffset(320 + wait * 420, 320 + wait * 420)
+		local ringSize = math.min(catchRingMax, 320 + wait * 420)
+		catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
 		ringStroke.Color = gold
 		ringStroke.Transparency = 0.15 + wait * 0.5
 		if catchText.Text == "" or catchText.Text == "…" then
@@ -2189,7 +2285,8 @@ Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, f
 		catchText.TextColor3 = cream
 	elseif not catch.sent then
 		local left = math.clamp(1 - (now - catch.opensAt) / window, 0, 1)
-		catchRing.Size = UDim2.fromOffset(150 + left * 330, 150 + left * 330)
+		local ringSize = math.min(catchRingMax, 150 + left * 330)
+		catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
 		ringStroke.Color = left > 0.35 and teal or red
 		ringStroke.Transparency = 0
 		catchText.Text = "지금!"

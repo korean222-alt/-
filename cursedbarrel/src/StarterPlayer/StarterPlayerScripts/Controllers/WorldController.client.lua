@@ -223,17 +223,32 @@ end
 -- 내 발밑 불빛 (밤 · 안개 · 폭풍)
 -- 등불이 닿지 않는 곳(스폰 단상 · 배 끝 · 후갑판)에서도 내 주변은 보이게 한다. 내 화면에서만 켠다.
 --------------------------------------------------
-local playerGlow = Instance.new("PointLight")
-playerGlow.Name = "CursedBarrel_PlayerGlow"
-playerGlow.Color = Color3.fromRGB(255, 226, 180)
-playerGlow.Range = 26
-playerGlow.Shadows = false
-playerGlow.Brightness = 0
+-- Phase 24 : 캐릭터가 사라지면 붙어 있던 불빛도 함께 파괴된다(Parent 가 잠긴다).
+--   그래서 부활할 때마다 새로 만들고, 아래 코드는 항상 지금 불빛(playerGlow)만 만진다.
+local function makeGlow()
+	local light = Instance.new("PointLight")
+	light.Name = "CursedBarrel_PlayerGlow"
+	light.Color = Color3.fromRGB(255, 226, 180)
+	light.Range = 26
+	light.Shadows = false
+	light.Brightness = 0
+	return light
+end
+local playerGlow = makeGlow()
 local function attachGlow(character)
 	local root = character and character:WaitForChild("HumanoidRootPart", 10)
-	if root then
-		playerGlow.Parent = root
+	if not root or player.Character ~= character then
+		return
 	end
+	local old = playerGlow
+	local light = makeGlow()
+	light.Brightness = old.Brightness
+	light.Enabled = old.Enabled
+	playerGlow = light
+	pcall(function()
+		old:Destroy()
+	end)
+	light.Parent = root
 end
 if player.Character then
 	task.spawn(attachGlow, player.Character)

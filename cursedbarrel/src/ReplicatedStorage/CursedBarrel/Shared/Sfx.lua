@@ -26,6 +26,9 @@ local FALLBACK = {
 	KrakenRoar = { "rbxasset://sounds/impact_explosion_03.mp3", 0.3 },
 	Coins = { "rbxasset://sounds/volume_slider.ogg", 1.7 },
 	Jackpot = { "rbxasset://sounds/volume_slider.ogg", 1.25 }, -- Phase 21 : jackpot.ogg 를 올리기 전까지
+	-- Phase 24 : 버튼 누르는 소리 · 창 여는 소리 (ReleaseConfig.Audio.Click · Open 에 음원을 넣으면 그 소리)
+	Click = { "rbxasset://sounds/volume_slider.ogg", 2.3 },
+	Open = { "rbxasset://sounds/volume_slider.ogg", 1.35 },
 }
 
 local function volumeScale()

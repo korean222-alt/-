@@ -222,6 +222,21 @@ end
 -- 버튼
 --------------------------------------------------
 
+-- Phase 24 : 버튼 소리. UIKit 로 만든 모든 버튼(상점 · 퀘스트 · 출석 · 룰렛 · 설정 · 창 닫기 …)이 누를 때 "딸깍" 한다.
+--   아주 빨리 연달아 누르면 겹치지 않게 0.06초에 한 번만. 음량은 설정의 효과음을 따른다.
+local lastClickAt = 0
+function UIKit.click(kind)
+	local now = os.clock()
+	if now - lastClickAt < 0.06 then
+		return
+	end
+	lastClickAt = now
+	local ok, Sfx = pcall(require, script.Parent.Sfx)
+	if ok then
+		Sfx.play(kind or "Click", { volume = kind == "Open" and 0.35 or 0.45 })
+	end
+end
+
 -- 누르면 살짝 작아졌다가 튀어 오른다
 function UIKit.bounce(button)
 	local scale = button:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
@@ -243,6 +258,13 @@ function UIKit.bounce(button)
 	button.MouseButton1Up:Connect(function()
 		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 	end)
+	if button:IsA("GuiButton") then
+		button.Activated:Connect(function()
+			if button.Active then
+				UIKit.click()
+			end
+		end)
+	end
 	return scale
 end
 
@@ -804,11 +826,29 @@ function UIKit.window(parent, props)
 	function w.open()
 		local target = w.fit()
 		scale.Scale = target * 0.75
+		if not frame.Visible then
+			UIKit.click("Open")
+		end
 		frame.Visible = true
 		TweenService:Create(scale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = target }):Play()
 	end
 	function w.hide()
 		frame.Visible = false
+	end
+	-- Phase 24 : 창이 열린 채 화면 크기가 바뀌면(휴대폰 회전 · 창 크기 조절) 그 자리에서 다시 맞춘다.
+	--   예전에는 열 때만 맞춰서, 따로 처리하지 않은 창은 회전하면 화면 밖으로 나갔다.
+	local function refit()
+		if frame.Visible and frame.Parent then
+			scale.Scale = w.fit()
+		end
+	end
+	if parent:IsA("GuiBase2d") then
+		parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(refit)
+	end
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			task.defer(refit)
+		end)
 	end
 	close.Activated:Connect(function()
 		w.hide()
