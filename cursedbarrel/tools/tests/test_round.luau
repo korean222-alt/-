@@ -206,8 +206,12 @@ do
 	end
 	check("D resolved", result ~= nil)
 	local window = catch.window
-	-- 인정되는 가장 이른 시각 = 지금 - (0.05 + 0.05) → 정확도는 적어도 (0.3-0.1)/window 만큼 깎인다
-	check(("D no free perfect (acc %.2f, window %.2f)"):format(result and result.accuracy or -1, window), result and result.perfect == false)
+	-- 인정되는 가장 이른 시각 = 누른 순간 - (핑 0.1 ÷ 2 + 여유 0.08) = 창이 열리고 약 0.17초.
+	-- 예전 규칙(0.25초 무조건 인정)이면 창이 열리고 0.05초로 인정되어 정확도가 훨씬 높았다.
+	local oldAcc = 1 - 0.05 / window
+	local maxAcc = 1 - (0.3 - 0.13 - 0.03) / window
+	check(("D lie gains at most the measured latency (acc %.2f ≤ %.2f, old rule %.2f)"):format(result and result.accuracy or -1, maxAcc, oldAcc),
+		result and result.accuracy <= maxAcc)
 end
 
 print(H.failed and "SOME TESTS FAILED" or "ALL PASSED")

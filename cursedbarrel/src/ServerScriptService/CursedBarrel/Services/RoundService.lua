@@ -1388,12 +1388,9 @@ function Round:HandleCatchInput(player, tappedAt, trusted)
 	if not claimed or claimed ~= claimed then
 		claimed = now
 	end
-	local serverTap = claimed
 	if not trusted then
-		local oneWay = oneWayLatency(player)
-		local allowance = math.min(CATCH.MaxLatency, oneWay + (tonumber(CATCH.LatencySlack) or 0.05))
+		local allowance = math.min(CATCH.MaxLatency, oneWayLatency(player) + (tonumber(CATCH.LatencySlack) or 0.08))
 		claimed = math.clamp(claimed, now - allowance, now)
-		serverTap = now - oneWay -- 서버가 추정한 "실제로 누른 시각"
 	end
 
 	if claimed < catch.opensAt then
@@ -1413,10 +1410,9 @@ function Round:HandleCatchInput(player, tappedAt, trusted)
 
 	local limit = catch.opensAt + catch.window + CATCH.Grace
 	if claimed <= limit then
-		-- Phase 24 : 정확도(완벽 판정)는 클라이언트 시각과 서버 추정 시각 중 더 늦은 쪽으로 잰다.
-		--   클라이언트가 보낸 시각만으로는 "완벽"이 확정되지 않는다.
-		local judged = math.max(claimed, math.max(serverTap, catch.opensAt))
-		catch.accuracy = math.clamp(1 - (judged - catch.opensAt) / math.max(catch.window, 0.01), 0, 1)
+		-- Phase 24 : 정확도도 위에서 서버 지연 기준으로 잘라 낸 시각(claimed)으로 잰다.
+		--   (서버 추정 시각만으로 재면 전파가 튀는 휴대폰의 정직한 입력까지 "완벽"을 놓친다)
+		catch.accuracy = math.clamp(1 - (claimed - catch.opensAt) / math.max(catch.window, 0.01), 0, 1)
 		self:_resolveCatch(true, "caught")
 	else
 		self:_resolveCatch(false, "late")

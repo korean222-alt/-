@@ -51,7 +51,6 @@ SabotageService._cooldown = {} -- [Player] = 다시 쓸 수 있는 시각
 -- Phase 24 : [Player] = { [itemId] = { targetUserId, at } } 상품마다 따로 기억한다.
 --   (예전에는 한 칸이라 연달아 누르면 앞의 대상이 덮이고, 상품이 맞는지 보기 전에 지워졌다)
 SabotageService._intent = {}
-SabotageService._busy = {} -- [Player] = 사용권을 쓰는 중 (저장이 끝날 때까지 두 번 쓰지 못하게)
 
 local function remote(name)
 	local folder = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild(GameConfig.Remotes.Folder)
@@ -135,10 +134,10 @@ function SabotageService:_apply(player, itemId, targetUserId, onVoid)
 	return true, ("%s → %s"):format(item.name, name)
 end
 
--- Phase 24 : 사용권은 "먼저 줄여서 저장하고" 쓴다.
---   예전에는 효과를 넣은 뒤 메모리에서만 줄여서, 저장 전에 서버가 꺼지면 사용권이 되살아나 다시 쓸 수 있었다.
---   · 저장에 실패하면 줄인 것을 되돌리고 쓰지 않는다.
---   · 저장 뒤 상대가 없어졌거나, 예약된 방해가 발동하지 못하고 판이 끝나면 사용권을 돌려준다.
+-- Phase 24 : 사용권 쓰기
+--   · 효과가 들어간 뒤에만 한 장 줄이고, 곧바로 뒤에서 저장을 요청한다 (다음 자동 저장까지 기다리지 않는다).
+--     저장을 기다린 뒤에 쓰게 하면 방해가 늦게 걸리고, 저장소가 잠깐 막히면 아예 못 쓰게 되어 그렇게 하지 않았다.
+--   · 예약된 방해가 발동하지 못하고 판이 끝나거나 상대가 떨어지면 사용권을 돌려준다.
 function SabotageService:_refund(player, item)
 	local profile = ProfileService:Get(player)
 	if not profile or player.Parent ~= Players then
@@ -151,43 +150,19 @@ function SabotageService:_refund(player, item)
 end
 
 function SabotageService:_spendCharge(player, item, targetUserId)
-	if self._busy[player] then
-		return false, "처리 중입니다"
-	end
 	local profile = ProfileService:Get(player)
 	if not profile or (profile.consumables[item.id] or 0) <= 0 then
 		return false, "사용권이 없습니다"
 	end
-	local _, _, _, reason = self:_validate(player, item.id, targetUserId)
-	if reason then
-		return false, reason
-	end
-	self._busy[player] = true
-	profile.consumables[item.id] -= 1
-	ProfileService:_touch(player)
-	-- 저장할 수 있는 자료면 쓰기 전에 저장까지 끝낸다. (Studio 처럼 저장이 없는 곳은 메모리만)
-	local durable = ProfileService._writable[player] == true
-	local saved = (not durable) or ProfileService:Save(player, "sabotage")
-	-- 저장하는 동안 자료 표가 새로 바뀌었을 수 있다 (영수증 처리). 항상 다시 가져온다.
-	profile = ProfileService:Get(player)
-	if not saved then
-		self._busy[player] = nil
-		if profile then
-			profile.consumables[item.id] = (profile.consumables[item.id] or 0) + 1
-			ProfileService:_touch(player)
-		end
-		return false, "저장이 늦어져 쓰지 못했어요. 다시 눌러 주세요"
-	end
 	local ok, message = self:_apply(player, item.id, targetUserId, function()
 		self:_refund(player, item)
 	end)
-	self._busy[player] = nil
-	if not ok then
-		-- 저장 사이에 상황이 바뀌었다 : 사용권을 돌려준다
-		if profile then
-			profile.consumables[item.id] = (profile.consumables[item.id] or 0) + 1
-			ProfileService:_touch(player)
-		end
+	if ok then
+		profile.consumables[item.id] -= 1
+		ProfileService:_touch(player)
+		task.spawn(function()
+			ProfileService:Save(player, "sabotage")
+		end)
 	end
 	return ok, message
 end
@@ -352,7 +327,6 @@ function SabotageService:Start()
 		self._listLimiter:forget(player.UserId)
 		self._cooldown[player] = nil
 		self._intent[player] = nil
-		self._busy[player] = nil
 	end))
 
 	local ready = 0
