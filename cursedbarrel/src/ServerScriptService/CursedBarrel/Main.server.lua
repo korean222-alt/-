@@ -1,0 +1,101 @@
+--[[
+	Main
+	서버 진입점. 서비스들을 순서대로 켜는 일만 한다.
+
+	위치: ServerScriptService > CursedBarrel > Main  (Script)
+
+	순서에 이유가 있다.
+	  1. ProfileService  — 나머지가 코인과 스킨을 물어보므로 가장 먼저
+	  2. PurchaseService — 영수증 처리의 유일한 주인. 상품 등록보다 먼저 켜 둔다
+	  3. TableService    — 테이블 등록 (좌석 · 칼 슬롯 · 프롬프트가 이때 갖춰진다)
+	  4. RankingService  — 랭킹판
+	  5. RoundService    — 테이블마다 라운드 담당자
+	  6. ShopService     — 상점 (로벅스 상품을 PurchaseService 에 등록한다)
+	  7. SabotageService — 방해 아이템 (RoundService 가 있어야 한다)
+	  8. LobbyBuilder    — 간판 · 전시장 (ShopService 를 쓴다)
+	  9. MapBuilder      — 항구와 해적선. 무거운 장식이라 마지막에 세운다
+	 10. BotService      — Phase 11 AI 선원. 테이블과 라운드 담당이 다 선 뒤에 켠다
+	 11. WorldService    — Phase 12 항해 시계 · 크라켄 습격 · 행운의 테이블
+	 12. CannonService   — Phase 12 대포 미니게임 (배가 선 뒤에 대포를 찾는다)
+	 13. PredictionService · TournamentService — Phase 12 관전 예측 · 토너먼트
+	 14. RescueService   — Phase 15 바다에 빠진 사람 건지기 · 부활 챙기기
+
+	Phase 15 : Blender 3D 모델(Studio 에서 가져온 CursedBarrelModels)을 가장 먼저 보관함으로 옮긴다.
+	           배 · 테이블 · 대포를 세울 때 그 모델을 쓴다. (없으면 예전 파트 모양 그대로)
+]]
+
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Services = ServerScriptService:WaitForChild("CursedBarrel"):WaitForChild("Services")
+
+local ProfileService = require(Services.ProfileService)
+local PurchaseService = require(Services.PurchaseService)
+local TableService = require(Services.TableService)
+local RankingService = require(Services.RankingService)
+local RoundService = require(Services.RoundService)
+local ShopService = require(Services.ShopService)
+local SabotageService = require(Services.SabotageService)
+local LobbyBuilder = require(Services.LobbyBuilder)
+local MapBuilder = require(Services.MapBuilder)
+local BotService = require(Services.BotService)
+local WorldService = require(Services.WorldService)
+local CannonService = require(Services.CannonService)
+local PredictionService = require(Services.PredictionService)
+local TournamentService = require(Services.TournamentService)
+local RewardService = require(Services.RewardService)
+local RescueService = require(Services.RescueService)
+local MeshKit = require(game:GetService("ReplicatedStorage"):WaitForChild("CursedBarrel"):WaitForChild("Shared"):WaitForChild("MeshKit"))
+
+-- Phase 15 : Studio 에서 가져온 Blender 모델을 ReplicatedStorage 로 옮긴다 (배 · 테이블을 세우기 전에)
+local okMeshes, meshError = pcall(MeshKit.adopt)
+if not okMeshes then
+	warn("[CursedBarrel] Blender 모델 보관함 확인 중 오류: " .. tostring(meshError))
+end
+for _, asset in ipairs({ "Cannon", "Cask", "Drum", "KrakenPieces" }) do
+	if not MeshKit.has(asset) then
+		print(("[CursedBarrel] Blender 모델 '%s' 없음 → 예전 모양을 씁니다 (assets/models/CursedBarrelModels.fbx 를 3D 가져오기로 넣으면 바뀝니다)"):format(asset))
+	end
+end
+-- Phase 17 : 스킨 모델 (칼 · 통 장식 · 해적 · 용 · 꽃잎 · 크라켄 마디)
+for _, asset in ipairs({ "Knife_dagger", "Pirate", "DragonCoil", "KrakenCapsule" }) do
+	if not MeshKit.has(asset) then
+		print(("[CursedBarrel] Blender 스킨 모델 '%s' 없음 → 예전 모양을 씁니다 (assets/models/CursedBarrelSkins.fbx 를 3D 가져오기로 넣으면 바뀝니다)"):format(asset))
+	end
+end
+
+-- Phase 17 : Creator Store 에서 받아 넣었던 해적 모델(Visuals.CustomPirate)은 더 쓰지 않는다.
+--   해적은 이제 Blender 로 만든 모델(CursedBarrelSkins)이다. 남아 있으면 치운다. (무료 모델의 숨은 스크립트도 함께 사라진다)
+do
+	local visuals = game:GetService("ReplicatedStorage").CursedBarrel:FindFirstChild("Visuals")
+	local custom = visuals and visuals:FindFirstChild("CustomPirate")
+	if custom then
+		custom:Destroy()
+		warn("[CursedBarrel] 예전 해적 모델(CustomPirate)을 치웠습니다. Studio 에서도 지워 두세요.")
+	end
+end
+
+-- Relocate whole table models before GameTable caches seat/slot geometry.
+require(Services.ShipLobbyBuilder):Prepare()
+ProfileService:Start()
+PurchaseService:Start()
+TableService:Start()
+RankingService:Start()
+RoundService:Start()
+ShopService:Start()
+SabotageService:Start()
+LobbyBuilder:Start()
+require(Services.ReleaseService):Start()
+BotService:Start()
+WorldService:Start()
+CannonService:Start()
+PredictionService:Start()
+TournamentService:Start()
+RewardService:Start()
+RescueService:Start()
+
+-- 항구는 파트가 많다. 첫 프레임이 지난 뒤에 세워야 접속이 늦어지지 않는다.
+task.defer(function()
+	MapBuilder:Start()
+end)
+
+print("[CursedBarrel] 서버 부팅 완료 (Phase 16: 명예의 문 랭킹 · 좋아요 보상 · 코드 · 새 상점 · 룰렛)")
