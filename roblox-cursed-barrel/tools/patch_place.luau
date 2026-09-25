@@ -51,10 +51,11 @@ local function walk(dir, rel)
 end
 walk(scripts, "")
 
--- Phase 17 : 예전 해적 모델은 파일에서도 치운다
+-- Phase 17 : 예전 해적 모델은 파일에서도 치운다 (Phase 21 : 네 번째 인자로 --drop-custom-pirate 를 줄 때만.
+--   지금 파일의 CustomPirate 는 직접 넣은 해적 모델일 수 있다)
 local visuals = game.ReplicatedStorage.CursedBarrel:FindFirstChild("Visuals")
 local custom = visuals and visuals:FindFirstChild("CustomPirate")
-if custom then
+if custom and process.args[4] == "--drop-custom-pirate" then
 	custom.Parent = nil
 	print("removed Visuals.CustomPirate")
 end
