@@ -356,9 +356,12 @@ local function chooseMusic(t,watching)
   -- Phase 24 : 게임 음악을 재생할 수 없으면 로비 음악을 조금 빠르게라도 튼다 (아예 조용하지 않게)
   local match,speed=A.Match or 0,1
   if match<=0 then match,speed=A.Lobby or 0,1.06 end
+  -- Phase 24 : 라운드(통)가 올라갈수록 음악이 조금씩 빨라진다 (라운드마다 +4%, 최대 +28%)
+  local stage=model:GetAttribute(Config.TableAttributes.Stage) or 1
+  speed=speed*(1+math.min(0.28,0.04*math.max(0,stage-1)))
   -- Phase 24 : 결승(셋 이상 시작해 둘이 남음)이면 결승 음악
   if model:GetAttribute(Config.TableAttributes.FinalRound)==true then
-   if (A.MatchFinal or 0)>0 then return A.MatchFinal,1 end
+   if (A.MatchFinal or 0)>0 then return A.MatchFinal,1+math.min(0.12,0.02*math.max(0,stage-1)) end
    return match,speed+0.08 -- 결승 음악이 없으면 게임 음악을 조금 빠르게
   end
   return match,speed
