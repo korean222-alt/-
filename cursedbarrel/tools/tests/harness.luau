@@ -5,6 +5,12 @@ local roblox = require("@lune/roblox")
 local task = require("@lune/task")
 local process = require("@lune/process")
 local SRC = process.env.CB_SRC or (process.cwd .. "/src")
+-- CB_TIMESCALE : 게임 시간 배속 (예 100 이면 게임 속 100초가 실제 1초). 판을 빨리 여러 번 돌려 볼 때 쓴다.
+local SCALE = tonumber(process.env.CB_TIMESCALE) or 1
+local T0 = os.clock()
+local function vclock()
+	return T0 + (os.clock() - T0) * SCALE
+end
 
 local H = {}
 
@@ -243,7 +249,7 @@ local function load(node)
 	env = setmetatable({
 		script = node,
 		game = game,
-		workspace = { GetServerTimeNow = function() return os.clock() end, GetAttribute = function() return nil end },
+		workspace = { GetServerTimeNow = vclock, GetAttribute = function() return nil end },
 		require = function(x)
 			if type(x) == "table" and getmetatable(x) == FakeMT then
 				return load(x)
@@ -251,7 +257,11 @@ local function load(node)
 			return require(x)
 		end,
 		typeof = customTypeof,
-		task = task,
+		task = SCALE == 1 and task or {
+			wait = function(d) return task.wait((d or 0) / SCALE) end,
+			delay = function(d, f, ...) return task.delay((d or 0) / SCALE, f, ...) end,
+			spawn = task.spawn, defer = task.defer, cancel = task.cancel,
+		},
 		Random = Random,
 		Instance = { new = function(class) return fakeInstance(class) end },
 		Enum = roblox.Enum,
@@ -278,6 +288,7 @@ local function load(node)
 end
 H.load = load
 H.services = services
+H.vclock = vclock
 
 local nextId = 1000
 function H.newPlayer(name)

@@ -34,7 +34,8 @@ Studio 에서 직접 고쳤다면 그 .rbxl 을 새 원본으로 삼아 `src` �
 selene --config tools/selene.toml src               # 정의 안 된 변수 같은 실수 (selene 0.29+)
 lune run tools/translate_check.luau <문장목록.txt>   # 한 줄에 한 문장 → 영어로 바뀌는지 (✓ / ✗)
 lune run tools/tests/test_profile.luau              # 저장 · 영수증 · 서버 종료 (약 1분)
-lune run tools/tests/test_round.luau                # 무효 판 · 방해 예약/환불 · 잡기 판정
+lune run tools/tests/test_round.luau                # 무효 판 · 방해 예약/환불 · 잡기 판정 · 방장
+CB_TIMESCALE=100 lune run tools/tests/sim_economy.luau 60   # 실제 코드로 60판 → 우승자 한 판 코인 (밸런스 확인)
 ```
 
 테스트는 `tools/tests/harness.luau` 가 DataStore · Players · RemoteEvent 를 흉내 내고 실제 서버 모듈을 불러 돌린다.

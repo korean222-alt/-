@@ -97,8 +97,10 @@ GameConfig.TableAttributes = {
 	Tutorial = "Tutorial", -- 처음 온 사람의 연습 판 (AI 와 함께, 잡기가 조금 쉽다)
 
 	-- Phase 15 : 라운드 (한 명이 탈락할 때마다 다음 라운드로 올라간다) · 최후의 1인
-	Stage = "Stage", -- 지금 몇 라운드인가 (1 부터)
-	StageCount = "StageCount", -- 이번 판의 라운드 수 (시작 인원 - 1)
+	Stage = "Stage", -- 지금 몇 라운드인가 (1 부터). Phase 24 : 통 하나(칼 한 통)가 한 라운드. 통을 새로 채울 때마다 +1
+	StageCount = "StageCount", -- Phase 24 부터 쓰지 않는다 (0). 라운드 수는 미리 정해지지 않는다
+	FinalRound = "FinalRound", -- Phase 24 : 3명 이상으로 시작한 판에서 둘만 남았다 (결승)
+	HostUserId = "HostUserId", -- Phase 24 : 방장 (먼저 앉은 사람 · AI 제외). 0 이면 없음
 	WinnerTakesAll = "WinnerTakesAll", -- 최후의 1인이 현상금을 전부 가져가는 테이블인가
 
 	-- Phase 7 : 이 테이블에 적용 중인 통 스킨 (앉은 사람들 중에서 서버가 하나를 고른다)
@@ -419,22 +421,24 @@ GameConfig.Pot = {
 
 	-- ★ Phase 11 : 보물 폭발. 안전한 자리를 뽑을 때마다 작은 확률로 현상금이 크게 뛴다.
 	--   안 터질수록 확률이 조금씩 오른다(PityStep). 한 판에 한두 번쯤 터지게 맞췄다.
+	-- ★ Phase 24 : 밸런스. 예전 값으로 4인 판 40번을 돌려 보니 우승자 평균 11,846 · 최고 60,960 코인이었다.
+	--   곱하기(mult ×1.5 · ×2.5)가 몇 번 겹치면 현상금이 상한(6만)까지 차서 → 곱하기를 없애고 더하기만, 확률도 크게 낮췄다.
 	Surge = {
 		Enabled = true,
-		Chance = 0.05,
-		PityStep = 0.012,
-		MaxChance = 0.3,
-		BoostedMaxChance = 0.5, -- Phase 12 : 노을 · 행운 테이블로 커져도 이 이상은 안 된다
+		Chance = 0.015, -- 0.05 → 0.015
+		PityStep = 0.003, -- 0.012 → 0.003
+		MaxChance = 0.08, -- 0.3 → 0.08
+		BoostedMaxChance = 0.15, -- Phase 12 : 노을 · 행운 테이블로 커져도 이 이상은 안 된다 (0.5 → 0.15)
 		Tiers = {
-			{ id = "pouch", name = "금화 주머니", weight = 70, add = 135 },
-			{ id = "chest", name = "보물 상자", weight = 25, add = 270, mult = 1.5 },
-			{ id = "kraken", name = "크라켄의 보물", weight = 5, add = 450, mult = 2.5 },
+			{ id = "pouch", name = "금화 주머니", weight = 70, add = 100 },
+			{ id = "chest", name = "보물 상자", weight = 25, add = 300 },
+			{ id = "kraken", name = "크라켄의 보물", weight = 5, add = 800 },
 		},
 	},
 
 	-- ★ Phase 11 : 이월. 현상금을 다 가져가지 못한 판(기권승 · 승자 없음 · AI 선원 승리)은
 	--   남은 몫이 이 테이블의 다음 판으로 넘어간다. 판이 거듭될수록 테이블 위 금화가 쌓인다.
-	CarryCap = 4500,
+	CarryCap = 1500, -- Phase 24 : 4500 → 1500
 }
 
 --------------------------------------------------
@@ -458,19 +462,21 @@ GameConfig.ForfeitWin = {
 -- 잭팟 (Phase 21) : 아주 낮은 확률로 현상금이 한 번에 크게 뛴다. 라운드가 올라갈수록 큰 잭팟 확률이 오른다.
 --   라운드 = 위 알림판의 "라운드 N/M" (한 명이 떨어질 때마다 올라간다. 4인 테이블은 1 · 2 · 3(결승))
 --   · 라운드마다 한 번, 그 라운드의 첫 안전한 자리에서 몰래 굴린다.
---       큰 잭팟 10,000  : 1% + 라운드마다 2%  (1라운드 1% · 2라운드 3% · 3라운드 5% … MaxChance 까지)
---       잭팟 5,000      : 큰 잭팟이 아니면 10%
+--       큰 잭팟 3,000  : 0.2% + 라운드마다 0.2% (최대 1.2%)   ← Phase 24 에서 낮춤
+--       잭팟 1,000      : 큰 잭팟이 아니면 2.5%
 --   · 뽑혔으면 그 라운드의 안전한 자리 1~TriggerWithin 번째 안에서 "잭팟!" 이 터진다 (현상금에 들어가 마지막 생존자가 가져간다)
 --   · AI 연습 판은 Bots.RewardScale 만큼만 (0.6배)
 --------------------------------------------------
 GameConfig.Jackpot = {
 	Enabled = true,
 	TriggerWithin = 3,
-	Big = { Id = "big", Name = "대박 잭팟", Amount = 10000, Chance = 0.01, PerRound = 0.02, MaxChance = 0.15 },
-	Small = { Id = "small", Name = "잭팟", Amount = 5000, Chance = 0.10 },
+	-- Phase 24 : 라운드가 "통 하나" 로 바뀌어 한 판에 굴리는 횟수가 늘었다 → 금액 · 확률을 낮췄다
+	--   (예전 : 대박 10,000 · 1%+2%/라운드 · 최대 15% / 잭팟 5,000 · 10%)
+	Big = { Id = "big", Name = "대박 잭팟", Amount = 3000, Chance = 0.002, PerRound = 0.002, MaxChance = 0.012 },
+	Small = { Id = "small", Name = "잭팟", Amount = 1000, Chance = 0.025 },
 }
--- 잭팟이 들어가도 현상금이 막히지 않게 상한을 올린다 (예전 18,000)
-GameConfig.Pot.Cap = 60000
+-- 현상금 상한 (Phase 21 : 60,000 → Phase 24 : 10,000. 한 판에 6만 코인이 나오던 원인)
+GameConfig.Pot.Cap = 10000
 
 -- 이번 잡기의 창 길이. 서버에서만 호출한다.
 -- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
@@ -1038,10 +1044,21 @@ GameConfig.Wayfinder = {
 --   (AI 를 상대로 랭킹을 올리는 일을 막는다. 퀘스트 진행은 된다)
 -- ★ AI 는 서버가 조종한다. 통 안의 해적 위치를 AI 도 모른다. 사람과 똑같이 무작위로 고른다.
 --------------------------------------------------
+-- Phase 24 : 방장 · 시작 버튼
+--   먼저 앉은 사람(AI 제외)이 방장. 시작 인원(보통 2명, AI 포함)이 차면 방장 화면에 「▶ 시작」이 켜진다.
+--   방장이 누르면 HostCountdown 초 뒤 시작. 방장이 안 누르면 WaitForHost 초 뒤 자동 시작 (자리 비운 방장 때문에 멈추지 않게).
+--   자리가 다 차면 FullCountdown 초 뒤 바로 시작. 연습 판은 예전처럼 바로 시작한다.
+GameConfig.Lobby = {
+	HostStart = true,
+	WaitForHost = 30,
+	FullCountdown = 5,
+	HostCountdown = 3,
+}
+
 GameConfig.Bots = {
 	Enabled = true,
 	FillDelay = 10, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다 (Phase 24 : 4초 → 10초. 사람이 모일 틈을 준다)
-	TargetSeated = 3, -- AI 를 채워서 맞출 인원 (좌석이 모자라면 좌석 수 - 1)
+	TargetSeated = 0, -- Phase 24 : 0 = 테이블 크기에 맞춘다 (좌석 수 - KeepFreeSeats). 숫자를 넣으면 그 인원까지만 (예전 3)
 	KeepFreeSeats = 1, -- 사람이 들어올 자리는 항상 남겨 둔다
 	RewardScale = 0.6,
 	ThinkMin = 1.1, -- 자기 차례에 고르기까지 걸리는 시간

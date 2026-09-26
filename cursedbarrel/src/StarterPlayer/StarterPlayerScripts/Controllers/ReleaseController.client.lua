@@ -114,23 +114,53 @@ local rejoin=button(spectateBar,"다음 판 참가",UDim2.fromOffset(5,98),UDim2
 --   누르면 설정(aiCrew)이 저장되어 다시 바꿀 때까지 어느 테이블에서나 그대로 간다. (설정 탭에도 같은 항목이 있다)
 --   앉은 사람 중 한 명이라도 끄면 그 테이블에는 AI 가 오지 않는다.
 local aiBar=Instance.new("Frame");aiBar.Name="AiCrewBar";aiBar.AnchorPoint=Vector2.new(0.5,1);aiBar.Position=UDim2.new(0.5,0,1,-18)
-aiBar.Size=UDim2.fromOffset(240,94);aiBar.BackgroundTransparency=1;aiBar.Visible=false;aiBar.Parent=gui
+aiBar.Size=UDim2.fromOffset(440,94);aiBar.BackgroundTransparency=1;aiBar.Visible=false;aiBar.Parent=gui
 UIKit.autoScale(aiBar,UIKit.phoneFactor)
 local aiHint=UIKit.label(aiBar,{text="",position=UDim2.fromOffset(0,0),size=UDim2.new(1,0,0,30),textSize=16,color=UIKit.Colors.Cream,stroke=2,wrap=true})
 local function aiCrewOn() return player:GetAttribute("Setting_aiCrew")~=false end
-local aiButton
+local aiButton,startButton
+local barTable=nil -- 지금 버튼 막대가 보고 있는 테이블
+local barLook={} -- 마지막으로 칠한 모양 (같으면 다시 칠하지 않는다)
+local function paint(b,text,theme)
+ if barLook[b]~=text..theme then barLook[b]=text..theme;b.Text=text;UIKit.setTheme(b,theme) end
+end
+-- Phase 24 : 🤖 AI 선원 버튼 + 👑 방장의 「▶ 시작」 버튼
+--   방장 = 먼저 앉은 사람. 시작 인원(AI 포함)이 차면 방장이 눌러 바로 시작. 안 누르면 30초 뒤 자동 시작.
 local function drawAiBar()
+ local t=barTable
  local on=aiCrewOn()
  if data and data.settings and data.settings.aiCrew~=nil then on=data.settings.aiCrew~=false end
- aiButton.Text=on and "🤖 AI 선원 켬" or "🤖 AI 선원 끔"
- UIKit.setTheme(aiButton,on and "green" or "grey")
- aiHint.Text=on and "혼자면 잠시 뒤 AI 가 와요" or "사람만 기다려요"
+ local tableType=t and t:GetAttribute(Config.TableAttributes.TableType)
+ local tourney=tableType and TableConfig.Types[tableType] and TableConfig.Types[tableType].Tournament
+ paint(aiButton,on and "🤖 AI 선원 켬" or "🤖 AI 선원 끔",on and "green" or "grey")
+ local hint=on and (tourney and "AI 와 한 판은 토너먼트 점수가 없어요" or "혼자면 잠시 뒤 AI 가 와요") or "사람만 기다려요"
+ local hostId=t and t:GetAttribute(Config.TableAttributes.HostUserId) or 0
+ local seated=t and t:GetAttribute(Config.TableAttributes.SeatedCount) or 0
+ local need=t and t:GetAttribute(Config.TableAttributes.MinPlayers) or 2
+ startButton.Visible=hostId~=0
+ if hostId==player.UserId then
+  local ready=seated>=need
+  paint(startButton,ready and "▶ 시작" or ("▶ %d명부터"):format(need),ready and "gold" or "grey")
+  startButton.Active=ready
+  hint=hint.."  ·  👑 내가 방장"
+ elseif hostId~=0 then
+  local host=Players:GetPlayerByUserId(hostId)
+  paint(startButton,"👑 "..(host and host.DisplayName or "방장"),"grey")
+  startButton.Active=false
+  hint=hint.."  ·  방장이 시작해요"
+ end
+ aiHint.Text=hint
 end
-aiButton=button(aiBar,"🤖 AI 선원 켬",UDim2.fromOffset(20,38),UDim2.fromOffset(200,52),function()
+aiButton=button(aiBar,"🤖 AI 선원 켬",UDim2.fromOffset(10,38),UDim2.fromOffset(205,52),function()
  local on=aiCrewOn()
  if data and data.settings and data.settings.aiCrew~=nil then on=data.settings.aiCrew~=false end
  queueSetting("aiCrew",not on);drawAiBar()
 end,"green")
+startButton=button(aiBar,"▶ 시작",UDim2.fromOffset(225,38),UDim2.fromOffset(205,52),function()
+ if not startButton.Active then return end
+ local r=remotes:FindFirstChild("TableStart")
+ if r then r:FireServer() end
+end,"gold")
 player:GetAttributeChangedSignal("Setting_aiCrew"):Connect(drawAiBar)
 local function tableById(id)
  if not id then return nil end
@@ -153,8 +183,8 @@ function draw()
    if t:IsDescendantOf(workspace) and t~=mine and isLive(t) and (t:GetAttribute("SeatedCount") or 0)>0 then
     shown+=1
     local state=t:GetAttribute(Config.TableAttributes.State)
-    local stage,stages=t:GetAttribute(Config.TableAttributes.Stage) or 0,t:GetAttribute(Config.TableAttributes.StageCount) or 0
-    local info=state==Config.States.Countdown and lang("곧 시작","Starting soon") or (stages>0 and stage>0 and (lang("라운드 ","Round ")..stage.."/"..stages) or lang("진행 중","In progress"))
+    local stage,final=t:GetAttribute(Config.TableAttributes.Stage) or 0,t:GetAttribute(Config.TableAttributes.FinalRound)==true
+    local info=state==Config.States.Countdown and lang("곧 시작","Starting soon") or (stage>0 and (lang("라운드 ","Round ")..stage..(final and lang(" · 결승"," · Final") or "")) or lang("진행 중","In progress"))
     local r=row((t:GetAttribute("DisplayName") or t.Name).."  👥 "..tostring(t:GetAttribute("SeatedCount") or 0).."/"..tostring(t:GetAttribute("SeatCount") or 0).."\n"..info)
     action(r,lang("관전","Spectate"),function() spectate(t) end)
    end
@@ -323,12 +353,11 @@ local function chooseMusic(t,watching)
  for key in pairs(Release.Audio) do A[key]=Release.audioId(key) end
  local model=t or (watching and tableById(player:GetAttribute("SpectateTableId")))
  if model and isLive(model) then
-  local stage=model:GetAttribute(Config.TableAttributes.Stage) or 0
-  local stages=model:GetAttribute(Config.TableAttributes.StageCount) or 0
   -- Phase 24 : 게임 음악을 재생할 수 없으면 로비 음악을 조금 빠르게라도 튼다 (아예 조용하지 않게)
   local match,speed=A.Match or 0,1
   if match<=0 then match,speed=A.Lobby or 0,1.06 end
-  if stages>=2 and stage>=stages then
+  -- Phase 24 : 결승(셋 이상 시작해 둘이 남음)이면 결승 음악
+  if model:GetAttribute(Config.TableAttributes.FinalRound)==true then
    if (A.MatchFinal or 0)>0 then return A.MatchFinal,1 end
    return match,speed+0.08 -- 결승 음악이 없으면 게임 음악을 조금 빠르게
   end
@@ -386,9 +415,11 @@ local heartbeat=Run.Heartbeat:Connect(function()
  local waitingAt=t and t:GetAttribute(Config.TableAttributes.State)
  local tableType=t and t:GetAttribute(Config.TableAttributes.TableType)
  local botsAllowed=t~=nil and not (tableType and TableConfig.Types[tableType] and TableConfig.Types[tableType].NoBots)
- local showAi=botsAllowed and (waitingAt==Config.States.Waiting or waitingAt==Config.States.Countdown) and (t:GetAttribute(Config.TableAttributes.Tutorial) or 0)==0
- if showAi and not aiBar.Visible then drawAiBar() end
- aiBar.Visible=showAi
+ local showBar=t~=nil and (waitingAt==Config.States.Waiting or waitingAt==Config.States.Countdown) and (t:GetAttribute(Config.TableAttributes.Tutorial) or 0)==0
+ aiButton.Visible=botsAllowed
+ barTable=t
+ if showBar then drawAiBar() end
+ aiBar.Visible=showBar
  local camera=workspace.CurrentCamera
  local q=FX.quality();local reduced=player:GetAttribute("Setting_reducedFX")==true
  for e,rate in pairs(emitters) do

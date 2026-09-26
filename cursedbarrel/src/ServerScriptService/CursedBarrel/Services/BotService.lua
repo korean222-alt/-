@@ -13,7 +13,7 @@
 	  · 게임 중에는 떠나지 않는다. (해적에게 탈락하면 그때 사라진다)
 
 	Phase 12
-	  · 토너먼트 테이블(config.NoBots)에는 앉지 않는다.
+	  · config.NoBots 인 테이블에는 앉지 않는다. (Phase 24 : 토너먼트 테이블은 이제 앉는다 · 점수 없는 연습 판)
 	  · 연습 판(Tutorial) : 처음 온 사람이 "AI 와 연습 한 판"을 누르면 빈 테이블에 앉히고, AI 가 곧바로 앉는다.
 
 	AI 의 차례 · 잡기 · 배짱은 RoundService 가 사람과 같은 규칙으로 처리한다.
@@ -344,7 +344,12 @@ end
 function BotService:_targetSeated(gameTable)
 	local seats = #gameTable:GetSeats()
 	local minPlayers = gameTable:GetMinPlayers()
-	local target = math.max(minPlayers, tonumber(BOTS.TargetSeated) or minPlayers)
+	-- Phase 24 : TargetSeated 가 0 이면 테이블 크기에 맞춘다 (4인 → 3명 · 6인 → 5명, 한 자리는 사람용으로 비운다)
+	local wanted = tonumber(BOTS.TargetSeated) or 0
+	if wanted <= 0 then
+		wanted = seats
+	end
+	local target = math.max(minPlayers, wanted)
 	target = math.min(target, seats - (tonumber(BOTS.KeepFreeSeats) or 1))
 	return math.min(seats, math.max(minPlayers, target))
 end

@@ -1911,9 +1911,11 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 		end
 	elseif kind == "Stage" then
 		-- Phase 15 : 한 명이 떨어지고 다음 라운드가 시작된다
+		-- Phase 24 : 통을 새로 채울 때마다 (칼을 다 꽂았거나 누가 탈락해서) 다음 라운드
 		if own and model:GetAttribute(TABLE_ATTR.Stage) then
-			local stage, total = tonumber(data.stage) or 1, tonumber(data.total) or 1
-			announce(stage >= total and "결승!" or ("%d 라운드!"):format(stage), stage >= total and gold or teal, 1.6)
+			local stage = tonumber(data.stage) or 1
+			local final = data.final == true
+			announce(final and ("결승! · %d 라운드"):format(stage) or ("%d 라운드!"):format(stage), final and gold or teal, 1.6)
 			sound("riser", 1.1, 0.12)
 		end
 	end
@@ -1939,11 +1941,12 @@ local potBase = potLabel.TextSize
 --   남은 자리가 적을수록(위험할수록) 더 빠르고 크게 뛴다. heartbeat.ogg(ReleaseConfig.Audio.Heartbeat)가 있으면 그 소리.
 --------------------------------------------------
 local AUDIO = require(package.Shared:WaitForChild("ReleaseConfig")).Audio
-local function heartRate(stage, stages, danger)
+-- Phase 24 : 라운드(통)가 더 자주 바뀌므로 라운드마다 +8, 결승은 +14
+local function heartRate(stage, final, danger)
 	local round = math.max(1, tonumber(stage) or 1)
-	local bpm = 64 + 14 * (round - 1)
-	if (tonumber(stages) or 0) >= 2 and round >= stages then
-		bpm += 10
+	local bpm = 64 + 8 * (round - 1)
+	if final then
+		bpm += 14
 	end
 	return math.min(156, bpm + 28 * danger)
 end
@@ -2058,13 +2061,13 @@ Run.Heartbeat:Connect(function()
 		hud.Visible = not focusNow
 		detail.Visible = not focusNow
 		title.Text = model:GetAttribute("DisplayName") or model.Name
-		-- 라운드 : 한 명이 떨어질 때마다 올라간다. 마지막 둘이 겨루면 "결승"
+		-- 라운드 : Phase 24 부터 통 하나가 한 라운드 (칼을 다 꽂으면 다음 라운드). 셋 이상 시작해 둘이 남으면 "결승"
 		local stage = model:GetAttribute(TABLE_ATTR.Stage) or 0
-		local stages = model:GetAttribute(TABLE_ATTR.StageCount) or 0
+		local stages = model:GetAttribute(TABLE_ATTR.FinalRound) == true -- heartRate 에 넘기는 결승 여부
 		local inRound = current == "Playing" or current == "Starting"
-		roundChip.Visible = (inRound or current == "RoundEnding") and stages >= 1 and stage >= 1
+		roundChip.Visible = (inRound or current == "RoundEnding") and stage >= 1
 		if roundChip.Visible then
-			roundLabel.Text = ("라운드 %d/%d%s"):format(stage, stages, stages > 1 and stage >= stages and " · 결승" or "")
+			roundLabel.Text = stages and ("라운드 %d · 결승"):format(stage) or ("라운드 %d"):format(stage)
 		end
 		-- 남은 사람 · 현상금
 		local alive = model:GetAttribute(TABLE_ATTR.TurnCount) or 0

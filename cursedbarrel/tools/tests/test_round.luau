@@ -214,5 +214,29 @@ do
 		result and result.accuracy <= maxAcc)
 end
 
+-- E) 방장 · 시작 버튼 : 먼저 앉은 사람이 방장, 둘 이상이면 방장만 시작을 당길 수 있다
+do
+	local t = newTable("Standard4")
+	local a, b = human("A5"), human("B5")
+	t:Sit(a)
+	RoundService:_attach(t)
+	local round = RoundService:GetRound(t)
+	task.wait(0.05)
+	check("E host is first seated", t.model:GetAttribute(GameConfig.TableAttributes.HostUserId) == a.UserId)
+	check("E host cannot start alone", round:HostStart(a) == false)
+	t:Sit(b)
+	task.wait(0.05)
+	local left = (t.model:GetAttribute(GameConfig.TableAttributes.CountdownEndsAt) or 0) - GameConfig.now()
+	check(("E waits for host (%.0fs)"):format(left), t.state == GameConfig.States.Countdown and left > 20)
+	check("E non-host cannot start", round:HostStart(b) == false)
+	check("E host starts", round:HostStart(a) == true)
+	left = (t.model:GetAttribute(GameConfig.TableAttributes.CountdownEndsAt) or 0) - GameConfig.now()
+	check(("E short countdown after start (%.1fs)"):format(left), left <= GameConfig.Lobby.HostCountdown + 0.1)
+	t:RemovePlayer(a)
+	task.wait(0.05)
+	check("E host passes to next seated", t.model:GetAttribute(GameConfig.TableAttributes.HostUserId) == b.UserId)
+	RoundService:_detach(t)
+end
+
 print(H.failed and "SOME TESTS FAILED" or "ALL PASSED")
 require("@lune/process").exit(H.failed and 1 or 0)

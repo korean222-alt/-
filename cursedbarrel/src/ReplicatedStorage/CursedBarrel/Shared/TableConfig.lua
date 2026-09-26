@@ -152,11 +152,11 @@ end
 TableConfig.Types.PartyCards6 = table.clone(TableConfig.Types.Party6)
 TableConfig.Types.PartyCards6.DisplayName = "파티 카드 · 6인"
 TableConfig.Types.PartyCards6.SpecialCards = true
--- Phase 12 : 토너먼트 테이블. 4판 연속 점수로 시즌 순위를 겨룬다. AI 선원은 앉지 않는다.
+-- Phase 12 : 토너먼트 테이블. 4판 연속 점수로 시즌 순위를 겨룬다.
+-- Phase 24 : AI 선원도 앉을 수 있다 (다른 테이블처럼 AI 켜기/끄기 버튼). AI 가 낀 판은 연습 판이라 토너먼트 점수는 없다.
 TableConfig.Types.Tournament4 = table.clone(TableConfig.Types.Standard4)
 TableConfig.Types.Tournament4.DisplayName = "토너먼트 테이블"
 TableConfig.Types.Tournament4.Tournament = true
-TableConfig.Types.Tournament4.NoBots = true
 if game:GetService("RunService"):IsStudio() and require(script.Parent.ReleaseConfig).StudioSolo then
  for _, preset in pairs(TableConfig.Types) do preset.MinPlayers = 1 end
 end

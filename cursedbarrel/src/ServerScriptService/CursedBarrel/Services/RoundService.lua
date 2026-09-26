@@ -100,6 +100,7 @@ local catchPrompt = ensureRemote(GameConfig.Remotes.CatchPrompt)
 local catchInput = ensureRemote(GameConfig.Remotes.CatchInput)
 local catchResult = ensureRemote(GameConfig.Remotes.CatchResult)
 local sabotageCue = ensureRemote(GameConfig.Remotes.SabotageCue)
+local startRemote = ensureRemote("TableStart") -- Phase 24 : 방장의 「▶ 시작」
 local braveRemote = ensureRemote(GameConfig.Remotes.Brave)
 local CATCH = GameConfig.Catch
 local BRAVE = GameConfig.Brave
@@ -175,6 +176,12 @@ function Round.new(gameTable)
 	self.countdownToken = 0
 	self.turnToken = 0
 	self.phaseToken = 0
+	self.seatedAt = {} -- Phase 24 : [Player] = 앉은 순서 (방장 = 가장 먼저 앉은 사람)
+	self.seatSerial = 0
+	for _, occupant in ipairs(gameTable:GetPlayers()) do
+		self.seatSerial += 1
+		self.seatedAt[occupant] = self.seatSerial
+	end
 
 	self.cleaner:add(gameTable.RosterChanged:Connect(function(_, player, joined)
 		self:_onRosterChanged(player, joined)
@@ -301,6 +308,7 @@ function Round:_resetRoundAttributes()
 	self:_set(TABLE_ATTR.PredictOpen, false)
 	self:_set(TABLE_ATTR.Stage, 0)
 	self:_set(TABLE_ATTR.StageCount, 0)
+	self:_set(TABLE_ATTR.FinalRound, false)
 	self:_set(TABLE_ATTR.WinnerTakesAll, self:_winnerTakesAll())
 	self:_clearBraveOffer()
 	self:_writeSeatOrder()
@@ -331,18 +339,73 @@ function Round:_earn(player, coins, metric, potExtra)
 	end
 end
 
--- 지금 몇 라운드인가. 한 명이 떨어질 때마다 한 라운드 올라간다. (4명이면 1 → 2 → 3(결승))
+-- 지금 몇 라운드인가.
+-- Phase 24 : 통 하나가 한 라운드다. 칼을 다 꽂아 통을 새로 채우면(누가 탈락해 새로 채울 때도) 다음 라운드.
+--   (예전에는 한 명이 떨어질 때마다 올라가서 칼을 다 꽂아도 라운드가 그대로였다)
+--   3명 이상으로 시작한 판에서 둘만 남으면 "결승" (FinalRound).
 function Round:_publishStage()
-	local total = math.max(1, (self.startingCount or 1) - 1)
-	local stage = math.clamp((self.startingCount or 1) - #self.participants + 1, 1, total)
+	local stage = math.max(1, self.barrelCycle or 1)
+	local final = (self.startingCount or 0) >= 3 and #self.participants == 2
 	self:_set(TABLE_ATTR.Stage, stage)
-	self:_set(TABLE_ATTR.StageCount, total)
-	return stage, total
+	self:_set(TABLE_ATTR.StageCount, 0)
+	self:_set(TABLE_ATTR.FinalRound, final)
+	return stage, final
 end
 
 --------------------------------------------------
 -- 상태 판단
 --------------------------------------------------
+
+-- Phase 24 : 방장 = 지금 앉아 있는 사람(AI 제외) 중 가장 먼저 앉은 사람
+function Round:_host()
+	local best, bestOrder = nil, math.huge
+	for _, occupant in ipairs(self.gameTable:GetPlayers()) do
+		local order = self.seatedAt[occupant]
+		if not GameConfig.isBot(occupant) and order and order < bestOrder then
+			best, bestOrder = occupant, order
+		end
+	end
+	return best
+end
+
+function Round:_publishHost()
+	local host = self:_host()
+	self:_set(TABLE_ATTR.HostUserId, host and host.UserId or 0)
+end
+
+-- 대기 중 카운트다운 길이 (Phase 24)
+function Round:_lobbyCountdown()
+	local lobby = GameConfig.Lobby
+	local tutorialId = self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+	if not (lobby and lobby.HostStart) or (tutorialId and tutorialId ~= 0) then
+		return nil -- 예전처럼 테이블 설정의 CountdownDuration
+	end
+	if self.gameTable:GetPlayerCount() >= #self.gameTable:GetSeats() then
+		return lobby.FullCountdown
+	end
+	return lobby.WaitForHost
+end
+
+-- 방장이 「▶ 시작」을 눌렀다
+function Round:HostStart(player)
+	local lobby = GameConfig.Lobby
+	if not (lobby and lobby.HostStart) or self.destroyed or self.gameTable.destroyed then
+		return false
+	end
+	local state = self.gameTable.state
+	if state ~= STATES.Waiting and state ~= STATES.Countdown then
+		return false
+	end
+	if self:_host() ~= player or self.gameTable:GetPlayerCount() < self:_minPlayers() then
+		return false
+	end
+	local left = (tonumber(self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.CountdownEndsAt)) or 0) - GameConfig.now()
+	if state == STATES.Countdown and left <= lobby.HostCountdown then
+		return true
+	end
+	self:_startCountdown(lobby.HostCountdown)
+	return true
+end
 
 function Round:_evaluate()
 	if self.destroyed or self.gameTable.destroyed then
@@ -352,14 +415,22 @@ function Round:_evaluate()
 	local state = self.gameTable.state
 	local seated = self.gameTable:GetPlayerCount()
 	local minPlayers = self:_minPlayers()
+	self:_publishHost()
 
 	if state == STATES.Waiting then
 		if seated >= minPlayers then
-			self:_startCountdown()
+			self:_startCountdown(self:_lobbyCountdown())
 		end
 	elseif state == STATES.Countdown then
 		if seated < minPlayers then
 			self:_cancelCountdown()
+		else
+			-- Phase 24 : 기다리는 중에 자리가 다 찼으면 짧게 줄인다
+			local want = self:_lobbyCountdown()
+			local left = (tonumber(self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.CountdownEndsAt)) or 0) - GameConfig.now()
+			if want and left > want + 0.5 then
+				self:_startCountdown(want)
+			end
 		end
 	end
 	-- 게임 중의 인원 변화는 RemoveParticipant 가 따로 처리한다.
@@ -369,8 +440,8 @@ end
 -- 카운트다운
 --------------------------------------------------
 
-function Round:_startCountdown()
-	local duration = tonumber(self.gameTable.config.CountdownDuration) or 5
+function Round:_startCountdown(override)
+	local duration = tonumber(override) or tonumber(self.gameTable.config.CountdownDuration) or 5
 	if duration <= 0 then
 		duration = 0.1
 	end
@@ -540,6 +611,11 @@ function Round:_refillBarrel()
 	self:_set(TABLE_ATTR.BarrelCycle, self.barrelCycle)
 	self:_set(TABLE_ATTR.SlotsRemaining, slotCount)
 	self:_publishPirateCount()
+	-- Phase 24 : 새 통 = 새 라운드. 게임 중에 채울 때만 "N 라운드!" 를 알린다 (첫 통은 "시작!" 이 대신한다)
+	local stage, final = self:_publishStage()
+	if gameTable.state == STATES.Playing and self.barrelCycle > 1 then
+		presentation:FireAllClients("Stage", gameTable.model, { stage = stage, final = final, alive = #self.participants })
+	end
 
 	-- 로그에도 위험 자리 번호는 남기지 않는다.
 	GameConfig.log(("%s 통 %d번째 채움 · 칼 %d자루 · 해적 %d마리")
@@ -1752,7 +1828,7 @@ function Round:_eliminate(player)
 			return
 		end
 
-		-- 아직 둘 이상 남았다 → 통을 새로 채우고(해적도 새로 숨긴다) 다음 라운드로 올라간다.
+		-- 아직 둘 이상 남았다 → 통을 새로 채우고(해적도 새로 숨긴다) 다음 라운드로 올라간다. (알림은 _refillBarrel 이 한다)
 		if gameTable.config.RefillOnElimination then
 			self:_refillBarrel()
 		end
@@ -1761,8 +1837,13 @@ function Round:_eliminate(player)
 			return
 		end
 
-		local stage, total = self:_publishStage()
-		presentation:FireAllClients("Stage", gameTable.model, { stage = stage, total = total, alive = #self.participants })
+		if not gameTable.config.RefillOnElimination then
+			-- 통을 그대로 쓰는 테이블 : 라운드는 그대로, 결승이 되었을 때만 알린다
+			local stage, final = self:_publishStage()
+			if final then
+				presentation:FireAllClients("Stage", gameTable.model, { stage = stage, final = true, alive = #self.participants })
+			end
+		end
 		self:_beginTurn(self.turnIndex + 1)
 	end)
 end
@@ -2079,6 +2160,14 @@ function Round:_onRosterChanged(player, joined)
 
 	-- 누가 앉거나 일어날 때마다 이 테이블의 통 스킨을 다시 고른다. (Phase 7)
 	self.gameTable:RefreshBarrelSkin()
+	-- Phase 24 : 앉은 순서 (방장)
+	if joined then
+		self.seatSerial = (self.seatSerial or 0) + 1
+		self.seatedAt[player] = self.seatSerial
+	else
+		self.seatedAt[player] = nil
+	end
+	self:_publishHost()
 
 	if joined then
 		self:_writeSeatOrder()
@@ -2319,6 +2408,24 @@ function RoundService:Start()
 		end)
 		if not ok then
 			warn("[CursedBarrel] 잡기 입력 처리 중 오류: " .. tostring(err))
+		end
+	end))
+
+	-- Phase 24 : 방장의 「▶ 시작」
+	local startLimiter = Utility.RateLimiter.new(0.5)
+	self._cleaner:add(startRemote.OnServerEvent:Connect(function(player)
+		local ok, err = pcall(function()
+			if not startLimiter:check(player.UserId) then
+				return
+			end
+			local gameTable = TableService:GetTableOfPlayer(player)
+			local round = gameTable and self._rounds[gameTable]
+			if round then
+				round:HostStart(player)
+			end
+		end)
+		if not ok then
+			warn("[CursedBarrel] 시작 요청 처리 중 오류: " .. tostring(err))
 		end
 	end))
 
