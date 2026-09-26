@@ -37,7 +37,7 @@ local function volumeScale()
 end
 
 local function idOf(kind)
-	local id = tonumber(Release.Audio and Release.Audio[kind]) or 0
+	local id = Release.audioId and Release.audioId(kind) or (tonumber(Release.Audio and Release.Audio[kind]) or 0)
 	if id > 0 then
 		return "rbxassetid://" .. id, 1
 	end
@@ -83,7 +83,7 @@ function Sfx.play(kind, opts)
 end
 
 function Sfx.loop(kind, volume)
-	local id = tonumber(Release.Audio and Release.Audio[kind]) or 0
+	local id = Release.audioId and Release.audioId(kind) or (tonumber(Release.Audio and Release.Audio[kind]) or 0)
 	if id <= 0 then
 		return nil
 	end

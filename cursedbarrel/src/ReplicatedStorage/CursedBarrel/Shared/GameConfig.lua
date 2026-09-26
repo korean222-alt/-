@@ -1260,15 +1260,16 @@ GameConfig.Skins.Chair = {
  {id="captain",name="선장의 황금좌",rarity="epic",price=130900,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
  {id="dragon_throne",name="해룡의 왕좌",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
+-- Phase 24 : 탈락 · 승리 연출 가격을 30% 내렸다 (연출에 비해 비쌌다). 이미 산 사람은 그대로.
 GameConfig.Skins.Elimination = {
  {id="classic",name="유령의 흔적",rarity="common",price=0},
- {id="rift",name="심연의 균열",rarity="epic",price=138900,fx={theme="void",emit=Color3.fromRGB(186,102,255)}},
- {id="dragon_devour",name="용의 심판",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
+ {id="rift",name="심연의 균열",rarity="epic",price=96900,fx={theme="void",emit=Color3.fromRGB(186,102,255)}},
+ {id="dragon_devour",name="용의 심판",rarity="mythic",price=349000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
 GameConfig.Skins.Victory = {
  {id="classic",name="선장의 경례",rarity="common",price=0},
- {id="solar_crown",name="태양의 대관식",rarity="epic",price=144900,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
- {id="dragon_ascension",name="쌍룡 승천",rarity="mythic",price=499000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
+ {id="solar_crown",name="태양의 대관식",rarity="epic",price=100900,fx={theme="solar",emit=Color3.fromRGB(255,198,87)}},
+ {id="dragon_ascension",name="쌍룡 승천",rarity="mythic",price=349000,fx={theme="dragon",emit=Color3.fromRGB(68,240,218)}},
 }
 local themes = {
  {id="tide_dragon",name="청해룡",theme="dragon",color=Color3.fromRGB(68,240,218),accent=Color3.fromRGB(255,212,126)},
@@ -1298,17 +1299,17 @@ GameConfig.TableTypeByName.Table_H = "PartyCards6"
 -- Phase 12 : 승리 · 탈락 연출 추가 (전부 모양일 뿐이다)
 --------------------------------------------------
 for _, skin in ipairs({
-	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 68900, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
-	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 142900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
-	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 148900, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
-	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 291900, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
+	{ id = "gold_rain", name = "황금 비", rarity = "rare", price = 47900, fx = { theme = "solar", emit = Color3.fromRGB(255, 214, 90) } },
+	{ id = "frost_crown", name = "서리 왕관", rarity = "epic", price = 99900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+	{ id = "kraken_embrace", name = "크라켄의 포옹", rarity = "epic", price = 103900, fx = { theme = "kraken", emit = Color3.fromRGB(196, 130, 255) } },
+	{ id = "storm_lord", name = "폭풍의 군주", rarity = "legend", price = 203900, fx = { theme = "void", emit = Color3.fromRGB(150, 200, 255), accent = Color3.fromRGB(240, 248, 255) } },
 }) do
 	table.insert(GameConfig.Skins.Victory, skin)
 end
 for _, skin in ipairs({
-	{ id = "ink_burst", name = "먹물 폭발", rarity = "rare", price = 64900, fx = { theme = "kraken", emit = Color3.fromRGB(96, 50, 130) } },
-	{ id = "ember_ash", name = "잿더미", rarity = "epic", price = 140900, fx = { theme = "phoenix", emit = Color3.fromRGB(255, 120, 50) } },
-	{ id = "frost_shatter", name = "얼음 파편", rarity = "epic", price = 140900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
+	{ id = "ink_burst", name = "먹물 폭발", rarity = "rare", price = 44900, fx = { theme = "kraken", emit = Color3.fromRGB(96, 50, 130) } },
+	{ id = "ember_ash", name = "잿더미", rarity = "epic", price = 97900, fx = { theme = "phoenix", emit = Color3.fromRGB(255, 120, 50) } },
+	{ id = "frost_shatter", name = "얼음 파편", rarity = "epic", price = 97900, fx = { theme = "frost", emit = Color3.fromRGB(190, 235, 255) } },
 }) do
 	table.insert(GameConfig.Skins.Elimination, skin)
 end

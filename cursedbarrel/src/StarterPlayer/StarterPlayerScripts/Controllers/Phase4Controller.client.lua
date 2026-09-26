@@ -580,9 +580,11 @@ local function sound(kind, pitch, volume)
 	local s = Instance.new("Sound")
 	s.SoundId = "rbxasset://sounds/" .. (paths[kind] or paths.tick)
 	s.Volume = (volume or (kind == "danger" and 0.22 or 0.25))*(player:GetAttribute("Setting_sfx") or 0.65)
-    local audio=require(package.Shared:WaitForChild("ReleaseConfig")).Audio
-    local id=({danger=audio.Dragon,pick=audio.Impact,win=audio.Win,heartbeat=audio.Heartbeat,jackpot=audio.Jackpot})[kind]
-    if id and id>0 then s.SoundId="rbxassetid://"..id end
+    -- Phase 24 : 재생할 수 없는 음원(권한 · 심사)이면 기본 소리를 그대로 쓴다 (예전에는 소리가 아예 안 났다)
+    local Release=require(package.Shared:WaitForChild("ReleaseConfig"))
+    local key=({danger="Dragon",pick="Impact",win="Win",heartbeat="Heartbeat",jackpot="Jackpot"})[kind]
+    local id=key and Release.audioId(key) or 0
+    if id>0 then s.SoundId="rbxassetid://"..id end
 	s.PlaybackSpeed = pitch or 1
 	s.Parent = SoundService
 	s:Play()
@@ -1111,7 +1113,7 @@ local function stab(model, index, own, tension, userId, styleId)
 					shockRing(slot.CFrame, color)
 					burst(slot.Position, color, reduced and 4 or math.floor(6 + 6 * hit.power))
 					if own then
-						sound("pick", final and 1.55 or 2.1, final and 0.3 or 0.14)
+						sound("pick", final and 1.55 or 2.1, final and 0.6 or 0.42) -- Phase 24 : 칼 꽂는 소리가 작았다 (0.3 · 0.14 → 0.6 · 0.42)
 						if not reduced and final then
 							shakeUntil = math.max(shakeUntil, os.clock() + 0.12 + 0.06 * hit.power)
 						end
@@ -1256,7 +1258,7 @@ local function feint(model, atClock)
 		local low = CFrame.new(top + side - Vector3.new(0, 0.6, 0))
 		local high = CFrame.new(top + side + Vector3.new(0, 1.25, 0)) * CFrame.Angles(0, 0, math.rad(-15))
 		animatePivot(hand, low, high, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		sound("pick", 0.55, 0.22)
+		sound("pick", 0.55, 0.4)
 		local lid = lidOf(model)
 		if lid and lidBusy[lid] then
 			-- 뚜껑이 한 번 크게 들썩인다 (덜컹거리는 쪽이 이 값을 보고 들어 올린다)
@@ -1946,8 +1948,9 @@ local function heartRate(stage, stages, danger)
 	return math.min(156, bpm + 28 * danger)
 end
 local function heartbeatSound(danger, mine)
-	local volume = 0.1 + 0.2 * danger + (mine and 0.05 or 0)
-	if (tonumber(AUDIO.Heartbeat) or 0) > 0 then
+	local volume = 0.16 + 0.24 * danger + (mine and 0.06 or 0) -- Phase 24 : 조금 크게
+	local Release = require(package.Shared:WaitForChild("ReleaseConfig"))
+	if Release.audioId("Heartbeat") > 0 then
 		sound("heartbeat", 1 + 0.06 * danger, volume * 1.6)
 	else
 		-- 기본 소리로 "쿵-쿵" 두 번

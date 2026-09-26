@@ -973,7 +973,16 @@ shopResult.OnClientEvent:Connect(function(ok, message, payload)
 			elseif coins then
 				UIKit.rewardPopup({ text = coins .. " 코인", money = "cash3" })
 			elseif name then
-				UIKit.rewardPopup({ text = "「" .. name .. "」", emoji = "🎁" })
+				-- Phase 24 : 산 스킨을 이름으로 찾아 3D 모형으로 보여 준다
+				local found = nil
+				for kind, list in pairs(state and state.catalog or {}) do
+					for _, entry in ipairs(list) do
+						if entry.name == name then
+							found = { kind = kind, id = entry.id }
+						end
+					end
+				end
+				UIKit.rewardPopup({ text = "「" .. name .. "」", emoji = found and nil or "🎁", skin = found })
 			end
 		end
 	end

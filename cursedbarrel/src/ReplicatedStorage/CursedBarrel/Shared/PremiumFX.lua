@@ -74,6 +74,21 @@ local function poseDragon(dragon,base,time,phase,radius,rise)
   bone:PivotTo(CFrame.lookAt(point(t),point(t+0.06)))
  end
 end
+-- Phase 24 : 우승 · 탈락 대형 연출에서 용이 나선을 그리며 하늘로 솟는다 (dive 면 위에서 내리꽂는다)
+local function poseAscend(dragon,origin,time,life,phase,height,dive)
+ local function point(t)
+  local r=math.clamp(t/life,0,1)
+  local y=dive and height*(1-r) or height*r^1.15
+  local radius=dive and (1.2+2.6*(1-r)) or (3.4-2.1*r)
+  local angle=t*3.2+phase
+  return origin+Vector3.new(math.cos(angle)*radius,y+0.8,math.sin(angle)*radius)
+ end
+ dragon.head:PivotTo(CFrame.lookAt(point(time),point(time+0.05)))
+ for i,bone in ipairs(dragon.bones) do
+  local t=time-i*0.06
+  bone:PivotTo(CFrame.lookAt(point(t),point(t+0.04)))
+ end
+end
 function FX.previewDragon(parent,skin)
  local color,accent=themeColors(skin)
  local d=FX.dragon(parent,color,accent,16)
@@ -159,7 +174,24 @@ function FX.burst(position,skin,event,parent)
  local dragons={};local shards={}
  local life=event=="Win" and 3.6 or (event=="Pick" and 1.25 or 2.2)
  if reduced then life=0.8 end
- if theme=="dragon" and not reduced then
+ -- Phase 24 : 우승 · 탈락 스킨(기본 제외)의 대형 연출
+ --   하늘로 뻗는 빛기둥 + 바닥 충격파 + 나선을 그리며 솟는 용 (쌍룡은 두 마리, 탈락의 용은 위에서 내리꽂힌다)
+ local grand=(event=="Win" or event=="Eliminate") and skin~=nil and skin.fx~=nil and skin.fx.theme~=nil and not reduced
+ local height=parent and 9 or (event=="Win" and 34 or 16) -- 상점 미리보기 창 안에서는 낮게
+ local ascending={}
+ local pillar,shock
+ if grand then
+  life=event=="Win" and 4.6 or 3.2
+  pillar=part(root,"SkyPillar",Vector3.new(0.2,1.6,1.6),CFrame.new(position)*CFrame.Angles(0,0,math.pi/2),color,Enum.Material.Neon,Enum.PartType.Cylinder);pillar.Transparency=0.35
+  shock=part(root,"ShockRing",Vector3.new(0.12,2,2),CFrame.new(position)*CFrame.Angles(0,0,math.pi/2),accent,Enum.Material.Neon,Enum.PartType.Cylinder);shock.Transparency=0.2
+  if event=="Win" or theme=="dragon" then
+   local n=(event=="Win" and theme=="dragon" and not low) and 2 or 1
+   for i=1,n do
+    ascending[i]=FX.dragon(root,i==1 and color or accent,i==1 and accent or color,low and Config.FX.LowSegments or Config.FX.HighSegments)
+   end
+  end
+ end
+ if theme=="dragon" and not reduced and not grand then
   for i=1,((event=="Win" and not low) and 2 or 1) do dragons[i]=FX.dragon(root,color,accent,low and Config.FX.LowSegments or Config.FX.HighSegments) end
  else
   local n=low and 8 or 16
@@ -178,6 +210,17 @@ function FX.burst(position,skin,event,parent)
   for i,d in ipairs(dragons) do
    local rise=1.5+(event=="Win" and ratio*6 or math.sin(ratio*math.pi)*2)
    poseDragon(d,CFrame.new(position),t*1.6,(i-1)*math.pi,2.5+math.sin(ratio*math.pi)*1.5,rise)
+  end
+  if pillar then
+   local h=math.max(0.2,height*math.clamp(ratio*2.2,0,1))
+   local w=1.6*(1-ratio*0.6)
+   pillar.Size=Vector3.new(h,w,w)
+   pillar.CFrame=CFrame.new(position+Vector3.new(0,h*0.5,0))*CFrame.Angles(0,0,math.pi/2)
+   local s=2+ratio*(parent and 6 or 16)
+   shock.Size=Vector3.new(0.12,s,s)
+  end
+  for i,d in ipairs(ascending) do
+   poseAscend(d,position,t,life,(i-1)*math.pi,height,event=="Eliminate")
   end
   for i,p in ipairs(shards) do
    local angle=i/#shards*math.pi*2+t

@@ -60,6 +60,14 @@ C.Audio = {
  Click = 0, -- 버튼 · 탭 · 퀘스트 받기 등을 누를 때
  Open = 0, -- 창(상점 · 출석 · 항해 수첩 …)이 열릴 때
 }
+-- Phase 24 : 이 게임에서 재생할 수 없는 음원(권한 없음 · 심사 거절 · 삭제). 클라이언트가 켜질 때 채운다 (ReleaseController).
+--   여기에 들어간 소리는 0 인 것처럼 기본 소리로 대신한다.
+C.AudioFailed = {}
+function C.audioId(key)
+ local id = tonumber(C.Audio[key]) or 0
+ if id <= 0 or C.AudioFailed[key] then return 0 end
+ return id
+end
 C.Textures = { Rain = 0 }
 -- Phase 14 : 3D 모델(메시) ID. 0 이면 코드로 만든 모양을 쓴다.
 --   Studio 에서 MeshPart 를 가져온 뒤 속성창의 MeshId · TextureID 숫자를 적는다.

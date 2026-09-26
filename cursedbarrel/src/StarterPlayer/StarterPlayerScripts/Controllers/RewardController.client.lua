@@ -265,7 +265,7 @@ local function spinTo(result)
 	if result.kind == "coins" then
 		UIKit.rewardPopup({ text = ("%s 코인"):format(Utility.comma(result.amount or 0)), money = (result.amount or 0) >= 1000 and "chest" or "cash2" })
 	elseif result.kind == "skin" then
-		UIKit.rewardPopup({ text = ("「%s」"):format(result.skinName or "?"), emoji = "🎁" })
+		UIKit.rewardPopup({ text = ("「%s」"):format(result.skinName or "?"), emoji = "🎁", skin = result.skinKind and { kind = result.skinKind, id = result.skinId } or nil })
 	end
 end
 
@@ -622,7 +622,9 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 			shopRequest:FireServer("sync")
 			local coins = tonumber(info.coins) or 0
 			if info.skinName then
-				UIKit.rewardPopup({ text = ("「%s」"):format(tostring(info.skinName)), emoji = "🛢️" })
+				-- Phase 24 : 🛢 이모지(파란 네모) 대신 받은 스킨의 3D 모형
+				local like = GameConfig.LikeReward
+				UIKit.rewardPopup({ text = ("「%s」"):format(tostring(info.skinName)), skin = like and { kind = like.Kind, id = like.Skin } or nil })
 			else
 			UIKit.rewardPopup({ text = coins > 0 and ("%s 코인"):format(Utility.comma(coins)) or tostring(info.message or ""), money = coins > 0 and "cash3" or nil, emoji = coins > 0 and nil or "🎟️" })
 			end
@@ -632,7 +634,7 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 			likeResult.Text = ("🎉 「%s」 받았어요! (장착됨)"):format(tostring(result.skinName))
 			likeResult.TextColor3 = COLORS.Gold
 			shopRequest:FireServer("sync")
-			UIKit.rewardPopup({ text = ("「%s」"):format(tostring(result.skinName)), emoji = "🛢️" })
+			UIKit.rewardPopup({ text = ("「%s」"):format(tostring(result.skinName)), skin = { kind = result.kind, id = result.id } })
 		elseif result == "group" then
 			likeResult.Text = "그룹에 가입해야 받을 수 있어요"
 			likeResult.TextColor3 = COLORS.Red

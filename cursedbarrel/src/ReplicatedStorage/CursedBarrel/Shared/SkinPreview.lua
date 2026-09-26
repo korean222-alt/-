@@ -85,7 +85,12 @@ local function dummy(parent,base)
  local extras={{part=hat,to=head,offset=CFrame.new(0,0.62,0)*CFrame.Angles(0,0,math.pi/2)}}
  local function pose()
   for _,j in ipairs(motors) do if j.Part0 and j.Part1 then j.Part1.CFrame=j.Part0.CFrame*j.C0*j.C1:Inverse() end end
-  for _,e in ipairs(extras) do if e.part.Parent then e.part.CFrame=e.to.CFrame*e.offset end end
+  for _,e in ipairs(extras) do
+   if e.part.Parent then
+    -- 칼은 모델이라 CFrame 이 없다 → PivotTo (예전에는 여기서 매 프레임 오류가 나 칼이 발밑에 그대로 있었다)
+    if e.model then e.part:PivotTo(e.to.CFrame*e.offset) else e.part.CFrame=e.to.CFrame*e.offset end
+   end
+  end
  end
  pose()
  return m,pose,extras,ra,torso
@@ -111,10 +116,7 @@ local function scene(kind,skin,parent)
    local plan=StabMotion.plan(skin.style or "classic",0.32,skin.color)
    StabMotion.playBody(rig,plan)
   end
-  return m,function()
-   pose()
-   for _,e in ipairs(extras) do if e.model and e.part.Parent then e.part:PivotTo(e.to.CFrame*e.offset) end end
-  end,2.2,play
+  return m,pose,2.2,play
  end
  local event=kind=="Victory" and "Win" or "Eliminate"
  local shoulder=rig:FindFirstChild("Right Shoulder",true)

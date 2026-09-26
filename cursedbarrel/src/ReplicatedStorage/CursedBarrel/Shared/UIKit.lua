@@ -1078,46 +1078,7 @@ local function showPopup(opts)
 	scale.Parent = root
 	local fit = UIKit.screenScale() * (big and 1.05 or 0.9)
 
-	-- 빛살 (천천히 돈다)
-	local rays = Instance.new("Frame")
-	rays.Name = "Rays"
-	rays.AnchorPoint = Vector2.new(0.5, 0.5)
-	rays.Position = UDim2.fromScale(0.5, 0.42)
-	rays.Size = UDim2.fromOffset(340, 340) -- Phase 22 : 460 → 340 (빛살이 창보다 너무 크게 퍼졌다)
-	rays.BackgroundTransparency = 1
-	rays.ZIndex = 1
-	rays.Parent = root
-	for i = 0, 11 do
-		local ray = Instance.new("Frame")
-		ray.AnchorPoint = Vector2.new(0.5, 1)
-		ray.Position = UDim2.fromScale(0.5, 0.5)
-		ray.Size = UDim2.new(0, i % 2 == 0 and 46 or 26, 0.5, 0)
-		ray.BackgroundColor3 = accent:Lerp(Color3.new(1, 1, 1), 0.35)
-		ray.BorderSizePixel = 0
-		ray.Rotation = i * 30
-		ray.ZIndex = 1
-		ray.Parent = rays
-		local g = Instance.new("UIGradient")
-		g.Rotation = 90
-		g.Transparency = NumberSequence.new(1, 0.25)
-		g.Parent = ray
-	end
-	-- 가운데 빛 동그라미
-	local glow = Instance.new("Frame")
-	glow.AnchorPoint = Vector2.new(0.5, 0.5)
-	glow.Position = UDim2.fromScale(0.5, 0.42)
-	glow.Size = UDim2.fromOffset(200, 200)
-	glow.BackgroundColor3 = Color3.fromRGB(255, 250, 220)
-	glow.BackgroundTransparency = 0.25
-	glow.ZIndex = 2
-	glow.Parent = root
-	UIKit.corner(glow, UDim.new(1, 0))
-	local glowFade = Instance.new("UIGradient")
-	glowFade.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1),
-	})
-	glowFade.Rotation = 90
-	glowFade.Parent = glow
+	-- Phase 24 : 빛살 · 빛 동그라미를 걷어냈다. 막대가 가운데가 아니라 각자의 중심을 축으로 돌아 한쪽으로만 크게 쏠려 보였다.
 
 	-- 그림 : 돈 모양(3D · 그림) 또는 이모지
 	if opts.money then
@@ -1128,6 +1089,45 @@ local function showPopup(opts)
 		end)
 		if not ok then
 			opts.emoji = opts.emoji or "💰"
+		end
+	end
+	-- Phase 24 : 스킨을 받으면 이모지 대신 그 스킨의 3D 모형을 천천히 돌려 보여 준다 (opts.skin = { kind, id })
+	local skinView = nil
+	local modelKinds = { Knife = true, Barrel = true, Ghost = true, Chair = true } -- 동작 · 연출 스킨은 3D 로 보면 빛나는 공뿐이라 뺀다
+	if typeof(opts.skin) == "table" and modelKinds[opts.skin.kind] and opts.skin.id then
+		local ok, view = pcall(function()
+			local Config = require(script.Parent.GameConfig)
+			local skin = Config.findSkin(opts.skin.kind, opts.skin.id)
+			if not skin or skin.id ~= opts.skin.id then
+				return nil
+			end
+			local frame = Instance.new("ViewportFrame")
+			frame.Name = "SkinView"
+			frame.BackgroundTransparency = 1
+			frame.Size = UDim2.fromOffset(230, 210)
+			frame.Position = UDim2.new(0.5, -115, 0.42, -115)
+			frame.Ambient = Color3.fromRGB(175, 182, 205)
+			frame.LightColor = Color3.fromRGB(255, 238, 210)
+			frame.LightDirection = Vector3.new(-1, -1.2, -0.8)
+			frame.ZIndex = 3
+			frame:SetAttribute("NoStyle", true)
+			frame.Parent = root
+			local world = Instance.new("WorldModel")
+			world.Parent = frame
+			local model = require(script.Parent.SkinPreview).build(opts.skin.kind, skin, world)
+			local box, extent = model:GetBoundingBox()
+			local camera = Instance.new("Camera")
+			camera.FieldOfView = 30
+			camera.Parent = frame
+			frame.CurrentCamera = camera
+			local distance = math.max(extent.X, extent.Y, extent.Z) * 0.5 / math.tan(math.rad(15)) * 1.3 + 0.5
+			return { camera = camera, focus = box.Position, distance = distance }
+		end)
+		if ok and view then
+			skinView = view
+			opts.emoji = nil
+		elseif not opts.emoji then
+			opts.emoji = "🎁"
 		end
 	end
 	if opts.emoji then
@@ -1150,9 +1150,11 @@ local function showPopup(opts)
 		local t0 = os.clock()
 		while alive and root.Parent do
 			local t = os.clock() - t0
-			rays.Rotation = t * 40
 			title.Rotation = -4 + math.sin(t * 5) * 3
-			glow.BackgroundTransparency = 0.25 + 0.15 * math.sin(t * 7)
+			if skinView then
+				local angle = t * 1.2
+				skinView.camera.CFrame = CFrame.lookAt(skinView.focus + Vector3.new(math.sin(angle), 0.35, math.cos(angle)) * skinView.distance, skinView.focus)
+			end
 			task.wait()
 		end
 	end)

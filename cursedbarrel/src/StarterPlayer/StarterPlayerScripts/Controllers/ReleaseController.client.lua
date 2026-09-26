@@ -170,7 +170,7 @@ function draw()
   for i,tier in ipairs(Release.Season.Tiers) do
    local reward=tier.coins and (tier.coins..lang(" 코인"," coins")) or Config.findSkin(tier.kind,tier.skin).name
    local rr=row(tier.xp.." XP\n"..reward)
-   action(rr,data.season.claimed[tostring(i)] and "✓" or lang("받기","Claim"),function() pendingClaim=tier.coins and {text=tier.coins.." 코인",money="chest"} or {text="「"..reward.."」",emoji="🎁"};request:FireServer("season",i) end)
+   action(rr,data.season.claimed[tostring(i)] and "✓" or lang("받기","Claim"),function() pendingClaim=tier.coins and {text=tier.coins.." 코인",money="chest"} or {text="「"..reward.."」",skin={kind=tier.kind,id=tier.skin}};request:FireServer("season",i) end)
   end
  elseif tab=="party" then
   local r=row(lang("친구 +10% · 파티 +5%","Friend +10% · Party +5%"),70)
@@ -295,17 +295,44 @@ for i=1,2 do
  channels[i]={sound=s,level=0}
 end
 local front=1
+-- Phase 24 : 올린 음원이 이 게임에서 재생되는지 처음에 한 번 확인한다.
+--   음원은 올린 계정(또는 그룹)의 게임에서만 재생되고, 다른 곳이면 "권한 없음"으로 조용히 안 나온다.
+--   안 되는 음원은 Release.AudioFailed 에 적어 두고 기본 소리 · 다른 곡으로 대신한다. F9(개발자 콘솔)에 목록이 뜬다.
+task.spawn(function()
+ local list={}
+ for key,id in pairs(Release.Audio) do
+  if (tonumber(id) or 0)>0 then local s=Instance.new("Sound");s.Name=key;s.SoundId="rbxassetid://"..id;table.insert(list,s) end
+ end
+ local failed={}
+ pcall(function()
+  game:GetService("ContentProvider"):PreloadAsync(list,function(assetId,status)
+   if status==Enum.AssetFetchStatus.Failure then
+    for _,s in ipairs(list) do
+     if s.SoundId==assetId and not Release.AudioFailed[s.Name] then Release.AudioFailed[s.Name]=true;table.insert(failed,s.Name.." "..assetId) end
+    end
+   end
+  end)
+ end)
+ if #failed>0 then
+  warn("[CursedBarrel] 이 게임에서 재생할 수 없는 음원 (Creator Hub → 오디오 → 권한에서 이 게임을 허용하거나, 게임 주인 계정 · 그룹으로 다시 올려 주세요): "..table.concat(failed,", "))
+ end
+ for _,s in ipairs(list) do s:Destroy() end
+end)
 local function chooseMusic(t,watching)
- local A=Release.Audio
+ local A={} -- 재생할 수 없는 음원은 0 으로 본다
+ for key in pairs(Release.Audio) do A[key]=Release.audioId(key) end
  local model=t or (watching and tableById(player:GetAttribute("SpectateTableId")))
  if model and isLive(model) then
   local stage=model:GetAttribute(Config.TableAttributes.Stage) or 0
   local stages=model:GetAttribute(Config.TableAttributes.StageCount) or 0
+  -- Phase 24 : 게임 음악을 재생할 수 없으면 로비 음악을 조금 빠르게라도 튼다 (아예 조용하지 않게)
+  local match,speed=A.Match or 0,1
+  if match<=0 then match,speed=A.Lobby or 0,1.06 end
   if stages>=2 and stage>=stages then
    if (A.MatchFinal or 0)>0 then return A.MatchFinal,1 end
-   return A.Match or 0,1.08 -- 결승 음악이 없으면 게임 음악을 조금 빠르게
+   return match,speed+0.08 -- 결승 음악이 없으면 게임 음악을 조금 빠르게
   end
-  return A.Match or 0,1
+  return match,speed
  end
  -- Phase 12 : 로비 음악은 항해 시계를 따른다 (밤 · 안개 / 폭풍 · 습격)
  local phase=workspace:GetAttribute("WorldPhase")
