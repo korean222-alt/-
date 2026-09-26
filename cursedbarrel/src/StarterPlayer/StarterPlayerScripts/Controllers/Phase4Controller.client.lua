@@ -1915,7 +1915,7 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 		if own and model:GetAttribute(TABLE_ATTR.Stage) then
 			local stage = tonumber(data.stage) or 1
 			local final = data.final == true
-			announce(final and ("결승! · %d 라운드"):format(stage) or ("%d 라운드!"):format(stage), final and gold or teal, 1.6)
+			announce(("%d 라운드!"):format(stage), final and gold or teal, 1.6)
 			sound("riser", 1.1, 0.12)
 		end
 	end
@@ -2067,7 +2067,7 @@ Run.Heartbeat:Connect(function()
 		local inRound = current == "Playing" or current == "Starting"
 		roundChip.Visible = (inRound or current == "RoundEnding") and stage >= 1
 		if roundChip.Visible then
-			roundLabel.Text = stages and ("라운드 %d · 결승"):format(stage) or ("라운드 %d"):format(stage)
+			roundLabel.Text = ("라운드 %d"):format(stage) -- Phase 24 : "· 결승" 꼬리는 붙이지 않는다 (결승 음악 · 심장 박동만 바뀐다)
 		end
 		-- 남은 사람 · 현상금
 		local alive = model:GetAttribute(TABLE_ATTR.TurnCount) or 0

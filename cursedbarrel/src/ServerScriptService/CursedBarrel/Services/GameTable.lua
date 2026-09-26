@@ -333,6 +333,18 @@ function GameTable:_onPromptTriggered(player, seat)
 		return
 	end
 
+	-- Phase 24 : AI 가 테이블을 꽉 채워도 사람이 오면 AI 가 자리를 내준다 (기다리는 동안만)
+	local occupant = self.playerOfSeat[seat]
+	if occupant then
+		if not GameConfig.isBot(occupant) then
+			return
+		end
+		self:RemovePlayer(occupant) -- RosterChanged → BotService 가 몸을 치운다
+		if self.playerOfSeat[seat] or seat.Disabled then
+			return
+		end
+	end
+
 	seat:Sit(humanoid)
 end
 
@@ -506,11 +518,12 @@ function GameTable:_refresh()
 
 	local joinable = self:IsJoinable()
 	for _, seat in ipairs(self.seats) do
-		-- AI 선원이 앉은 의자는 비어 보이지만(Occupant 가 없다) 사람이 앉을 수 없다.
+		-- AI 선원이 앉은 의자는 비어 보이지만(Occupant 가 없다) 몸으로 부딪혀서는 앉을 수 없다.
+		-- Phase 24 : 기다리는 동안에는 "앉기"를 누르면 AI 가 비켜 준다 (_onPromptTriggered)
 		local botSeat = GameConfig.isBot(self.playerOfSeat[seat])
 		local prompt = seat:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
-			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil and not botSeat
+			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil
 		end
 
 		local shouldDisable = botSeat or ((not joinable) and seat.Occupant == nil)

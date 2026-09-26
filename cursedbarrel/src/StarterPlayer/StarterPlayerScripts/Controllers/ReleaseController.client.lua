@@ -19,6 +19,7 @@ local package=need(RS,"CursedBarrel")
 local sharedFolder=need(package,"Shared")
 local Config=require(need(sharedFolder,"GameConfig"))
 local Release=require(need(sharedFolder,"ReleaseConfig"))
+local Utility=require(need(sharedFolder,"Utility"))
 local FX=require(need(sharedFolder,"PremiumFX"))
 local remotes=package:WaitForChild("Remotes")
 local request=remotes:WaitForChild("VoyageRequest")
@@ -184,23 +185,35 @@ function draw()
     shown+=1
     local state=t:GetAttribute(Config.TableAttributes.State)
     local stage,final=t:GetAttribute(Config.TableAttributes.Stage) or 0,t:GetAttribute(Config.TableAttributes.FinalRound)==true
-    local info=state==Config.States.Countdown and lang("곧 시작","Starting soon") or (stage>0 and (lang("라운드 ","Round ")..stage..(final and lang(" · 결승"," · Final") or "")) or lang("진행 중","In progress"))
+    local info=state==Config.States.Countdown and lang("곧 시작","Starting soon") or (stage>0 and (lang("라운드 ","Round ")..stage) or lang("진행 중","In progress"))
     local r=row((t:GetAttribute("DisplayName") or t.Name).."  👥 "..tostring(t:GetAttribute("SeatedCount") or 0).."/"..tostring(t:GetAttribute("SeatCount") or 0).."\n"..info)
     action(r,lang("관전","Spectate"),function() spectate(t) end)
    end
   end
   if shown==0 then local _,l=row(lang("지금 진행 중인 게임이 없어요","No games in progress right now"),60);l.Size=UDim2.new(1,-30,1,-8) end
  elseif tab=="weekly" then
+  -- Phase 24 : 퀘스트처럼 무엇을 받는지 보이게 (🪙 +600 코인 · 🪑 의자 「해룡의 왕좌」). 아직 못 받는 줄은 회색 "진행 중"
+  local function claimButton(r,claimed,ready,fn)
+   if claimed then local b=action(r,"✓",function() end);UIKit.setTheme(b,"grey");return end
+   if not ready then local b=action(r,lang("진행 중","In progress"),function() end);UIKit.setTheme(b,"grey");return end
+   local b=action(r,lang("받기","Claim"),fn);UIKit.setTheme(b,"green")
+  end
   for _,q in ipairs(Release.Weekly) do
    local progress=(data.weekly.progress or {})[q.id] or 0
-   local r=row(lang(q.text,q.en).."\n"..progress.." / "..q.goal.." · +"..q.reward)
-   action(r,data.weekly.claimed[q.id] and "✓" or lang("받기","Claim"),function() pendingClaim={text=q.reward.." 코인",money="cash2"};request:FireServer("weekly",q.id) end)
+   local r=row(lang(q.text,q.en).."\n"..lang("진행 ","Progress ")..math.min(progress,q.goal).." / "..q.goal.."   ·   "..lang("보상 ","Reward ").."🪙 +"..Utility.comma(q.reward)..lang(" 코인"," coins"),78)
+   claimButton(r,data.weekly.claimed[q.id],progress>=q.goal,function() pendingClaim={text=Utility.comma(q.reward).." 코인",money="cash2"};request:FireServer("weekly",q.id) end)
   end
-  local _,l=row(lang("시즌: 용의 항로","Season: Dragon Tide").." · "..(data.season.xp or 0).." XP",54);l.Size=UDim2.new(1,-30,1,-8)
+  local xp=data.season.xp or 0
+  local _,l=row(lang("시즌: 용의 항로","Season: Dragon Tide").." · "..lang("지금 ","Now ")..Utility.comma(xp).." XP",54);l.Size=UDim2.new(1,-30,1,-8)
+  local kindIcon={Knife="🔪",Barrel="🛢",Ghost="☠",Stab="🗡",Chair="🪑",Elimination="💀",Victory="🏆"}
+  local kindName={Knife={"칼","Knife"},Barrel={"통","Barrel"},Ghost={"해적","Pirate"},Stab={"칼 모션","Stab motion"},Chair={"의자","Chair"},Elimination={"탈락 연출","Elimination FX"},Victory={"승리 연출","Victory FX"}}
   for i,tier in ipairs(Release.Season.Tiers) do
-   local reward=tier.coins and (tier.coins..lang(" 코인"," coins")) or Config.findSkin(tier.kind,tier.skin).name
-   local rr=row(tier.xp.." XP\n"..reward)
-   action(rr,data.season.claimed[tostring(i)] and "✓" or lang("받기","Claim"),function() pendingClaim=tier.coins and {text=tier.coins.." 코인",money="chest"} or {text="「"..reward.."」",skin={kind=tier.kind,id=tier.skin}};request:FireServer("season",i) end)
+   local skin=not tier.coins and Config.findSkin(tier.kind,tier.skin)
+   local reward=skin and skin.name or ""
+   local what=tier.coins and ("🪙 +"..Utility.comma(tier.coins)..lang(" 코인"," coins"))
+    or ((kindIcon[tier.kind] or "🎁").." "..lang((kindName[tier.kind] or {"스킨"})[1],(kindName[tier.kind] or {"","Skin"})[2]).." 「"..reward.."」")
+   local rr=row(Utility.comma(tier.xp).." XP "..lang("달성","reached").."\n"..lang("보상 ","Reward ")..what,78)
+   claimButton(rr,data.season.claimed[tostring(i)],xp>=tier.xp,function() pendingClaim=tier.coins and {text=Utility.comma(tier.coins).." 코인",money="chest"} or {text="「"..reward.."」",skin={kind=tier.kind,id=tier.skin}};request:FireServer("season",i) end)
   end
  elseif tab=="party" then
   local r=row(lang("친구 +10% · 파티 +5%","Friend +10% · Party +5%"),70)

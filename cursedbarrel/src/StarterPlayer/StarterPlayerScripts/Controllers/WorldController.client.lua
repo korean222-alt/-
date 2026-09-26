@@ -84,9 +84,10 @@ local phaseTitle = label(pill, UDim2.new(1, -16, 1, 0), UDim2.fromOffset(8, 0), 
 
 local raidBox = Instance.new("Frame")
 raidBox.Name = "Raid"
-raidBox.AnchorPoint = Vector2.new(0.5, 0)
-raidBox.Position = UDim2.new(0.5, 0, 0, 48)
-raidBox.Size = UDim2.fromOffset(280, 50)
+-- Phase 24 : 가운데 위에서 오른쪽 위로 옮겼다 (화면 가운데를 가리지 않게)
+raidBox.AnchorPoint = Vector2.new(1, 0)
+raidBox.Position = UDim2.new(1, -12, 0, 8)
+raidBox.Size = UDim2.fromOffset(240, 50)
 raidBox.BackgroundColor3 = Color3.fromRGB(40, 12, 30)
 raidBox.BackgroundTransparency = 0.15
 raidBox.Visible = false
@@ -439,7 +440,6 @@ Run.Heartbeat:Connect(function(dt)
 
 	raidBox.Visible = raid and not inTableMatch()
 	if raid then
-		raidBox.Position = UDim2.new(0.5, 0, 0, 48)
 		local hp = workspace:GetAttribute("RaidHP") or 0
 		local max = math.max(1, workspace:GetAttribute("RaidMaxHP") or 1)
 		local raidLeft = math.max(0, (workspace:GetAttribute("RaidEndsAt") or 0) - workspace:GetServerTimeNow())
@@ -466,14 +466,20 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 			nextBolt = os.clock() + 4
 		end
 	elseif kind == "Raid" then
-		if inTableMatch() then
-			return -- 테이블 선택창 위에 크라켄 알림이나 흔들림을 덮지 않는다.
-		end
+		-- Phase 24 : 크라켄이 나오면 서버 모두에게(게임 중인 사람 포함) 잠깐 알린다. 게임 중에는 흔들림 · 포효 없이 글만
 		if data.state == "start" then
-			announce("🐙 크라켄 습격!", red, 3)
-			Sfx.play("KrakenRoar", { volume = 0.8 })
-			CameraShake.add(0.6, 1.4, 1.2)
-		elseif data.state == "victory" then
+			local busy = inTableMatch()
+			announce("🐙 크라켄 출몰! 대포로 사냥하세요!", red, busy and 1.8 or 2.6)
+			if not busy then
+				Sfx.play("KrakenRoar", { volume = 0.8 })
+				CameraShake.add(0.6, 1.4, 1.2)
+			end
+			return
+		end
+		if inTableMatch() then
+			return -- 테이블 선택창 위에 크라켄 결과 알림을 덮지 않는다.
+		end
+		if data.state == "victory" then
 			local coins = data.rewards and data.rewards[player.UserId]
 			announce(coins and ("크라켄 퇴치!  +%d"):format(coins) or "크라켄 퇴치!", teal, 3)
 			Sfx.play("Coins", { volume = 0.6 })

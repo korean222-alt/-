@@ -5,7 +5,7 @@
 	언제 앉나
 	  · 테이블에 사람이 앉아 있는데 시작 인원(MinPlayers)이 모자라고,
 	    Bots.FillDelay 초가 지나도 아무도 안 오면 AI 가 한 명씩 빈 의자에 앉는다.
-	  · 사람 자리는 항상 Bots.KeepFreeSeats 개 남겨 둔다. 누가 오면 바로 앉을 수 있다.
+	  · Bots.KeepFreeSeats 개는 비워 둔다 (Phase 24 : 0). 꽉 차도 사람이 "앉기"를 누르면 AI 가 비켜 준다.
 
 	언제 일어나나
 	  · 기다리는 동안(Waiting · Countdown) 사람만으로 시작 인원이 차면 AI 는 자리를 비켜 준다.
@@ -344,13 +344,13 @@ end
 function BotService:_targetSeated(gameTable)
 	local seats = #gameTable:GetSeats()
 	local minPlayers = gameTable:GetMinPlayers()
-	-- Phase 24 : TargetSeated 가 0 이면 테이블 크기에 맞춘다 (4인 → 3명 · 6인 → 5명, 한 자리는 사람용으로 비운다)
+	-- Phase 24 : TargetSeated 가 0 이면 테이블 크기에 맞춘다 (KeepFreeSeats 0 → 4인 테이블은 4명)
 	local wanted = tonumber(BOTS.TargetSeated) or 0
 	if wanted <= 0 then
 		wanted = seats
 	end
 	local target = math.max(minPlayers, wanted)
-	target = math.min(target, seats - (tonumber(BOTS.KeepFreeSeats) or 1))
+	target = math.min(target, seats - (tonumber(BOTS.KeepFreeSeats) or 0))
 	return math.min(seats, math.max(minPlayers, target))
 end
 

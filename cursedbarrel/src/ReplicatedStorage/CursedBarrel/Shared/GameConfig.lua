@@ -1059,7 +1059,7 @@ GameConfig.Bots = {
 	Enabled = true,
 	FillDelay = 10, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다 (Phase 24 : 4초 → 10초. 사람이 모일 틈을 준다)
 	TargetSeated = 0, -- Phase 24 : 0 = 테이블 크기에 맞춘다 (좌석 수 - KeepFreeSeats). 숫자를 넣으면 그 인원까지만 (예전 3)
-	KeepFreeSeats = 1, -- 사람이 들어올 자리는 항상 남겨 둔다
+	KeepFreeSeats = 0, -- Phase 24 : 0 = 꽉 채운다 (4인 → 사람 1 + AI 3). 사람이 "앉기"를 누르면 AI 가 비켜 준다
 	RewardScale = 0.6,
 	ThinkMin = 1.1, -- 자기 차례에 고르기까지 걸리는 시간
 	ThinkMax = 2.8,

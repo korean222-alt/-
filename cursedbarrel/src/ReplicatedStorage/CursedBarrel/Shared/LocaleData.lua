@@ -859,4 +859,5 @@ Waiting for the result…]=],
  [ [=[라운드 %d]=] ] = [=[Round %d]=],
  [ [=[라운드 %d · 결승]=] ] = [=[Round %d · Final]=],
  [ [=[결승! · %d 라운드]=] ] = [=[Final! · Round %d]=],
+ [ [=[🐙 크라켄 출몰! 대포로 사냥하세요!]=] ] = [=[🐙 The Kraken appears! Hunt it with the cannons!]=],
 }
