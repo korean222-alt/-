@@ -1,6 +1,21 @@
 --- a/ReplicatedStorage.CursedBarrel.Shared.GameConfig
 +++ b/ReplicatedStorage.CursedBarrel.Shared.GameConfig
-@@ -1583,13 +1583,17 @@
+@@ -1577,21 +1577,32 @@
+ 	-- Phase 38.3 : 다섯 종류 → 셋 (보통 · 쌍둥이 · 해골 유령). "길고 어렵다"며 중간에 나가는 사람이 많았다.
+ 	--   갈고리 · 욕심쟁이는 실제 판에서 처음 만날 때 설명 카드가 뜨고 늦게 나온다 (FirstSightLead) · 신입 보호도 있다.
+ 	Kinds = { "normal", "twin", "skull" },
+-	IntroLead = 3.5, -- 설명 카드를 띄운 뒤 해적이 나오기까지 · Phase 34.1 : 4.4 → 2.0 · Phase 35.1 : 튜토리얼은 카드 3초 + 0.5초
+-	IntroShow = 3.0, -- Phase 35.1 : 튜토리얼 설명 카드를 보여 주는 시간 (그 뒤로는 위의 작은 띠)
++	-- ★ Phase 38.5 : 튜토리얼 압축. 한 판이 약 1분 50초였는데 내가 실제로 누르는 건 몇 초뿐이었다
++	--   (AI 차례 구경 · 설명 카드 · 쉬는 시간이 대부분). 중간에 지루해서 나가는 사람이 많았다.
++	IntroLead = 2.6, -- 설명 카드를 띄운 뒤 해적이 나오기까지 · Phase 34.1 : 4.4 → 2.0 · Phase 35.1 : 튜토리얼은 카드 3초 + 0.5초 · Phase 38.5 : 3.5 → 2.6
++	IntroShow = 2.1, -- Phase 35.1 : 튜토리얼 설명 카드를 보여 주는 시간 (그 뒤로는 위의 작은 띠 · 아래 안내 줄) · Phase 38.5 : 3.0 → 2.1
++	RetryLead = 1.6, -- Phase 38.5 : 놓쳐서 같은 해적이 다시 나올 때는 설명 카드 없이 이만큼 뒤에 (예전에는 매번 카드 3초 + 3.5초)
++	TwinFirstWindow = 1.3, -- Phase 38.5 : 튜토리얼 쌍둥이 첫째의 잡기 창 상한 (1.8초 창 + 1초 간격이라 첫째를 잡고 2.5초 넘게 기다리다 먼저 눌렀다)
++	TwinGap = 0.5, -- Phase 38.5 : 튜토리얼 쌍둥이 첫째 창이 닫히고 둘째가 나오기까지
++	Countdown = 2, -- Phase 38.5 : 튜토리얼 판 시작 카운트다운 (테이블 기본 5초)
++	SafeHold = 1.3, -- Phase 38.5 : 튜토리얼 판에서 안전한 자리를 꽂은 뒤 다음 차례까지 (기본 ResultHold 2.2초)
+ 	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
  	MaxIdleMisses = 5, -- Phase 38.3 : 3 → 5 (무엇을 누를지 몰라 가만히 있던 사람이 세 번 만에 떨어지고, 튜토리얼에 다시 앉혀졌다)
  	SkipAfter = 1, -- Phase 38.3 : 이만큼 잡으면 「튜토리얼 건너뛰기」가 열린다 (보상은 끝까지 해야 받는다)
  	Reward = 500,
@@ -16,10 +31,14 @@
  	--   · 튜토리얼 판에는 운명 카드가 없다 (해적 종류만 배운다)
  	--   · 해적을 잡을 때마다 StepPause 초 쉬고, AI 는 BotThinkExtra 초 더 천천히 고른다
 -	WelcomeWait = 30,
+-	StepPause = 2.2,
+-	BotThinkExtra = 1.2,
 +	WelcomeWait = 15, -- Phase 38.4 : 30 → 15 (「튜토리얼 시작」을 못 본 사람은 30초 동안 아무것도 못 하고 서 있었다)
- 	StepPause = 2.2,
- 	BotThinkExtra = 1.2,
++	StepPause = 0.8, -- Phase 38.5 : 2.2 → 0.8 (체크 목록이 넘어가는 것만 보면 된다)
++	BotThinkExtra = 0, -- Phase 38.5 : 1.2 → 0 (AI 차례는 구경할 것이 없다)
  }
+ 
+ --------------------------------------------------
 --- a/ServerScriptService.CursedBarrel.Services.BotService
 +++ b/ServerScriptService.CursedBarrel.Services.BotService
 @@ -339,6 +339,11 @@
@@ -64,9 +83,88 @@
  			local seat = gameTable:GetFreeSeats()[1]
  			local distance = (seat.Position - root.Position).Magnitude
  			if distance < bestDistance then
+--- a/ServerScriptService.CursedBarrel.Services.OnboardingService
++++ b/ServerScriptService.CursedBarrel.Services.OnboardingService
+@@ -26,6 +26,42 @@
+ local OnboardingService = {}
+ OnboardingService._started = false
+ OnboardingService._running = {} -- [Player] = true
++OnboardingService._joinedAt = {} -- Phase 38.5 : [Player] = 들어온 시각 (os.clock)
++
++-- Phase 38.5 : 튜토리얼을 마치기 전에 나간 사람이 어디에 있었나
++--   welcome  : 환영 창 (아직 앉기 전)
++--   finding  : 연습 테이블을 찾는 중 (어디에도 안 앉음)
++--   starting : 연습 테이블에 앉아 판이 시작되기를 기다리는 중
++--   playing  : 튜토리얼 판 진행 중 (step · kind 로 몇 번째 해적이었는지)
++local function quitPhase(player)
++	if player:GetAttribute("TutorialWelcome") == true then
++		return "welcome", 0, ""
++	end
++	for _, gameTable in ipairs(TableService:GetAllTables()) do
++		local model = gameTable.model
++		if model and model:GetAttribute(TABLE_ATTR.Tutorial) == player.UserId then
++			local step = tonumber(model:GetAttribute("TutorialStep")) or 0
++			if step <= 0 then
++				return "starting", 0, ""
++			end
++			return "playing", step, tostring((TUTORIAL.Kinds or {})[step] or "")
++		end
++	end
++	return "finding", 0, ""
++end
++
++-- 분석 이벤트 "TutorialQuit" : 값 = 들어온 뒤 몇 초 만에 나갔나 · 필드1 = 어디서 · 필드2 = 몇 단계 · 필드3 = 해적 종류
++local function logQuit(player, seconds)
++	local phase, step, kind = quitPhase(player)
++	local analytics = game:GetService("AnalyticsService")
++	local K = Enum.AnalyticsCustomFieldKeys
++	pcall(analytics.LogCustomEvent, analytics, player, "TutorialQuit", seconds, {
++		[K.CustomField01.Name] = phase,
++		[K.CustomField02.Name] = tostring(step),
++		[K.CustomField03.Name] = kind,
++	})
++	GameConfig.log(("%s : 튜토리얼 도중 나감 (%s · %d단계 %s · %d초)"):format(player.Name, phase, step, kind, seconds))
++end
+ 
+ local function onTutorialTable(player)
+ 	local gameTable = TableService:GetTableOfPlayer(player)
+@@ -102,6 +138,7 @@
+ 		return
+ 	end
+ 	local function begin(player)
++		self._joinedAt[player] = self._joinedAt[player] or os.clock()
+ 		task.spawn(function()
+ 			local ok, err = pcall(self._run, self, player)
+ 			if not ok then
+@@ -116,6 +153,13 @@
+ 	end
+ 	Players.PlayerRemoving:Connect(function(player)
+ 		self._running[player] = nil
++		local joinedAt = self._joinedAt[player]
++		self._joinedAt[player] = nil
++		-- Phase 38.5 : 튜토리얼을 마치기 전에 나갔다 → 어디서 나갔는지 남긴다 (Creator Dashboard 의 맞춤 이벤트)
++		if joinedAt and player:GetAttribute("ProfileLoaded") == true and player:GetAttribute("TutorialDone") ~= true
++			and player:GetAttribute("TutorialFree") ~= true then
++			pcall(logQuit, player, math.floor(os.clock() - joinedAt))
++		end
+ 	end)
+ 	GameConfig.log("OnboardingService 시작 완료 (필수 튜토리얼)")
+ end
 --- a/ServerScriptService.CursedBarrel.Services.RoundService
 +++ b/ServerScriptService.CursedBarrel.Services.RoundService
-@@ -818,11 +818,16 @@
+@@ -406,7 +406,10 @@
+ function Round:_lobbyCountdown()
+ 	local lobby = GameConfig.Lobby
+ 	local tutorialId = self.gameTable.model and self.gameTable.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+-	if not (lobby and lobby.HostStart) or (tutorialId and tutorialId ~= 0) then
++	if tutorialId and tutorialId ~= 0 then
++		return tonumber(GameConfig.Tutorial.Countdown) -- Phase 38.5 : 튜토리얼 판은 짧게 (없으면 테이블 설정의 CountdownDuration)
++	end
++	if not (lobby and lobby.HostStart) then
+ 		return nil -- 예전처럼 테이블 설정의 CountdownDuration
+ 	end
+ 	if self.gameTable:GetPlayerCount() >= #self.gameTable:GetSeats() then
+@@ -818,11 +821,22 @@
  		local profile = ProfileService:Get(self.tutorialPlayer)
  		local replay = self.gameTable.model and self.gameTable.model:GetAttribute("TutorialReplay") == true
  		if (profile and not profile.tutorialDone) or replay then
@@ -78,6 +176,12 @@
 +			resume = math.clamp(resume, 1, math.max(1, total))
 +			self.tutorial = { player = self.tutorialPlayer, step = resume, idle = 0, replay = replay }
  			ProfileService:Funnel(self.tutorialPlayer, 2, "TutorialStarted")
++			-- Phase 38.5 : 튜토리얼하는 사람이 항상 먼저 (AI 차례를 기다리지 않고 바로 해 본다)
++			local at = table.find(participants, self.tutorialPlayer)
++			if at and at > 1 then
++				table.remove(participants, at)
++				table.insert(participants, 1, self.tutorialPlayer)
++			end
  		end
  	end
 -	self:_set("TutorialStep", self.tutorial and 1 or 0)
@@ -85,7 +189,7 @@
  	-- Phase 11 : AI 선원이 한 명이라도 끼면 연습 판이다. (_rewardScale 이 이 값을 본다)
  	self.practice = false
  	for _, p in ipairs(participants) do
-@@ -1181,8 +1186,14 @@
+@@ -1181,8 +1195,14 @@
  		return
  	end
  
@@ -102,7 +206,7 @@
  		-- 세 번 연속으로 고르지 않았다. 자리에서 일으켜 세운다. (이탈 처리는 RemoveParticipant 가 한다)
  		self.gameTable:RemovePlayer(player)
  		return
-@@ -1389,7 +1400,8 @@
+@@ -1389,7 +1409,8 @@
  
  	-- ★ Phase 10 : "한 번 더" 제안. 결과를 보여주는 동안(ResultHold)만 누를 수 있다.
  	--   누르면 AcceptBrave 가 phaseToken 을 올려 아래의 "다음 사람 차례" 예약을 무효로 만든다.
@@ -112,7 +216,48 @@
  		self.braveOffer = { player = player, token = token }
  		self:_set(TABLE_ATTR.BraveNextReward, self:_braveOfferValue(level + 1))
  		self:_set(TABLE_ATTR.BraveOfferEndsAt, GameConfig.now() + TIMING.ResultHold)
-@@ -2137,6 +2149,10 @@
+@@ -1399,7 +1420,9 @@
+ 		end
+ 	end
+ 
+-	task.delay(TIMING.ResultHold, function()
++	-- Phase 38.5 : 튜토리얼 판의 안전한 자리(= AI 차례)는 짧게 보여 주고 넘어간다
++	local resultHold = self:_tutorialActive() and (tonumber(GameConfig.Tutorial.SafeHold) or TIMING.ResultHold) or TIMING.ResultHold
++	task.delay(resultHold, function()
+ 		if self.destroyed or token ~= self.phaseToken then
+ 			return
+ 		end
+@@ -1755,6 +1778,12 @@
+ 		window *= tonumber(GameConfig.Tutorial.TutorialWindowScale) or 2
+ 		lead = tonumber(GameConfig.Tutorial.IntroLead) or 3.4
+ 		intro = true
++		-- Phase 38.5 : 놓쳐서 다시 나오는 해적은 같은 설명 카드를 또 띄우지 않고 금방 나온다
++		--   (예전에는 실패할 때마다 1.7초 + 카드 3초 + 0.5초를 기다려서, 해골 · 쌍둥이에서 몇 번 틀리면 지쳐서 나갔다)
++		if retry then
++			lead = tonumber(GameConfig.Tutorial.RetryLead) or lead
++			intro = false
++		end
+ 	elseif self.tutorialPlayer == player and personal == 0 and GameConfig.Tutorial.Enabled then
+ 		-- Phase 12 : 연습 판에서 처음 온 사람의 첫 해적은 넉넉하다
+ 		window *= GameConfig.Tutorial.WindowScale
+@@ -1785,10 +1814,15 @@
+ 			count = 3
+ 		end
+ 		local following = math.max(CATCH.MinWindow, window * (tonumber(def.secondScale) or 0.9))
++		-- Phase 38.5 : 튜토리얼 쌍둥이는 둘째가 금방 나온다. 예전에는 첫째 창(1.8초)이 다 닫히고 1초 더 뒤라
++		--   첫째를 잡고 2.5초 넘게 아무것도 없어서 한 번 더 눌렀다가 "너무 빨랐다"로 처음부터 다시 했다.
++		if tutorial then
++			steps[1].window = math.min(steps[1].window, tonumber(GameConfig.Tutorial.TwinFirstWindow) or steps[1].window)
++		end
+ 		for _ = 2, count do
+ 			local gap = low + self.random:NextNumber() * math.max(0, high - low)
+ 			if tutorial then
+-				gap = math.max(gap, 1.0)
++				gap = tonumber(GameConfig.Tutorial.TwinGap) or math.max(gap, 1.0)
+ 			end
+ 			local prev = steps[#steps]
+ 			table.insert(steps, { opensAt = prev.opensAt + prev.window + gap, window = following })
+@@ -2137,6 +2171,10 @@
  			self.tutorial.finished = true
  			tutorialDone = true
  		end
