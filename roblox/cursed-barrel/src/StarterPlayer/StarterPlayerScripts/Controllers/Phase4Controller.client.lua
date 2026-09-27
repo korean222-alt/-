@@ -2934,8 +2934,10 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 					announce(data.userId == player.UserId and "분노한 해적! 이번엔 잡을 수 없다" or ((data.name or "") .. " · 분노한 해적!"), red, 1.4)
 				end
 			end)
-		elseif data.danger then
+		elseif data.danger and not config.Catch.Enabled then
 			-- 잡기가 꺼져 있는 서버라면 CatchPrompt 가 오지 않습니다. 그때만 예전 연출로 대신합니다.
+			-- ★ Phase 38.2 : 예전에는 잡기가 켜져 있어도 CatchPrompt 를 0.25초 안에 못 받으면(관전자 · 느린 휴대폰) 이 연출이 떠서
+			--   아직 잡는 중인데 "○○ · 탈락"이 먼저 뜨고, 뒤늦게 "잡았다"가 떴다. 이제 잡기가 꺼진 서버에서만 쓴다.
 			dangerPending[model] = true
 			task.delay(hitAt + 0.25, function()
 				if not dangerPending[model] then

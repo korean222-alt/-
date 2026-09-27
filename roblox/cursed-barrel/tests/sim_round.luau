@@ -832,7 +832,7 @@ do
 		:format(minNormal, minTwin, minSide, minMash, maxMashNeed, maxSkull, triples, feints, flickers))
 	expect(minNormal < base * 0.8, "보통 해적은 잡을수록 빨라진다")
 	expect(minTwin >= base * lowest - 1e-6, "쌍둥이 창은 줄지 않는다 (카드 배율만)")
-	expect(minSide >= base * 1.2 * lowest - 1e-6, "갈고리 창은 줄지 않는다 (카드 배율만)")
+	expect(minSide >= base * 1.7 * lowest - 1e-6, "갈고리 창은 줄지 않는다 (카드 배율만)")
 	expect(minMash >= 1.8 * lowest - 1e-6, "연타 시간은 줄지 않는다 (카드 배율만)")
 	expect(maxMashNeed > 5, ("라운드가 오르면 연타 횟수가 는다 (최대 %d번)"):format(maxMashNeed))
 	expect(triples > 0, "세쌍둥이가 나온다")

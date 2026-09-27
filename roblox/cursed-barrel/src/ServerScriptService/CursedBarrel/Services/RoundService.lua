@@ -1778,8 +1778,9 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 	elseif kind == "side" then
 		side = self.random:NextNumber() < 0.5 and "L" or "R"
 		-- Phase 38 : 반대쪽으로 먼저 고개를 내미는 속임수 (feintFrom 단계부터 · 확률이 오른다)
-		local feintFrom = tonumber(def.feintFrom) or 2
-		if not tutorial and kindLevel >= feintFrom and self.random:NextNumber() < math.min(0.7, 0.3 + 0.07 * (kindLevel - feintFrom)) then
+		local feintFrom = tonumber(def.feintFrom) or 4
+		local feintChance = math.min(tonumber(def.feintMax) or 0.5, (tonumber(def.feintBase) or 0.2) + (tonumber(def.feintStep) or 0.05) * (kindLevel - feintFrom))
+		if not tutorial and kindLevel >= feintFrom and self.random:NextNumber() < feintChance then
 			feint = true
 		end
 	elseif kind == "skull" then

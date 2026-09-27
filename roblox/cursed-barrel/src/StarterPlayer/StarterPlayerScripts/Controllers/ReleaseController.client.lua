@@ -24,6 +24,14 @@ local FX=require(need(sharedFolder,"PremiumFX"))
 local remotes=package:WaitForChild("Remotes")
 local request=remotes:WaitForChild("VoyageRequest")
 local stateRemote=remotes:WaitForChild("VoyageState")
+-- Phase 38.2 : 관전 중인 테이블. 클라이언트가 Player 에 단 Attribute 는 서버로 복제되지 않는다.
+--   예전에는 화면에서만 SpectateTableId 를 달아서, 서버가 관전자를 몰라 해적 잡기 정보(CatchPrompt)를 보내지 않았다.
+--   그러면 관전 화면이 "잡기 정보가 없다 = 탈락"으로 잘못 보여 주고, 뒤늦게 "잡았다"가 떴다. 이제 서버에도 알린다.
+local sentWatch=false
+local function setWatch(id)
+ player:SetAttribute("SpectateTableId",id) -- (내 화면 즉시 · 서버가 같은 값을 돌려준다)
+ if id~=sentWatch then sentWatch=id;request:FireServer("spectate",id) end
+end
 local data=nil
 local tab="watch"
 local selected=nil
@@ -79,7 +87,7 @@ local function spectate(model)
  selected=model
  local h=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
  if h and h.SeatPart then return end
- player:SetAttribute("SpectateTableId",model:GetAttribute("TableId"));panel.Visible=false
+ setWatch(model:GetAttribute("TableId"));panel.Visible=false
 end
 -- Phase 15 : "카드" 탭은 걷어냈다 (파티 카드는 내 차례에 칼 고르는 창에서 바로 쓴다). 대신 짧은 "방법" 탭.
 -- Phase 24.10 : 「스킨」 탭 : 가진 스킨을 종류마다 골라 장착한다 (시즌 · 선물로 받은 것도)
@@ -109,7 +117,7 @@ spectateBar.Size=UDim2.fromOffset(190,150);spectateBar.BackgroundTransparency=1;
 UIKit.autoScale(spectateBar,UIKit.phoneFactor)
 local spectateTitle=UIKit.label(spectateBar,{text="👀 관전 중",position=UDim2.fromOffset(0,0),size=UDim2.new(1,0,0,34),textSize=20,color=UIKit.Colors.Gold,stroke=3,scaled=true})
 local rejoinModel=nil -- Phase 32 : 탈락한 테이블 (다음 판이 열리면 저절로 앉는다 · 설정 autoRejoin)
-local function stopSpectate() player:SetAttribute("SpectateTableId",nil);selected=nil;rejoinModel=nil end
+local function stopSpectate() setWatch(nil);selected=nil;rejoinModel=nil end
 local spectateExit=button(spectateBar,"관전 종료",UDim2.fromOffset(5,40),UDim2.fromOffset(180,50),stopSpectate,"red")
 local rejoin=button(spectateBar,"다음 판 참가",UDim2.fromOffset(5,98),UDim2.fromOffset(180,50),function() if selected then request:FireServer("rejoin",selected) end end,"green")
 -- Phase 24 : 테이블에 앉아 사람을 기다리는 동안 화면 아래 가운데에 "🤖 AI 선원 켬/끔" 버튼.
@@ -384,7 +392,7 @@ remotes.PresentationCue.OnClientEvent:Connect(function(event,model,payload)
  elseif event=="Eliminate" then
   FX.burst(body.Position,Config.findSkin("Elimination",payload.skin),"Eliminate")
   if payload.userId==player.UserId then
-   selected=model;player:SetAttribute("SpectateTableId",model:GetAttribute("TableId"))
+   selected=model;setWatch(model:GetAttribute("TableId"))
    -- Phase 32 : 이 테이블의 다음 판에 저절로 참가한다 (설정에서 끌 수 있다)
    if player:GetAttribute("Setting_autoRejoin")~=false and (model:GetAttribute(Config.TableAttributes.Tutorial) or 0)==0 then rejoinModel=model end
   end
@@ -481,9 +489,9 @@ local idleSince=nil
 local heartbeat=Run.Heartbeat:Connect(function()
  if os.clock()-tickAt<0.5 then return end;tickAt=os.clock()
  local t=currentTable()
- if t then player:SetAttribute("SpectateTableId",nil) end
+ if t then setWatch(nil) end
  refreshWatchPrompts(t) -- Phase 32 : 게임 중인 테이블 근처의 「👀 관전하기」
- if selected and not selected:IsDescendantOf(workspace) then selected=nil;player:SetAttribute("SpectateTableId",nil) end
+ if selected and not selected:IsDescendantOf(workspace) then selected=nil;setWatch(nil) end
  -- Phase 21 : 관전하던 판이 끝나면(대기로 돌아가고 4초) 관전을 저절로 끝낸다.
  --   예전에는 탈락해서 자동 관전이 된 뒤 판이 끝나도 "관전 종료 · 다음 판 참가" 가 계속 떠 있었다
  -- Phase 32 : 탈락해서 관전하던 테이블이 다음 판을 받기 시작하면 저절로 앉는다 (한 번만)
@@ -526,7 +534,7 @@ local heartbeat=Run.Heartbeat:Connect(function()
  setMusic(chooseMusic(t,watching))
  if os.clock()-lastInput>180 and not afkSent then afkSent=true;autoAfk=true;request:FireServer("afk",true) end
 end)
-player.CharacterRemoving:Connect(function() player:SetAttribute("SpectateTableId",nil);selected=nil end)
+player.CharacterRemoving:Connect(function() setWatch(nil);selected=nil end)
 script.Destroying:Connect(function() heartbeat:Disconnect();descendant:Disconnect();musicFade:Disconnect();for _,ch in ipairs(channels) do ch.sound:Destroy() end;FX.stop();gui:Destroy() end)
 refresh()
 player:GetAttributeChangedSignal("ProfileLoaded"):Connect(refresh)

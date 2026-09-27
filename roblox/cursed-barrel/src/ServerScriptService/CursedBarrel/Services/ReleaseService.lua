@@ -121,6 +121,14 @@ end
 function Service:onRequest(player,action,a,b,c,d,e)
  if action=="practice" then self:practice(player,a=="replay");return end
  if action=="settings" then self:settingsBatch(player,a);return end
+ if action=="spectate" then
+  -- Phase 38.2 : 관전 중인 테이블 (서버가 알아야 관전자에게 해적 잡기 정보를 보낸다). 앉아 있으면 관전이 아니다.
+  --   요청 제한과 따로 받는다 (다른 요청에 밀려 버려지면 관전 화면이 다시 틀린다)
+  local id=(typeof(a)=="string" or typeof(a)=="number") and a or nil
+  if id~=nil and Tables:GetTableOfPlayer(player) then id=nil end
+  player:SetAttribute("SpectateTableId",id)
+  return
+ end
  if not self.limits:check(player.UserId) or typeof(action)~="string" then return end
  local p=Profiles:Get(player);if not p then return end
  local message=nil
