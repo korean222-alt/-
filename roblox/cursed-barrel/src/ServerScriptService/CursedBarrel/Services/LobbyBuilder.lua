@@ -498,6 +498,7 @@ function LobbyBuilder:_buildLikeReward()
 	folder.Parent = lobby
 
 	-- Phase 17 : 계단을 내려오자마자 오른쪽 앞 (주 갑판). 계단 폭(x ±6) 밖이라 지나는 길을 막지 않는다
+	-- Phase 32 : 2층 뒤쪽 구석에서 다시 이 자리로 (ShipLayout.LikeReward)
 	local deck = spot.y or (ShipLayout.HallOfFame and ShipLayout.HallOfFame.Base) or 5.5
 	local x, z = spot.x, spot.z
 	local blue = Color3.fromRGB(60, 150, 255)
@@ -549,7 +550,8 @@ function LobbyBuilder:_buildLikeReward()
 		return label
 	end
 	-- Phase 22 : 그룹 대신 출시 기념 코드로 준다 (🎟 코드에 love)
-	line("🎁 출시 기념 선물!", 0, 0.4, Color3.fromRGB(255, 255, 255))
+	-- Phase 32 : "출시 기념" → "게임 출시 기념"
+	line("🎁 게임 출시 기념 선물!", 0, 0.4, Color3.fromRGB(255, 255, 255))
 	line("🎟 코드에 love 를 입력하세요", 0.4, 0.34, Color3.fromRGB(255, 226, 120))
 	line("파란 철제 드럼 무료!", 0.76, 0.24, Color3.fromRGB(120, 200, 255))
 

@@ -34,14 +34,17 @@ local function inOut(x)
 end
 
 -- 칼이 지나는 자리들. target = 꽂힌 칼의 자리, look = 슬롯 정면(통 안쪽), center = 통 가운데
+-- ★ Phase 32 : 칼이 통 속을 지나가던 문제를 고쳤다 (기본 모션 · 다른 모션도 같은 자리를 써서 함께 뚫었다).
+--   look 은 통 "안쪽"을 본다. 그런데 시작 자리 · 들어 올린 자리를 inward(안쪽)로 옮겨서
+--   칼이 통 벽 속(0.9)과 통 가운데 위(2.6)를 지나 꽂혔다. 이제 두 자리 모두 통 바깥(outward)에 있다.
+--   칼은 통 바깥 위로 들어 올렸다가, 날 끝을 아래로 비스듬히 한 채 슬롯으로 꽂힌다.
 local function keyframes(ctx)
 	local target = ctx.target
 	local inward = ctx.look
 	local outward = -inward
-	local start = target + inward * 0.9 + UP * 0.5
-	-- Phase 10 까지의 기본 모션 그대로 (통 위로 들어 올렸다가 비스듬히 꽂는다)
-	local raised = target * CFrame.Angles(math.rad(-38), 0, 0) + inward * 2.6 + UP * 1.9
-	local high = target * CFrame.Angles(math.rad(-80), 0, 0) + outward * 0.6 + UP * 4.2
+	local start = target + outward * 1.3 + UP * 0.4
+	local raised = target * CFrame.Angles(math.rad(-38), 0, 0) + outward * 2.3 + UP * 1.9
+	local high = target * CFrame.Angles(math.rad(-80), 0, 0) + outward * 1.4 + UP * 4.2
 	return start, raised, high, outward
 end
 
@@ -158,7 +161,8 @@ function StabMotion.knifeAt(plan, t, ctx)
 		end
 		return raised:Lerp(target, inQuint(clamp01((t - plan.rise) / plan.strike)))
 	elseif style == "bolt" then
-		local sky = CFrame.new(target.Position + UP * 11) * target.Rotation * CFrame.Angles(math.rad(-60), 0, 0)
+		-- Phase 32 : 바로 위가 아니라 바깥 위에서 내리꽂는다 (배가 불룩한 통의 아랫줄 슬롯에서 통 옆구리를 뚫지 않게)
+		local sky = CFrame.new(target.Position + UP * 11 + outward * 2.4) * target.Rotation * CFrame.Angles(math.rad(-60), 0, 0)
 		if t < plan.rise then
 			-- 번쩍이며 하늘로 솟는다 (떨림)
 			local a = outQuad(t / plan.rise)

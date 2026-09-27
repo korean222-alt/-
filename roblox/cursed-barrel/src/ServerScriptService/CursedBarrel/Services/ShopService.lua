@@ -136,9 +136,8 @@ function ShopService:BuildState(player)
 			ready = GameConfig.Attendance.Enabled and profile.attendDay ~= today,
 			vip = player:GetAttribute(PLAYER_ATTR.VIP) == true,
 		},
-		roulette = {
-			free = GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today,
-		},
+		-- Phase 32 : 룰렛은 오늘 두 판을 끝까지 해야 열린다 · 돌아온 해적 상자
+		roulette = GameConfig.spinState(profile, today),
 		vip = {
 			name = VIP.name, robux = VIP.robux, blurb = VIP.blurb,
 			owned = player:GetAttribute(PLAYER_ATTR.VIP) == true, ready = vipReady,

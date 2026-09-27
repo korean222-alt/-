@@ -1,0 +1,11 @@
+std = "roblox_min"
+[lints]
+unused_variable = "allow"
+shadowing = "allow"
+multiple_statements = "allow"
+empty_if = "allow"
+if_same_then_else = "allow"
+parenthese_conditions = "allow"
+roblox_incorrect_roact_usage = "allow"
+global_usage = "allow"
+mixed_table = "allow"

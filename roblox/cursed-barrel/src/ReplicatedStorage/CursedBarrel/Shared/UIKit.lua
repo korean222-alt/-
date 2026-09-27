@@ -1037,6 +1037,52 @@ function UIKit.matchTable()
 end
 
 --------------------------------------------------
+-- Phase 32 : 짧은 안내 한 줄 (누를 것 없음 · 터치를 가로채지 않는다)
+--   UIKit.toast("🎡 룰렛까지 1판!", UIKit.Colors.Gold, 2.4)
+--   위쪽 알림판 아래에 뜬다. 새 안내가 오면 앞 안내를 바로 바꾼다.
+--------------------------------------------------
+local toastGui, toastLabel, toastToken = nil, nil, 0
+function UIKit.toast(text, color, hold)
+	local player = Players.LocalPlayer
+	if not (toastGui and toastGui.Parent) then
+		toastGui = Instance.new("ScreenGui")
+		toastGui.Name = "CursedBarrel_Toast"
+		toastGui.ResetOnSpawn = false
+		toastGui.DisplayOrder = 55
+		toastGui.IgnoreGuiInset = true
+		toastGui.Parent = player:WaitForChild("PlayerGui")
+		toastLabel = Instance.new("TextLabel")
+		toastLabel.Name = "Toast"
+		toastLabel.AnchorPoint = Vector2.new(0.5, 0)
+		toastLabel.Position = UDim2.new(0.5, 0, 0.2, 0)
+		toastLabel.Size = UDim2.new(1, -32, 0, 34)
+		toastLabel.AutomaticSize = Enum.AutomaticSize.Y
+		toastLabel.BackgroundTransparency = 1
+		toastLabel.TextWrapped = true
+		toastLabel.FontFace = UIKit.font(true)
+		toastLabel.TextSize = 26
+		toastLabel.TextTransparency = 1
+		toastLabel.Active = false
+		toastLabel.Parent = toastGui
+		local limit = Instance.new("UISizeConstraint")
+		limit.MaxSize = Vector2.new(620, math.huge)
+		limit.Parent = toastLabel
+		UIKit.textStroke(toastLabel, UIKit.strokeFor(26))
+	end
+	toastToken += 1
+	local token = toastToken
+	toastLabel.Text = tostring(text or "")
+	toastLabel.TextColor3 = color or C.Gold
+	toastLabel.TextTransparency = 0 -- 글자 외곽선(TextOutline)은 글자 투명도를 따라간다
+	task.delay(hold or 2.4, function()
+		if token ~= toastToken or not toastLabel then
+			return
+		end
+		TweenService:Create(toastLabel, TweenInfo.new(0.45), { TextTransparency = 1 }):Play()
+	end)
+end
+
+--------------------------------------------------
 -- Phase 21 : "획득!" 알림
 --   무엇을 받으면 화면 가운데에 크게 뜬다. 뒤에서 빛살이 돌고 별이 반짝인다. 누르면 바로 닫힌다.
 --   UIKit.rewardPopup({ text = "1,500 코인", money = "cash" })        돈 그림 (MoneyIcon 종류)

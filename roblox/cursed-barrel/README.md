@@ -15,3 +15,10 @@
 cargo install lune --locked
 lune run build.luau CursedBarrel_Phase31.rbxl CursedBarrel_Phase32.rbxl
 ```
+
+검사 (정의되지 않은 변수 등):
+
+```sh
+cargo install selene --locked
+selene src
+```

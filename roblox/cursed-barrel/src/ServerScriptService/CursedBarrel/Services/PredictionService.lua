@@ -1,6 +1,7 @@
 --[[
 	PredictionService  (Phase 12)
 	관전 예측 : 판을 구경하는 사람이 "누가 마지막까지 살아남을까"를 고른다. 맞히면 코인.
+	· Phase 32 : 정식 버튼 "🔮 누가 이길까요?" · 맞히면 300 코인 (GameConfig.Prediction.Coins)
 
 	· 로벅스나 코인을 거는 도박이 아니다. 걸지 않고 고르기만 한다. 맞히면 서버가 코인을 준다.
 	· 그 판에 참가한 사람은 고를 수 없다. 한 판에 한 번만 고른다.
@@ -112,8 +113,7 @@ function PredictionService:OnSettled(info)
 	self.byTable[info.gameTable] = nil
 	-- Phase 24 : 무효 판(진행 없이 상대가 전부 나간 기권승)은 예측을 정산하지 않는다.
 	local winnerId = (not info.noContest) and info.winner and info.winner.UserId or 0
-	local count = #(info.roster or {})
-	local coins = math.min(PREDICT.MaxCoins, PREDICT.BaseCoins + PREDICT.PerPlayer * count)
+	local coins = tonumber(PREDICT.Coins) or 300 -- Phase 32 : 맞히면 300 코인
 	for player, pick in pairs(entry.picks) do
 		if player.Parent == Players then
 			if winnerId ~= 0 and pick == winnerId then

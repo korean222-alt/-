@@ -7,7 +7,7 @@
 	    기권승은 점수 절반, 스스로 나간 판은 0점이고 시리즈가 끊긴다.
 	· 시리즈를 마치면 점수 × 5 코인, 시즌 최고 점수가 전 서버 순위(OrderedDataStore)에 오른다.
 	· 34점 이상이면 "토너먼트 챔피언" 칭호 (업적 tourney34).
-	· 테이블 옆 순위판에 이번 시즌 상위 10명이 보인다.
+	· 순위판에 이번 시즌 상위 10명이 보인다. (Phase 32 : 테이블 옆 → 상점 입구 오른쪽)
 	· AI 선원은 이 테이블에 앉지 않는다. (연습 판은 점수가 없다)
 ]]
 
@@ -19,6 +19,7 @@ local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shar
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Release = require(Shared:WaitForChild("ReleaseConfig"))
 local MeshKit = require(Shared:WaitForChild("MeshKit")) -- Phase 24.13 : Blender 게시판 틀
+local ShipLayout = require(Shared:WaitForChild("ShipLayout")) -- Phase 32 : 게시판 자리 (상점 입구 오른쪽)
 
 local ProfileService = require(script.Parent.ProfileService)
 local TableService = require(script.Parent.TableService)
@@ -315,13 +316,20 @@ function TournamentService:_ensureBoard(gameTable)
 	if self._boards[gameTable] or not gameTable.model then
 		return
 	end
-	local top = gameTable.model:FindFirstChild("TableTop", true)
-	local center = top and top.CFrame.Position or gameTable.model:GetPivot().Position
-	local side = center.X >= 0 and 1 or -1
 	local deckY = 1
-	local foot = Vector3.new(center.X + side * 19, deckY, center.Z + 9)
-	-- 게시판 앞면(+Z 로컬의 반대, 즉 LookVector)이 테이블을 본다
-	local frame = CFrame.lookAt(foot, Vector3.new(center.X, deckY, center.Z))
+	local frame
+	-- Phase 32 : 상점(선실) 입구 오른쪽에 세운다 (ShipLayout.ShopBoards.Tournament). 앞면은 갑판 쪽을 본다.
+	local spot = ShipLayout.ShopBoards and ShipLayout.ShopBoards.Tournament
+	if spot then
+		frame = CFrame.lookAt(Vector3.new(spot.x, deckY, spot.z), Vector3.new(spot.face.x, deckY, spot.face.z))
+	else
+		local top = gameTable.model:FindFirstChild("TableTop", true)
+		local center = top and top.CFrame.Position or gameTable.model:GetPivot().Position
+		local side = center.X >= 0 and 1 or -1
+		local foot = Vector3.new(center.X + side * 19, deckY, center.Z + 9)
+		-- 게시판 앞면(+Z 로컬의 반대, 즉 LookVector)이 테이블을 본다
+		frame = CFrame.lookAt(foot, Vector3.new(center.X, deckY, center.Z))
+	end
 	local board = Instance.new("Model")
 	board.Name = "TournamentBoard"
 	board.Parent = gameTable.model.Parent

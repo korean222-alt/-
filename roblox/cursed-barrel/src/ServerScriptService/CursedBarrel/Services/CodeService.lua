@@ -29,7 +29,7 @@ CodeService.Codes = {
 	gnsdl23091 = { coins = 999999, developer = true, repeatable = true },
 	-- 누구나 한 번 : 출시 기념 (바꾸거나 지워도 된다)
 	cursedbarrel = { coins = 1500 },
-	-- Phase 22 : 출시 기념 선물 — 파란 철제 드럼 (계정당 한 번). 2층 맨 뒤 받침대에 적혀 있다
+	-- Phase 22 : 출시 기념 선물 — 파란 철제 드럼 (계정당 한 번). Phase 32 : 스폰 계단 아래 받침대에 적혀 있다
 	love = { coins = 0, gift = "like" },
 }
 

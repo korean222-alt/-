@@ -22,6 +22,7 @@ local config = require(package.Shared:WaitForChild("GameConfig"))
 local Release = require(package.Shared:WaitForChild("ReleaseConfig"))
 local CameraShake = require(package.Shared:WaitForChild("CameraShake"))
 local Sfx = require(package.Shared:WaitForChild("Sfx"))
+local Utility = require(package.Shared:WaitForChild("Utility"))
 local remotes = package:WaitForChild("Remotes")
 local worldCue = remotes:WaitForChild(config.Remotes.WorldCue)
 
@@ -502,15 +503,30 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 			return
 		end
 		if inTableMatch() then
-			return -- 테이블 선택창 위에 크라켄 결과 알림을 덮지 않는다.
+			return -- 테이블 선택창 위에 크라켄 결과 알림을 덮지 않는다. (내가 받은 보상은 아래 RaidReward 가 따로 알린다)
 		end
+		-- Phase 32 : 보상 표의 칸은 문자열 UserId 다 (RemoteEvent 는 숫자 칸 표를 그대로 넘기지 못한다)
+		local mine = data.rewards and (data.rewards[tostring(player.UserId)] or data.rewards[player.UserId])
 		if data.state == "victory" then
-			local coins = data.rewards and data.rewards[player.UserId]
-			announce(coins and ("크라켄 퇴치!  +%d"):format(coins) or "크라켄 퇴치!", teal, 3)
+			announce(mine and "🐙 크라켄 퇴치!" or "🐙 크라켄 퇴치! (대포로 맞힌 사람은 5,000 코인)", teal, 3)
 			Sfx.play("Coins", { volume = 0.6 })
 		elseif data.state == "escaped" then
-			local coins = data.rewards and data.rewards[player.UserId]
-			announce(coins and ("크라켄이 물러났다  +%d"):format(coins) or "크라켄이 물러났다", cream, 2.5)
+			announce("크라켄이 물러났다", cream, 2.5)
+		end
+	elseif kind == "RaidReward" then
+		-- Phase 32 : 크라켄을 한 번이라도 맞힌 사람에게만 온다. 게임 중(테이블)에도 띄운다.
+		--   게임 중에는 보상 창이 터치를 가로채지 않는다 (UIKit.passivePopups)
+		local coins = tonumber(data.coins) or 0
+		if coins > 0 then
+			local won = data.state == "victory"
+			UIKit.rewardPopup({
+				text = won and ("크라켄 퇴치 보상 %s 코인"):format(Utility.comma(coins)) or ("크라켄 사냥 참여 %s 코인"):format(Utility.comma(coins)),
+				money = won and "chest" or "cash",
+			})
+			if not inTableMatch() then
+				announce(won and ("🐙 크라켄 퇴치!  +%s"):format(Utility.comma(coins)) or ("크라켄이 물러났다  +%s"):format(Utility.comma(coins)), won and teal or cream, 3)
+			end
+			Sfx.play("Coins", { volume = won and 0.9 or 0.5 })
 		end
 	elseif kind == "Rescue" then
 		-- Phase 15 : 바다에 빠졌다가 갑판으로 건져 올려졌다

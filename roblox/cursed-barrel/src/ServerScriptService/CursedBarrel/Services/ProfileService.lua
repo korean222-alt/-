@@ -128,6 +128,13 @@ local function defaultProfile()
         weekly={week=-1,progress={},claimed={}},
         season={id=Release.Season.Id,xp=0,claimed={}},
 		tutorialDone = false,
+		-- Phase 32
+		lastStreakFoes = "", -- 연승이 마지막으로 오른 판의 상대 (사람 UserId 를 작은 순으로 이은 글자). 같은 상대에게 또 이기면 연승이 오르지 않는다
+		dayGamesDay = "", -- 오늘 끝까지 한 판 수를 센 날짜 (룰렛은 오늘 두 판을 해야 열린다)
+		dayGames = 0,
+		comebackChest = false, -- 3일 이상 쉬다 왔다 : 오늘 첫 판을 마치면 "돌아온 해적 상자"
+		seenKinds = {}, -- [해적 종류] = true (처음 만나는 해적은 설명 카드를 한 번 보여 준다)
+		funnel = 0, -- 첫 방문 흐름 분석 단계 (AnalyticsService 온보딩 단계는 한 사람에게 한 번씩만 보낸다)
 		updatedAt = 0,
 	}
 end
@@ -240,6 +247,29 @@ local function migrate(raw)
  if typeof(raw.weekly)=="table" and typeof(raw.weekly.progress)=="table" and typeof(raw.weekly.claimed)=="table" then profile.weekly=raw.weekly end
  if typeof(raw.season)=="table" and raw.season.id==Release.Season.Id and typeof(raw.season.claimed)=="table" then profile.season=raw.season;profile.season.xp=tonumber(raw.season.xp) or 0 end
  profile.tutorialDone = raw.tutorialDone == true
+	-- Phase 32
+	if typeof(raw.lastStreakFoes) == "string" and #raw.lastStreakFoes <= 200 then
+		profile.lastStreakFoes = raw.lastStreakFoes
+	end
+	if typeof(raw.dayGamesDay) == "string" then
+		profile.dayGamesDay = raw.dayGamesDay
+	end
+	local dayGames = tonumber(raw.dayGames)
+	if dayGames and dayGames == dayGames and dayGames < math.huge then
+		profile.dayGames = math.clamp(math.floor(dayGames), 0, 999)
+	end
+	profile.comebackChest = raw.comebackChest == true
+	if typeof(raw.seenKinds) == "table" then
+		for kind, seen in pairs(raw.seenKinds) do
+			if seen == true and typeof(kind) == "string" and #kind <= 20 then
+				profile.seenKinds[kind] = true
+			end
+		end
+	end
+	local funnel = tonumber(raw.funnel)
+	if funnel and funnel == funnel and funnel < math.huge then
+		profile.funnel = math.clamp(math.floor(funnel), 0, 99)
+	end
 	profile.schema = SCHEMA
 	return profile
 end
@@ -334,7 +364,24 @@ local function publish(player, profile)
 	-- Phase 13 : 출석판 · 룰렛 알림 점 (버튼 위 빨간 점)
 	local today = Utility.today()
 	player:SetAttribute("AttendReady", GameConfig.Attendance.Enabled and profile.attendDay ~= today)
-	player:SetAttribute("FreeSpin", GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today)
+	-- Phase 32 : 룰렛은 오늘 두 판을 끝까지 해야 열린다 (FreeSpin = 지금 돌릴 수 있다)
+	--   SpinGames / SpinNeed : 버튼 위 자물쇠 "0/2" · ComebackReady : 돌아온 해적 상자를 지금 열 수 있다
+	local spin = GameConfig.spinState(profile, today)
+	player:SetAttribute("FreeSpin", spin.free)
+	player:SetAttribute("SpinGames", spin.games)
+	player:SetAttribute("SpinNeed", spin.need)
+	player:SetAttribute("SpinSpun", spin.spun)
+	player:SetAttribute("ComebackChest", spin.comeback)
+	player:SetAttribute("ComebackReady", spin.comebackReady)
+	player:SetAttribute("SeenKinds", (function()
+		local list = {}
+		for kind in pairs(profile.seenKinds or {}) do
+			table.insert(list, kind)
+		end
+		table.sort(list)
+		return table.concat(list, ",")
+	end)())
+	player:SetAttribute("TutorialDone", profile.tutorialDone == true)
 	-- Phase 15 : 다 채우고 아직 안 받은 퀘스트 수 (퀘스트 버튼 위 빨간 동그라미) · 주간 의뢰 · 시즌 보상 수 (항해 버튼)
 	local questReady = 0
 	if GameConfig.Quests.Enabled and profile.daily and profile.daily.date == today then
@@ -679,6 +726,7 @@ function ProfileService:BreakStreak(player)
 		return
 	end
 	profile.streak = 0
+	profile.lastStreakFoes = "" -- Phase 32 : 새 연승은 누구와 이기든 1부터 다시 쌓인다
 	self:_touch(player)
 end
 
@@ -699,6 +747,40 @@ function ProfileService:PotScale(player)
 		return 1 + (tonumber(pass.potBonus) or 0)
 	end
 	return 1
+end
+
+-- Phase 32 : 오늘 끝까지 한 판을 하나 센다 (룰렛은 오늘 GamesToUnlock 판을 해야 열린다 · AI 판 포함).
+--   돌려주는 값 : 오늘 센 판 수, 이번에 룰렛이 막 열렸는가, 이번에 돌아온 해적 상자가 막 준비됐는가
+function ProfileService:CountGame(player)
+	local profile = self._profiles[player]
+	if not profile then
+		return 0, false, false
+	end
+	local today = Utility.today()
+	local before = GameConfig.spinState(profile, today)
+	if profile.dayGamesDay ~= today then
+		profile.dayGamesDay = today
+		profile.dayGames = 0
+	end
+	profile.dayGames = math.min(999, (profile.dayGames or 0) + 1)
+	local after = GameConfig.spinState(profile, today)
+	self:_touch(player)
+	return profile.dayGames, (not before.unlocked) and after.unlocked and not after.spun, (not before.comebackReady) and after.comebackReady
+end
+
+-- Phase 32 : 이 해적 종류를 처음 만나는가 (처음이면 기록하고 true)
+function ProfileService:SeeKind(player, kind)
+	local profile = self._profiles[player]
+	if not profile or typeof(kind) ~= "string" then
+		return false
+	end
+	profile.seenKinds = profile.seenKinds or {}
+	if profile.seenKinds[kind] then
+		return false
+	end
+	profile.seenKinds[kind] = true
+	self:_touch(player)
+	return true
 end
 
 -- Phase 12 : 연습 판을 마쳤다
@@ -798,7 +880,22 @@ function ProfileService:RecordRound(gameTable, roster, winner, forfeited, bonuse
 		if profile then
 			if not practice then
 				profile.wins += 1
-				profile.streak += 1
+				-- Phase 32 : 연승 주작 막기. 바로 전에 연승이 오른 판과 상대(사람)가 똑같으면 연승은 그대로다.
+				--   다른 사람이 한 명이라도 낀 판에서 이겨야 다시 오른다. (지지는 않았으니 연승이 끊기지도 않는다)
+				local foes = {}
+				for _, member in ipairs(roster or {}) do
+					if member ~= winner and typeof(member) == "Instance" and member:IsA("Player") then
+						table.insert(foes, member.UserId)
+					end
+				end
+				table.sort(foes)
+				local foeKey = table.concat(foes, ",")
+				if foeKey ~= "" and foeKey == (profile.lastStreakFoes or "") then
+					options.sameFoes = true
+				else
+					profile.streak += 1
+					profile.lastStreakFoes = foeKey
+				end
 				profile.bestStreak = math.max(profile.bestStreak, profile.streak)
 				profile.bestStreakToday = math.max(profile.bestStreakToday or 0, profile.streak)
 			end
@@ -905,6 +1002,11 @@ function ProfileService:_rollDaily(player, profile)
 	-- 하루 한 번 접속 보상. Phase 10 : 이어서 들어오면 날마다 커진다. (7일째가 가장 크다)
 	local day = math.floor(os.time() / 86400)
 	if profile.lastLoginDay ~= day then
+		-- Phase 32 : 3일 이상 쉬다 왔다 → 오늘 첫 판을 마치면 "돌아온 해적 상자"
+		local away = GameConfig.Roulette and tonumber(GameConfig.Roulette.ComebackDays) or 0
+		if away > 0 and (profile.lastLoginDay or -1) >= 0 and (profile.games or 0) > 0 and day - profile.lastLoginDay >= away then
+			profile.comebackChest = true
+		end
 		if profile.lastLoginDay == day - 1 then
 			profile.loginStreak = (profile.loginStreak or 0) + 1
 		else

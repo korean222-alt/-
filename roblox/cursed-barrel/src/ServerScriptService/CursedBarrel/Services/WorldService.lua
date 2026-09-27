@@ -296,18 +296,24 @@ function WorldService:_endRaid(result)
 		end
 	end
 
+	-- Phase 32 : 물리치면 한 번이라도 맞힌 사람 모두에게 5,000 코인 (RAID.KillReward).
+	--   예전에는 코인을 주고도 화면에 안 보였다 : 보상 표를 UserId(숫자) 칸으로 보냈는데
+	--   RemoteEvent 는 숫자 칸 표를 그대로 넘기지 못해서, 받는 쪽에서 rewards[UserId] 가 늘 비어 있었다.
+	--   게다가 게임 중(테이블)에는 결과 알림을 아예 띄우지 않았다.
+	--   → 표 칸은 문자열로 보내고, 받은 사람에게는 따로 "RaidReward" 를 보낸다 (게임 중에도 뜬다).
 	local rewards = {}
 	for player, hits in pairs(raid.hits) do
-		if player.Parent == Players then
+		if player.Parent == Players and hits > 0 then
 			local coins = 0
 			if result == "victory" then
-				coins = math.min(RAID.WinCoinsCap, RAID.WinCoins + hits * RAID.CoinsPerHit)
-				coins = ProfileService:Award(player, coins, "raidWins") or coins -- Phase 24.15 : 실제 지급액
-			elseif hits > 0 then
-				coins = RAID.EscapeCoins
-				coins = ProfileService:Award(player, coins) or coins
+				coins = ProfileService:Award(player, RAID.KillReward or 5000, "raidWins") or 0 -- 실제 지급액 (VIP 배율 포함)
+			else
+				coins = ProfileService:Award(player, RAID.EscapeCoins) or 0
 			end
-			rewards[player.UserId] = coins
+			rewards[tostring(player.UserId)] = coins
+			if self._cue and coins > 0 then
+				self._cue:FireClient(player, "RaidReward", { state = result, coins = coins, hits = hits })
+			end
 		end
 	end
 	self:_fire("Raid", { state = result, rewards = rewards })

@@ -264,7 +264,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
-	LikeOnly = "🎟 코드 선물이에요 (코드에 love 입력 · 2층 뒤쪽 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다
+	LikeOnly = "🎟 게임 출시 기념 선물이에요 (코드에 love 입력 · 스폰 계단 아래 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다 · Phase 32 : 받침대가 스폰 계단 아래로 옮겼다
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -321,7 +321,7 @@ GameConfig.Ranking = {
 		{ id = "streak", title = "🔥 최고 연승", stat = "bestStreak", store = "CursedBarrel_BestStreak_v1", suffix = "연승", keepMax = true },
 		{ id = "coins", title = "💰 전체 부자 순위", stat = "coins", store = "CursedBarrel_Coins_v1" },
 		{ id = "wins", title = "🏆 전체 승리", stat = "wins", store = "CursedBarrel_Wins_v2", suffix = "승", keepMax = true },
-		-- Phase 24.10 : 한 판에서 살아서 올라간 가장 높은 라운드 (E 테이블 옆 게시판)
+		-- Phase 24.10 : 한 판에서 살아서 올라간 가장 높은 라운드 (Phase 32 : 상점 입구 왼쪽 게시판)
 		{ id = "round", title = "🌊 최고 라운드", stat = "bestRound", store = "CursedBarrel_BestRound_v1", suffix = "R", keepMax = true },
 	},
 	PublishInterval = 120, -- 코인 · 연승을 전 서버 순위에 올리는 간격(초). 바뀐 사람만 쓴다
@@ -349,9 +349,12 @@ GameConfig.Catch = {
 	-- ★ Phase 21 : 판이 오래 가게. 창이 HardWindow(0.40초) 아래로 내려가는 "어려운 경지"부터는
 	--   잡을 때마다 HardStep(0.02초)씩만 좁아진다 (0.40 → 0.38 → 0.36 … → 0.20). 잘하는 사람은 훨씬 오래 버틴다.
 	--   분노한 해적은 16번을 잡은 다음 (예전 6번)
-	MaxPerPlayer = 16,
+	-- ★ Phase 32 : 라운드 제한 없이 (잘하는 사람은 끝없이). 몇 번을 잡든 "분노한 해적만 나오는" 벽이 없다.
+	--   예전에는 16번 잡은 뒤로는 창 0.16~0.24초짜리 분노한 해적만 나와서 사실상 8라운드쯤이 끝이었다.
+	--   이제 분노한 해적은 7라운드부터 가끔 섞여 나오는 해적 종류 중 하나다 (GameConfig.PirateKinds).
+	MaxPerPlayer = 9999,
 	HardWindow = 0.40,
-	HardStep = 0.02,
+	HardStep = 0.01, -- Phase 32 : 0.02 → 0.01 (0.40 → 0.30 까지 열 번에 걸쳐 천천히)
 	PersonalDecay = 0.8,
 	LeadDecay = 0.86,
 	MinLead = 0.85, -- ★ 칼 꽂는 모션(최대 0.75초)이 끝나기 전에 해적이 나오면 안 된다
@@ -361,9 +364,9 @@ GameConfig.Catch = {
 	--   창이 아주 좁고(AngryWindow → 잡을 때마다 AngryStep 씩, AngryMinWindow 까지) 나오는 순간도 더 크게 흔들린다.
 	--   잡으면 계속 살아남고, 놓치면 탈락. 잘하는 사람은 이어 갈 수 있지만 아주 어렵다.
 	AngryCatchable = true,
-	AngryWindow = 0.24,
-	AngryStep = 0.01,
-	AngryMinWindow = 0.16,
+	AngryWindow = 0.30, -- Phase 32 : 0.24 → 0.30 (이제 가끔 섞여 나오는 종류라 잘하면 잡을 수 있게)
+	AngryStep = 0.005,
+	AngryMinWindow = 0.26,
 	AngryLeadJitter = 0.9, -- 보통은 LeadJitter(0.5). 박자를 더 못 외우게
 	AngryInk = 2.4, -- 먹물이 내 화면을 덮는 시간(초)
 	AngryPreRise = 0.9, -- 먹물을 뿜으려고 먼저 올라오는 시간. 칼 모션이 끝난 뒤에 올라오도록 나오는 시간에 더한다
@@ -379,7 +382,10 @@ GameConfig.Catch = {
 
 	BaseWindow = 0.62, -- 첫 번째 잡기의 창 길이(초)
 	StepPerCatch = 0.03, -- 이 테이블에서 누군가 잡을 때마다 모두의 창이 이만큼 좁아진다
-	MinWindow = 0.2, -- ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다)
+	MinWindow = 0.30, -- ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다) · Phase 32 : 0.2 → 0.3 (잘하는 사람이 끝없이 갈 수 있는 바닥)
+	-- Phase 32 : 신입 보호. 판 수(Games)가 이보다 적은 사람은 한 판에 한 번, 놓치거나 먼저 눌러도 해적이 한 번 더 나온다.
+	RookieGames = 3,
+	SaveDelay = 1.7, -- 살려 준 뒤 해적이 다시 나오기까지 (안내를 읽을 틈)
 	DuelScale = 0.85, -- 최후의 2인이면 곱한다
 	LowSlotScale = 0.90, -- 남은 자리가 3칸 이하면 곱한다
 
@@ -666,7 +672,7 @@ GameConfig.Skins = {
 		},
 		-- Phase 13 : 파란 철제 드럼 (진짜 200리터 드럼처럼 : 광택 파란 페인트 · 굴림 테 두 줄 · 위아래 주름 · 뚜껑 마개 둘)
 		{
-			-- Phase 16 : 그룹 가입 보상 (상점에서는 팔지 않는다) → Phase 22 부터 출시 기념 코드 love 선물 (2층 뒤쪽 받침대에서 안내)
+			-- Phase 16 : 그룹 가입 보상 (상점에서는 팔지 않는다) → Phase 22 부터 출시 기념 코드 love 선물 (Phase 32 : 스폰 계단 아래 받침대에서 안내)
 			id = "blue_drum", name = "파란 철제 드럼", rarity = "rare", price = 0, reward = "like",
 			body = Color3.fromRGB(26, 70, 178), bodyMaterial = Enum.Material.SmoothPlastic, reflectance = 0.16,
 			hoop = Color3.fromRGB(34, 84, 196), hoopMaterial = Enum.Material.SmoothPlastic,
@@ -1503,9 +1509,8 @@ GameConfig.Raid = {
 		{ side = -1, z = 76 }, { side = -1, z = 23 }, { side = -1, z = -20 },
 		{ side = 1, z = 74 }, { side = 1, z = 30 }, { side = 1, z = -28 },
 	},
-	WinCoins = 180, -- 물리치면 참여한 사람 모두에게
-	CoinsPerHit = 9, -- 맞힌 횟수만큼 더
-	WinCoinsCap = 450,
+	-- Phase 32 : 물리치면 한 번이라도 맞힌 사람 모두에게 5,000 코인 (예전 180 + 맞힌 횟수 × 9, 최대 450)
+	KillReward = 5000,
 	EscapeCoins = 45, -- 못 물리쳐도 한 번이라도 맞힌 사람에게
 }
 
@@ -1535,10 +1540,11 @@ GameConfig.Cannon = {
 --------------------------------------------------
 GameConfig.Prediction = {
 	Enabled = true,
-	BaseCoins = 45,
-	PerPlayer = 15, -- 참가 인원 1명마다 더
-	MaxCoins = 120,
+	-- Phase 32 : "누가 이길까요?" 는 정식 버튼. 맞히면 인원과 상관없이 300 코인 (예전 45 + 인원 × 15, 최대 120)
+	Coins = 300,
 	DailyCap = 10, -- 하루에 보상을 받는 적중 횟수
+	-- Phase 32 : 게임 중인 테이블에 이만큼(스터드) 다가가면 "👀 관전" 버튼이 뜬다
+	SpectateRange = 26,
 }
 
 GameConfig.Tutorial = {
@@ -1546,6 +1552,157 @@ GameConfig.Tutorial = {
 	WindowScale = 1.6, -- 연습 판에서 처음 온 사람의 잡기 창 배율
 	Lead = 1.8, -- 연습 판에서는 해적이 나오는 시간을 흔들지 않고 이 값으로 둔다
 	BotFillDelay = 1, -- 연습 판은 AI 가 곧바로 앉는다
+	-- Phase 32 : 튜토리얼은 필수다. 처음 온 사람은 AI 둘과 연습 판에 자동으로 앉고, 해적 종류를 하나씩 모두 잡아 봐야 끝난다.
+	--   · 튜토리얼 동안 내 칼은 항상 해적 자리에 꽂히고(차례마다 새 해적 하나), AI 의 칼은 항상 안전하다.
+	--   · 놓치거나 먼저 눌러도 탈락하지 않고 같은 해적이 다시 나온다 (다만 아무것도 안 누르고 MaxIdleMisses 번 놓치면 끝낸다)
+	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
+	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
+	Mandatory = true,
+	Kinds = { "normal", "twin", "side", "skull", "mash" },
+	IntroLead = 3.4, -- 설명 카드를 보여 주는 동안 (이 시간 뒤에 해적이 나온다)
+	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
+	MaxIdleMisses = 3,
+	Reward = 500,
+	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
+	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
+	Card = "sleepy", -- 튜토리얼 첫 라운드의 운명 카드 (카드가 무엇인지 보여 준다)
+}
+
+--------------------------------------------------
+-- Phase 32 : 해적 종류
+--   해적마다 잡는 방법이 다르다. 라운드가 오를수록 새 종류가 풀린다 (unlock = 몇 라운드부터).
+--   종류는 서버가 고르고, 잡았는지도 서버가 판정한다. 화면은 스킨 위에 테두리 색 · 머리 위 표시 · 안내 글만 더한다.
+--   (해적 스킨은 그대로 보인다. 쌍둥이는 같은 스킨이 둘, 해골 유령은 같은 스킨이 반투명)
+--
+--   normal : 튀어나오면 한 번 탭
+--   twin   : 둘이 차례로 튀어나온다. 나올 때마다 탭 (둘째는 gap 초 뒤 · 둘째 전에 누르면 "너무 빨랐다")
+--   side   : 왼쪽/오른쪽 중 한쪽으로 튀어나온다. 그쪽을 누른다 (화면 왼쪽 · 오른쪽 반 / ← → · A D / 게임패드 LB RB · 방향키)
+--   skull  : 반투명 해골 유령. 누르면 탈락 · 사라질 때까지 참으면 산다 (통 틈의 빛이 하얗다)
+--   mash   : 칼을 붙잡았다. window 초 안에 taps 번 연타 (라운드가 오를수록 조금 늘어난다)
+--   angry  : 분노한 해적 (먹물 · 좁은 창). 7라운드부터 가끔
+--------------------------------------------------
+GameConfig.PirateKinds = {
+	Enabled = true,
+	Order = { "normal", "twin", "side", "skull", "mash", "angry" },
+	List = {
+		normal = { name = "해적", icon = "☠", short = "탭!", how = "튀어나오면 한 번 눌러요!", color = Color3.fromRGB(101, 241, 211), unlock = 1, weight = 50 },
+		twin = { name = "쌍둥이 해적", icon = "👯", short = "하나 · 둘!", how = "두 마리가 차례로 튀어나와요. 나올 때마다 한 번씩!", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
+			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9 },
+		side = { name = "갈고리 해적", icon = "🪝", short = "◀ 쪽 · 쪽 ▶", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 16,
+			windowScale = 1.2 },
+		skull = { name = "해골 유령", icon = "👻", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
+			show = 1.2 },
+		mash = { name = "욕심쟁이 해적", icon = "💰", short = "연타!", how = "칼을 붙잡았어요! 빠르게 여러 번 눌러요!", color = Color3.fromRGB(255, 206, 80), unlock = 5, weight = 12,
+			taps = 5, tapsEvery = 4, maxTaps = 8, window = 1.8, minWindow = 1.3, minGap = 0.045 },
+		angry = { name = "분노한 해적", icon = "😡", short = "먹물 뒤에 탭!", how = "먹물을 뿜어요! 먹물을 뚫고 튀어나올 때 눌러요", color = Color3.fromRGB(255, 70, 60), unlock = 7, weight = 7 },
+	},
+	FirstSightLead = 1.8, -- 처음 만나는 종류는 설명 카드를 보여 줄 만큼 해적이 늦게 나온다
+}
+
+-- 이 라운드에 나올 수 있는 종류 중 하나를 고른다. boost = { 종류 = 배율 }, random = Random
+function GameConfig.pickPirateKind(stage, boost, random)
+	local kinds = GameConfig.PirateKinds
+	if not kinds.Enabled then
+		return "normal"
+	end
+	stage = math.max(1, math.floor(tonumber(stage) or 1))
+	local pool, total = {}, 0
+	for _, id in ipairs(kinds.Order) do
+		local def = kinds.List[id]
+		if def and stage >= (def.unlock or 1) then
+			local weight = (tonumber(def.weight) or 0) * (boost and tonumber(boost[id]) or 1)
+			if weight > 0 then
+				total += weight
+				table.insert(pool, { id = id, weight = weight })
+			end
+		end
+	end
+	if total <= 0 then
+		return "normal"
+	end
+	local roll = (random and random:NextNumber() or math.random()) * total
+	for _, entry in ipairs(pool) do
+		roll -= entry.weight
+		if roll < 0 then
+			return entry.id
+		end
+	end
+	return pool[#pool].id
+end
+
+--------------------------------------------------
+-- Phase 32 : 운명 카드
+--   라운드(통)가 새로 시작될 때마다 카드 한 장을 뽑아 모두에게 보여 준다. 그 라운드 동안만 규칙이 바뀐다.
+--   1라운드는 순한 카드(gentle)만. minStage 가 있으면 그 라운드부터.
+--     pot = 현상금 배율 · pirates = 해적 수 더하기(빼기) · window = 잡기 창 배율 · kind = 이 종류만 나온다
+--     kindBoost = 종류 확률 배율 · surge = 보물 폭발 확률 배율 · safe = 안전한 자리 코인 배율
+--     brave = 한 번 더 찌르기 보상 배율 · shuffle = 차례마다 해적이 빈 자리 안에서 자리를 옮긴다
+--     turn = 고르는 시간 배율 · catchCoins = 잡기 코인 배율
+--------------------------------------------------
+GameConfig.FateCards = {
+	Enabled = true,
+	RevealTime = 2.6, -- 카드를 뒤집어 보여 주는 동안 다음 차례를 기다린다
+	List = {
+		{ id = "gold", name = "황금 통", icon = "💰", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
+		{ id = "sleepy", name = "졸린 해적", icon = "😴", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
+		{ id = "storm", name = "성난 바다", icon = "🌊", text = "잡는 시간 -15% · 현상금 1.5배", weight = 9, window = 0.85, pot = 1.5, minStage = 2, color = Color3.fromRGB(80, 160, 255) },
+		{ id = "twins", name = "쌍둥이의 밤", icon = "👯", text = "이번 라운드 해적은 전부 쌍둥이!", weight = 8, kind = "twin", minStage = 2, color = Color3.fromRGB(255, 150, 70) },
+		{ id = "ghosts", name = "유령선", icon = "👻", text = "해골 유령이 자주 나와요 (누르지 말고 참기!)", weight = 8, kindBoost = { skull = 5 }, minStage = 4, color = Color3.fromRGB(230, 236, 255) },
+		{ id = "hooks", name = "갈고리 폭풍", icon = "🪝", text = "갈고리 해적이 자주 나와요 (방향 보고 누르기!)", weight = 8, kindBoost = { side = 5 }, minStage = 3, color = Color3.fromRGB(120, 180, 255) },
+		{ id = "greed", name = "황금 욕심", icon = "💎", text = "욕심쟁이 해적이 자주 · 잡으면 코인 2배", weight = 7, kindBoost = { mash = 5 }, catchCoins = 2, minStage = 5, color = Color3.fromRGB(120, 255, 214) },
+		{ id = "lucky", name = "행운의 통", icon = "🍀", text = "해적 -1 · 보물 폭발 2배", weight = 10, pirates = -1, surge = 2, gentle = true, color = Color3.fromRGB(120, 230, 120) },
+		{ id = "blades", name = "불꽃 칼날", icon = "🔥", text = "안전한 자리 코인 2배", weight = 10, safe = 2, gentle = true, color = Color3.fromRGB(255, 120, 70) },
+		{ id = "brave", name = "배짱 축제", icon = "🎯", text = "한 번 더 찌르기 보상 2배", weight = 8, brave = 2, gentle = true, color = Color3.fromRGB(255, 160, 70) },
+		{ id = "drift", name = "떠도는 해적", icon = "🌀", text = "차례마다 해적이 자리를 옮겨요", weight = 7, shuffle = true, minStage = 2, color = Color3.fromRGB(196, 150, 255) },
+		{ id = "hurry", name = "급한 물살", icon = "⏱", text = "고르는 시간이 짧아요", weight = 6, turn = 0.6, minStage = 2, color = Color3.fromRGB(255, 96, 78) },
+		{ id = "calm", name = "잔잔한 바다", icon = "⚓", text = "특별한 일 없음 · 숨 돌리기", weight = 6, gentle = true, color = Color3.fromRGB(244, 231, 198) },
+	},
+}
+
+function GameConfig.findFateCard(id)
+	for _, card in ipairs(GameConfig.FateCards.List) do
+		if card.id == id then
+			return card
+		end
+	end
+	return nil
+end
+
+-- 이 라운드의 카드를 뽑는다. last = 바로 전 카드 id (같은 카드가 두 번 연달아 나오지 않게)
+function GameConfig.drawFateCard(stage, last, random)
+	local cards = GameConfig.FateCards
+	if not cards.Enabled then
+		return nil
+	end
+	stage = math.max(1, math.floor(tonumber(stage) or 1))
+	local pool, total = {}, 0
+	for _, card in ipairs(cards.List) do
+		local allowed = (stage > 1 or card.gentle) and stage >= (card.minStage or 1) and card.id ~= last
+		if allowed then
+			total += card.weight
+			table.insert(pool, card)
+		end
+	end
+	if total <= 0 then
+		return nil
+	end
+	local roll = (random and random:NextNumber() or math.random()) * total
+	for _, card in ipairs(pool) do
+		roll -= card.weight
+		if roll < 0 then
+			return card
+		end
+	end
+	return pool[#pool]
+end
+
+--------------------------------------------------
+-- Phase 32 : 끝없는 라운드
+--   라운드 수에 끝이 없다. MilestoneEvery 라운드마다 살아 있는 사람에게 MilestoneCoins 코인 (최후의 1인 테이블은 현상금에 쌓인다)
+--------------------------------------------------
+GameConfig.Endless = {
+	MilestoneEvery = 5,
+	MilestoneCoins = 150,
 }
 
 GameConfig.Tournament = {
@@ -1705,12 +1862,44 @@ GameConfig.Announce = {
 	RouletteRare = true, -- 룰렛에서 희귀 스킨이 나와도 알린다
 }
 
-function GameConfig.rouletteTotalWeight()
+function GameConfig.rouletteTotalWeight(boost)
 	local total = 0
 	for _, segment in ipairs(GameConfig.Roulette.Segments) do
-		total += segment.weight
+		total += GameConfig.rouletteWeight(segment, boost)
 	end
 	return total
+end
+
+-- Phase 32 : 룰렛 여는 조건
+--   · 접속하자마자는 출석판만 (바로 받는 보상). 룰렛은 오늘 GamesToUnlock 판을 끝까지 하면 열린다 (AI 판 포함).
+--     "끝까지" = 판이 끝날 때까지 자리를 지켰거나, 해적에게 탈락했다 (스스로 나간 판은 세지 않는다)
+--   · 3일(ComebackDays) 이상 쉬다 온 사람은 오늘 첫 판을 마치면 "돌아온 해적 상자" 를 한 번 연다.
+--     룰렛과 같은 판을 쓰되 희귀 칸 확률이 오른다 (ComebackBoost = 칸 id 별 weight 배율). 오늘의 무료 룰렛과는 따로다.
+GameConfig.Roulette.GamesToUnlock = 2
+GameConfig.Roulette.ComebackDays = 3
+GameConfig.Roulette.ComebackBoost = { c60 = 0.4, c150 = 0.6, skin_plain = 1.5, c900 = 1.5, skin_rare = 5, c3000 = 4, jackpot = 4 }
+
+function GameConfig.rouletteWeight(segment, boost)
+	local scale = boost and tonumber(boost[segment.id]) or 1
+	return (tonumber(segment.weight) or 0) * scale
+end
+
+-- 오늘의 룰렛 상태. profile 은 서버 자료 (ProfileService)
+function GameConfig.spinState(profile, today)
+	local R = GameConfig.Roulette
+	local need = math.max(0, math.floor(tonumber(R.GamesToUnlock) or 0))
+	local games = (profile and profile.dayGamesDay == today) and (tonumber(profile.dayGames) or 0) or 0
+	local spun = profile ~= nil and profile.freeSpinDay == today
+	local unlocked = games >= need
+	return {
+		need = need,
+		games = math.min(games, need),
+		unlocked = unlocked,
+		spun = spun,
+		free = R.Enabled == true and unlocked and not spun,
+		comeback = R.Enabled == true and profile ~= nil and profile.comebackChest == true,
+		comebackReady = R.Enabled == true and profile ~= nil and profile.comebackChest == true and games >= 1,
+	}
 end
 
 --------------------------------------------------

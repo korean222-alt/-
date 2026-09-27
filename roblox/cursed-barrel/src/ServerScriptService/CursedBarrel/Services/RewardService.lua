@@ -9,6 +9,8 @@
 
 	룰렛
 	  · 하루에 한 번 무료로 돌린다. (이용권 · 로벅스 판매 없음 : 돈 주고 사는 뽑기가 아니다)
+	  · Phase 32 : 오늘 두 판(AI 판 포함)을 끝까지 해야 열린다. 접속하자마자는 출석판만 받는다.
+	    3일 이상 쉬다 온 사람은 오늘 첫 판을 마치면 "돌아온 해적 상자"(희귀 칸 확률이 오른 룰렛)를 한 번 더 연다.
 	  · 결과는 서버가 정하고, 클라이언트는 그 칸에 멈추는 연출만 한다.
 	  · 확률표는 보여 주지 않는다 (Phase 15). 무료 룰렛이라 공개 의무가 없다. 유료로 바꾸면 다시 보여 줘야 한다.
 ]]
@@ -109,11 +111,11 @@ end
 -- 룰렛
 --------------------------------------------------
 
-function RewardService:_rollIndex()
-	local roll = self._random:NextNumber() * GameConfig.rouletteTotalWeight()
+function RewardService:_rollIndex(boost)
+	local roll = self._random:NextNumber() * GameConfig.rouletteTotalWeight(boost)
 	local acc = 0
 	for index, segment in ipairs(ROULETTE.Segments) do
-		acc += segment.weight
+		acc += GameConfig.rouletteWeight(segment, boost)
 		if roll < acc then
 			return index
 		end
@@ -143,8 +145,9 @@ function RewardService:_pickSkin(profile, segment)
 	return pool[self._random:NextInteger(1, #pool)]
 end
 
--- 하루에 한 번
-function RewardService:Spin(player, today)
+-- 하루에 한 번 (Phase 32 : 오늘 두 판을 끝까지 한 뒤에)
+-- mode = "comeback" : 돌아온 해적 상자 (3일 이상 쉬다 와서 오늘 첫 판을 마쳤다 · 희귀 칸 확률이 오른다 · 오늘의 룰렛과 따로)
+function RewardService:Spin(player, today, mode)
 	if not ROULETTE.Enabled then
 		return false, REJECT.NoSpins
 	end
@@ -153,14 +156,30 @@ function RewardService:Spin(player, today)
 		return false, "자료를 불러오는 중입니다"
 	end
 	today = today or Utility.today()
-	if profile.freeSpinDay == today then
-		return false, REJECT.NoSpins
+	local spin = GameConfig.spinState(profile, today)
+	local boost = nil
+	if mode == "comeback" then
+		if not spin.comeback then
+			return false, "돌아온 해적 상자가 없어요"
+		end
+		if not spin.comebackReady then
+			return false, "🎁 한 판을 끝까지 하면 열 수 있어요"
+		end
+		profile.comebackChest = false
+		boost = ROULETTE.ComebackBoost
+	else
+		if spin.spun then
+			return false, REJECT.NoSpins
+		end
+		if not spin.unlocked then
+			return false, ("🔒 오늘 %d판을 끝까지 하면 열려요 (%d/%d)"):format(spin.need, spin.games, spin.need)
+		end
+		profile.freeSpinDay = today
 	end
-	profile.freeSpinDay = today
 
-	local index = self:_rollIndex()
+	local index = self:_rollIndex(boost)
 	local segment = ROULETTE.Segments[index]
-	local result = { index = index, id = segment.id, kind = segment.kind, amount = segment.amount }
+	local result = { index = index, id = segment.id, kind = segment.kind, amount = segment.amount, comeback = mode == "comeback" or nil }
 	if segment.kind == "coins" then
 		profile.coins += segment.amount
 	elseif segment.kind == "skin" then
@@ -275,9 +294,29 @@ function RewardService:_onRequest(player, action, arg)
 		local ok, result = self:ClaimAttendance(player)
 		self._cue:FireClient(player, "attend", ok, result)
 	elseif action == "spin" then
-		local ok, result = self:Spin(player)
+		local ok, result = self:Spin(player, nil, arg == "comeback" and "comeback" or nil)
 		self._cue:FireClient(player, "spin", ok, result)
 	end
+end
+
+-- Phase 32 : 판 하나를 끝까지 했다 (RoundService 가 부른다). 룰렛이 몇 판 남았는지 · 막 열렸는지 알린다.
+function RewardService:OnGameCounted(player, games, unlockedNow, comebackNow)
+	if not self._cue or player.Parent ~= Players then
+		return
+	end
+	local profile = ProfileService:Get(player)
+	local spin = profile and GameConfig.spinState(profile, Utility.today())
+	if not spin then
+		return
+	end
+	self._cue:FireClient(player, "gameCounted", true, {
+		games = spin.games,
+		need = spin.need,
+		unlocked = spin.unlocked,
+		spun = spin.spun,
+		unlockedNow = unlockedNow == true,
+		comebackNow = comebackNow == true,
+	})
 end
 
 function RewardService:Start()
@@ -323,7 +362,11 @@ function RewardService:Start()
 				local profile = ProfileService:Get(player)
 				if profile then
 					player:SetAttribute("AttendReady", ATTEND.Enabled and profile.attendDay ~= today)
-					player:SetAttribute("FreeSpin", ROULETTE.Enabled and profile.freeSpinDay ~= today)
+					-- Phase 32 : 룰렛은 오늘 두 판을 해야 열린다 (날짜가 바뀌면 다시 0/2)
+					local spin = GameConfig.spinState(profile, today)
+					player:SetAttribute("FreeSpin", spin.free)
+					player:SetAttribute("SpinGames", spin.games)
+					player:SetAttribute("SpinSpun", spin.spun)
 					if lastDay[player] and lastDay[player] ~= today then
 						ProfileService:_rollDaily(player, profile)
 						ProfileService:_touch(player)

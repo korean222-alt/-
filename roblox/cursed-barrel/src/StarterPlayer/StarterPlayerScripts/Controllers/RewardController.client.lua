@@ -44,6 +44,7 @@ local DAY_ICONS = { "cash", "cash", "cash2", "cash2", "cash3", "cash3", "chest" 
 local CELL_THEMES = { "green", "green", "blue", "blue", "purple", "purple", "gold" }
 
 local state = nil
+local pendingRouletteOpen = false -- Phase 32 : 룰렛이 막 열렸다 (테이블에서 일어나면 한 번 연다)
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "CursedBarrel_Rewards"
@@ -166,52 +167,98 @@ side.Position = UDim2.new(0, WHEEL + 26, 0, 4)
 side.Size = UDim2.new(1, -(WHEEL + 30), 1, -8)
 side.BackgroundTransparency = 1
 side.Parent = roulettePaper
-text(side, "하루 한 번 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 40), 28, COLORS.Gold)
+-- Phase 32 : 룰렛은 오늘 두 판(AI 판 포함)을 끝까지 해야 열린다. 잠겨 있으면 몇 판 남았는지 적는다
+local rouletteHeading = text(side, "하루 한 번 무료!", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 40), 28, COLORS.Gold)
 for i, kind in ipairs({ "cash2", "gift", "chest" }) do
 	MoneyIcon.view(side, kind, { size = UDim2.new(1 / 3, -4, 0, 70), position = UDim2.new((i - 1) / 3, 2, 0, 88), spin = true })
 end
 local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 172), "green")
 local resultLabel = text(side, "", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 250), 24, COLORS.Gold)
+-- Phase 32 : 돌아온 해적 상자 (3일 이상 쉬다 와서 오늘 첫 판을 마치면 한 번 · 희귀 칸 확률이 오른다)
+local comebackButton = button(side, "🎁 돌아온 해적 상자!", UDim2.new(1, 0, 0, 54), UDim2.fromOffset(0, 322), "gold")
+comebackButton.Visible = false
 
 local spinning = false
 local spinToken = 0
 
-local function drawRoulette()
+local function spinInfo()
 	local info = state and state.roulette
+	if not info then
+		return nil
+	end
+	-- 서버가 Attribute 로 먼저 알려 온 값이 더 새롭다 (판이 끝난 직후 등)
+	local need = player:GetAttribute("SpinNeed") or info.need or 0
+	local games = player:GetAttribute("SpinGames") or info.games or 0
+	if player:GetAttribute("FreeSpin") == true then
+		info.free = true
+	end
+	info.need, info.games = need, math.min(games, need)
+	info.unlocked = info.unlocked or games >= need
+	info.spun = info.spun or player:GetAttribute("SpinSpun") == true
+	info.comebackReady = info.comebackReady or player:GetAttribute("ComebackReady") == true
+	return info
+end
+
+local function drawRoulette()
+	local info = spinInfo()
 	if not info then
 		return
 	end
+	local locked = not info.unlocked and not info.spun
 	if spinning then
 		spinButton.Text = "…"
 	elseif info.free then
 		spinButton.Text = "돌리기!"
+	elseif locked then
+		spinButton.Text = ("🔒 %d/%d판"):format(info.games or 0, info.need or 0)
 	else
 		spinButton.Text = "내일 또!"
 	end
+	rouletteHeading.Text = locked and ("오늘 %d판 하면 열려요!"):format(info.need or 0) or "하루 한 번 무료!"
 	UIKit.setTheme(spinButton, (not spinning and info.free) and "green" or "grey")
+	comebackButton.Visible = info.comebackReady == true
+	UIKit.setTheme(comebackButton, spinning and "grey" or "gold")
+end
+
+local function startSpin(mode)
+	spinning = true
+	spinToken += 1
+	local token = spinToken
+	resultLabel.Text = ""
+	drawRoulette()
+	rewardRequest:FireServer("spin", mode)
+	-- 서버 답이 오지 않으면 풀어 준다
+	task.delay(6, function()
+		if spinning and token == spinToken then
+			spinning = false
+			drawRoulette()
+		end
+	end)
 end
 
 spinButton.Activated:Connect(function()
 	if spinning then
 		return
 	end
-	local info = state and state.roulette
+	local info = spinInfo()
 	-- Phase 24 : 화면 상태가 늦었어도 서버가 "무료 룰렛 있음"(FreeSpin)이라고 알려 왔으면 돌린다. 판단은 서버가 다시 한다
 	if info and (info.free or player:GetAttribute("FreeSpin") == true) then
 		info.free = true
-		spinning = true
-		spinToken += 1
-		local token = spinToken
-		resultLabel.Text = ""
-		drawRoulette()
-		rewardRequest:FireServer("spin")
-		-- 서버 답이 오지 않으면 풀어 준다
-		task.delay(6, function()
-			if spinning and token == spinToken then
-				spinning = false
-				drawRoulette()
-			end
-		end)
+		startSpin(nil)
+	elseif info and not info.unlocked and not info.spun then
+		resultLabel.Text = ("🔒 오늘 %d판을 끝까지 하면 열려요 (%d/%d)\nAI 선원 판도 세요!"):format(info.need or 0, info.games or 0, info.need or 0)
+		resultLabel.TextColor3 = COLORS.Cream
+	end
+end)
+
+comebackButton.Activated:Connect(function()
+	if spinning then
+		return
+	end
+	local info = spinInfo()
+	if info and info.comebackReady then
+		info.comebackReady = false
+		startSpin("comeback")
 	end
 end)
 
@@ -254,6 +301,9 @@ local function spinTo(result)
 	wheel:setFast(false)
 	spinning = false
 	local message, big = resultText(result)
+	if result.comeback then
+		message = "🎁 돌아온 해적 상자 · " .. message
+	end
 	resultLabel.Text = message
 	resultLabel.TextColor3 = big and COLORS.Gold or COLORS.Ink
 	Sfx.play("Coins", { volume = big and 1 or 0.6 })
@@ -316,6 +366,38 @@ local rouletteButton, rouletteDot = launcher("RouletteButton", "Roulette", "룰�
 		openRoulette()
 	end
 end)
+
+-- Phase 32 : 룰렛 버튼 위 자물쇠 "🔒 0/2" (오늘 두 판을 끝까지 하면 열린다 · AI 판 포함)
+local lockBadge = Instance.new("Frame")
+lockBadge.Name = "SpinLock"
+lockBadge.AnchorPoint = Vector2.new(0.5, 0)
+lockBadge.Position = UDim2.new(0.5, 0, 0, -6)
+lockBadge.Size = UDim2.new(1, 8, 0, 26)
+lockBadge.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
+lockBadge.BackgroundTransparency = 0.05
+lockBadge.ZIndex = rouletteButton.ZIndex + 8
+lockBadge.Visible = false
+lockBadge.Parent = rouletteButton
+UIKit.corner(lockBadge, 10)
+UIKit.outline(lockBadge, 2, Color3.fromRGB(255, 206, 110))
+local lockText = UIKit.label(lockBadge, { text = "🔒 0/2", size = UDim2.fromScale(1, 1), textSize = 16, scaled = true, stroke = 2, zIndex = rouletteButton.ZIndex + 9 })
+lockText.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
+local function refreshLock()
+	local need = player:GetAttribute("SpinNeed") or 0
+	local games = player:GetAttribute("SpinGames") or 0
+	local locked = need > 0 and games < need and player:GetAttribute("SpinSpun") ~= true
+	lockBadge.Visible = locked
+	lockText.Text = ("🔒 %d/%d판"):format(games, need)
+end
+for _, name in ipairs({ "SpinNeed", "SpinGames", "SpinSpun" }) do
+	player:GetAttributeChangedSignal(name):Connect(function()
+		refreshLock()
+		if rouletteWindow.Visible and not spinning then
+			drawRoulette()
+		end
+	end)
+end
+refreshLock()
 
 --------------------------------------------------
 -- Phase 16 : 🎟 코드 입력 · 👍 좋아요 보상
@@ -510,9 +592,11 @@ end)
 
 local function refreshDots()
 	UIKit.setDot(attendDot, player:GetAttribute("AttendReady") == true and 1 or 0)
-	UIKit.setDot(rouletteDot, player:GetAttribute("FreeSpin") == true and 1 or 0)
+	-- Phase 32 : 돌아온 해적 상자도 룰렛 버튼의 빨간 점으로 알린다
+	local spins = (player:GetAttribute("FreeSpin") == true and 1 or 0) + (player:GetAttribute("ComebackReady") == true and 1 or 0)
+	UIKit.setDot(rouletteDot, spins)
 end
-for _, name in ipairs({ "AttendReady", "FreeSpin" }) do
+for _, name in ipairs({ "AttendReady", "FreeSpin", "ComebackReady" }) do
 	player:GetAttributeChangedSignal(name):Connect(function()
 		refreshDots()
 		-- Phase 24 : 빨간 점만 바뀌고 창은 어제 상태로 남던 문제. 받을 것이 새로 생기면 전체 상태를 다시 받는다
@@ -545,6 +629,19 @@ local function seated()
 	local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	return h ~= nil and h.SeatPart ~= nil
 end
+-- Phase 32 : 룰렛이 막 열렸거나 돌아온 해적 상자가 준비됐다 → 테이블에서 일어나 관전도 안 할 때 한 번 연다
+task.spawn(function()
+	while gui.Parent do
+		task.wait(1)
+		if pendingRouletteOpen and not seated() and player:GetAttribute("SpectateTableId") == nil and player:GetAttribute("TutorialActive") ~= true then
+			pendingRouletteOpen = false
+			task.wait(1.5)
+			if not seated() then
+				openRoulette()
+			end
+		end
+	end
+end)
 
 shopResult.OnClientEvent:Connect(function(_, _, payload)
 	if typeof(payload) ~= "table" then
@@ -602,6 +699,27 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 		else
 			spinning = false
 			resultLabel.Text = tostring(result)
+			drawRoulette()
+		end
+	elseif kind == "gameCounted" then
+		-- Phase 32 : 판 하나를 끝까지 했다. 룰렛이 몇 판 남았는지 · 막 열렸는지
+		local info = typeof(result) == "table" and result or {}
+		if state and state.roulette then
+			state.roulette.games = info.games
+			state.roulette.unlocked = info.unlocked
+			state.roulette.free = info.unlocked and not info.spun
+		end
+		if info.comebackNow then
+			UIKit.toast("🎁 돌아온 해적 상자가 준비됐어요! (🎡 룰렛)", COLORS.Gold, 3.2)
+			pendingRouletteOpen = true
+		elseif info.unlockedNow then
+			UIKit.toast("🎡 룰렛이 열렸어요! 무료로 돌려 보세요", COLORS.Gold, 3.2)
+			pendingRouletteOpen = true
+		elseif not info.unlocked and not info.spun then
+			local left = math.max(0, (info.need or 0) - (info.games or 0))
+			UIKit.toast(("🎡 룰렛까지 %d판!"):format(left), COLORS.Cream, 2.6)
+		end
+		if rouletteWindow.Visible and not spinning then
 			drawRoulette()
 		end
 	elseif kind == "vipTopUp" then

@@ -519,9 +519,10 @@ local function skinButton(f, entry, x, width)
 	elseif entry.season then
 		cardButton(f, "시즌 보상", "grey", x, width).Active = false
 	elseif entry.reward == "like" then
-		-- Phase 24 : 실제로는 2층(후갑판) 맨 뒤 받침대에서 안내하는 출시 기념 코드(love) 선물이다
+		-- Phase 24 : 실제로는 받침대에서 안내하는 출시 기념 코드(love) 선물이다
+		-- Phase 32 : 받침대는 스폰 계단 아래 (2층 뒤쪽에서 옮겼다) · "게임 출시 기념"
 		cardButton(f, "🎟 코드 선물", "blue", x, width).Activated:Connect(function()
-			showToast("🎟 코드에 love 를 입력하면 받아요! (2층 뒤쪽 받침대)", true)
+			showToast("🎟 게임 출시 기념! 코드에 love 를 입력하면 받아요 (스폰 계단 아래 받침대)", true)
 		end)
 	elseif entry.vip or entry.pack then
 		local offer = entry.vip and state.vip or state.starter

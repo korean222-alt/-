@@ -573,12 +573,11 @@ function S:cannon(root,side,z)
 end
 -- Phase 24.10 : 최고 라운드 순위판. 토너먼트 게시판(F 테이블 오른쪽 옆)과 좌우 대칭으로 E 테이블 왼쪽 옆에 선다.
 --   글자는 RankingService 가 RankingFace(Board = "round")에 그린다.
+-- Phase 32 : 상점(선실) 입구 왼쪽으로 옮겼다 (L.ShopBoards.Round). 앞면은 갑판 쪽을 본다.
 function S:roundBoard(root)
- local spot=L.Tables.Table_E;if not spot then return end
- local cx,cz=spot[1],spot[2]
- local side=cx>=0 and 1 or -1
- local foot=Vector3.new(cx+side*19,L.DeckY,cz+9)
- local frame=CFrame.lookAt(foot,Vector3.new(cx,L.DeckY,cz)) -- 앞면(LookVector)이 테이블을 본다
+ local spot=L.ShopBoards and L.ShopBoards.Round;if not spot then return end
+ local foot=Vector3.new(spot.x,L.DeckY,spot.z)
+ local frame=CFrame.lookAt(foot,Vector3.new(spot.face.x,L.DeckY,spot.face.z)) -- 앞면(LookVector)이 갑판 쪽을 본다
  local board=group(root,"RoundBoard")
  local w,h,bottom=9,8.4,2.4
  local before=snapshot(board)
@@ -611,8 +610,8 @@ function S:roundBoard(root)
   Tags:AddTag(f,Config.Tags.RankingBoard)
  end
  MeshKit.dressPosts(board) -- Phase 24.14 : Blender 기둥
- face(1) -- 테이블 쪽
- face(-1) -- 뱃전 쪽
+ face(1) -- 갑판 쪽
+ face(-1) -- 선실 쪽
  if MeshKit.prop("Board9",at(0,cy,0),board,{styles=BOARD_STYLE}) then ghostNew(board,before) end
 end
 function S:props(root)
@@ -623,9 +622,8 @@ function S:props(root)
    MeshKit.prop("GunPort",CFrame.new(side*(L.halfWidth(z)-0.4),3.2,z)*sideYaw(side),root)
   end
   for i,z in ipairs({-80,-58,-20,24,72}) do
-   -- Phase 24.10 : z -20 짐(나무통 · 상자)은 게시판 아래에 겹쳐서 뺀다
-   --   오른쪽 = 토너먼트 게시판(F 테이블 옆 x 44~48, z -12~-22) · 왼쪽 = 최고 라운드 게시판(E 테이블 옆, 좌우 대칭)
-   if z==-20 then continue end
+   -- Phase 24.10 : z -20 짐(나무통 · 상자)은 게시판 아래에 겹쳐서 뺐다
+   -- Phase 32 : 게시판 둘이 상점 입구 양옆(L.ShopBoards)으로 옮겨 가서 z -20 짐을 되돌린다
    local cargo=group(root,"SecuredCargo_"..side.."_"..i)
    local x=side*42
    local crate=block(cargo,"Crate",Vector3.new(3.2,3.2,3.2),CFrame.new(x,2.6,z),wood,true)
