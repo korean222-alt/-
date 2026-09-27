@@ -1,0 +1,683 @@
+--[[
+	ShopService  (Phase 7)
+	코인으로 스킨을 사고, 가진 스킨을 장착한다. 로벅스 상품도 여기서 받는다.
+
+	지켜야 하는 것
+	  · 가격과 소유 여부는 전부 서버가 판단한다. 클라이언트가 보내는 것은 "무엇을"까지다.
+	  · 이미 가진 것을 또 사게 두지 않는다. (코인만 사라진다)
+	  · 가지지 않은 스킨은 장착되지 않는다.
+	  · 로벅스 상품은 PurchaseService 가 영수증을 확인한 뒤에야 지급된다.
+
+	Phase 10
+	  · VIP 게임패스 : 게임에서 버는 코인 +20%, 전용 칼, 머리 위 VIP 표시. 소유 확인은 서버가 한다.
+	  · 스타터 팩 : 계정당 한 번 사는 개발자 상품. 코인과 전용 칼.
+	  · VIP · 스타터 전용 스킨은 코인으로 살 수 없다.
+]]
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild("Shared")
+local GameConfig = require(Shared:WaitForChild("GameConfig"))
+local Utility = require(Shared:WaitForChild("Utility"))
+
+local ProfileService = require(script.Parent.ProfileService)
+local PurchaseService = require(script.Parent.PurchaseService)
+local TableService = require(script.Parent.TableService)
+
+local REJECT = GameConfig.RejectMessages
+local PLAYER_ATTR = GameConfig.PlayerAttributes
+local STARTER = GameConfig.Products.Starter
+local VIP = GameConfig.Products.GamePasses.VIP
+local BOOSTER = GameConfig.Products.GamePasses.Booster
+
+local ShopService = {}
+ShopService._started = false
+ShopService._cleaner = Utility.Cleaner.new()
+ShopService._limiter = Utility.RateLimiter.new(0.2)
+ShopService._lastSync = {} -- [Player] = 마지막으로 상태를 내려보낸 시각
+ShopService._trailing = {} -- Phase 24 : [Player] = 제한 시간이 끝나면 마지막 상태를 보내기로 예약함
+
+local function remote(name)
+	local folder = ReplicatedStorage:WaitForChild("CursedBarrel"):WaitForChild(GameConfig.Remotes.Folder)
+	local found = folder:FindFirstChild(name)
+	if not found then
+		found = Instance.new("RemoteEvent")
+		found.Name = name
+		found.Parent = folder
+	end
+	return found
+end
+
+--------------------------------------------------
+-- 클라이언트에게 보낼 상태 한 덩어리
+--------------------------------------------------
+
+local function skinEntry(kind, skin, owned, equipped, deal)
+	local rarity = GameConfig.rarityOf(skin)
+	local isDeal = deal ~= nil and deal.kind == kind and deal.id == skin.id
+	return {
+		deal = isDeal or nil,
+		originalPrice = isDeal and deal.original or nil,
+		kind = kind,
+		id = skin.id,
+		name = skin.name,
+		rarity = skin.rarity or "common",
+		rarityLabel = rarity.label,
+		rarityColor = rarity.color,
+		price = isDeal and deal.price or (tonumber(skin.price) or 0),
+		robux = tonumber(skin.robux) or 0,
+		vip = skin.vip == true,
+		pack = skin.pack,
+		season = skin.season == true,
+		reward = skin.reward, -- Phase 16 : "like" (게임 좋아요 보상)
+		owned = owned,
+		equipped = equipped,
+	}
+end
+
+-- "Knife/vip_cutlass" 같은 문자열을 종류와 id 로 나눈다.
+local function splitSkin(text)
+	if typeof(text) ~= "string" then
+		return nil, nil
+	end
+	return text:match("^(%a+)/(.+)$")
+end
+
+function ShopService:BuildState(player)
+	local profile = ProfileService:Get(player)
+	if not profile then
+		return nil
+	end
+
+	local deal = GameConfig.dailyDealFor(Utility.today())
+	local catalog = {}
+	for _, kind in ipairs({ "Knife", "Barrel", "Ghost", "Chair", "Elimination", "Victory", "Stab" }) do
+		local list = {}
+		for _, skin in ipairs(GameConfig.Skins[kind]) do
+			table.insert(list, skinEntry(kind, skin, profile.owned[kind][skin.id] == true, profile.equipped[kind] == skin.id, deal))
+		end
+		catalog[kind] = list
+	end
+
+	local coinPacks = {}
+	for _, pack in ipairs(GameConfig.Products.Coins) do
+		table.insert(coinPacks, {
+			id = pack.id, name = pack.name, coins = pack.coins,
+			robux = pack.robux, productId = pack.productId,
+			ready = (tonumber(pack.productId) or 0) > 0,
+			size = pack.size, badge = pack.badge, highlight = pack.highlight == true,
+		})
+	end
+
+	-- Phase 13 : 오늘의 특가 한 줄
+	local dealEntry = nil
+	if deal then
+		local skin = GameConfig.findSkin(deal.kind, deal.id)
+		if skin and skin.id == deal.id then
+			dealEntry = skinEntry(deal.kind, skin, profile.owned[deal.kind][skin.id] == true, profile.equipped[deal.kind] == skin.id, deal)
+		end
+	end
+	local today = Utility.today()
+
+	local vipReady = (tonumber(VIP.gamePassId) or 0) > 0
+	local starterReady = (tonumber(STARTER.productId) or 0) > 0
+
+	return {
+		coins = profile.coins,
+		loginStreak = profile.loginStreak or 0,
+		-- Phase 13
+		deal = dealEntry,
+		firstPurchase = GameConfig.FirstPurchase.Enabled and not profile.coinPackBought,
+		attendance = {
+			count = profile.attendCount or 0,
+			ready = GameConfig.Attendance.Enabled and profile.attendDay ~= today,
+			vip = player:GetAttribute(PLAYER_ATTR.VIP) == true,
+		},
+		roulette = {
+			free = GameConfig.Roulette.Enabled and profile.freeSpinDay ~= today,
+		},
+		vip = {
+			name = VIP.name, robux = VIP.robux, blurb = VIP.blurb,
+			owned = player:GetAttribute(PLAYER_ATTR.VIP) == true, ready = vipReady,
+		},
+		starter = {
+			name = STARTER.name, robux = STARTER.robux, blurb = STARTER.blurb,
+			owned = profile.starterBought == true, ready = starterReady,
+		},
+		booster = BOOSTER and {
+			name = BOOSTER.name, robux = BOOSTER.robux, blurb = BOOSTER.blurb,
+			owned = player:GetAttribute(PLAYER_ATTR.Booster) == true, ready = (tonumber(BOOSTER.gamePassId) or 0) > 0,
+		} or nil,
+		level = GameConfig.levelOf(profile.wins, profile.games),
+		wins = profile.wins,
+		games = profile.games,
+		streak = profile.streak,
+		bestStreak = profile.bestStreak,
+		catalog = catalog,
+		coinPacks = coinPacks,
+		quests = ProfileService:GetQuests(player),
+		achievements = ProfileService:GetAchievements(player),
+	}
+end
+
+--[[
+	상태를 통째로 내려보낸다.
+
+	★ 이 함수는 코인이 오를 때마다 불린다. 안전한 자리를 한 번 뽑을 때마다도 불린다.
+	  목록 전체(스킨 21개 + 퀘스트 + 업적)를 매번 보내면 테이블 10개가 도는 서버에서
+	  쓸데없는 트래픽이 된다. 그래서 말할 것이 있을 때(message)나 사람이 직접 요청했을 때가
+	  아니면 2초에 한 번으로 묶는다.
+]]
+local SYNC_INTERVAL = 2
+
+function ShopService:Sync(player, message, ok, force)
+	if not force and not message then
+		local last = self._lastSync[player]
+		if last and (os.clock() - last) < SYNC_INTERVAL then
+			-- Phase 24 : 묶인 요청을 버리지 않는다. 제한 시간이 끝나면 그때의 최신 상태를 한 번 보낸다.
+			--   (예전에는 2초 안의 마지막 변화가 사라져, 코인을 얻은 뒤에도 상점이 "부족"으로 보였다)
+			if not self._trailing[player] then
+				self._trailing[player] = true
+				task.delay(SYNC_INTERVAL - (os.clock() - last) + 0.05, function()
+					self._trailing[player] = nil
+					if player.Parent == Players then
+						self:Sync(player, nil, true)
+					end
+				end)
+			end
+			return
+		end
+	end
+	self._lastSync[player] = os.clock()
+
+	local state = self:BuildState(player)
+	if state then
+		self._result:FireClient(player, ok ~= false, message, state)
+	end
+end
+
+--------------------------------------------------
+-- 코인으로 사기
+--------------------------------------------------
+
+function ShopService:Buy(player, kind, id)
+    if not ProfileService:CanPurchase(player) then return false,"저장 연결 후 구매할 수 있습니다 / Purchases require saved data" end
+	if not GameConfig.Skins.PlayerAttributes[kind] then
+		return false, REJECT.BadSlot
+	end
+	local skin = GameConfig.findSkin(kind, id)
+	if not skin or skin.id ~= id then
+		return false, REJECT.BadSlot
+	end
+	if ProfileService:Owns(player, kind, id) then
+		return false, REJECT.AlreadyOwned
+	end
+
+	if skin.vip then
+		return false, REJECT.VipOnly
+	end
+	if skin.pack then
+		return false, REJECT.PackOnly
+	end
+	if skin.season then
+		return false, REJECT.SeasonOnly
+	end
+	if skin.reward then
+		return false, REJECT.LikeOnly
+	end
+
+	local price = tonumber(skin.price) or 0
+	-- Phase 13 : 오늘의 특가
+	local deal = GameConfig.dailyDealFor(Utility.today())
+	if deal and deal.kind == kind and deal.id == id then
+		price = deal.price
+	end
+	if price <= 0 then
+		-- 가격이 없는 스킨은 로벅스 전용이거나 기본 지급품이다.
+		if skin.robux then
+			return false, REJECT.RobuxOnly
+		end
+		ProfileService:Grant(player, kind, id)
+		return true, ("%s 을(를) 받았습니다"):format(skin.name)
+	end
+
+	if not ProfileService:Spend(player, price) then
+		return false, REJECT.NoCoins
+	end
+
+	ProfileService:Grant(player, kind, id)
+	GameConfig.log(("%s 가 %s/%s 를 %d코인에 구매"):format(player.Name, kind, id, price))
+	ShopService.announce(player, skin, "shop")
+	return true, ("%s 구매 완료 (-%s 코인)"):format(skin.name, Utility.comma(price))
+end
+
+-- Phase 13 : 전설 · 신화 스킨을 손에 넣으면 서버 전체에 알린다 (룰렛의 희귀 스킨도)
+function ShopService.announce(player, skin, source)
+	local rules = GameConfig.Announce
+	if not rules or not skin then
+		return
+	end
+	if source ~= "roulette" and not rules.Rarities[skin.rarity or "common"] then
+		return
+	end
+	local folder = ReplicatedStorage:FindFirstChild("CursedBarrel") and ReplicatedStorage.CursedBarrel:FindFirstChild(GameConfig.Remotes.Folder)
+	local cue = folder and folder:FindFirstChild(GameConfig.Remotes.WorldCue)
+	if cue then
+		cue:FireAllClients("Announce", {
+			name = player.DisplayName or player.Name,
+			skin = skin.name,
+			rarity = skin.rarity or "common",
+			source = source,
+		})
+	end
+end
+
+--------------------------------------------------
+-- 장착
+--------------------------------------------------
+
+function ShopService:Equip(player, kind, id)
+	local ok, reason = ProfileService:Equip(player, kind, id)
+	if not ok then
+		return false, reason
+	end
+
+	-- 통 스킨은 테이블 하나에 하나만 적용된다.
+	-- 지금 앉아 있는 테이블이 있으면 그 자리에서 다시 고르게 한다.
+	if kind == "Barrel" then
+		local gameTable = TableService:GetTableOfPlayer(player)
+		if gameTable then
+			gameTable:RefreshBarrelSkin()
+		end
+	end
+
+	local skin = GameConfig.findSkin(kind, id)
+	return true, ("%s 장착"):format(skin and skin.name or id)
+end
+
+--------------------------------------------------
+-- 로벅스 상품
+--------------------------------------------------
+
+function ShopService:_registerProducts()
+	for _, pack in ipairs(GameConfig.Products.Coins) do
+		PurchaseService:Register(pack.productId, function(profile)
+			-- Phase 13 : 첫 코인 충전은 2배
+			local multiplier = 1
+			if GameConfig.FirstPurchase.Enabled and not profile.coinPackBought then
+				multiplier = GameConfig.FirstPurchase.CoinMultiplier
+			end
+			local amount = pack.coins * multiplier
+			profile.coins = profile.coins + amount
+			profile.coinPackBought = true
+			return true, { coins = amount, doubled = multiplier > 1 }
+		end, function(player, _, detail)
+			-- Phase 21 : 결제가 끝나면 화면에 "획득!" 이 뜨도록 알린다
+			-- Phase 24 : 첫 구매 2배처럼 실제로 들어간 코인 수를 그대로 보여 준다
+			local amount = typeof(detail) == "table" and tonumber(detail.coins) or pack.coins
+			local suffix = (typeof(detail) == "table" and detail.doubled) and " (첫 구매 2배!)" or ""
+			self:Sync(player, ("%s 코인 구매 완료%s"):format(Utility.comma(amount), suffix), true)
+		end)
+	end
+
+	for _, entry in ipairs(GameConfig.Products.Skins) do
+		local kind, id = splitSkin(entry.skin)
+		PurchaseService:Register(entry.productId, function(profile)
+			if not kind or not profile.owned[kind] or GameConfig.findSkin(kind, id).id ~= id then
+				return false
+			end
+			profile.owned[kind][id] = true
+			return true
+		end, function(player)
+			local skin = kind and GameConfig.findSkin(kind, id)
+			self:Sync(player, ("%s 구매 완료"):format(skin and skin.name or tostring(id)), true)
+		end)
+	end
+
+	-- 스타터 팩. 이미 산 사람이 영수증을 또 보내오면(다른 서버에서 동시에 샀을 때 등) 코인만 다시 준다.
+	-- 결제는 이미 끝났으므로 거절하지 않는다. 가게에서는 산 뒤로 버튼이 사라진다.
+	local starterKind, starterId = splitSkin(STARTER.skin)
+	PurchaseService:Register(STARTER.productId, function(profile)
+		profile.coins = profile.coins + (tonumber(STARTER.coins) or 0)
+		if starterKind and profile.owned[starterKind] and GameConfig.findSkin(starterKind, starterId).id == starterId then
+			profile.owned[starterKind][starterId] = true
+		end
+		profile.starterBought = true
+		return true
+	end, function(player)
+		self:Sync(player, "스타터 팩 구매 완료", true)
+	end)
+end
+
+--------------------------------------------------
+-- VIP 게임패스 (Phase 10)
+--------------------------------------------------
+
+function ShopService:_setVip(player, owned)
+	if player.Parent ~= Players then
+		return
+	end
+	if owned then
+		player:SetAttribute(PLAYER_ATTR.VIP, true)
+		self:_grantVipSkin(player)
+		-- Phase 24 : 확인 전에 일반 출석을 받았으면(또는 오늘 VIP 를 샀으면) 차액을 한 번 준다
+		task.spawn(function()
+			require(script.Parent.RewardService):TopUpVipAttendance(player)
+		end)
+	elseif player:GetAttribute(PLAYER_ATTR.VIP) == nil then
+		player:SetAttribute(PLAYER_ATTR.VIP, false)
+	end
+	player:SetAttribute("VipChecked", true)
+end
+
+-- 자료를 다 읽은 뒤에만 줄 수 있다. 소유 확인이 먼저 끝나면 ProfileChanged 에서 다시 부른다.
+function ShopService:_grantVipSkin(player)
+	if player:GetAttribute(PLAYER_ATTR.VIP) ~= true then
+		return
+	end
+	local kind, id = splitSkin(VIP.skin)
+	if kind and ProfileService:Get(player) and not ProfileService:Owns(player, kind, id) then
+		ProfileService:Grant(player, kind, id)
+	end
+end
+
+function ShopService:_checkVip(player)
+	local passId = tonumber(VIP.gamePassId) or 0
+	if passId <= 0 then
+		player:SetAttribute("VipChecked", true)
+		return
+	end
+	task.spawn(function()
+		for attempt = 1, 3 do
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				self:_setVip(player, owned == true)
+				return
+			end
+			task.wait(attempt * 2)
+		end
+		-- Phase 24 : 세 번 다 실패했다. 일단 "확인 끝(아님)"으로 두어 출석이 막히지 않게 하고,
+		--   뒤에서 천천히 다시 확인한다. VIP 로 확인되면 _setVip 이 출석 차액까지 챙긴다.
+		if player.Parent == Players then
+			player:SetAttribute("VipChecked", true)
+		end
+		for attempt = 1, 10 do
+			task.wait(30)
+			if player.Parent ~= Players or player:GetAttribute(PLAYER_ATTR.VIP) == true then
+				return
+			end
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				self:_setVip(player, owned == true)
+				return
+			end
+		end
+	end)
+end
+
+-- Phase 12 : VIP 말고 다른 게임패스 (현상금 부스터). 소유하면 Player Attribute 를 켠다.
+function ShopService:_checkPass(player, pass)
+	local passId = tonumber(pass and pass.gamePassId) or 0
+	if passId <= 0 or not pass.attribute then
+		return
+	end
+	task.spawn(function()
+		for attempt = 1, 3 do
+			local ok, owned = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, passId)
+			if ok then
+				if player.Parent == Players then
+					player:SetAttribute(pass.attribute, owned == true)
+				end
+				return
+			end
+			task.wait(attempt * 2)
+		end
+	end)
+end
+
+-- 클라이언트가 로벅스 구매창을 띄우기 전에 "그 상품이 진짜 있는지" 서버가 확인한다.
+function ShopService:_robuxProductFor(kind, id)
+	for _, entry in ipairs(GameConfig.Products.Skins) do
+		if entry.skin == (kind .. "/" .. id) then
+			return tonumber(entry.productId) or 0
+		end
+	end
+	return 0
+end
+
+--------------------------------------------------
+-- 요청 처리
+--------------------------------------------------
+
+function ShopService:_onRequest(player, action, kind, id)
+	if not self._limiter:check(player.UserId) then
+		return
+	end
+	if typeof(action) ~= "string" or (kind~=nil and typeof(kind)~="string") or (id~=nil and typeof(id)~="string") then
+		return
+	end
+
+	if action == "sync" then
+		self:Sync(player, nil, true, true)
+		return
+	end
+
+	if action == "buy" then
+		local ok, message = self:Buy(player, kind, id)
+		self:Sync(player, message, ok)
+		return
+	end
+
+	if action == "equip" then
+		local ok, message = self:Equip(player, kind, id)
+		self:Sync(player, message, ok)
+		return
+	end
+
+	if action == "pass" then
+		-- Phase 12 : kind = 게임패스 키 ("Booster")
+		local pass = typeof(kind) == "string" and GameConfig.Products.GamePasses[kind] or nil
+		local passId = tonumber(pass and pass.gamePassId) or 0
+		if not pass or pass == VIP then
+			return
+		end
+		if passId <= 0 then
+			self:Sync(player, pass.name .. " 은(는) 아직 준비 중입니다", false)
+			return
+		end
+		if player:GetAttribute(pass.attribute) == true then
+			self:Sync(player, "이미 가지고 있습니다", false)
+			return
+		end
+		pcall(function()
+			MarketplaceService:PromptGamePassPurchase(player, passId)
+		end)
+		return
+	end
+
+	if action == "vip" then
+		local passId = tonumber(VIP.gamePassId) or 0
+		if passId <= 0 then
+			self:Sync(player, "VIP 패스는 아직 준비 중입니다", false)
+			return
+		end
+		if player:GetAttribute(PLAYER_ATTR.VIP) == true then
+			self:Sync(player, "이미 VIP 입니다", false)
+			return
+		end
+		local ok, err = pcall(function()
+			MarketplaceService:PromptGamePassPurchase(player, passId)
+		end)
+		if not ok then
+			warn("[CursedBarrel] 게임패스 구매창을 띄우지 못했습니다: " .. tostring(err))
+		end
+		return
+	end
+
+	if action == "robux" then
+		if not ProfileService:CanPurchase(player) then
+			self:Sync(player, "저장 연결이 필요합니다", false)
+			return
+		end
+		if typeof(kind) ~= "string" or typeof(id) ~= "string" then
+			return
+		end
+		if kind ~= "coins" and kind ~= "starter" and ProfileService:Owns(player, kind, id) then
+			return
+		end
+		-- kind/id 는 스킨, 또는 kind == "coins" 이면 코인 묶음 id, kind == "starter" 면 스타터 팩
+		local productId = 0
+		if kind == "starter" then
+			local profile = ProfileService:Get(player)
+			if profile and profile.starterBought then
+				self:Sync(player, "스타터 팩은 계정당 한 번만 살 수 있습니다", false)
+				return
+			end
+			productId = tonumber(STARTER.productId) or 0
+		elseif kind == "coins" then
+			for _, pack in ipairs(GameConfig.Products.Coins) do
+				if pack.id == id then
+					productId = tonumber(pack.productId) or 0
+				end
+			end
+		else
+			productId = self:_robuxProductFor(kind, tostring(id))
+		end
+
+		if productId <= 0 then
+			self:Sync(player, "이 상품은 아직 준비 중입니다", false)
+			return
+		end
+
+		local ok, err = pcall(function()
+			MarketplaceService:PromptProductPurchase(player, productId)
+		end)
+		if not ok then
+			warn("[CursedBarrel] 구매창을 띄우지 못했습니다: " .. tostring(err))
+		end
+		return
+	end
+
+	if action == "claimQuest" then
+		local ok, result = ProfileService:ClaimQuest(player, tostring(kind))
+		self:Sync(player, ok and ("퀘스트 완료 · +%s 코인"):format(Utility.comma(result)) or tostring(result), ok)
+		return
+	end
+end
+
+function ShopService:Start()
+	if self._started then
+		return
+	end
+	self._started = true
+
+	self._request = remote(GameConfig.Remotes.ShopRequest)
+	self._result = remote(GameConfig.Remotes.ShopResult)
+
+	self:_registerProducts()
+	-- Phase 24.15 : 상점에 보이는 로벅스 가격을 Creator Hub 에 등록된 실제 가격으로 맞춘다.
+	--   (설정 파일의 숫자만 보여 주면 Creator Hub 에서 가격을 바꿨을 때 결제창 가격과 달라졌다)
+	--   읽지 못하면 설정 값을 그대로 쓴다. 지역별 가격은 결제창이 최종이다.
+	task.spawn(function()
+		local function price(id, infoType)
+			id = tonumber(id) or 0
+			if id <= 0 then
+				return nil
+			end
+			local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, id, infoType)
+			local value = ok and typeof(info) == "table" and tonumber(info.PriceInRobux) or nil
+			return value and value > 0 and value or nil
+		end
+		local products = { GameConfig.Products.Starter }
+		for _, pack in ipairs(GameConfig.Products.Coins) do
+			table.insert(products, pack)
+		end
+		for _, item in ipairs(GameConfig.Sabotage.Items) do
+			table.insert(products, item)
+		end
+		for _, list in pairs(GameConfig.Skins) do
+			if type(list) == "table" then
+				for _, skin in ipairs(list) do
+					if type(skin) == "table" and skin.productId then
+						table.insert(products, skin)
+					end
+				end
+			end
+		end
+		for _, entry in ipairs(products) do
+			local value = price(entry.productId, Enum.InfoType.Product)
+			if value then
+				entry.robux = value
+			end
+		end
+		-- 로벅스 전용 스킨 : 상품 목록(Products.Skins)의 가격을 스킨 카드(skin.robux)에도 옮긴다
+		for _, entry in ipairs(GameConfig.Products.Skins or {}) do
+			local value = price(entry.productId, Enum.InfoType.Product)
+			if value then
+				entry.robux = value
+				local kind, id = string.match(tostring(entry.skin or ""), "^(%w+)/(.+)$")
+				local skin = kind and GameConfig.findSkin(kind, id)
+				if skin and skin.id == id then
+					skin.robux = value
+				end
+			end
+		end
+		for _, pass in pairs(GameConfig.Products.GamePasses) do
+			local value = price(pass.gamePassId, Enum.InfoType.GamePass)
+			if value then
+				pass.robux = value
+			end
+		end
+	end)
+
+	self._cleaner:add(self._request.OnServerEvent:Connect(function(player, action, kind, id)
+		local ok, err = pcall(function()
+			self:_onRequest(player, action, kind, id)
+		end)
+		if not ok then
+			warn("[CursedBarrel] 상점 요청 처리 중 오류: " .. tostring(err))
+		end
+	end))
+
+	-- 자료를 다 읽으면 한 번 내려보낸다.
+	self._cleaner:add(ProfileService.ProfileChanged:Connect(function(player)
+		self:_grantVipSkin(player)
+		self:Sync(player, nil, true)
+	end))
+
+	self._cleaner:add(Players.PlayerRemoving:Connect(function(player)
+		self._limiter:forget(player.UserId)
+		self._lastSync[player] = nil
+		self._trailing[player] = nil
+	end))
+
+	-- VIP 게임패스
+	self._cleaner:add(Players.PlayerAdded:Connect(function(player)
+		self:_checkVip(player)
+		self:_checkPass(player, BOOSTER)
+	end))
+	for _, player in ipairs(Players:GetPlayers()) do
+		self:_checkVip(player)
+		self:_checkPass(player, BOOSTER)
+	end
+	self._cleaner:add(MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		if purchased and passId == (tonumber(VIP.gamePassId) or 0) and passId > 0 then
+			self:_setVip(player, true)
+			self:Sync(player, VIP.name .. " 구매 완료! 이제 코인을 더 법니다", true)
+		elseif purchased and BOOSTER and passId == (tonumber(BOOSTER.gamePassId) or 0) and passId > 0 then
+			player:SetAttribute(BOOSTER.attribute, true)
+			self:Sync(player, BOOSTER.name .. " 구매 완료! 이긴 판의 현상금이 늘어납니다", true)
+		end
+	end))
+
+	if RunService:IsStudio() then
+		GameConfig.log("상점: Studio 에서는 로벅스 상품 ID 가 0 이면 '준비 중'으로만 보입니다.")
+	end
+
+	GameConfig.log("ShopService 시작 완료")
+end
+
+return ShopService
