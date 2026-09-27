@@ -1559,7 +1559,7 @@ GameConfig.Tutorial = {
 	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
 	Mandatory = true,
 	Kinds = { "normal", "twin", "side", "skull", "mash" },
-	IntroLead = 4.4, -- 설명 카드를 보여 주는 동안 (이 시간 뒤에 해적이 나온다) · Phase 32.1 : 3.4 → 4.4 (읽을 틈)
+	IntroLead = 2.0, -- 설명 카드를 띄운 뒤 해적이 나오기까지 (카드는 PirateKinds.IntroShow 초) · Phase 34.1 : 4.4 → 2.0 (너무 오래 기다렸다)
 	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
 	MaxIdleMisses = 3,
 	Reward = 500,
@@ -1602,7 +1602,8 @@ GameConfig.PirateKinds = {
 			taps = 5, tapsEvery = 4, maxTaps = 8, window = 1.8, minWindow = 1.3, minGap = 0.045 },
 		angry = { name = "분노한 해적", short = "먹물 뒤에 탭!", how = "먹물을 뿜어요! 먹물을 뚫고 튀어나올 때 눌러요", color = Color3.fromRGB(255, 70, 60), unlock = 7, weight = 7 },
 	},
-	FirstSightLead = 1.8, -- 처음 만나는 종류는 설명 카드를 보여 줄 만큼 해적이 늦게 나온다
+	FirstSightLead = 2.0, -- 처음 만나는 종류는 해적이 적어도 이만큼 뒤에 나온다 (설명 카드를 볼 틈) · Phase 34.1 : "+1.8초" → "최소 2.0초"
+	IntroShow = 1.5, -- Phase 34.1 : 설명 카드를 보여 주는 시간 (예전에는 해적이 나오기 0.5초 전까지 · 2.3~3.9초)
 }
 
 -- 이 라운드에 나올 수 있는 종류 중 하나를 고른다. boost = { 종류 = 배율 }, random = Random

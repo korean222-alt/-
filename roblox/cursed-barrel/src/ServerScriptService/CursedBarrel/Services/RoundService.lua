@@ -1733,7 +1733,7 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 	-- Phase 32 : 처음 만나는 종류는 설명 카드를 보여 줄 만큼 늦게 나온다 (사람만 · 튜토리얼 밖 · 한 번만)
 	if not tutorial and not retry and not GameConfig.isBot(player) and ProfileService:SeeKind(player, kind) then
 		intro = true
-		lead += tonumber(KINDS.FirstSightLead) or 1.8
+		lead = math.max(lead, tonumber(KINDS.FirstSightLead) or 2.0) -- Phase 34.1 : 더하지 않고 "최소"로 (카드 1.5초 뒤 바로 나온다)
 	end
 	-- 살려 준 뒤 다시 나오는 해적은 박자를 넉넉히 둔다 (배우는 중이다)
 	if retry and not tutorial then

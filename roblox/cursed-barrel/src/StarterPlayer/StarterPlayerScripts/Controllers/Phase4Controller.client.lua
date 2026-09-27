@@ -2485,7 +2485,8 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	drawSides(nil)
 	-- 처음 보는 종류 · 튜토리얼 : 해적이 나오기 0.5초 전까지 설명 카드
 	if data.intro then
-		showIntro(kind, opensLocal - 0.5, data.tutorial)
+		-- Phase 34.1 : 카드는 IntroShow(1.5초)만 · 해적이 그보다 빨리 나오면 나오기 0.5초 전까지
+		showIntro(kind, math.min(os.clock() + (tonumber(KINDS and KINDS.IntroShow) or 1.5), opensLocal - 0.5), data.tutorial)
 	end
 	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
 	local lastStep = steps[#steps]
