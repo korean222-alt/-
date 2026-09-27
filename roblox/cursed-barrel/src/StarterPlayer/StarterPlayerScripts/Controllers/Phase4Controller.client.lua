@@ -2721,7 +2721,8 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	catchText.Text = ""
 	catchHint.Text = kindHint(data)
 	-- Phase 38.1 : 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (1인칭은 1인칭 손이 한다)
-	if not hands.shown and kind ~= "skull" then
+	-- (해골 유령도 똑같이 든다 : 자세만 보고 유령인지 알 수 없게. 참는 것은 사람 몫)
+	if not hands.shown then
 		aimThird(true)
 	end
 	sideGuide.Visible = kind == "side"
@@ -3598,8 +3599,8 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		-- Phase 37 : 1인칭 손이 칼을 찌르는 동안 몸이 슬롯 쪽으로 숙여진다 (팔이 슬롯에 닿을 만큼)
 		hands.want = true
 		hands.ready = active:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId
-		-- Phase 38.1 : 해적을 기다리는 동안 칼을 젖혀 던질 준비 (유령은 던지면 안 되니 들지 않는다)
-		hands.aiming = catch ~= nil and catch.mine and not catch.done and catch.model == active and catch.kind ~= "skull"
+		-- Phase 38.1 : 해적을 기다리는 동안 칼을 젖혀 던질 준비 (해골 유령도 똑같이 든다 : 자세로 알아채지 못하게)
+		hands.aiming = catch ~= nil and catch.mine and not catch.done and catch.model == active
 		if hands.aiming then
 			local stepInfo = catch.steps[catch.step or 1] or catch.steps[1]
 			hands.tension = math.clamp(1 - (stepInfo.opensAt - workspace:GetServerTimeNow()) / 1.5, 0, 1)
