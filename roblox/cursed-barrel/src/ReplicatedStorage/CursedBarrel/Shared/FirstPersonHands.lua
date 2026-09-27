@@ -242,6 +242,9 @@ local function buildKnife(skin)
 	return model
 end
 
+-- Phase 38 : 던지는 칼 · 다른 연출에서도 같은 칼 모형을 쓴다
+Hands.makeKnife = buildKnife
+
 function Hands.new(player)
 	local self = setmetatable({}, Hands)
 	self.player = player
@@ -353,6 +356,22 @@ function Hands:grab()
 		return
 	end
 	self.action = { kind = "grab", started = os.clock(), from = self.localPose }
+end
+
+-- Phase 38 : 해적을 잡으려고 누르면 칼을 던진다. 손은 휙 던지고, 새 칼을 뽑아 든다.
+--   돌려주는 값 = 칼이 손을 떠나는 자리 (월드). 1인칭이 아니면 nil (다른 곳에서 던진다)
+local TOSS = pose(0.55, -0.45, -2.9, -12, -4, -8)
+function Hands:toss()
+	if not self.shown or self.dropped then
+		return nil
+	end
+	if self.action and self.action.kind == "stab" then
+		return nil
+	end
+	local camera = workspace.CurrentCamera
+	local from = camera.CFrame * self.localPose
+	self.action = { kind = "toss", started = os.clock(), from = self.localPose }
+	return from
 end
 
 function Hands:cheer()
@@ -570,6 +589,18 @@ function Hands:update(dt)
 				else
 					self.action = nil
 				end
+			end
+		elseif a.kind == "toss" then
+			-- 휙 던지고(칼은 손을 떠났다) → 새 칼을 뽑아 든다
+			if t < 0.2 then
+				self.localPose = (a.from or REST):Lerp(TOSS, outQuad(math.min(1, t / 0.08)))
+				knifeWorld = cam * self.localPose * swayCF
+				holding = false
+			elseif t < 0.42 then
+				self.localPose = DRAW_FROM:Lerp(REST, smooth((t - 0.2) / 0.22))
+				knifeWorld = cam * self.localPose * swayCF
+			else
+				self.action = nil
 			end
 		elseif a.kind == "grab" then
 			local d = 0.34

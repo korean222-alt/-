@@ -591,7 +591,7 @@ local function runScenario(opts)
 	local round = RoundService._rounds[t]
 
 	local humans = opts.humans or {}
-	local stats = { kinds = {}, cards = {}, stages = 0, saves = 0, results = {}, winner = nil, tutorialSteps = {}, reactions = {} }
+	local stats = { kinds = {}, cards = {}, stages = 0, saves = 0, results = {}, winner = nil, tutorialSteps = {}, reactions = {}, prompts = {} }
 
 	-- 사람이 차례를 받으면 칼을 고른다
 	t.model._onAttr = function(k, v)
@@ -625,6 +625,7 @@ local function runScenario(opts)
 			return
 		end
 		stats.kinds[data.kind] = (stats.kinds[data.kind] or 0) + 1
+		table.insert(stats.prompts, data)
 		for _, h in ipairs(humans) do
 			if h.player == target then
 				h.policy(round, h.player, data)
@@ -792,6 +793,52 @@ local a, b = newHuman(201, 80, true), newHuman(202, 80, true)
 local s2 = runScenario({ name = "잘하는 사람 둘 (끝없는 라운드)", humans = { { player = a, policy = skilled }, { player = b, policy = skilled } }, bots = 0, maxTime = 1800 })
 expect(s2.errors == 0, "오류 없이 돈다")
 expect(s2.stages > 8, ("8라운드를 넘긴다 (%d라운드까지 · 둘 다 한 번도 안 놓치면 끝나지 않는다)"):format(s2.stages))
+
+-- 2a) Phase 38 : 빨라지는 것은 보통 해적뿐 · 나머지는 종류마다 능력이 세진다
+do
+	local minNormal, minTwin, minSide, minMash, maxMashNeed, maxSkull = math.huge, math.huge, math.huge, math.huge, 0, 0
+	local triples, feints, flickers, laterMash = 0, 0, 0, 0
+	local card = GameConfig.FateCards
+	local lowest = math.huge
+	for _, c in ipairs(card.List or card) do
+		lowest = math.min(lowest, tonumber(c.window) or 1)
+	end
+	for _, d in ipairs(s2.prompts) do
+		local w = (d.steps and d.steps[1] and d.steps[1].window) or d.window or 0
+		if d.kind == "normal" then
+			minNormal = math.min(minNormal, w)
+		elseif d.kind == "twin" then
+			minTwin = math.min(minTwin, w)
+			if #(d.steps or {}) >= 3 then
+				triples += 1
+			end
+		elseif d.kind == "side" then
+			minSide = math.min(minSide, w)
+			if d.feint then
+				feints += 1
+			end
+		elseif d.kind == "skull" then
+			maxSkull = math.max(maxSkull, w)
+			if d.flicker then
+				flickers += 1
+			end
+		elseif d.kind == "mash" then
+			minMash = math.min(minMash, w)
+			maxMashNeed = math.max(maxMashNeed, d.need or 0)
+		end
+	end
+	local base = GameConfig.Catch.BaseWindow
+	print(("  창 최소 : 보통 %.2f · 쌍둥이 %.2f · 갈고리 %.2f · 연타 %.2f(최대 %d번) · 유령 최대 %.2f · 세쌍둥이 %d · 속임수 %d · 깜빡임 %d")
+		:format(minNormal, minTwin, minSide, minMash, maxMashNeed, maxSkull, triples, feints, flickers))
+	expect(minNormal < base * 0.8, "보통 해적은 잡을수록 빨라진다")
+	expect(minTwin >= base * lowest - 1e-6, "쌍둥이 창은 줄지 않는다 (카드 배율만)")
+	expect(minSide >= base * 1.2 * lowest - 1e-6, "갈고리 창은 줄지 않는다 (카드 배율만)")
+	expect(minMash >= 1.8 * lowest - 1e-6, "연타 시간은 줄지 않는다 (카드 배율만)")
+	expect(maxMashNeed > 5, ("라운드가 오르면 연타 횟수가 는다 (최대 %d번)"):format(maxMashNeed))
+	expect(triples > 0, "세쌍둥이가 나온다")
+	expect(feints > 0, "갈고리 속임수가 나온다")
+	expect(flickers > 0 and maxSkull > 1.25, "유령이 더 오래 떠 있고 깜빡인다")
+end
 
 -- 2b) 쌍둥이는 둘 다 잡아야 한다 : 첫째만 누르고 둘째를 안 누르면 놓친 것이다
 local function twinOnce(round, player, data)

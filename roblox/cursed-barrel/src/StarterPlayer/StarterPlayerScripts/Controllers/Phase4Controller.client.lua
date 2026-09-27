@@ -1255,6 +1255,8 @@ end
 local yaw = 0
 local YAW_SPEED = math.rad(110)
 local dragInput, dragLast, padTurn = nil, nil, 0
+-- Phase 38 : 1인칭 고개 돌리기 (좌우 yaw · 위아래 pitch, 라디안). 3인칭의 yaw(통 둘레를 도는 카메라)와 따로 둔다
+local fpLook = { yaw = 0, pitch = 0, padPitch = 0 }
 local yawHintShown = false
 -- Phase 21 : 0.6 → 0.42 (칼 고르는 창 위를 덮던 자리에서 통 위쪽으로)
 local yawHint = textLabel("YawHint", UDim2.fromOffset(440, 28), UDim2.new(0.5, -220, 0.42, 0), 19)
@@ -1811,6 +1813,7 @@ local function spawnPirate(model, own, kind, opts)
 	local ghost = { rig = rig, state = "erupt", bornAt = os.clock(), kind = kind, stateAt = os.clock(), fade = 0 }
 	-- Phase 32 : 해골 유령은 반투명 (사라질 때도 이 값보다 진해지지 않는다)
 	ghost.fadeFloor = (opts.look and opts.look.ghostly) and 0.5 or 0
+	ghost.flickerAt = opts.flickerAt -- Phase 38 : 해골 유령이 이 시각에 사라지는 척한다
 	decorate(rig, opts.look)
 	if ghost.fadeFloor > 0 then
 		rig:fade(ghost.fadeFloor)
@@ -1883,7 +1886,18 @@ local function spawnPirate(model, own, kind, opts)
 				sway = math.sin(t * 4) * 10,
 				nod = math.sin(t * 2.4) * 4,
 			})
-			if (kind == "fake" and t > 1.1) or (kind == "spit" and t > (ghost.fadeAt or 1.1)) then
+			-- Phase 38 : 해골 유령 깜빡임 — 0.4초 동안 거의 사라졌다가 다시 나타난다 (그동안 눌러도 탈락)
+			if ghost.flickerAt then
+				local f = now - ghost.flickerAt
+				if f >= 0 and f < 0.4 then
+					fadeTo(0.94)
+					ghost.flickered = true
+				elseif ghost.flickered then
+					fadeTo(0)
+					ghost.flickerAt = nil
+				end
+			end
+			if (kind == "fake" and t > (ghost.fadeAt or 1.1)) or (kind == "spit" and t > (ghost.fadeAt or 1.1)) then
 				ghost.state, ghost.stateAt = "fading", now
 			elseif kind == "rage" and t > 0.75 then
 				ghost.state, ghost.stateAt = "lunge", now
@@ -1901,6 +1915,83 @@ local function spawnPirate(model, own, kind, opts)
 		table.insert(liveGhosts, ghost)
 	end
 	return ghost
+end
+
+--------------------------------------------------
+-- Phase 38 : 칼 던지기 — 해적을 잡는 누름이 이제 "칼을 던져 맞히기"로 보인다 (판정은 그대로 : 타이밍 · 방향 · 연타)
+--   내 누름 : 누르는 순간 던진다 (1인칭이면 1인칭 손이 휙, 3인칭이면 내 캐릭터 손에서). 맞는 때면 해적에 꽂히고, 아니면 빗나간다.
+--   다른 사람 : 잡았다는 결과가 오면 그 사람 손에서 해적마다 한 자루씩 날아간다.
+--------------------------------------------------
+local throwKnife
+do
+	local function handOf(character)
+		if not character then
+			return nil
+		end
+		local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm") or character:FindFirstChild("Head")
+		return hand and hand:IsA("BasePart") and hand or nil
+	end
+	-- from : CFrame(1인칭 손의 칼) · Model(캐릭터) · nil(내 캐릭터) / ghost : 맞힐 해적 (없으면 통 뚜껑 쪽으로 빗나간다)
+	function throwKnife(model, from, ghost, hit, skinId)
+		local fromCF = typeof(from) == "CFrame" and from or nil
+		if not fromCF then
+			local hand = handOf(typeof(from) == "Instance" and from or player.Character)
+			if not hand then
+				return
+			end
+			fromCF = hand.CFrame
+		end
+		local ghostPart = ghost and ghost.rig and ghost.rig.model and ghost.rig.model.PrimaryPart
+		local target = ghostPart and (ghostPart.Position + Vector3.new(0, 0.6, 0)) or (lidTop(model) or fromCF.Position + fromCF.LookVector * 5)
+		local knife = hands.makeKnife(config.findSkin("Knife", skinId or "classic"))
+		pcall(knife.ScaleTo, knife, 0.7)
+		knife.Parent = fx
+		local start = fromCF.Position
+		local dir = target - start
+		if dir.Magnitude < 0.1 then
+			knife:Destroy()
+			return
+		end
+		local flight = math.clamp(dir.Magnitude / 40, 0.08, 0.2)
+		local born = os.clock()
+		local stuck, stuckAt, rel = false, 0, nil
+		local conn
+		conn = Run.RenderStepped:Connect(function()
+			if not knife.Parent then
+				conn:Disconnect()
+				return
+			end
+			local now = os.clock()
+			if not stuck then
+				local a = math.clamp((now - born) / flight, 0, 1)
+				local extra = hit and 0 or 0.6 * a -- 빗나가면 조금 더 날아가며 떨어진다
+				local pos = start:Lerp(target, a) + dir.Unit * (extra * 3) + Vector3.new(0, math.sin(a * math.pi) * 0.35 - extra * 1.5, 0)
+				-- 날끝(-Z)이 날아가는 쪽 · 끝으로 두 바퀴 돌고 도착할 때 날끝이 앞
+				knife:PivotTo(CFrame.lookAt(pos, pos + dir.Unit) * CFrame.Angles(-a * math.pi * 4, 0, 0))
+				if a >= 1 then
+					stuck, stuckAt = true, now
+					if hit then
+						burst(target, gold, reduced and 4 or 12)
+						sound("pick", 1.9, 0.9)
+						if ghostPart and ghostPart.Parent then
+							rel = ghostPart.CFrame:ToObjectSpace(knife:GetPivot())
+						end
+					else
+						sound("tick", 0.8, 0.3)
+					end
+				end
+			else
+				local s = now - stuckAt
+				if rel and ghostPart and ghostPart.Parent then
+					knife:PivotTo(ghostPart.CFrame * rel) -- 맞은 해적을 따라 통 속으로 끌려 들어간다
+				end
+				if s > (hit and 0.55 or 0.25) then
+					conn:Disconnect()
+					knife:Destroy()
+				end
+			end
+		end)
+	end
 end
 
 --------------------------------------------------
@@ -2141,7 +2232,18 @@ do
 		chipScale.Scale = math.clamp(math.min((view.X - 24) / 360, view.Y / 560), 0.6, 1)
 		chip.Position = UDim2.new(0.5, 0, 0, math.floor(GuiService:GetGuiInset().Y + 6))
 		ArtAtlas.setIcon(chipIcon, kindId)
-		chipText.Text = ("%s · %s"):format(def.name or "", def.short or "")
+		-- Phase 38 : 라운드가 올라 세진 능력을 띠에 적는다
+		local line = ("%s · %s"):format(def.name or "", def.short or "")
+		if kindId == "twin" and #(catch.steps or {}) >= 3 then
+			line = "세쌍둥이 해적 · 셋 다 잡기!"
+		elseif kindId == "mash" and catch.need then
+			line = ("%s · 연타 %d번!"):format(def.name or "", catch.need)
+		elseif kindId == "side" and catch.feint then
+			line = ("%s · 속임수 조심! 튀어나온 쪽"):format(def.name or "")
+		elseif kindId == "skull" and catch.flicker then
+			line = ("%s · 깜빡여도 참아!"):format(def.name or "")
+		end
+		chipText.Text = line
 		chipText.TextColor3 = def.color or gold
 		chipStroke.Color = def.color or gold
 		chip.Visible = true
@@ -2318,10 +2420,18 @@ function sendCatch(side)
 		return
 	end
 	lastTapAt = os.clock()
-	hands:grab() -- Phase 37 : 1인칭 손이 해적을 향해 주먹을 휘두른다
 	local now = workspace:GetServerTimeNow()
 	catchInput:FireServer(catch.model, now, side)
 	local stepInfo = catch.steps[catch.step] or catch.steps[1]
+	-- Phase 38 : 누를 때마다 칼을 던진다. 맞는 때(창 안 · 맞는 쪽 · 유령이 아님)면 해적에 꽂힌다
+	do
+		local tol = config.Catch.EarlyTolerance or 0
+		local inWindow = now >= stepInfo.opensAt - tol and now <= stepInfo.opensAt + (stepInfo.window or 0.6) + (config.Catch.Grace or 0.05)
+		local onTarget = inWindow and kind ~= "skull" and not (kind == "side" and side ~= catch.side)
+		local ghost = liveGhosts[math.min(catch.step or 1, #liveGhosts)]
+		local from = hands:toss()
+		throwKnife(catch.model, from, inWindow and ghost or nil, onTarget, player:GetAttribute(SKIN_ATTR.Knife))
+	end
 	if now < stepInfo.opensAt - (config.Catch.EarlyTolerance or 0) then
 		-- ★ Phase 11 : 해적이 나오기 전에 눌렀다. 서버가 실패로 판정합니다.
 		catch.done = true
@@ -2361,10 +2471,10 @@ function sendCatch(side)
 	if (catch.step or 1) < #catch.steps then
 		-- 쌍둥이 : 첫째를 잡았다
 		catch.step += 1
-		catchText.Text = "1/2 잡았다! 하나 더…"
+		catchText.Text = ("%d/%d 잡았다! 하나 더…"):format(catch.step - 1, #catch.steps)
 		catchText.TextColor3 = teal
 		sound("win", 1.6, 0.2)
-		local first = liveGhosts[1]
+		local first = liveGhosts[catch.step - 1]
 		if first then
 			first.state, first.stateAt = "caught", os.clock()
 		end
@@ -2487,11 +2597,25 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	eruptKind[model] = angry and "angry" or "real"
 	local popToken = {}
 	pendingPop[model] = popToken
+	-- Phase 38 : 갈고리 해적 속임수 — 진짜가 나오기 직전 반대쪽으로 고개를 쑥 내밀었다 들어간다 (그때 누르면 너무 빨랐다)
+	if kind == "side" and data.feint and data.side and lead > 0.9 then
+		local sign = data.side == "L" and 1 or -1 -- 반대쪽
+		task.delay(math.max(0, opensLocal - 0.62 - os.clock()), function()
+			if pendingPop[model] ~= popToken then
+				return
+			end
+			local peek = spawnPirate(model, true, "fake", { look = look, offset = right * (2.3 * sign), lean = -14 * sign })
+			if peek then
+				peek.fadeAt = 0.5
+			end
+		end)
+	end
 	for index, stepInfo in ipairs(steps) do
 		local at = stepInfo.opensAt + offset
 		local opts = { look = look, second = index > 1 }
 		if kind == "twin" then
-			opts.offset = right * (index == 1 and -1.6 or 1.6)
+			-- Phase 38 : 세쌍둥이는 셋째가 가운데
+			opts.offset = right * (({ -1.6, 1.6, 0 })[index] or 0)
 		elseif kind == "side" then
 			local sign = data.side == "L" and -1 or 1
 			opts.offset = right * (2.3 * sign)
@@ -2509,6 +2633,9 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 			local eruptAs = index == 1 and (eruptKind[model] or "real") or "real"
 			if index == 1 then
 				eruptKind[model] = nil
+			end
+			if kind == "skull" and data.flicker then
+				opts.flickerAt = os.clock() + (stepInfo.window or 1.2) * (0.35 + math.random() * 0.2)
 			end
 			erupt(model, true, eruptAs, opts)
 			if catch and catch.model == model and catch.mine then
@@ -2534,6 +2661,7 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 		opensAt = data.opensAt, window = data.window,
 		opensLocal = opensLocal, index = data.index or 1,
 		level = level, max = data.max, rookie = data.rookie,
+		feint = data.feint, flicker = data.flicker, kindLevel = data.kindLevel,
 		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
 	}
 	catchGui.Visible = true
@@ -2622,6 +2750,16 @@ do
 				text = (data.name or "") .. " 잡았다!" .. (reaction and (" (%.2f초)"):format(math.max(0, reaction)) or "")
 			end
 			announce(text, data.perfect and gold or teal, 1.8)
+			-- Phase 38 : 다른 사람이 잡았으면 그 사람 손에서 해적마다 칼이 날아간다 (내 칼은 누를 때 이미 던졌다)
+			if not mine and data.reason ~= "held" then
+				local thrower = characterOfUser(model, data.userId)
+				local who = Players:GetPlayerByUserId(data.userId or 0)
+				for index, ghost in ipairs(ghosts) do
+					task.delay((index - 1) * 0.12, function()
+						throwKnife(model, thrower, ghost, true, who and who:GetAttribute(SKIN_ATTR.Knife) or nil)
+					end)
+				end
+			end
 			blink(data.perfect and gold or teal, 0.35)
 			sound("win", data.perfect and 1.7 or 1.4, 0.3)
 			-- 해적이 통으로 끌려 들어갑니다. (유령은 스르르 사라진다)
@@ -3029,6 +3167,7 @@ Run.Heartbeat:Connect(function()
 		lastTurn = nil
 		shot = nil
 		yaw = 0 -- 새 판은 정면에서 시작한다
+		fpLook.yaw, fpLook.pitch = 0, 0
 		dragInput, dragLast = nil, nil
 		if active then
 			enterStage(active)
@@ -3180,6 +3319,7 @@ end)
 Input.InputChanged:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Thumbstick2 then
 		padTurn = math.abs(input.Position.X) > 0.2 and -input.Position.X or 0
+		fpLook.padPitch = math.abs(input.Position.Y) > 0.2 and input.Position.Y or 0
 		return
 	end
 	if not dragInput or not canTurn() then
@@ -3190,7 +3330,13 @@ Input.InputChanged:Connect(function(input)
 	if follows and dragLast then
 		local delta = input.Position - dragLast
 		dragLast = input.Position
-		yaw -= delta.X * 0.008
+		if firstPerson and tableOfCharacter() == active then
+			-- Phase 38 : 1인칭 = 내 고개를 돌린다 (좌우는 끝없이 · 위아래는 -63도 ~ +57도)
+			fpLook.yaw -= delta.X * 0.006
+			fpLook.pitch = math.clamp(fpLook.pitch - delta.Y * 0.005, -1.1, 1.0)
+		else
+			yaw -= delta.X * 0.008
+		end
 	end
 end)
 Input.InputEnded:Connect(function(input)
@@ -3311,7 +3457,21 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 				turn -= 1
 			end
 		end
-		if turn ~= 0 then
+		local fpNow = firstPerson and tableOfCharacter() == active
+		if fpNow then
+			-- Phase 38 : 1인칭 고개 : ← → · A D 좌우, ↑ ↓ · W S 위아래, 게임패드 오른쪽 스틱
+			local tilt = fpLook.padPitch
+			if not Input:GetFocusedTextBox() then
+				if Input:IsKeyDown(Enum.KeyCode.Up) or Input:IsKeyDown(Enum.KeyCode.W) then
+					tilt += 1
+				end
+				if Input:IsKeyDown(Enum.KeyCode.Down) or Input:IsKeyDown(Enum.KeyCode.S) then
+					tilt -= 1
+				end
+			end
+			fpLook.yaw += turn * YAW_SPEED * dt
+			fpLook.pitch = math.clamp(fpLook.pitch + tilt * YAW_SPEED * 0.7 * dt, -1.1, 1.0)
+		elseif turn ~= 0 then
 			yaw += turn * YAW_SPEED * dt
 		end
 	end
@@ -3347,8 +3507,21 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 	--   내 팔(칼 꽂기 모션)은 보이고, 머리 · 모자는 내 화면에서만 숨긴다. 관전 중에는 쓰지 않는다.
 	local fpEye = firstPersonEye(active)
 	if fpEye then
+		yaw = 0 -- 1인칭에서는 통 둘레를 돌지 않는다 (해적이 늘 나를 향해 튀어나오게)
 		-- Phase 35.1 : 조금 더 위를 본다 (통 뚜껑과 해적이 튀어나오는 높이가 화면 가운데쯤. 예전에는 통 몸통을 내려다봤다)
 		local look = pos + Vector3.new(0, FRAME.Aim * 0.55 + FP_LIFT, 0)
+		-- Phase 38 : 내가 돌린 고개 (끌기 · 키 · 스틱). 해적이 튀어나오면 잠깐 해적을 보고 다시 돌린 곳으로 돌아온다
+		local free = look - fpEye
+		local reach = free.Magnitude
+		if (fpLook.yaw ~= 0 or fpLook.pitch ~= 0) and reach > 0.01 then
+			free = CFrame.Angles(0, fpLook.yaw, 0):VectorToWorldSpace(free)
+			local flat = Vector3.new(free.X, 0, free.Z)
+			if flat.Magnitude > 0.01 then
+				local tilted = math.clamp(math.atan2(free.Y, flat.Magnitude) + fpLook.pitch, -1.35, 1.35)
+				free = flat.Unit * math.cos(tilted) + Vector3.new(0, math.sin(tilted), 0)
+			end
+			look = fpEye + free.Unit * reach
+		end
 		local lookFov = 74
 		if shot and shot.model == active then
 			local elapsed = os.clock() - shot.startedAt
@@ -3366,9 +3539,6 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 			end
 		end
 		local toward = look - fpEye
-		if yaw ~= 0 and toward.Magnitude > 0.01 then
-			toward = CFrame.Angles(0, yaw * 0.6, 0):VectorToWorldSpace(toward)
-		end
 		-- Phase 37 : 1인칭 손이 칼을 찌르는 동안 몸이 슬롯 쪽으로 숙여진다 (팔이 슬롯에 닿을 만큼)
 		hands.want = true
 		hands.ready = active:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId
@@ -3424,7 +3594,7 @@ do
 			ringStroke.Color = gold
 			ringStroke.Transparency = 0.15 + wait * 0.5
 			if not catch.done and (catch.step or 1) == 1 then
-				catchText.Text = WAIT_TEXT[kind] or "기다려…"
+				catchText.Text = (kind == "twin" and #catch.steps >= 3) and "기다려… (셋!)" or (WAIT_TEXT[kind] or "기다려…")
 				catchText.TextColor3 = cream
 			end
 		elseif not catch.done then
@@ -3448,7 +3618,7 @@ do
 				catchText.Text = catch.side == "L" and "← 왼쪽!" or "오른쪽! →"
 				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
 			elseif kind == "twin" then
-				catchText.Text = (catch.step or 1) == 1 and "하나!" or "둘!"
+				catchText.Text = ({ "하나!", "둘!", "셋!" })[catch.step or 1] or "지금!"
 				catchText.TextColor3 = cream
 			else
 				catchText.Text = "지금!"

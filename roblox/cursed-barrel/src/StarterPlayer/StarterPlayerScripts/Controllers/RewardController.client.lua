@@ -382,7 +382,7 @@ UIKit.corner(lockBadge, 10)
 UIKit.outline(lockBadge, 2, Color3.fromRGB(255, 206, 110))
 -- Phase 32.1 : 자물쇠는 이모지 대신 Blender 아이콘 그림 (ArtAtlas)
 require(Shared:WaitForChild("ArtAtlas")).icon(lockBadge, "lock", { size = UDim2.fromOffset(30, 30), position = UDim2.new(0, -2, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = rouletteButton.ZIndex + 9 })
-local lockText = UIKit.label(lockBadge, { text = "0/2판", size = UDim2.new(1, -26, 1, 0), position = UDim2.fromOffset(24, 0), textSize = 16, scaled = true, stroke = 2, zIndex = rouletteButton.ZIndex + 9 })
+local lockText = UIKit.label(lockBadge, { text = ("0/%d판"):format(GameConfig.Roulette.GamesToUnlock or 3), size = UDim2.new(1, -26, 1, 0), position = UDim2.fromOffset(24, 0), textSize = 16, scaled = true, stroke = 2, zIndex = rouletteButton.ZIndex + 9 })
 lockText.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
 local function refreshLock()
 	local need = player:GetAttribute("SpinNeed") or 0

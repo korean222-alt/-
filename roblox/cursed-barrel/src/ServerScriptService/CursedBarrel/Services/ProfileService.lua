@@ -130,7 +130,7 @@ local function defaultProfile()
 		tutorialDone = false,
 		-- Phase 32
 		lastStreakFoes = "", -- 연승이 마지막으로 오른 판의 상대 (사람 UserId 를 작은 순으로 이은 글자). 같은 상대에게 또 이기면 연승이 오르지 않는다
-		dayGamesDay = "", -- 오늘 끝까지 한 판 수를 센 날짜 (룰렛은 오늘 두 판을 해야 열린다)
+		dayGamesDay = "", -- 오늘 끝까지 한 판 수를 센 날짜 (룰렛은 오늘 GamesToUnlock 판을 해야 열린다)
 		dayGames = 0,
 		comebackChest = false, -- 3일 이상 쉬다 왔다 : 오늘 첫 판을 마치면 "돌아온 해적 상자"
 		seenKinds = {}, -- [해적 종류] = true (처음 만나는 해적은 설명 카드를 한 번 보여 준다)

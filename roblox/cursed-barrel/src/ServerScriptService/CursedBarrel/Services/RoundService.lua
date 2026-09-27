@@ -73,7 +73,7 @@ Phase 32 에서 바뀐 것 (요청하신 것)
   · 신입 보호 : 판 수가 적은 사람은 한 판에 한 번, 놓쳐도 같은 해적이 다시 나온다.
   · 필수 튜토리얼 : 처음 온 사람의 연습 판에서는 내 칼이 항상 해적 자리에 꽂히고(AI 는 항상 안전),
     종류를 하나씩 모두 잡아야 끝난다. 놓쳐도 다시 나온다. 다 잡으면 이 판은 내 승리로 끝난다.
-  · 판을 끝까지 하면(탈락 포함 · 스스로 나가면 제외) 오늘 판 수를 센다 → 두 판이면 룰렛이 열린다.
+  · 판을 끝까지 하면(탈락 포함 · 스스로 나가면 제외) 오늘 판 수를 센다 → GamesToUnlock(3) 판이면 룰렛이 열린다.
 
 Phase 12 에서 더한 것
   · 항해 시계의 판 규칙 (GameConfig.worldMods) : 현상금 배율 · 보물 폭발 배율 · 해적이 나오는 속도 · 해적 추가
@@ -740,7 +740,7 @@ function Round:_driftPirates()
 	end
 end
 
--- 이 사람이 이번 판을 끝까지 했다 (탈락했거나 판이 끝났다). 오늘 판 수를 센다 → 두 판이면 룰렛이 열린다.
+-- 이 사람이 이번 판을 끝까지 했다 (탈락했거나 판이 끝났다). 오늘 판 수를 센다 → GamesToUnlock(3) 판이면 룰렛이 열린다.
 function Round:_countGame(player)
 	if GameConfig.isBot(player) or player.Parent ~= Players or self.gameCounted[player] then
 		return
@@ -1716,6 +1716,18 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 		lead = GameConfig.catchLead(personal, GameConfig.worldMods().lead) + self.random:NextNumber() * (tonumber(CATCH.AngryLeadJitter) or 0.9)
 			+ (tonumber(CATCH.AngryPreRise) or 0.9)
 	end
+	-- ★ Phase 38 : 빨라지는 것은 보통 해적뿐이다. 나머지 종류는 창 · 나오는 박자를 처음 그대로 두고,
+	--   라운드가 오를수록 그 종류만의 능력이 세진다 (kindLevel = 라운드 - 그 종류가 풀린 라운드).
+	--     쌍둥이 : 둘째가 나오는 간격이 들쭉날쭉해지고, 나중에는 셋(세쌍둥이)
+	--     갈고리 : 반대쪽으로 먼저 고개를 내미는 속임수
+	--     해골 유령 : 더 오래 떠 있고, 사라지는 척 깜빡인다
+	--     욕심쟁이 : 눌러야 하는 횟수가 늘어난다 (시간은 줄지 않고 조금 늘어난다)
+	local kindLevel = math.max(0, stage - (def.unlock or 1))
+	if kind ~= "normal" and not angry then
+		window = CATCH.BaseWindow or window
+		hard = false
+		lead = GameConfig.catchLead(0, GameConfig.worldMods().lead) + self.random:NextNumber() * (tonumber(CATCH.LeadJitter) or 0)
+	end
 	-- Phase 32 : 종류 · 운명 카드가 창을 넓히거나 좁힌다
 	window *= tonumber(def.windowScale) or 1
 	window *= self:_cardValue("window")
@@ -1744,27 +1756,50 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 	local opensAt = startedAt + lead
 	-- 잡는 순간들. 쌍둥이는 둘, 나머지는 하나.
 	local steps = { { opensAt = opensAt, window = window } }
-	local side, need = nil, nil
+	local side, need, feint, flicker = nil, nil, nil, nil
 	if kind == "twin" then
-		local low, high = tonumber(def.gapMin) or 0.45, tonumber(def.gapMax) or 0.85
-		local gap = low + self.random:NextNumber() * math.max(0, high - low)
-		if tutorial then
-			gap = math.max(gap, 1.0)
+		-- Phase 38 : 간격이 라운드마다 들쭉날쭉해지고(0.45~0.85 → 0.25~1.6), tripleFrom 단계부터는 가끔 셋
+		local low = math.max(0.25, (tonumber(def.gapMin) or 0.45) - 0.03 * kindLevel)
+		local high = math.min(1.6, (tonumber(def.gapMax) or 0.85) + 0.08 * kindLevel)
+		local count = 2
+		local tripleFrom = tonumber(def.tripleFrom) or 4
+		if not tutorial and kindLevel >= tripleFrom and self.random:NextNumber() < math.min(0.6, 0.35 + 0.05 * (kindLevel - tripleFrom)) then
+			count = 3
 		end
-		local second = math.max(CATCH.MinWindow, window * (tonumber(def.secondScale) or 0.9))
-		table.insert(steps, { opensAt = opensAt + window + gap, window = second })
+		local following = math.max(CATCH.MinWindow, window * (tonumber(def.secondScale) or 0.9))
+		for _ = 2, count do
+			local gap = low + self.random:NextNumber() * math.max(0, high - low)
+			if tutorial then
+				gap = math.max(gap, 1.0)
+			end
+			local prev = steps[#steps]
+			table.insert(steps, { opensAt = prev.opensAt + prev.window + gap, window = following })
+		end
 	elseif kind == "side" then
 		side = self.random:NextNumber() < 0.5 and "L" or "R"
+		-- Phase 38 : 반대쪽으로 먼저 고개를 내미는 속임수 (feintFrom 단계부터 · 확률이 오른다)
+		local feintFrom = tonumber(def.feintFrom) or 2
+		if not tutorial and kindLevel >= feintFrom and self.random:NextNumber() < math.min(0.7, 0.3 + 0.07 * (kindLevel - feintFrom)) then
+			feint = true
+		end
 	elseif kind == "skull" then
 		-- 창 = 유령이 떠 있는 시간. 이 동안 누르면 탈락, 다 참으면 산다
-		steps[1].window = (tonumber(def.show) or 1.2) * (tutorial and 1.3 or 1)
+		-- Phase 38 : 라운드마다 0.1초씩 더 오래 (최대 maxShow) · flickerFrom 단계부터 사라지는 척 깜빡인다
+		local show = math.min(tonumber(def.maxShow) or 2.2, (tonumber(def.show) or 1.2) + 0.1 * kindLevel)
+		steps[1].window = show * (tutorial and 1.3 or 1)
+		if not tutorial and kindLevel >= (tonumber(def.flickerFrom) or 2) then
+			flicker = true
+		end
 	elseif kind == "mash" then
-		local extra = math.floor(math.max(0, stage - (def.unlock or 5)) / math.max(1, tonumber(def.tapsEvery) or 4))
-		need = math.min(tonumber(def.maxTaps) or 8, (tonumber(def.taps) or 5) + extra)
-		local span = math.max(tonumber(def.minWindow) or 1.3, (tonumber(def.window) or 1.8) * (0.985 ^ personal)) * self:_cardValue("window")
+		-- Phase 38 : 라운드가 오를수록 눌러야 하는 횟수만 는다. 시간은 줄지 않고 횟수에 맞춰 조금 는다
+		--   (잡을수록 시간이 줄던 0.985^personal 은 뺐다)
+		local baseTaps = tonumber(def.taps) or 5
+		local extra = math.floor(kindLevel / math.max(1, tonumber(def.tapsEvery) or 2))
+		need = math.min(tonumber(def.maxTaps) or 12, baseTaps + extra)
+		local span = math.max(tonumber(def.minWindow) or 1.3, tonumber(def.window) or 1.8) * (need / baseTaps) ^ (tonumber(def.spanGrowth) or 0.7) * self:_cardValue("window")
 		if tutorial then
-			need = tonumber(def.taps) or 5
-			span *= 1.4
+			need = baseTaps
+			span = math.max(tonumber(def.minWindow) or 1.3, tonumber(def.window) or 1.8) * 1.4
 		end
 		steps[1].window = span
 	end
@@ -1814,7 +1849,10 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 			intro = intro or nil,
 			tutorial = tutorial or nil,
 			retry = retry or nil,
-			-- 신입 보호가 남아 있다 (화면에 🛟 표시) · 판 수 (신입에게는 가짜 손 속임수를 보여 주지 않는다)
+			kindLevel = kindLevel, -- Phase 38 : 이 종류가 몇 단계 세졌는가 (화면 안내)
+			feint = feint, -- Phase 38 : 갈고리 해적 속임수
+			flicker = flicker, -- Phase 38 : 해골 유령 깜빡임
+			-- 신입 보호가 남아 있다 (화면에 구명환 표시) · 판 수 (신입에게는 가짜 손 속임수를 보여 주지 않는다)
 			rookie = (rookie or tutorial) or nil,
 			games = player:GetAttribute(GameConfig.PlayerAttributes.Games) or 0,
 		})
@@ -1842,6 +1880,9 @@ function Round:_beginCatch(player, slotIndex, forcedKind, retry)
 			level = personal + 1,
 			slot = slotIndex,
 			angry = angry or nil,
+			kindLevel = kindLevel,
+			feint = feint,
+			flicker = flicker,
 		})
 	end
 	for _, other in ipairs(self.participants) do

@@ -327,6 +327,14 @@ do
 		step(h, 1 / 60)
 	end
 	check(h.action == nil, "잡기 휘두르기는 0.34초 안에 끝난다")
+	local tossFrom = h:toss()
+	check(typeof(tossFrom) == "CFrame", "던지기 : 칼이 손을 떠나는 자리를 돌려준다")
+	step(h, 1 / 60)
+	check(h.knife.Parent == nil, "던지기 : 던진 직후 손에 칼이 없다")
+	for _ = 1, 40 do
+		step(h, 1 / 60)
+	end
+	check(h.action == nil and h.knife.Parent ~= nil, "던지기 : 0.42초 뒤 새 칼을 뽑아 든다")
 	h:cheer()
 	for _ = 1, 60 do
 		step(h, 1 / 60)
