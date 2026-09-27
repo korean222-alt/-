@@ -22,3 +22,12 @@ lune run build.luau CursedBarrel_Phase31.rbxl CursedBarrel_Phase32.rbxl
 cargo install selene --locked
 selene src
 ```
+
+테스트:
+
+```sh
+lune run tests/stab_motion.luau src/ReplicatedStorage/CursedBarrel/Shared/StabMotion.lua
+lune run tests/sim_round.luau src
+```
+
+변경 내역 : [CHANGES_Phase32.md](CHANGES_Phase32.md)

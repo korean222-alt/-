@@ -108,7 +108,8 @@ local spectateBar=Instance.new("Frame");spectateBar.Name="SpectateBar";spectateB
 spectateBar.Size=UDim2.fromOffset(190,150);spectateBar.BackgroundTransparency=1;spectateBar.Visible=false;spectateBar.Parent=gui
 UIKit.autoScale(spectateBar,UIKit.phoneFactor)
 local spectateTitle=UIKit.label(spectateBar,{text="👀 관전 중",position=UDim2.fromOffset(0,0),size=UDim2.new(1,0,0,34),textSize=20,color=UIKit.Colors.Gold,stroke=3,scaled=true})
-local function stopSpectate() player:SetAttribute("SpectateTableId",nil);selected=nil end
+local rejoinModel=nil -- Phase 32 : 탈락한 테이블 (다음 판이 열리면 저절로 앉는다 · 설정 autoRejoin)
+local function stopSpectate() player:SetAttribute("SpectateTableId",nil);selected=nil;rejoinModel=nil end
 local spectateExit=button(spectateBar,"관전 종료",UDim2.fromOffset(5,40),UDim2.fromOffset(180,50),stopSpectate,"red")
 local rejoin=button(spectateBar,"다음 판 참가",UDim2.fromOffset(5,98),UDim2.fromOffset(180,50),function() if selected then request:FireServer("rejoin",selected) end end,"green")
 -- Phase 24 : 테이블에 앉아 사람을 기다리는 동안 화면 아래 가운데에 "🤖 AI 선원 켬/끔" 버튼.
@@ -172,6 +173,36 @@ end
 local function isLive(t)
  local state=t and t:GetAttribute(Config.TableAttributes.State)
  return state~=nil and (Config.InGameStates[state]==true or state==Config.States.Countdown)
+end
+-- Phase 32 : 게임 중인 테이블에 다가가면 통 위에 「👀 관전하기」 (F · 휴대폰은 누르기). 누르면 그 판을 관전한다.
+--   내 화면에서만 만드는 프롬프트다. 앉아 있거나, 이미 그 테이블을 관전 중이거나, 남의 튜토리얼 판이면 숨긴다.
+local watchPrompts=setmetatable({},{__mode="k"})
+local function watchPromptOf(model)
+ local prompt=watchPrompts[model]
+ if prompt and prompt.Parent then return prompt end
+ local barrel=model:FindFirstChild("Barrel");local body=barrel and barrel:FindFirstChild("Body")
+ if not body then return nil end
+ prompt=Instance.new("ProximityPrompt");prompt.Name="CursedBarrel_Watch"
+ prompt.ActionText="👀 관전하기";prompt.ObjectText=model:GetAttribute("DisplayName") or model.Name
+ prompt.HoldDuration=0;prompt.RequiresLineOfSight=false;prompt.KeyboardKeyCode=Enum.KeyCode.F;prompt.GamepadKeyCode=Enum.KeyCode.ButtonY
+ prompt.MaxActivationDistance=(Config.Prediction and Config.Prediction.SpectateRange) or 26
+ prompt.Enabled=false;prompt.Parent=body
+ prompt.Triggered:Connect(function() spectate(model) end)
+ watchPrompts[model]=prompt
+ return prompt
+end
+local function refreshWatchPrompts(seatedAt)
+ local watching=player:GetAttribute("SpectateTableId")
+ for _,model in ipairs(Tags:GetTagged(Config.Tags.Table)) do
+  if model:IsDescendantOf(workspace) then
+   local state=model:GetAttribute(Config.TableAttributes.State)
+   local playing=state~=nil and Config.InGameStates[state]==true
+   local tutorialOf=model:GetAttribute(Config.TableAttributes.Tutorial) or 0
+   local want=playing and seatedAt==nil and watching~=model:GetAttribute("TableId") and (tutorialOf==0 or tutorialOf==player.UserId)
+   local prompt=want and watchPromptOf(model) or watchPrompts[model]
+   if prompt and prompt.Enabled~=want then prompt.Enabled=want end
+  end
+ end
 end
 function draw()
  for _,v in ipairs(scroll:GetChildren()) do if v:IsA("GuiObject") then v:Destroy() end end;order=0
@@ -250,12 +281,21 @@ function draw()
   for _,line in ipairs({
    {"🎯 내 차례에 칼 꽂을 자리를 고르세요","🎯 On your turn, pick a slot"},
    {"☠ 해적이 나오면 눌러서 잡기! 먼저 누르면 탈락","☠ Tap when the pirate pops out! Too early = out"},
+   -- Phase 32 : 해적 종류 · 운명 카드
+   {"👯 쌍둥이 : 두 마리가 차례로, 나올 때마다 한 번씩","👯 Twins: two pop in turn, tap once for each"},
+   {"🪝 갈고리 : 튀어나온 쪽(왼쪽 · 오른쪽)을 눌러요","🪝 Hook: tap the side it pops out on (left · right)"},
+   {"👻 해골 유령 : 누르면 탈락! 사라질 때까지 참기","👻 Skull ghost: don't tap! Wait until it fades"},
+   {"💰 욕심쟁이 : 칼을 붙잡았다! 빠르게 연타","💰 Greedy: it grabbed the knife! Mash quickly"},
+   {"🃏 운명 카드 : 라운드마다 한 장, 그 라운드의 규칙이 바뀌어요","🃏 Fate card: one per round, changes that round's rules"},
    {"🔥 안전하면 바로 다른 자리를 눌러 계속 꽂기 : 더 찌를수록 현상금이 커져요","🔥 Safe? Tap another slot right away to keep stabbing: every extra stab grows the bounty"},
    {"👑 3인 이상 테이블은 마지막 1명이 전부 가져가요","👑 3+ seat tables: the last survivor takes it all"},
    {"😈 방해 : 게임 중 왼쪽 😈 버튼 → 상대 고르기 → 사용","😈 Sabotage: in a game, tap 😈 → pick a rival → use"},
    {"🃏 카드 : 카드 테이블에서 내 차례에 칼 고르는 창 위 버튼","🃏 Cards: on your turn at the card table, above the slot picker"},
    {"🧭 수첩 : 관전 · 주간 의뢰 · 파티 · 설정","🧭 Voyage: spectate · weekly quests · party · settings"},
   }) do local _,l=row(lang(line[1],line[2]),52);l.Size=UDim2.new(1,-30,1,-8) end
+  -- Phase 32 : 튜토리얼 다시 하기 (AI 선원과 해적 다섯 종류를 다시 잡아 본다)
+  local again=row(lang("🎓 튜토리얼 다시 하기","🎓 Replay the tutorial"))
+  action(again,lang("시작","Start"),function() panel.Visible=false;request:FireServer("practice","replay") end)
  elseif tab=="settings" then
   local set=data.settings
   for _,def in ipairs({{"music","음악","Music"},{"sfx","효과음","Effects"}}) do
@@ -267,7 +307,7 @@ function draw()
    button(r,"+",UDim2.new(1,-160,0.5,-22),UDim2.fromOffset(70,44),function() set01(value+0.1) end,"green")
    button(r,value>0 and "🔇" or "🔈",UDim2.new(1,-84,0.5,-22),UDim2.fromOffset(70,44),function() set01(value>0 and 0 or 0.5) end,"grey")
   end
-  for _,def in ipairs({{"aiCrew","🤖 AI 선원 채우기","🤖 AI crew fill-in"},{"showTitle","👑 내 칭호 · VIP 표시","👑 Show my title · VIP"},{"shake","화면 흔들림","Camera shake"},{"reducedFX","번쩍임·연출 줄이기","Reduce effects"},{"camera","테이블 카메라","Table camera"},{"wide","화각 넓게","Wide view"}}) do
+  for _,def in ipairs({{"aiCrew","🤖 AI 선원 채우기","🤖 AI crew fill-in"},{"showTitle","👑 내 칭호 · VIP 표시","👑 Show my title · VIP"},{"shake","화면 흔들림","Camera shake"},{"reducedFX","번쩍임·연출 줄이기","Reduce effects"},{"camera","테이블 카메라","Table camera"},{"firstPerson","👁 게임 중 1인칭","👁 First-person in games"},{"autoRejoin","🔁 탈락하면 다음 판 자동 참가","🔁 Auto-rejoin after elimination"},{"wide","화각 넓게","Wide view"}}) do
    local key=def[1];local r=row(lang(def[2],def[3]));action(r,set[key] and "ON" or "OFF",function() queueSetting(key,not set[key]);draw() end)
   end
   local q=row(lang("이펙트 품질","Effect quality"));action(q,set.quality,function() queueSetting("quality",({Auto="High",High="Low",Low="Auto"})[set.quality] or "Auto");draw() end)
@@ -341,7 +381,11 @@ remotes.PresentationCue.OnClientEvent:Connect(function(event,model,payload)
   end
  elseif event=="Eliminate" then
   FX.burst(body.Position,Config.findSkin("Elimination",payload.skin),"Eliminate")
-  if payload.userId==player.UserId then selected=model;player:SetAttribute("SpectateTableId",model:GetAttribute("TableId")) end
+  if payload.userId==player.UserId then
+   selected=model;player:SetAttribute("SpectateTableId",model:GetAttribute("TableId"))
+   -- Phase 32 : 이 테이블의 다음 판에 저절로 참가한다 (설정에서 끌 수 있다)
+   if player:GetAttribute("Setting_autoRejoin")~=false and (model:GetAttribute(Config.TableAttributes.Tutorial) or 0)==0 then rejoinModel=model end
+  end
  elseif event=="Card" then FX.burst(body.Position,Config.findSkin("Barrel",model:GetAttribute("BarrelSkinId")),"Card") end
 end)
 remotes.CatchResult.OnClientEvent:Connect(function(model,payload)
@@ -436,15 +480,25 @@ local heartbeat=Run.Heartbeat:Connect(function()
  if os.clock()-tickAt<0.5 then return end;tickAt=os.clock()
  local t=currentTable()
  if t then player:SetAttribute("SpectateTableId",nil) end
+ refreshWatchPrompts(t) -- Phase 32 : 게임 중인 테이블 근처의 「👀 관전하기」
  if selected and not selected:IsDescendantOf(workspace) then selected=nil;player:SetAttribute("SpectateTableId",nil) end
  -- Phase 21 : 관전하던 판이 끝나면(대기로 돌아가고 4초) 관전을 저절로 끝낸다.
  --   예전에는 탈락해서 자동 관전이 된 뒤 판이 끝나도 "관전 종료 · 다음 판 참가" 가 계속 떠 있었다
+ -- Phase 32 : 탈락해서 관전하던 테이블이 다음 판을 받기 시작하면 저절로 앉는다 (한 번만)
+ if rejoinModel then
+  local st=rejoinModel:GetAttribute(Config.TableAttributes.State)
+  if t or not rejoinModel:IsDescendantOf(workspace) or player:GetAttribute("Setting_autoRejoin")==false then rejoinModel=nil
+  elseif st==Config.States.Waiting or st==Config.States.Countdown then
+   request:FireServer("rejoin",rejoinModel);rejoinModel=nil
+   UIKit.toast("🔁 다음 판에 자동으로 참가해요 (설정에서 끌 수 있어요)",UIKit.Colors.Gold,2.6)
+  end
+ end
  local watchId=player:GetAttribute("SpectateTableId")
  if watchId then
   local m=(selected and selected:GetAttribute("TableId")==watchId and selected) or tableById(watchId)
   if isLive(m) then idleSince=nil else idleSince=idleSince or os.clock() end
   if not m or os.clock()-(idleSince or os.clock())>4 then stopSpectate();idleSince=nil end
-  if m then spectateTitle.Text="👀 관전 중 · "..(m:GetAttribute("DisplayName") or m.Name) end
+  if m then spectateTitle.Text=(rejoinModel and "🔁 다음 판 자동 참가 · " or "👀 관전 중 · ")..(m:GetAttribute("DisplayName") or m.Name) end
  else idleSince=nil end
  local watching=player:GetAttribute("SpectateTableId")~=nil
  spectateBar.Visible=watching and player:GetAttribute("PirateFocus")~=true

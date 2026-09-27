@@ -33,16 +33,18 @@ gui.Parent = player:WaitForChild("PlayerGui")
 local UIKit = require(RS:WaitForChild("CursedBarrel").Shared:WaitForChild("UIKit"))
 UIKit.restyle(gui)
 
+-- Phase 32 : 정식 버튼 "🔮 누가 이길까요?" (맞히면 300 코인). 예전에는 작은 반투명 목록이었다.
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(1, 0.5)
 panel.Position = UDim2.new(1, -12, 0.55, 0)
-panel.Size = UDim2.fromOffset(230, 60)
+panel.Size = UDim2.fromOffset(250, 60)
 panel.AutomaticSize = Enum.AutomaticSize.Y
-panel.BackgroundColor3 = Color3.fromRGB(16, 22, 34)
-panel.BackgroundTransparency = 0.12
+panel.BackgroundColor3 = Color3.new(1, 1, 1)
 panel.Visible = false
 panel.Parent = gui
-Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+UIKit.gradient(panel, Color3.fromRGB(120, 70, 190), Color3.fromRGB(52, 26, 96), 90)
+UIKit.corner(panel, 16)
+UIKit.outline(panel, 4)
 -- Phase 24 : 휴대폰에서는 버튼 줄처럼 같이 줄인다
 UIKit.autoScale(panel, UIKit.phoneFactor)
 local layout = Instance.new("UIListLayout")
@@ -56,16 +58,12 @@ padding.PaddingLeft = UDim.new(0, 10)
 padding.PaddingRight = UDim.new(0, 10)
 padding.Parent = panel
 
-local heading = Instance.new("TextLabel")
-heading.BackgroundTransparency = 1
-heading.Size = UDim2.new(1, 0, 0, 36)
-heading.Font = Enum.Font.GothamBold
-heading.TextSize = 14
-heading.TextColor3 = gold
-heading.TextWrapped = true
-heading.Text = "누가 살아남을까?"
+local heading = UIKit.label(panel, { text = "🔮 누가 이길까요?", size = UDim2.new(1, 0, 0, 34), textSize = 24, color = gold, stroke = 3 })
 heading.LayoutOrder = 0
-heading.Parent = panel
+local reward = UIKit.label(panel, { text = "", size = UDim2.new(1, 0, 0, 24), textSize = 17, color = cream, stroke = 2 })
+reward.LayoutOrder = 1
+local PRIZE = tonumber(config.Prediction.Coins) or 300
+reward.Text = ("맞히면 🪙 %d 코인!"):format(PRIZE)
 
 local buttons = {}
 local picked = {} -- [tableModel] = { roundId, name }
@@ -157,23 +155,16 @@ local function redraw(model)
 	local roundId = model:GetAttribute(TABLE_ATTR.RoundId)
 	local mine = picked[model]
 	if mine and mine.roundId == roundId then
-		heading.Text = ("예측: %s"):format(mine.name)
+		heading.Text = "🔮 예측 완료"
+		reward.Text = ("「%s」 · 맞히면 🪙 %d"):format(mine.name, PRIZE)
 		return
 	end
-	heading.Text = "누가 살아남을까?"
+	heading.Text = "🔮 누가 이길까요?"
+	reward.Text = ("맞히면 🪙 %d 코인!"):format(PRIZE)
 	for index, entry in ipairs(participants(model)) do
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(1, 0, 0, 30)
-		b.BackgroundColor3 = Color3.fromRGB(34, 60, 71)
-		b.TextColor3 = cream
-		b.Font = Enum.Font.GothamBold
-		b.TextSize = 14
-		b.Text = entry.name
-		b.LayoutOrder = index
-		b.Parent = panel
-		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+		local b = UIKit.button(panel, { text = entry.name, size = UDim2.new(1, 0, 0, 44), theme = "purple", textSize = 20 })
+		b.LayoutOrder = 10 + index
 		b.Activated:Connect(function()
-			UIKit.click()
 			predict:FireServer(model, entry.userId)
 		end)
 		table.insert(buttons, b)
@@ -233,10 +224,13 @@ predict.OnClientEvent:Connect(function(data)
 		showToast(data.message or "예측할 수 없습니다", red)
 	elseif data.kind == "result" then
 		if data.correct then
-			showToast(data.coins and data.coins > 0 and ("예측 적중! %s 생존 · +%d 코인"):format(data.name or "", data.coins)
-				or "예측 적중!", teal)
+			showToast(data.coins and data.coins > 0 and ("🔮 예측 적중! %s 승리 · +%d 코인"):format(data.name or "", data.coins)
+				or "🔮 예측 적중! (오늘 보상은 다 받았어요)", teal)
+			if data.coins and data.coins > 0 then
+				UIKit.rewardPopup({ title = "🔮 예측 적중!", text = ("%d 코인"):format(data.coins), money = "cash3" })
+			end
 		else
-			showToast(data.name ~= "" and ("아쉽다! %s 님이 살아남았다"):format(data.name) or "아쉽다! 예측이 빗나갔다", cream)
+			showToast(data.name ~= "" and ("🔮 아쉽다! %s 님이 이겼다"):format(data.name) or "🔮 아쉽다! 예측이 빗나갔다", cream)
 		end
 	end
 end)

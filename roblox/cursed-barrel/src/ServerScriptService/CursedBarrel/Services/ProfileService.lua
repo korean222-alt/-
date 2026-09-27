@@ -247,6 +247,11 @@ local function migrate(raw)
  if typeof(raw.weekly)=="table" and typeof(raw.weekly.progress)=="table" and typeof(raw.weekly.claimed)=="table" then profile.weekly=raw.weekly end
  if typeof(raw.season)=="table" and raw.season.id==Release.Season.Id and typeof(raw.season.claimed)=="table" then profile.season=raw.season;profile.season.xp=tonumber(raw.season.xp) or 0 end
  profile.tutorialDone = raw.tutorialDone == true
+	-- Phase 32 : 튜토리얼이 필수가 되었다. 이미 다섯 판 넘게 놀던 사람은 마친 것으로 친다
+	--   (예전 안내창을 그냥 지나친 오래된 선원을 연습 판에 붙잡아 두지 않는다. 새 해적 종류는 처음 만날 때 설명 카드가 뜬다)
+	if not profile.tutorialDone and (profile.games or 0) >= 5 then
+		profile.tutorialDone = true
+	end
 	-- Phase 32
 	if typeof(raw.lastStreakFoes) == "string" and #raw.lastStreakFoes <= 200 then
 		profile.lastStreakFoes = raw.lastStreakFoes

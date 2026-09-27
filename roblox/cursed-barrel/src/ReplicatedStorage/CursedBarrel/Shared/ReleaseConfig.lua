@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "24.0.0"
+C.Version = "32.0.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
 
 --------------------------------------------------
 -- Phase 17 : 출시에 필요한 ID 는 전부 이 파일에 적는다 (숫자만)
@@ -168,7 +168,10 @@ C.Season = {
 -- Phase 24 : aiCrew = 혼자 기다릴 때 AI 선원을 채워 줄지. 한 번 바꾸면 저장되어 다시 바꿀 때까지 그대로 간다.
 --   앉은 사람 중 한 명이라도 끄면 그 테이블에는 AI 가 오지 않는다 (사람끼리 하고 싶을 때). "연습 한 판"은 예외.
 -- Phase 24.10 : showTitle = 머리 위 칭호 · VIP 표시를 켤지. 끄면 다른 사람 화면에서도 안 보인다.
-C.Settings = {music=0.35,sfx=0.65,shake=true,reducedFX=false,quality="Auto",language="Auto",camera=true,wide=true,aiCrew=true,showTitle=true}
+C.Settings = {music=0.35,sfx=0.65,shake=true,reducedFX=false,quality="Auto",language="Auto",camera=true,wide=true,aiCrew=true,showTitle=true,
+ firstPerson=false, -- Phase 32 : 게임 중 1인칭 (내 머리에서 통을 보고, 해적이 나오면 올려다본다)
+ autoRejoin=true, -- Phase 32 : 탈락해서 관전하던 테이블의 다음 판에 저절로 앉는다
+}
 C.Cards = {
  skip={name="한 번 넘기기",en="Pass once"},
  rotate={name="통 회전",en="Rotate barrel"},

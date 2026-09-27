@@ -119,13 +119,15 @@ local STAB = {
 
 local active, lastTable, holdUntil, shakeUntil = nil, nil, 0, 0
 local muted, reduced, cameraOn = false, false, true
+local firstPerson = false -- Phase 32 : 게임 중 1인칭 (설정 firstPerson)
 local function applySettings()
  muted=(player:GetAttribute("Setting_sfx") or 0.65)<=0
  reduced=player:GetAttribute("Setting_reducedFX")==true
  cameraOn=player:GetAttribute("Setting_camera")~=false
+ firstPerson=player:GetAttribute("Setting_firstPerson")==true
  FRAME.FOV=player:GetAttribute("Setting_wide")==false and 58 or 68
 end
-for _,key in ipairs({"sfx","reducedFX","camera","wide"}) do player:GetAttributeChangedSignal("Setting_"..key):Connect(applySettings) end
+for _,key in ipairs({"sfx","reducedFX","camera","wide","firstPerson"}) do player:GetAttributeChangedSignal("Setting_"..key):Connect(applySettings) end
 applySettings()
 local cameraOwned, originalFOV, originalType, originalSubject = nil, nil, nil, nil
 local stage, keyLight, grade = nil, nil, nil
@@ -402,64 +404,67 @@ gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitCatch)
 --------------------------------------------------
 -- 방해 아이템: 먹물 얼룩 (화면 가장자리만 덮습니다. 가운데는 가리지 않습니다)
 --------------------------------------------------
-local inkLayer = Instance.new("Frame")
-inkLayer.Name = "Ink"
-inkLayer.Size = UDim2.fromScale(1, 1)
-inkLayer.BackgroundTransparency = 1
-inkLayer.Visible = false
-inkLayer.Active = false
-inkLayer.ZIndex = 19
-inkLayer.Parent = gui
+local showInk
+do
+	local inkLayer = Instance.new("Frame")
+	inkLayer.Name = "Ink"
+	inkLayer.Size = UDim2.fromScale(1, 1)
+	inkLayer.BackgroundTransparency = 1
+	inkLayer.Visible = false
+	inkLayer.Active = false
+	inkLayer.ZIndex = 19
+	inkLayer.Parent = gui
 
-local inkBlots = {}
-for index = 1, 7 do
-	local blot = Instance.new("Frame")
-	blot.Name = "Blot" .. index
-	blot.AnchorPoint = Vector2.new(0.5, 0.5)
-	blot.BackgroundColor3 = Color3.fromRGB(16, 14, 22)
-	blot.BackgroundTransparency = 0.12
-	blot.BorderSizePixel = 0
-	blot.ZIndex = 19
-	blot.Parent = inkLayer
-	Instance.new("UICorner", blot).CornerRadius = UDim.new(1, 0)
-	inkBlots[index] = blot
-end
-
--- Phase 24 : 먹물을 연달아 맞으면 앞 먹물의 "걷히는 예약"이 새 먹물까지 지웠다.
---   먹물마다 번호(inkToken)를 붙이고, 가장 최근 먹물의 예약만 화면을 걷는다.
-local inkToken = 0
-local function showInk(duration)
-	inkToken += 1
-	local token = inkToken
-	local camera = workspace.CurrentCamera
-	local width = camera and camera.ViewportSize.X or 1280
-	local height = camera and camera.ViewportSize.Y or 720
-	local spots = {
-		Vector2.new(0.06, 0.12), Vector2.new(0.94, 0.18), Vector2.new(0.12, 0.86),
-		Vector2.new(0.88, 0.8), Vector2.new(0.5, 0.06), Vector2.new(0.04, 0.5), Vector2.new(0.96, 0.52),
-	}
-	for index, blot in ipairs(inkBlots) do
-		local spot = spots[index] or Vector2.new(0.5, 0.5)
-		local size = math.min(width, height) * (0.22 + (index % 3) * 0.06)
-		blot.Position = UDim2.fromScale(spot.X, spot.Y)
-		blot.Size = UDim2.fromOffset(size, size)
-		blot.BackgroundTransparency = 1
-		Tween:Create(blot, TweenInfo.new(0.25), { BackgroundTransparency = 0.12 }):Play()
+	local inkBlots = {}
+	for index = 1, 7 do
+		local blot = Instance.new("Frame")
+		blot.Name = "Blot" .. index
+		blot.AnchorPoint = Vector2.new(0.5, 0.5)
+		blot.BackgroundColor3 = Color3.fromRGB(16, 14, 22)
+		blot.BackgroundTransparency = 0.12
+		blot.BorderSizePixel = 0
+		blot.ZIndex = 19
+		blot.Parent = inkLayer
+		Instance.new("UICorner", blot).CornerRadius = UDim.new(1, 0)
+		inkBlots[index] = blot
 	end
-	inkLayer.Visible = true
-	task.delay(duration or 6, function()
-		if token ~= inkToken then
-			return
+
+	-- Phase 24 : 먹물을 연달아 맞으면 앞 먹물의 "걷히는 예약"이 새 먹물까지 지웠다.
+	--   먹물마다 번호(inkToken)를 붙이고, 가장 최근 먹물의 예약만 화면을 걷는다.
+	local inkToken = 0
+	function showInk(duration)
+		inkToken += 1
+		local token = inkToken
+		local camera = workspace.CurrentCamera
+		local width = camera and camera.ViewportSize.X or 1280
+		local height = camera and camera.ViewportSize.Y or 720
+		local spots = {
+			Vector2.new(0.06, 0.12), Vector2.new(0.94, 0.18), Vector2.new(0.12, 0.86),
+			Vector2.new(0.88, 0.8), Vector2.new(0.5, 0.06), Vector2.new(0.04, 0.5), Vector2.new(0.96, 0.52),
+		}
+		for index, blot in ipairs(inkBlots) do
+			local spot = spots[index] or Vector2.new(0.5, 0.5)
+			local size = math.min(width, height) * (0.22 + (index % 3) * 0.06)
+			blot.Position = UDim2.fromScale(spot.X, spot.Y)
+			blot.Size = UDim2.fromOffset(size, size)
+			blot.BackgroundTransparency = 1
+			Tween:Create(blot, TweenInfo.new(0.25), { BackgroundTransparency = 0.12 }):Play()
 		end
-		for _, blot in ipairs(inkBlots) do
-			Tween:Create(blot, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-		end
-		task.delay(0.55, function()
-			if token == inkToken then
-				inkLayer.Visible = false
+		inkLayer.Visible = true
+		task.delay(duration or 6, function()
+			if token ~= inkToken then
+				return
 			end
+			for _, blot in ipairs(inkBlots) do
+				Tween:Create(blot, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+			end
+			task.delay(0.55, function()
+				if token == inkToken then
+					inkLayer.Visible = false
+				end
+			end)
 		end)
-	end)
+	end
 end
 
 --------------------------------------------------
@@ -476,96 +481,112 @@ end
 --------------------------------------------------
 -- 첫 판 안내
 --------------------------------------------------
-local tutorial = Instance.new("Frame")
-tutorial.Name = "Tutorial"
-tutorial.AnchorPoint = Vector2.new(0, 0.5)
-tutorial.Position = UDim2.new(0, 22, 0.5, 0)
-tutorial.Size = UDim2.fromOffset(340, 236)
-tutorial.BackgroundColor3 = Color3.new(1, 1, 1)
-tutorial.BorderSizePixel = 0
-tutorial.ZIndex = 14
-tutorial.Parent = gui
-UIKit.gradient(tutorial, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
-UIKit.corner(tutorial, 16)
-UIKit.outline(tutorial, 4)
+local tutorial
+do
+	tutorial = Instance.new("Frame")
+	tutorial.Name = "Tutorial"
+	tutorial.AnchorPoint = Vector2.new(0, 0.5)
+	tutorial.Position = UDim2.new(0, 22, 0.5, 0)
+	tutorial.Size = UDim2.fromOffset(340, 236)
+	tutorial.BackgroundColor3 = Color3.new(1, 1, 1)
+	tutorial.BorderSizePixel = 0
+	tutorial.ZIndex = 14
+	tutorial.Parent = gui
+	UIKit.gradient(tutorial, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
+	UIKit.corner(tutorial, 16)
+	UIKit.outline(tutorial, 4)
 
-local function tutorialLine(text, y, color, size)
-	return UIKit.label(tutorial, {
-		text = text, position = UDim2.fromOffset(18, y), size = UDim2.new(1, -36, 0, (size or 14) + 10),
-		textSize = size or 14, color = color or cream, alignX = Enum.TextXAlignment.Left, zIndex = 15,
-	})
-end
-tutorialLine("게임 방법", 12, gold, 26)
-tutorialLine("① 의자에 앉기", 52, cream, 20)
-tutorialLine("② 내 차례에 칼 꽂을 자리 고르기", 84, cream, 20)
-tutorialLine("③ 해적이 나오면 눌러서 잡기!", 116, teal, 20)
--- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
--- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
-local practiceStatus = tutorialLine("", 148, Color3.fromRGB(255, 150, 130), 14)
-practiceStatus.TextWrapped = true
-local practiceBusy = false
-local practiceSerial = 0
-button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function(b)
-	if practiceBusy then
-		return
+	local function tutorialLine(text, y, color, size)
+		return UIKit.label(tutorial, {
+			text = text, position = UDim2.fromOffset(18, y), size = UDim2.new(1, -36, 0, (size or 14) + 10),
+			textSize = size or 14, color = color or cream, alignX = Enum.TextXAlignment.Left, zIndex = 15,
+		})
 	end
-	local r = remotes:FindFirstChild("VoyageRequest")
-	local reply = remotes:WaitForChild("PracticeResult", 5)
-	if not r or not reply then
-		practiceStatus.Text = "서버 준비 중이에요. 잠시 후 다시 눌러 주세요"
-		b.Text = "다시 시도"
-		return
-	end
-	practiceBusy = true
-	practiceSerial += 1
-	local serial = practiceSerial
-	b.Text = "입장 중…"
-	practiceStatus.TextColor3 = cream
-	practiceStatus.Text = "빈 테이블을 찾는 중…"
-	local answered = false
-	local connection
-	connection = reply.OnClientEvent:Connect(function(ok, why)
-		if serial ~= practiceSerial or answered then
+	tutorialLine("게임 방법", 12, gold, 26)
+	tutorialLine("① 의자에 앉기", 52, cream, 20)
+	tutorialLine("② 내 차례에 칼 꽂을 자리 고르기", 84, cream, 20)
+	tutorialLine("③ 해적이 나오면 눌러서 잡기! (종류마다 방법이 달라요)", 116, teal, 20)
+	-- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
+	-- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
+	local practiceStatus = tutorialLine("", 148, Color3.fromRGB(255, 150, 130), 14)
+	practiceStatus.TextWrapped = true
+	local practiceBusy = false
+	local practiceSerial = 0
+	button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function(b)
+		if practiceBusy then
 			return
 		end
-		answered = true
-		connection:Disconnect()
-		practiceBusy = false
-		if ok then
-			practiceStatus.Text = ""
-			b.Text = "연습 한 판"
-			tutorial.Visible = false
-		else
-			practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
-			practiceStatus.Text = typeof(why) == "string" and why or "지금은 연습 판을 열 수 없어요"
+		local r = remotes:FindFirstChild("VoyageRequest")
+		local reply = remotes:WaitForChild("PracticeResult", 5)
+		if not r or not reply then
+			practiceStatus.Text = "서버 준비 중이에요. 잠시 후 다시 눌러 주세요"
 			b.Text = "다시 시도"
-		end
-	end)
-	r:FireServer("practice")
-	task.delay(8, function()
-		if answered or serial ~= practiceSerial then
 			return
 		end
-		answered = true
-		connection:Disconnect()
-		practiceBusy = false
-		practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
-		practiceStatus.Text = "응답이 없어요. 다시 눌러 주세요"
-		b.Text = "다시 시도"
+		practiceBusy = true
+		practiceSerial += 1
+		local serial = practiceSerial
+		b.Text = "입장 중…"
+		practiceStatus.TextColor3 = cream
+		practiceStatus.Text = "빈 테이블을 찾는 중…"
+		local answered = false
+		local connection
+		connection = reply.OnClientEvent:Connect(function(ok, why)
+			if serial ~= practiceSerial or answered then
+				return
+			end
+			answered = true
+			connection:Disconnect()
+			practiceBusy = false
+			if ok then
+				practiceStatus.Text = ""
+				b.Text = "연습 한 판"
+				tutorial.Visible = false
+			else
+				practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
+				practiceStatus.Text = typeof(why) == "string" and why or "지금은 연습 판을 열 수 없어요"
+				b.Text = "다시 시도"
+			end
+		end)
+		r:FireServer("practice")
+		task.delay(8, function()
+			if answered or serial ~= practiceSerial then
+				return
+			end
+			answered = true
+			connection:Disconnect()
+			practiceBusy = false
+			practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
+			practiceStatus.Text = "응답이 없어요. 다시 눌러 주세요"
+			b.Text = "다시 시도"
+		end)
 	end)
-end)
-button(tutorial, "알겠어요", UDim2.new(1, -124, 1, -54), UDim2.fromOffset(110, 42), function()
-	tutorial.Visible = false
-    local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
-end)
+	local skipButton = button(tutorial, "알겠어요", UDim2.new(1, -124, 1, -54), UDim2.fromOffset(110, 42), function()
+		tutorial.Visible = false
+	    local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
+	end)
+	-- Phase 32 : 튜토리얼은 필수다. 건너뛰기("알겠어요")는 연습 테이블을 못 찾아 필수가 풀린 사람에게만 보인다.
+	--   서버(OnboardingService)가 곧 연습 테이블에 앉혀 준다. "연습 한 판"은 바로 앉는 버튼으로 남긴다.
+	local function drawMandatory()
+		local mandatory = config.Tutorial and config.Tutorial.Mandatory and player:GetAttribute("TutorialFree") ~= true
+		skipButton.Visible = not mandatory
+		if mandatory and player:GetAttribute("TutorialDone") ~= true and not practiceBusy then
+			practiceStatus.TextColor3 = gold
+			practiceStatus.Text = "🎓 곧 튜토리얼 테이블로 안내해요 (해적 다섯 종류 배우기)"
+		end
+	end
+	player:GetAttributeChangedSignal("TutorialFree"):Connect(drawMandatory)
+	player:GetAttributeChangedSignal("TutorialActive"):Connect(drawMandatory)
+	drawMandatory()
 
---------------------------------------------------
--- 소리
---------------------------------------------------
--- Phase 15 : 다른 창(상점 · 출석 …)이 열리면 이 안내도 닫힌다 (창은 한 번에 하나)
-UIKit.register(tutorial)
-player:GetAttributeChangedSignal("TutorialDone"):Connect(function() if player:GetAttribute("TutorialDone") then tutorial.Visible=false end end)
-if player:GetAttribute("TutorialDone") then tutorial.Visible=false end
+	--------------------------------------------------
+	-- 소리
+	--------------------------------------------------
+	-- Phase 15 : 다른 창(상점 · 출석 …)이 열리면 이 안내도 닫힌다 (창은 한 번에 하나)
+	UIKit.register(tutorial)
+	player:GetAttributeChangedSignal("TutorialDone"):Connect(function() if player:GetAttribute("TutorialDone") then tutorial.Visible=false end end)
+	if player:GetAttribute("TutorialDone") then tutorial.Visible=false end
+end
 
 local function sound(kind, pitch, volume)
 	if muted then
@@ -600,6 +621,105 @@ local function sound(kind, pitch, volume)
     end
 	Debris:AddItem(s, 6)
 	return s
+end
+
+--------------------------------------------------
+-- Phase 32 : 운명 카드 (라운드마다 한 장)
+--   가운데에서 뒷면 → 뒤집혀 앞면(그림 · 이름 · 규칙) → 잠시 뒤 사라지고, 규칙은 알림판 아래 한 줄로 남는다.
+--   누를 것이 없다 (아래 칼 고르는 창 · 잡기 입력을 가리지 않는다).
+--------------------------------------------------
+local showFateCard
+do
+	local fateCard = Instance.new("Frame")
+	fateCard.Name = "FateCard"
+	fateCard.AnchorPoint = Vector2.new(0.5, 0.5)
+	fateCard.Position = UDim2.fromScale(0.5, 0.47)
+	fateCard.Size = UDim2.fromOffset(280, 380)
+	fateCard.BackgroundColor3 = Color3.new(1, 1, 1)
+	fateCard.Visible = false
+	fateCard.Active = false
+	fateCard.ZIndex = 40
+	fateCard.Parent = gui
+	UIKit.corner(fateCard, 22)
+	local fateStroke = UIKit.outline(fateCard, 6)
+	local fateGradient = Instance.new("UIGradient")
+	fateGradient.Rotation = 90
+	fateGradient.Parent = fateCard
+	local fateScale = Instance.new("UIScale")
+	fateScale.Parent = fateCard
+	local fateTop = textLabel("Top", UDim2.new(1, -20, 0, 34), UDim2.fromOffset(10, 14), 24, fateCard)
+	fateTop.ZIndex = 41
+	local fateIcon = textLabel("Icon", UDim2.new(1, 0, 0, 150), UDim2.fromOffset(0, 58), 120, fateCard)
+	fateIcon.ZIndex = 41
+	fateIcon.TextWrapped = false
+	local fateName = textLabel("Name", UDim2.new(1, -20, 0, 50), UDim2.fromOffset(10, 212), 40, fateCard)
+	fateName.ZIndex = 41
+	local fateText = textLabel("Rule", UDim2.new(1, -28, 0, 96), UDim2.fromOffset(14, 266), 24, fateCard)
+	fateText.ZIndex = 41
+	fateText.TextYAlignment = Enum.TextYAlignment.Top
+	local fateToken = 0
+	local function fitFate()
+		local camera = workspace.CurrentCamera
+		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		return math.clamp(math.min((view.X - 24) / 300, (view.Y - 120) / 420), 0.45, 1)
+	end
+	local function paintFate(card, faceUp)
+		if faceUp then
+			local color = card.color or gold
+			fateGradient.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.25), color:Lerp(Color3.new(0, 0, 0), 0.45))
+			fateIcon.Text = card.icon or "🃏"
+			fateName.Text = card.name or ""
+			fateText.Text = card.text or ""
+			fateStroke.Color = Color3.fromRGB(19, 21, 27)
+		else
+			fateGradient.Color = ColorSequence.new(Color3.fromRGB(70, 40, 110), Color3.fromRGB(24, 14, 40))
+			fateIcon.Text = "🃏"
+			fateName.Text = "운명 카드"
+			fateText.Text = ""
+			fateStroke.Color = gold
+		end
+	end
+	function showFateCard(card, stage)
+		fateToken += 1
+		local token = fateToken
+		local base = fitFate()
+		fateTop.Text = ("%d 라운드"):format(stage or 1)
+		paintFate(card, false)
+		fateCard.Visible = true
+		fateCard.Rotation = -8
+		fateScale.Scale = base * 0.3
+		Tween:Create(fateScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
+		Tween:Create(fateCard, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+		sound("riser", 1.25, 0.16)
+		-- 뒤집기 : 폭을 0 으로 접었다가 앞면으로 편다
+		task.delay(0.55, function()
+			if token ~= fateToken then
+				return
+			end
+			local fold = Tween:Create(fateCard, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.fromOffset(0, 380) })
+			fold:Play()
+			fold.Completed:Wait()
+			if token ~= fateToken then
+				return
+			end
+			paintFate(card, true)
+			Tween:Create(fateCard, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(280, 380) }):Play()
+			sound("win", 1.5, 0.25)
+			blink(card.color or gold, 0.25)
+		end)
+		task.delay(2.3, function()
+			if token ~= fateToken then
+				return
+			end
+			Tween:Create(fateScale, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0 }):Play()
+			task.delay(0.32, function()
+				if token == fateToken then
+					fateCard.Visible = false
+					fateCard.Size = UDim2.fromOffset(280, 380)
+				end
+			end)
+		end)
+	end
 end
 
 --------------------------------------------------
@@ -695,139 +815,328 @@ local function stageTween(target, info, goal)
 	t:Play()
 	return t
 end
-local function leaveStage()
-	-- Phase 31 : 무대를 떠나면 보상 창을 다시 눌러서 닫을 수 있게 한다
-	UIKit.passivePopups = false
-	for _, t in ipairs(stageTweens) do
-		t:Cancel()
+--------------------------------------------------
+-- Phase 32 : "어둠이 몰려온다"
+--   예전(Phase 22)에는 1초 동안 트윈 여러 개를 따로 돌리다가, 1초가 되는 순간에
+--     · 하늘 안개(Atmosphere)를 치우고 (그러자 꺼져 있던 Fog 가 한꺼번에 켜졌다)
+--     · 시간(ClockTime)을 자정으로 바꿨다 (해 · 하늘 · 그림자가 한 프레임에 바뀌었다)
+--   게다가 검은 벽이 반투명을 거쳐 짙어지면서 앞뒤가 뒤섞여 깜빡였고, 날씨 색보정은 시작하자마자 꺼졌다.
+--   → "스르륵"이 아니라 "뚝뚝 끊겨" 보였다.
+--   이제는 값 하나(진행도)로 매 프레임 모든 것을 함께 움직인다.
+--     1) 화면 가장자리에서 어둠이 스멀스멀 번져 들어오고, 먼 곳부터 안개(Atmosphere)가 까맣게 짙어지며 빛이 가라앉는다.
+--     2) 화면이 완전히 까매진 아주 짧은 순간에 벽 · 안개 · 시간을 한꺼번에 바꾼다 (보이지 않으니 끊김도 없다).
+--     3) 통 위 등불이 가물거리며 켜지고, 어둠은 화면 가장자리의 은은한 그늘로 물러난다.
+--   무대를 떠날 때는 까만 화면에서 원래 빛이 천천히 돌아온다.
+--------------------------------------------------
+local leaveStage, makePart, enterStage
+do
+	local darkGui = Instance.new("ScreenGui")
+	darkGui.Name = "CursedBarrel_Darkness"
+	darkGui.ResetOnSpawn = false
+	darkGui.IgnoreGuiInset = true
+	darkGui.DisplayOrder = 1 -- 알림판 · 칼 고르는 창 · 잡기 화면보다 아래 (3D 화면만 덮는다)
+	darkGui.Parent = player:WaitForChild("PlayerGui")
+	local veil = Instance.new("Frame")
+	veil.Name = "Veil"
+	veil.Size = UDim2.fromScale(1, 1)
+	veil.BackgroundColor3 = Color3.fromRGB(2, 3, 6)
+	veil.BackgroundTransparency = 1
+	veil.BorderSizePixel = 0
+	veil.Active = false
+	veil.ZIndex = 2
+	veil.Parent = darkGui
+	-- 가장자리 그늘 넷 (위 · 아래 · 왼쪽 · 오른쪽). 바깥이 까맣고 안쪽으로 갈수록 투명하다.
+	local edges = {}
+	for _, spec in ipairs({
+		{ name = "Top", anchor = Vector2.new(0, 0), pos = UDim2.fromScale(0, 0), rot = 90, vertical = true },
+		{ name = "Bottom", anchor = Vector2.new(0, 1), pos = UDim2.fromScale(0, 1), rot = -90, vertical = true },
+		{ name = "Left", anchor = Vector2.new(0, 0), pos = UDim2.fromScale(0, 0), rot = 0, vertical = false },
+		{ name = "Right", anchor = Vector2.new(1, 0), pos = UDim2.fromScale(1, 0), rot = 180, vertical = false },
+	}) do
+		local frame = Instance.new("Frame")
+		frame.Name = spec.name
+		frame.AnchorPoint = spec.anchor
+		frame.Position = spec.pos
+		frame.Size = UDim2.fromScale(spec.vertical and 1 or 0, spec.vertical and 0 or 1)
+		frame.BackgroundColor3 = Color3.fromRGB(2, 3, 6)
+		frame.BorderSizePixel = 0
+		frame.Active = false
+		frame.ZIndex = 1
+		frame.Parent = darkGui
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = spec.rot
+		gradient.Parent = frame
+		table.insert(edges, { frame = frame, gradient = gradient, vertical = spec.vertical, phase = #edges * 1.7 })
 	end
-	table.clear(stageTweens)
-	if stage then
-		stage:Destroy()
-		stage = nil
-		keyLight = nil
-	end
-	if grade then
-		grade:Destroy()
-		grade = nil
-	end
-	-- Phase 12 : 하늘(시간 · 밝기)은 WorldController 가 항해 시계대로 맡는다. 안개 값만 되돌린다.
-	local weatherOwned = Lighting:GetAttribute("WeatherOwned") == true
-	for _, key in ipairs(lightingKeys) do
-		if not weatherOwned or key == "FogColor" or key == "FogStart" or key == "FogEnd" then
-			Lighting[key] = originalLighting[key]
+	-- extent : 화면의 몇 분의 몇까지 그늘이 들어오는가 · alpha : 그늘의 짙기 (0 ~ 1) · t : 일렁임 시각
+	local function drawEdges(extent, alpha, t)
+		for _, edge in ipairs(edges) do
+			local wobble = reduced and 0 or math.sin(t * 2.3 + edge.phase) * 0.025 + math.sin(t * 5.1 + edge.phase * 2) * 0.012
+			local e = math.clamp(extent + wobble * math.min(1, extent * 4), 0, 1)
+			edge.frame.Size = edge.vertical and UDim2.fromScale(1, e) or UDim2.fromScale(e, 1)
+			local a = math.clamp(alpha, 0, 1)
+			edge.gradient.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1 - a),
+				NumberSequenceKeypoint.new(0.55, 1 - a * 0.55),
+				NumberSequenceKeypoint.new(1, 1),
+			})
+			edge.frame.Visible = e > 0.001 and a > 0.001
 		end
 	end
-	for _, a in ipairs(atmospheres) do
-		local saved = atmoSaved[a]
-		if saved then
-			a.Density, a.Haze, a.Glare = saved[1], saved[2], saved[3]
-		end
-		a.Parent = Lighting
-	end
-	table.clear(atmospheres)
-	table.clear(atmoSaved)
-	for board, wasEnabled in pairs(hiddenBoards) do
-		if board.Parent then
-			board.Enabled = wasEnabled
-		end
-	end
-	table.clear(hiddenBoards)
-	restoreCamera()
-end
+	drawEdges(0, 0, 0)
 
-local function makePart(parent, name, size, cf, color)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.CFrame = cf
-	p.Color = color
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanTouch = false
-	p.CanQuery = false
-	p.Material = Enum.Material.SmoothPlastic
-	p.CastShadow = false
-	p.Parent = parent
-	return p
-end
-
-local function enterStage(model)
-	leaveStage()
-	local pos = center(model)
-	if not pos then
-		return
-	end
-	stage = Instance.new("Folder")
-	stage.Name = "PrivateTableStage"
-	stage.Parent = fx
-	-- Phase 31 : 게임 중에는 퀘스트 · 보상 창이 터치를 가로채지 않는다 (해적 잡기 · 칼 꽂기가 한 번에 눌리게)
-	UIKit.passivePopups = true
-	-- 같은 테이블 참가자의 각 기기에만 존재하는 검은 무대. 서버 맵은 변경하지 않습니다.
-	-- Phase 22 : 한 번에 "팍" 어두워지지 않고 1초 동안 서서히 (벽 · 천장이 짙어지고 빛 · 하늘이 함께 가라앉는다)
-	local FADE = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-	local myStage = stage
-	local black = Color3.fromRGB(2, 4, 7)
-	local walls = {}
-	for _, v in ipairs({ Vector3.new(0, 0, -29), Vector3.new(0, 0, 29) }) do
-		table.insert(walls, makePart(stage, "Backdrop", Vector3.new(60, 90, 1), CFrame.new(pos + v), black))
-	end
-	for _, v in ipairs({ Vector3.new(-29, 0, 0), Vector3.new(29, 0, 0) }) do
-		table.insert(walls, makePart(stage, "Backdrop", Vector3.new(1, 90, 60), CFrame.new(pos + v), black))
-	end
-	table.insert(walls, makePart(stage, "Ceiling", Vector3.new(60, 1, 60), CFrame.new(pos + Vector3.new(0, 38, 0)), black))
-	for _, wall in ipairs(walls) do
-		wall.Transparency = 1
-		stageTween(wall, FADE, { Transparency = 0 })
+	local darkConn = nil -- 지금 돌고 있는 어둠 연출
+	local veilToken = 0
+	local function stopDarkness()
+		if darkConn then
+			darkConn:Disconnect()
+			darkConn = nil
+		end
 	end
 
-	-- 하늘 안개(Atmosphere)는 옅어진 뒤에 치운다 (leaveStage 가 되돌린다)
-	for _, a in ipairs(Lighting:GetChildren()) do
-		if a:IsA("Atmosphere") then
-			table.insert(atmospheres, a)
-			atmoSaved[a] = { a.Density, a.Haze, a.Glare }
-			stageTween(a, FADE, { Density = 0, Haze = 0, Glare = 0 })
+	function leaveStage(fade)
+		stopDarkness()
+		-- Phase 31 : 무대를 떠나면 보상 창을 다시 눌러서 닫을 수 있게 한다
+		UIKit.passivePopups = false
+		for _, t in ipairs(stageTweens) do
+			t:Cancel()
 		end
-	end
-	task.delay(1, function()
-		if stage == myStage then
-			for _, a in ipairs(atmospheres) do
-				a.Parent = nil
+		table.clear(stageTweens)
+		local hadStage = stage ~= nil
+		if stage then
+			stage:Destroy()
+			stage = nil
+			keyLight = nil
+		end
+		if grade then
+			grade:Destroy()
+			grade = nil
+		end
+		-- Phase 12 : 하늘(시간 · 밝기)은 WorldController 가 항해 시계대로 맡는다. 안개 값만 되돌린다.
+		local weatherOwned = Lighting:GetAttribute("WeatherOwned") == true
+		for _, key in ipairs(lightingKeys) do
+			if not weatherOwned or key == "FogColor" or key == "FogStart" or key == "FogEnd" then
+				Lighting[key] = originalLighting[key]
 			end
 		end
-	end)
-	stageTween(Lighting, FADE, {
+		for _, a in ipairs(atmospheres) do
+			local saved = atmoSaved[a]
+			if saved then
+				a.Density, a.Haze, a.Glare, a.Color, a.Decay = saved[1], saved[2], saved[3], saved[4], saved[5]
+			end
+			a.Parent = Lighting
+		end
+		table.clear(atmospheres)
+		table.clear(atmoSaved)
+		for board, wasEnabled in pairs(hiddenBoards) do
+			if board.Parent then
+				board.Enabled = wasEnabled
+			end
+		end
+		table.clear(hiddenBoards)
+		restoreCamera()
+		-- Phase 32 : 까만 화면에서 원래 빛이 천천히 돌아온다 (카메라가 캐릭터로 돌아가는 순간도 가려진다)
+		veilToken += 1
+		local token = veilToken
+		if fade and hadStage and not reduced then
+			veil.BackgroundTransparency = 0
+			local fadeOut = Tween:Create(veil, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
+			fadeOut:Play()
+			local startedAt = os.clock()
+			local conn
+			conn = Run.RenderStepped:Connect(function()
+				local a = math.clamp((os.clock() - startedAt) / 0.9, 0, 1)
+				if token ~= veilToken or a >= 1 then
+					conn:Disconnect()
+					if token == veilToken then
+						drawEdges(0, 0, 0)
+					end
+					return
+				end
+				drawEdges(0.22 * (1 - a), 0.8 * (1 - a), os.clock())
+			end)
+		else
+			veil.BackgroundTransparency = 1
+			drawEdges(0, 0, 0)
+		end
+	end
+
+	function makePart(parent, name, size, cf, color)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.Material = Enum.Material.SmoothPlastic
+		p.CastShadow = false
+		p.Parent = parent
+		return p
+	end
+
+	local STAGE_LIGHT = {
 		Ambient = Color3.fromRGB(66, 72, 82),
 		OutdoorAmbient = Color3.fromRGB(8, 12, 18),
 		Brightness = 0.35,
 		ExposureCompensation = 0.25,
-		FogColor = black,
-		FogStart = 26,
-		FogEnd = 46,
-	})
-	-- ClockTime 은 돌리면 해가 하늘을 가로지르므로 벽이 다 짙어진 뒤에 바꾼다
-	task.delay(1, function()
-		if stage == myStage then
-			Lighting.ClockTime = 0
+	}
+	local DARK = {
+		creep = 1.25, -- 어둠이 번져 들어오는 시간
+		hold = 0.08, -- 완전히 까만 순간 (여기서 벽 · 안개 · 시간을 바꾼다)
+		reveal = 0.85, -- 등불이 켜지고 어둠이 가장자리로 물러나는 시간
+		rest = 0.2, -- 게임 내내 남는 가장자리 그늘의 폭 (화면 비율)
+	}
+
+	function enterStage(model)
+		leaveStage(false)
+		local pos = center(model)
+		if not pos then
+			return
 		end
-	end)
+		stage = Instance.new("Folder")
+		stage.Name = "PrivateTableStage"
+		stage.Parent = fx
+		-- Phase 31 : 게임 중에는 퀘스트 · 보상 창이 터치를 가로채지 않는다 (해적 잡기 · 칼 꽂기가 한 번에 눌리게)
+		UIKit.passivePopups = true
+		-- 같은 테이블 참가자의 각 기기에만 존재하는 검은 무대. 서버 맵은 변경하지 않습니다.
+		local myStage = stage
+		local black = Color3.fromRGB(2, 4, 7)
+		-- ★ 벽은 처음부터 불투명하지만 보이지 않는다(LocalTransparencyModifier 1). 화면이 까만 순간에 한꺼번에 세운다.
+		--   (반투명 벽은 앞뒤 그리기 순서가 뒤섞여 깜빡였다)
+		local walls = {}
+		for _, v in ipairs({ Vector3.new(0, 0, -29), Vector3.new(0, 0, 29) }) do
+			table.insert(walls, makePart(stage, "Backdrop", Vector3.new(60, 90, 1), CFrame.new(pos + v), black))
+		end
+		for _, v in ipairs({ Vector3.new(-29, 0, 0), Vector3.new(29, 0, 0) }) do
+			table.insert(walls, makePart(stage, "Backdrop", Vector3.new(1, 90, 60), CFrame.new(pos + v), black))
+		end
+		table.insert(walls, makePart(stage, "Ceiling", Vector3.new(60, 1, 60), CFrame.new(pos + Vector3.new(0, 38, 0)), black))
+		for _, wall in ipairs(walls) do
+			wall.LocalTransparencyModifier = 1
+		end
 
-	keyLight = makePart(stage, "SoftKey", Vector3.new(0.2, 0.2, 0.2), CFrame.new(pos + Vector3.new(0, 6, 0)), cream)
-	keyLight.Transparency = 1
-	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 216, 159)
-	light.Brightness = 0
-	light.Range = 34
-	light.Shadows = false
-	light.Parent = keyLight
-	stageTween(light, FADE, { Brightness = 3.2 })
+		keyLight = makePart(stage, "SoftKey", Vector3.new(0.2, 0.2, 0.2), CFrame.new(pos + Vector3.new(0, 6, 0)), cream)
+		keyLight.Transparency = 1
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 216, 159)
+		light.Brightness = 0
+		light.Range = 34
+		light.Shadows = false
+		light.Parent = keyLight
 
-	grade = Instance.new("ColorCorrectionEffect")
-	grade.Name = "CursedBarrel_Tension"
-	grade.Saturation = 0
-	grade.Contrast = 0
-	grade.Brightness = 0
-	grade.Parent = Lighting
+		grade = Instance.new("ColorCorrectionEffect")
+		grade.Name = "CursedBarrel_Tension"
+		grade.Saturation = 0
+		grade.Contrast = 0
+		grade.Brightness = 0
+		grade.Parent = Lighting
+
+		-- 시작 값 (지금 하늘) → 무대 값
+		local from = {}
+		for key in pairs(STAGE_LIGHT) do
+			from[key] = Lighting[key]
+		end
+		for _, a in ipairs(Lighting:GetChildren()) do
+			if a:IsA("Atmosphere") then
+				table.insert(atmospheres, a)
+				atmoSaved[a] = { a.Density, a.Haze, a.Glare, a.Color, a.Decay }
+			end
+		end
+
+		local function lerpLighting(e)
+			for key, goal in pairs(STAGE_LIGHT) do
+				local start = from[key]
+				if typeof(goal) == "Color3" then
+					Lighting[key] = start:Lerp(goal, e)
+				else
+					Lighting[key] = start + (goal - start) * e
+				end
+			end
+			-- 먼 곳부터 어둠에 잠긴다 : 하늘 안개가 까맣게 짙어진다 (반짝임 · 뿌연 빛은 사라진다)
+			for _, a in ipairs(atmospheres) do
+				local saved = atmoSaved[a]
+				if saved and a.Parent then
+					a.Density = saved[1] + (math.max(saved[1], 0.62) - saved[1]) * e
+					a.Haze = saved[2] * (1 - e)
+					a.Glare = saved[3] * (1 - e)
+					a.Color = saved[4]:Lerp(black, e)
+					a.Decay = saved[5]:Lerp(black, e)
+				end
+			end
+		end
+
+		-- 화면이 완전히 까만 순간 : 보이지 않는 동안 한꺼번에 바꾼다
+		local swapped = false
+		local function swap()
+			if swapped or stage ~= myStage then
+				return
+			end
+			swapped = true
+			for _, wall in ipairs(walls) do
+				wall.LocalTransparencyModifier = 0
+			end
+			for _, a in ipairs(atmospheres) do
+				a.Parent = nil
+			end
+			lerpLighting(1)
+			Lighting.FogColor = black
+			Lighting.FogStart = 26
+			Lighting.FogEnd = 46
+			Lighting.ClockTime = 0
+			-- 날씨 색보정 · 내 발밑 불빛도 이 순간에 꺼진다 (WorldController 가 이 표시를 본다)
+			stage:SetAttribute("Dark", true)
+		end
+
+		local reduce = reduced
+		local creep = reduce and 0.45 or DARK.creep
+		local hold = DARK.hold
+		local reveal = reduce and 0.45 or DARK.reveal
+		local startedAt = os.clock()
+		veilToken += 1
+		stopDarkness()
+		darkConn = Run.RenderStepped:Connect(function()
+			if stage ~= myStage then
+				stopDarkness()
+				return
+			end
+			local now = os.clock()
+			local t = now - startedAt
+			if t < creep then
+				-- 1) 몰려온다 : 처음엔 느리게, 갈수록 빠르게 (가장자리 → 가운데)
+				local a = t / creep
+				local e = a * a * a
+				lerpLighting(e * 0.9)
+				drawEdges(0.08 + 0.55 * (a * a), 0.35 + 0.65 * a, now)
+				veil.BackgroundTransparency = 1 - e
+			elseif t < creep + hold then
+				-- 2) 완전히 까맣다
+				veil.BackgroundTransparency = 0
+				drawEdges(0.63, 1, now)
+				swap()
+			elseif t < creep + hold + reveal then
+				swap()
+				-- 3) 등불이 가물거리며 켜지고 어둠은 가장자리로 물러난다
+				local a = (t - creep - hold) / reveal
+				local e = 1 - (1 - a) * (1 - a)
+				local flicker = reduce and 1 or (0.82 + 0.18 * math.sin(now * 37) * math.sin(now * 11))
+				light.Brightness = 3.2 * e * flicker
+				veil.BackgroundTransparency = e
+				drawEdges(0.63 + (DARK.rest - 0.63) * e, 1 - 0.2 * e, now)
+			else
+				swap()
+				light.Brightness = 3.2
+				veil.BackgroundTransparency = 1
+				drawEdges(DARK.rest, 0.8, now)
+				-- 게임 내내 가장자리 그늘이 아주 천천히 일렁인다 (연출 줄이기면 멈춘 채로)
+				if reduce then
+					stopDarkness()
+				end
+			end
+		end)
+	end
 end
 
 local function animatePivot(model, from, to, duration, style, direction)
@@ -1176,6 +1485,7 @@ end
 --   카메라(closeShot)가 같은 값으로 바라보기 때문에 둘을 따로 고치면 안 됩니다.
 --------------------------------------------------
 local ghostLive = nil -- 지금 잡기 중인 진짜 해적 (결과가 오면 물러나거나 달려든다)
+local liveGhosts = {} -- Phase 32 : 이번 잡기에 나온 해적 전부 (쌍둥이는 둘)
 
 local function outBack(x)
 	local c1, c3 = 1.9, 2.9
@@ -1352,6 +1662,55 @@ local function blowLid(model, hold)
 	end)
 end
 
+--------------------------------------------------
+-- Phase 32 : 해적 종류 표시
+--   해적 스킨은 그대로 두고, 그 위에 종류 색 테두리(Highlight) · 머리 위 표시 · (유령은) 반투명만 덧입힌다.
+--   그래서 어떤 스킨(부품 해적 · Blender 해적 · 용 세트 …)이든 종류가 똑같이 알아보인다.
+--------------------------------------------------
+local KINDS = config.PirateKinds
+local function kindLook(kindId)
+	local def = KINDS and KINDS.List[kindId or "normal"] or nil
+	if not def then
+		return nil
+	end
+	return { id = kindId, color = def.color, icon = def.icon, label = def.short, name = def.name, ghostly = kindId == "skull" }
+end
+
+local function decorate(rig, look)
+	if not look or not rig.model then
+		return
+	end
+	local outline = Instance.new("Highlight")
+	outline.Name = "KindOutline"
+	outline.FillColor = look.color
+	outline.FillTransparency = look.ghostly and 0.55 or 0.88
+	outline.OutlineColor = look.color
+	outline.OutlineTransparency = 0
+	outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	outline.Adornee = rig.model
+	outline.Parent = rig.model
+	local anchor = rig.model.PrimaryPart
+	if anchor and look.icon then
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "KindTag"
+		tag.Size = UDim2.fromOffset(150, 70)
+		tag.StudsOffsetWorldSpace = Vector3.new(0, 4.9, 0)
+		tag.AlwaysOnTop = true
+		tag.LightInfluence = 0
+		tag.Adornee = anchor
+		tag.Parent = rig.model
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.FontFace = UIKit.font(true)
+		text.TextScaled = true
+		text.TextColor3 = look.color
+		text.Text = look.icon .. " " .. (look.label or "")
+		text.Parent = tag
+		UIKit.textStroke(text, 3)
+	end
+end
+
 --[[
 	해적 (Phase 11)
 	kind
@@ -1359,13 +1718,18 @@ end
 	  "rage" : 분노한 해적. 잡을 수 없다. 튀어나오자마자 달려든다.
 	  "fake" : 방해 아이템 "해적의 포효". 잠깐 나왔다 사라진다.
 	자세는 매 프레임 PirateModel:pose 로 잡는다. 서는 지점은 SCARE.GhostRise / GhostLunge 와 같다.
+	Phase 32 : opts
+	  offset : 옆으로 비켜 서는 거리(스터드 · 월드 벡터). 쌍둥이는 둘이 나란히, 갈고리 해적은 한쪽으로
+	  look   : kindLook(종류) — 테두리 색 · 머리 위 표시 · 유령(반투명)
+	  lean   : 옆으로 기울이는 각도 (갈고리 해적이 그쪽으로 몸을 내민다)
 ]]
-local function spawnPirate(model, own, kind)
+local function spawnPirate(model, own, kind, opts)
 	local pos = center(model)
 	if not pos then
 		return nil
 	end
 	kind = kind or "real"
+	opts = opts or {}
 	local skin = config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost))
 	local rig = PirateModel.new(skin, visuals)
 	rig.model.Parent = fx
@@ -1385,8 +1749,23 @@ local function spawnPirate(model, own, kind)
 
 	local direction = facing(pos)
 	local base = CFrame.lookAt(pos, pos + direction)
+	if typeof(opts.offset) == "Vector3" then
+		base = base + opts.offset
+	end
+	if opts.lean then
+		base = base * CFrame.Angles(0, 0, math.rad(opts.lean))
+	end
 	local lunge = (own and not reduced) and SCARE.GhostLunge or 0
 	local ghost = { rig = rig, state = "erupt", bornAt = os.clock(), kind = kind, stateAt = os.clock(), fade = 0 }
+	-- Phase 32 : 해골 유령은 반투명 (사라질 때도 이 값보다 진해지지 않는다)
+	ghost.fadeFloor = (opts.look and opts.look.ghostly) and 0.5 or 0
+	decorate(rig, opts.look)
+	if ghost.fadeFloor > 0 then
+		rig:fade(ghost.fadeFloor)
+	end
+	local function fadeTo(a)
+		rig:fade(math.max(ghost.fadeFloor, a))
+	end
 
 	local function place(y, forward, pose)
 		rig:pose(base * CFrame.new(0, y, -forward), pose)
@@ -1407,7 +1786,7 @@ local function spawnPirate(model, own, kind)
 			-- 붙잡혀 통 속으로 끌려 들어간다
 			local a = math.clamp(s / 0.3, 0, 1)
 			place(rise + (-3 - rise) * a * a, lunge * (1 - a), { lean = 10 * (1 - a), reach = 0.8 * (1 - a), jaw = 0.6, spread = 30 * a, sway = 20 * a })
-			rig:fade(a * 0.7)
+			fadeTo(a * 0.7)
 			if a >= 1 then
 				ghost.state = "gone"
 			end
@@ -1417,7 +1796,7 @@ local function spawnPirate(model, own, kind)
 			local e = 1 - (1 - a) ^ 3
 			place(rise - 0.4 * e, lunge + 2.6 * e, { lean = 16 + 22 * e, reach = 1, jaw = 1, claw = 25 * e, nod = -12 * e })
 			if s > 0.55 then
-				rig:fade(math.clamp((s - 0.55) / 0.4, 0, 1))
+				fadeTo(math.clamp((s - 0.55) / 0.4, 0, 1))
 			end
 			if s > 1 then
 				ghost.state = "gone"
@@ -1425,7 +1804,7 @@ local function spawnPirate(model, own, kind)
 		elseif ghost.state == "fading" then
 			local a = math.clamp(s / 0.4, 0, 1)
 			place(rise + 0.5 * a, lunge, { lean = 8, reach = 0.6, jaw = 0.3 })
-			rig:fade(a)
+			fadeTo(a)
 			if a >= 1 then
 				ghost.state = "gone"
 			end
@@ -1467,6 +1846,7 @@ local function spawnPirate(model, own, kind)
 	burst(pos + Vector3.new(0, 2, 0), (skin and skin.aura) or teal, reduced and 8 or 22)
 	if kind == "real" or kind == "angry" then
 		ghostLive = ghost
+		table.insert(liveGhosts, ghost)
 	end
 	return ghost
 end
@@ -1533,14 +1913,18 @@ local function setGhostState(ghost, state)
 end
 
 -- 튀어나오는 순간 한꺼번에 : 뚜껑 폭발 · 섬광 · 비명 · 흔들림
-local function erupt(model, own, kind)
-	blowLid(model, SCARE.Hold + SCARE.Release + 1.2)
-	local ghost = spawnPirate(model, own, kind)
+-- Phase 32 : opts 는 spawnPirate 와 같다 (종류 표시 · 옆으로 비켜 서기). second = 쌍둥이의 둘째 (뚜껑은 이미 날아갔다)
+local function erupt(model, own, kind, opts)
+	if not (opts and opts.second) then
+		blowLid(model, SCARE.Hold + SCARE.Release + 1.2)
+	end
+	local ghost = spawnPirate(model, own, kind, opts)
 	if own then
 		local red2 = kind == "rage" or kind == "angry"
-		sound("danger", red2 and 0.5 or 0.72, 0.34)
+		local look = opts and opts.look
+		sound("danger", red2 and 0.5 or (look and look.ghostly and 1.1 or 0.72), 0.34)
 		sound("riser", 1.6, 0.12)
-		blink(red2 and red or ((config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost)) or {}).aura or teal), 0.6)
+		blink(red2 and red or (look and look.color) or ((config.findSkin("Ghost", player:GetAttribute(SKIN_ATTR.Ghost)) or {}).aura or teal), 0.6)
 		if not reduced then
 			shakeUntil = os.clock() + 0.55
 		end
@@ -1551,7 +1935,7 @@ end
 --------------------------------------------------
 -- 해적 잡기 (입력 · 연출)
 --------------------------------------------------
-local catch = nil -- {opensAt, window, mine, sent, model}
+local catch = nil -- { model, mine, kind, steps, step, side, need, taps, done, opensLocal, armUntil, rookie }
 local dangerPending = {}
 local catchSeen = {}
 
@@ -1597,62 +1981,308 @@ local function setSeatLock(on, untilClock)
 	end
 end
 
+--------------------------------------------------
+-- Phase 32 : 해적 종류 설명 카드 · 갈고리 해적 방향 표시
+--   처음 만나는 종류(또는 튜토리얼)는 해적이 나오기 전에 "무엇을 · 어떻게" 카드를 보여 준다.
+--   카드는 누를 수 없다 (아래의 잡기 입력을 가리지 않는다).
+--------------------------------------------------
+local showIntro, hideIntro
+do
+	local introCard = Instance.new("Frame")
+	introCard.Name = "KindIntro"
+	introCard.AnchorPoint = Vector2.new(0.5, 0.5)
+	introCard.Position = UDim2.fromScale(0.5, 0.3)
+	introCard.Size = UDim2.fromOffset(540, 180)
+	introCard.BackgroundColor3 = Color3.new(1, 1, 1)
+	introCard.Visible = false
+	introCard.Active = false
+	introCard.ZIndex = 30
+	introCard.Parent = gui
+	UIKit.gradient(introCard, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
+	UIKit.corner(introCard, 18)
+	local introStroke = UIKit.outline(introCard, 5)
+	local introScale = Instance.new("UIScale")
+	introScale.Parent = introCard
+	local introIcon = textLabel("Icon", UDim2.fromOffset(130, 130), UDim2.fromOffset(18, 25), 96, introCard)
+	introIcon.ZIndex = 31
+	introIcon.TextWrapped = false
+	local introName = textLabel("Name", UDim2.new(1, -170, 0, 50), UDim2.fromOffset(158, 18), 38, introCard)
+	introName.ZIndex = 31
+	introName.TextXAlignment = Enum.TextXAlignment.Left
+	local introHow = textLabel("How", UDim2.new(1, -176, 0, 96), UDim2.fromOffset(158, 70), 24, introCard)
+	introHow.ZIndex = 31
+	introHow.TextXAlignment = Enum.TextXAlignment.Left
+	introHow.TextYAlignment = Enum.TextYAlignment.Top
+	local introToken = 0
+	local function fitIntro()
+		local camera = workspace.CurrentCamera
+		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		introScale.Scale = math.clamp(math.min((view.X - 24) / 560, view.Y / 520), 0.5, 1)
+	end
+	fitIntro()
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitIntro)
+	end
+	function showIntro(kindId, untilClock, tutorial)
+		local def = KINDS and KINDS.List[kindId or "normal"]
+		if not def then
+			return
+		end
+		introToken += 1
+		local token = introToken
+		introIcon.Text = def.icon or "☠"
+		introName.Text = (tutorial and "🎓 " or "✨ 처음 보는 해적 · ") .. (def.name or "해적")
+		introName.TextColor3 = def.color or gold
+		introHow.Text = def.how or ""
+		if introStroke then
+			introStroke.Color = def.color or gold
+		end
+		introCard.Visible = true
+		introScale.Scale = introScale.Scale * 0.85
+		fitIntro()
+		sound("riser", 1.4, 0.14)
+		task.delay(math.max(0.6, untilClock - os.clock()), function()
+			if token == introToken then
+				introCard.Visible = false
+			end
+		end)
+	end
+	function hideIntro()
+		introToken += 1
+		introCard.Visible = false
+	end
+end
+
+-- 갈고리 해적 : 화면 왼쪽 · 오른쪽 반쪽 안내 (누르는 곳을 보여 준다. 누르는 것은 catchButton 이 받는다)
+local sideGuide = Instance.new("Frame")
+sideGuide.Name = "SideGuide"
+sideGuide.Size = UDim2.fromScale(1, 1)
+sideGuide.BackgroundTransparency = 1
+sideGuide.Visible = false
+sideGuide.Active = false
+sideGuide.ZIndex = 16
+sideGuide.Parent = catchGui
+local sideHalves = {}
+for index, key in ipairs({ "L", "R" }) do
+	local half = Instance.new("Frame")
+	half.Name = key
+	half.Size = UDim2.fromScale(0.5, 1)
+	half.Position = UDim2.fromScale((index - 1) * 0.5, 0)
+	half.BackgroundColor3 = Color3.fromRGB(120, 180, 255)
+	half.BackgroundTransparency = 1
+	half.BorderSizePixel = 0
+	half.Active = false
+	half.ZIndex = 16
+	half.Parent = sideGuide
+	local arrow = textLabel("Arrow", UDim2.fromOffset(220, 140), UDim2.new(0.5, -110, 0.62, -70), 110, half)
+	arrow.Text = key == "L" and "◀" or "▶"
+	arrow.TextTransparency = 0.7
+	arrow.ZIndex = 17
+	sideHalves[key] = { frame = half, arrow = arrow }
+end
+local function drawSides(popped)
+	for key, entry in pairs(sideHalves) do
+		local lit = popped ~= nil and key == popped
+		entry.frame.BackgroundTransparency = lit and 0.8 or 1
+		entry.arrow.TextTransparency = popped == nil and 0.7 or (lit and 0 or 0.85)
+		entry.arrow.TextColor3 = lit and Color3.fromRGB(150, 205, 255) or cream
+	end
+end
+
+-- 해적이 나오기 전 통 틈에서 새어 나오는 빛. 종류마다 색이 달라서, 잘 보면 무슨 해적인지 미리 안다.
+local function telegraph(model, color, fromClock, toClock)
+	local top = lidTop(model)
+	if not top or toClock - fromClock < 0.3 then
+		return
+	end
+	local glow = makePart(fx, "KindGlow", Vector3.new(0.2, 0.2, 0.2), CFrame.new(top + Vector3.new(0, 0.3, 0)), color)
+	glow.Transparency = 1
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 10
+	light.Brightness = 0
+	light.Shadows = false
+	light.Parent = glow
+	local mist = Instance.new("ParticleEmitter")
+	mist.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	mist.Color = ColorSequence.new(color)
+	mist.LightEmission = 0.6
+	mist.Size = NumberSequence.new(0.5, 1.6)
+	mist.Transparency = NumberSequence.new(0.55, 1)
+	mist.Lifetime = NumberRange.new(0.5, 0.9)
+	mist.Speed = NumberRange.new(1.5, 3)
+	mist.SpreadAngle = Vector2.new(35, 35)
+	mist.Rate = 0
+	mist.Enabled = not reduced
+	mist.Parent = glow
+	local conn
+	conn = Run.RenderStepped:Connect(function()
+		local now = os.clock()
+		if now >= toClock or not glow.Parent then
+			conn:Disconnect()
+			if glow.Parent then
+				glow:Destroy()
+			end
+			return
+		end
+		local a = math.clamp((now - fromClock) / math.max(0.05, toClock - fromClock), 0, 1)
+		light.Brightness = 3 * a * (0.75 + 0.25 * math.sin(now * 20))
+		mist.Rate = 18 * a
+	end)
+end
+
 local function endCatchUI()
 	catch = nil
 	catchGui.Visible = false
 	catchButton.Active = false
 	catchText.Text = ""
 	catchHint.Text = ""
+	sideGuide.Visible = false
+	hideIntro()
 	setSeatLock(false)
+end
+
+-- 해적 종류마다 화면 아래 한 줄 안내
+local function kindHint(data)
+	local kind = data.kind or "normal"
+	local touch = Input.TouchEnabled and not Input.KeyboardEnabled
+	local line
+	if kind == "twin" then
+		line = "👯 두 마리가 차례로! 나올 때마다 한 번씩"
+	elseif kind == "side" then
+		line = touch and "🪝 튀어나온 쪽 화면(왼쪽 · 오른쪽)을 눌러요" or "🪝 튀어나온 쪽 : ← → 또는 A D (화면 왼쪽 · 오른쪽 클릭도 돼요)"
+	elseif kind == "skull" then
+		line = "👻 해골 유령은 누르면 탈락! 사라질 때까지 참아요"
+	elseif kind == "mash" then
+		line = ("💰 칼을 붙잡았다! %d번 빠르게 연타"):format(data.need or 5)
+	elseif kind == "angry" then
+		line = "😡 먹물을 뚫고 튀어나올 때 눌러요"
+	else
+		line = touch and "☠ 해적이 튀어나오면 화면을 탭!" or "☠ 해적이 튀어나오면 스페이스 · E · 클릭!"
+	end
+	if data.rookie then
+		line ..= "\n🛟 신입 보호 : 한 번은 봐줘요"
+	end
+	if (tonumber(data.games) or 99) < 5 and kind ~= "skull" then
+		line ..= "\n⚠ 나오기 전에 누르면 탈락!"
+	end
+	return line
 end
 
 local lastTapAt = 0
 local eruptKind = setmetatable({}, { __mode = "k" }) -- [테이블] = 곧 튀어나올 해적의 종류
-function sendCatch()
-	if not catch or not catch.mine or catch.sent then
+local pendingPop = setmetatable({}, { __mode = "k" }) -- Phase 32 : [테이블] = 이번 잡기의 표 (결과가 오면 지워서 남은 해적이 나오지 않게)
+-- side : 갈고리 해적 방향 ("L" · "R"). 없으면 방향 없는 누름 (스페이스 · E · 게임패드 A)
+function sendCatch(side)
+	if not catch or not catch.mine or catch.done then
 		return
 	end
-	-- 버튼 Activated 와 InputBegan 이 같은 탭으로 둘 다 들어옵니다. 한 번만 셉니다.
-	if os.clock() - lastTapAt < 0.12 then
+	local kind = catch.kind or "normal"
+	-- 버튼과 키가 같은 누름으로 두 번 들어오는 것은 한 번으로 친다 (연타 해적은 더 촘촘하게 받는다)
+	local gap = kind == "mash" and 0.05 or 0.12
+	if os.clock() - lastTapAt < gap then
 		return
 	end
-	lastTapAt = os.clock()
 	-- 칼 자리를 고른 손가락이 한 번 더 눌린 것은 버립니다. (서버도 같은 시간만큼 버립니다)
 	if os.clock() < (catch.armUntil or 0) then
 		return
 	end
+	if kind == "side" and side == nil then
+		-- 방향이 없는 누름은 보내지 않는다 (먼저 누른 것으로 치지 않는다)
+		catchHint.Text = "🪝 방향을 눌러요!  ← 왼쪽 · 오른쪽 →"
+		return
+	end
+	lastTapAt = os.clock()
 	local now = workspace:GetServerTimeNow()
-	catch.sent = true
-	catchButton.Active = false
-	catchInput:FireServer(catch.model, now)
-	if now < catch.opensAt - (config.Catch.EarlyTolerance or 0) then
+	catchInput:FireServer(catch.model, now, side)
+	local stepInfo = catch.steps[catch.step] or catch.steps[1]
+	if now < stepInfo.opensAt - (config.Catch.EarlyTolerance or 0) then
 		-- ★ Phase 11 : 해적이 나오기 전에 눌렀다. 서버가 실패로 판정합니다.
+		catch.done = true
+		catchButton.Active = false
 		catchText.Text = "너무 빨랐다!"
 		catchText.TextColor3 = red
 		return
 	end
+	if kind == "skull" then
+		catch.done = true
+		catchButton.Active = false
+		catchText.Text = "앗! 유령을 눌렀다"
+		catchText.TextColor3 = red
+		return
+	end
+	if kind == "mash" then
+		catch.taps = (catch.taps or 0) + 1
+		local need = catch.need or 5
+		catchText.Text = ("연타! %d/%d"):format(math.min(catch.taps, need), need)
+		catchText.TextColor3 = gold
+		sound("pick", 1.2 + 0.1 * catch.taps, 0.5)
+		if catch.taps >= need then
+			catch.done = true
+			catchButton.Active = false
+			catchText.Text = "잡았다!"
+			catchText.TextColor3 = teal
+		end
+		return
+	end
+	if kind == "side" and side ~= catch.side then
+		catch.done = true
+		catchButton.Active = false
+		catchText.Text = "반대쪽!"
+		catchText.TextColor3 = red
+		return
+	end
+	if (catch.step or 1) < #catch.steps then
+		-- 쌍둥이 : 첫째를 잡았다
+		catch.step += 1
+		catchText.Text = "하나! 하나 더…"
+		catchText.TextColor3 = teal
+		sound("win", 1.6, 0.2)
+		local first = liveGhosts[1]
+		if first then
+			first.state, first.stateAt = "caught", os.clock()
+		end
+		return
+	end
+	catch.done = true
+	catchButton.Active = false
 	catchText.Text = "잡았다!"
 	catchText.TextColor3 = teal
 end
 
-catchButton.Activated:Connect(sendCatch)
-Input.InputBegan:Connect(function(input, processed)
-	if not catch or not catch.mine then
+-- Phase 32 : 화면을 누른 자리(왼쪽 · 오른쪽 반)가 갈고리 해적의 방향이 된다. 누르는 순간 받는다 (떼는 순간이 아니라)
+catchButton.InputBegan:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
 		return
 	end
-	-- 채팅 입력 · 버튼 클릭(→ Activated) · 가로챈 스페이스(→ 위의 잠금 동작)는 여기서 세지 않는다.
-	if processed or Input:GetFocusedTextBox() then
-		return
-	end
-	-- 게임패드 스틱을 살짝 건드린 것은 누른 것으로 치지 않는다. ("너무 빨랐다" 오판 방지)
-	local stick = input.KeyCode == Enum.KeyCode.Thumbstick1 or input.KeyCode == Enum.KeyCode.Thumbstick2
-	if input.UserInputType == Enum.UserInputType.Keyboard
-		or input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch
-		or (input.UserInputType == Enum.UserInputType.Gamepad1 and not stick) then
-		sendCatch()
-	end
+	local width = catchButton.AbsoluteSize.X
+	local x = input.Position.X - catchButton.AbsolutePosition.X
+	sendCatch(width > 0 and (x < width * 0.5 and "L" or "R") or nil)
 end)
+-- Phase 32 : 키보드 · 게임패드는 정해진 키만 잡기로 친다 (예전에는 아무 키나 → W 로 걷거나 다른 키를 누르다 탈락했다)
+--   스페이스 · 게임패드 A 는 위의 의자 잠금이 받는다. 방향 키는 갈고리 해적일 때만 잡기로 친다.
+do
+	local TAP_KEYS = { [Enum.KeyCode.E] = true, [Enum.KeyCode.Return] = true, [Enum.KeyCode.KeypadEnter] = true, [Enum.KeyCode.ButtonX] = true }
+	local LEFT_KEYS = { [Enum.KeyCode.A] = true, [Enum.KeyCode.Left] = true, [Enum.KeyCode.DPadLeft] = true, [Enum.KeyCode.ButtonL1] = true }
+	local RIGHT_KEYS = { [Enum.KeyCode.D] = true, [Enum.KeyCode.Right] = true, [Enum.KeyCode.DPadRight] = true, [Enum.KeyCode.ButtonR1] = true }
+	Input.InputBegan:Connect(function(input, processed)
+		if not catch or not catch.mine then
+			return
+		end
+		-- 채팅 입력 · 화면 버튼(→ 위 InputBegan) · 가로챈 스페이스(→ 의자 잠금)는 여기서 세지 않는다.
+		if processed or Input:GetFocusedTextBox() then
+			return
+		end
+		local key = input.KeyCode
+		if TAP_KEYS[key] then
+			sendCatch(nil)
+		elseif catch.kind == "side" and LEFT_KEYS[key] then
+			sendCatch("L")
+		elseif catch.kind == "side" and RIGHT_KEYS[key] then
+			sendCatch("R")
+		end
+	end)
+end
 
 catchPrompt.OnClientEvent:Connect(function(model, data)
 	if typeof(model) ~= "Instance" or typeof(data) ~= "table" then
@@ -1660,18 +2290,24 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	end
 	dangerPending[model] = nil
 	catchSeen[model] = os.clock()
+	table.clear(liveGhosts)
 
 	-- 서버 시계를 내 시계로 옮깁니다.
 	local offset = os.clock() - workspace:GetServerTimeNow()
 	local opensLocal = data.opensAt + offset
 	local level = tonumber(data.level) or 1
+	local kind = data.kind or (data.angry and "angry" or "normal")
+	local look = kindLook(kind)
+	local steps = typeof(data.steps) == "table" and data.steps or { { opensAt = data.opensAt, window = data.window } }
 
 	-- 클로즈업이 "들이닥치는" 순간과 창이 열리는 순간을 맞춥니다.
 	if not reduced then
+		local lastStep = steps[#steps]
+		local extra = math.max(0, (lastStep.opensAt or data.opensAt) - data.opensAt)
 		shot = {
 			model = model,
 			startedAt = opensLocal - (SCARE.Lead + SCARE.Punch),
-			total = SCARE.Lead + SCARE.Punch + SCARE.Hold + SCARE.Release,
+			total = SCARE.Lead + SCARE.Punch + SCARE.Hold + SCARE.Release + extra,
 		}
 	end
 	lastTable = model
@@ -1679,16 +2315,22 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 
 	-- ★ Phase 11 : 나오기 전 — 통이 덜컹거리고, 가끔 가짜 손이 튀어나왔다 들어간다.
 	--   가짜 손에 속아 누르면 "너무 빨랐다"로 탈락이다. 잡을수록(단계가 오를수록) 더 자주 속인다.
+	-- ★ Phase 32 : 가짜 손은 보통 해적에만, 그리고 신입(판 수 5 미만) · 튜토리얼 · 신입 보호 중에는 보여 주지 않는다.
+	--   (처음 온 사람이 첫 해적부터 속아서 바로 지고 나가던 원인)
 	local rattleFrom = os.clock() + 0.75
 	rattle(model, rattleFrom, opensLocal)
+	if look then
+		telegraph(model, look.color, rattleFrom, opensLocal)
+	end
 	local lead = opensLocal - os.clock()
 	-- Phase 24.10 : 분노한 해적은 먼저 반쯤 올라와 먹물을 뿜는다. 진짜 "지금!"은 그 뒤 통이 터지는 순간이다.
 	--   (먹물 뿜을 때 누르면 너무 빨랐다) 가짜 손 속임수는 이때 넣지 않는다.
-	local angry = data.angry == true
+	local angry = kind == "angry"
 	local pre = math.min(0.9, math.max(0, lead - 0.15))
+	local veteran = (tonumber(data.games) or 99) >= 5 and not data.rookie and not data.tutorial
 	if angry then
 		task.delay(math.max(0, opensLocal - pre - os.clock()), function()
-			local spitter = spawnPirate(model, true, "spit")
+			local spitter = spawnPirate(model, true, "spit", { look = look })
 			if spitter then
 				spitter.fadeAt = math.max(0.3, pre - 0.12)
 				task.delay(0.22, function()
@@ -1702,82 +2344,177 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 				announce(("%s · 분노한 해적!"):format(data.name or ""), red, 1.2)
 			end
 		end)
-	elseif lead > 0.95 and math.random() < math.min(0.75, 0.3 + 0.12 * (level - 1)) then
+	elseif kind == "normal" and (veteran or not data.mine) and lead > 0.95 and math.random() < math.min(0.75, 0.3 + 0.12 * (level - 1)) then
 		feint(model, os.clock() + math.max(0.8, lead - 0.35 - math.random() * 0.25))
 	end
 
 	task.delay(math.max(0, opensLocal - os.clock() - SCARE.Lead), function()
 		sound("riser", 0.75, 0.18)
 	end)
+
+	-- 튀어나오기. 쌍둥이는 둘이 나란히 차례로, 갈고리 해적은 한쪽으로 비켜서 몸을 내민다.
+	local camera = workspace.CurrentCamera
+	local right = camera and Vector3.new(camera.CFrame.RightVector.X, 0, camera.CFrame.RightVector.Z) or Vector3.new(1, 0, 0)
+	if right.Magnitude > 0.01 then
+		right = right.Unit
+	end
 	eruptKind[model] = angry and "angry" or "real"
-	task.delay(math.max(0, opensLocal - os.clock()), function()
-		local kind = eruptKind[model] or "real"
-		eruptKind[model] = nil
-		erupt(model, true, kind)
-	end)
+	local popToken = {}
+	pendingPop[model] = popToken
+	for index, stepInfo in ipairs(steps) do
+		local at = stepInfo.opensAt + offset
+		local opts = { look = look, second = index > 1 }
+		if kind == "twin" then
+			opts.offset = right * (index == 1 and -1.6 or 1.6)
+		elseif kind == "side" then
+			local sign = data.side == "L" and -1 or 1
+			opts.offset = right * (2.3 * sign)
+			opts.lean = -14 * sign
+		end
+		task.delay(math.max(0, at - os.clock()), function()
+			if pendingPop[model] ~= popToken then
+				-- 결과가 먼저 왔다 : 먼저 눌러 탈락했으면 첫째만 달려들고(rage), 살려 준 경우 · 둘째는 나오지 않는다
+				if index == 1 and eruptKind[model] == "rage" then
+					eruptKind[model] = nil
+					erupt(model, true, "rage", opts)
+				end
+				return
+			end
+			local eruptAs = index == 1 and (eruptKind[model] or "real") or "real"
+			if index == 1 then
+				eruptKind[model] = nil
+			end
+			erupt(model, true, eruptAs, opts)
+			if catch and catch.model == model and catch.mine then
+				if kind == "side" then
+					drawSides(data.side)
+				end
+			end
+		end)
+	end
 
 	if not data.mine then
 		if not angry then
 			task.delay(math.max(0, opensLocal - os.clock()), function()
-				announce(("%s 잡는 중!"):format(data.name or ""), gold, 1.2)
+				announce(("%s %s 잡는 중!"):format(look and look.icon or "", data.name or ""), look and look.color or gold, 1.2)
 			end)
 		end
 		return
 	end
 
 	catch = {
-		model = model, mine = true, sent = false,
+		model = model, mine = true, done = false,
+		kind = kind, steps = steps, step = 1, side = data.side, need = data.need, taps = 0,
 		opensAt = data.opensAt, window = data.window,
 		opensLocal = opensLocal, index = data.index or 1,
-		level = level, max = data.max,
+		level = level, max = data.max, rookie = data.rookie,
 		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
 	}
 	catchGui.Visible = true
 	catchButton.Active = true
 	catchText.Text = ""
-	catchHint.Text = ""
+	catchHint.Text = kindHint(data)
+	sideGuide.Visible = kind == "side"
+	drawSides(nil)
+	-- 처음 보는 종류 · 튜토리얼 : 해적이 나오기 0.5초 전까지 설명 카드
+	if data.intro then
+		showIntro(kind, opensLocal - 0.5, data.tutorial)
+	end
 	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
-	setSeatLock(true, opensLocal + (data.window or 0.6) + 4)
+	local lastStep = steps[#steps]
+	setSeatLock(true, (lastStep.opensAt + offset) + (lastStep.window or 0.6) + 4)
 	-- 게임패드로 칼 자리 버튼이 선택돼 있으면 A 가 그 버튼으로 먹힌다. 잡기 입력이 되도록 선택을 푼다.
 	if GuiService.SelectedObject then
 		GuiService.SelectedObject = nil
 	end
 end)
 
-catchResult.OnClientEvent:Connect(function(model, data)
-	local own = tableOfCharacter() == model or active == model or lastTable == model
-	if not own then
-		return
-	end
-	local mine = data.userId == player.UserId
-	if mine then
-		endCatchUI()
-	end
+do
+	-- Phase 32 : 실패 까닭 · 살려 줄 때 한 마디
+	local FAIL_TEXT = {
+		early = "너무 빨랐다!",
+		late = "놓쳤다…",
+		timeout = "놓쳤다…",
+		wrong = "반대쪽이었다!",
+		grabbed = "유령을 잡아 버렸다!",
+		spent = "분노한 해적!",
+	}
+	local SAVE_TIP = {
+		early = "해적이 튀어나온 뒤에 눌러요",
+		late = "조금 더 빨리!",
+		timeout = "해적이 나오면 바로 눌러요",
+		wrong = "튀어나온 쪽을 눌러요",
+		grabbed = "유령은 누르면 안 돼요. 참아요!",
+	}
 
-	if data.success then
-		announce(mine and (data.perfect and "완벽!" or "잡았다!") or ((data.name or "") .. " 잡았다!"), teal, 1.6)
-		blink(teal, 0.35)
-		sound("win", 1.4, 0.3)
-		-- 해적이 통으로 끌려 들어갑니다.
-		setGhostState(ghostLive, "caught")
-	else
-		local reason = data.reason
-		local why = (reason == "early" and "너무 빨랐다!") or (reason == "spent" and "분노한 해적!") or "놓쳤다…"
-		announce(mine and why or ((data.name or "") .. " 탈락"), red, 1.6)
-		blink(red, 0.4)
-		sound("danger", 0.6, 0.3)
-		-- 해적이 달려든다. (먼저 눌러서 아직 안 나왔다면, 나오자마자 달려든다)
-		if eruptKind[model] then
-			eruptKind[model] = "rage"
+	catchResult.OnClientEvent:Connect(function(model, data)
+		local own = tableOfCharacter() == model or active == model or lastTable == model
+		if not own then
+			return
+		end
+		local mine = data.userId == player.UserId
+		if mine then
+			endCatchUI()
+		end
+		local ghosts = table.clone(liveGhosts)
+		table.clear(liveGhosts)
+		ghostLive = nil
+		pendingPop[model] = nil
+
+		if data.saved then
+			-- Phase 32 : 신입 보호 · 튜토리얼 : 탈락하지 않고 같은 해적이 한 번 더 나온다
+			local tip = SAVE_TIP[data.reason] or "다시 해 봐요"
+			if data.kind == "mash" and (data.reason == "late" or data.reason == "timeout") then
+				tip = "더 빠르게 연타!"
+			end
+			if mine then
+				announce((data.saved == "tutorial" and "다시! " or "🛟 한 번 봐줄게요! ") .. tip, gold, 2.2)
+			else
+				announce(("%s · 🛟 다시 한 번!"):format(data.name or ""), gold, 1.4)
+			end
+			for _, ghost in ipairs(ghosts) do
+				setGhostState(ghost, "fading")
+			end
+			eruptKind[model] = nil
+			return
+		end
+
+		if data.success then
+			local reaction = tonumber(data.reaction)
+			local text
+			if data.reason == "held" then
+				text = mine and "참았다! 👻 유령이 사라졌다" or ((data.name or "") .. " 참았다!")
+			elseif mine then
+				local timing = reaction and ("%.2f초 만에 "):format(math.max(0, reaction)) or ""
+				text = timing .. (data.kind == "mash" and "연타 성공!" or "잡았다!") .. (data.perfect and " 퍼펙트!" or "")
+			else
+				text = (data.name or "") .. " 잡았다!" .. (reaction and (" (%.2f초)"):format(math.max(0, reaction)) or "")
+			end
+			announce(text, data.perfect and gold or teal, 1.8)
+			blink(data.perfect and gold or teal, 0.35)
+			sound("win", data.perfect and 1.7 or 1.4, 0.3)
+			-- 해적이 통으로 끌려 들어갑니다. (유령은 스르르 사라진다)
+			for _, ghost in ipairs(ghosts) do
+				setGhostState(ghost, data.kind == "skull" and "fading" or "caught")
+			end
 		else
-			setGhostState(ghostLive, "lunge")
+			local why = FAIL_TEXT[data.reason] or "놓쳤다…"
+			announce(mine and why or ((data.name or "") .. " 탈락"), red, 1.6)
+			blink(red, 0.4)
+			sound("danger", 0.6, 0.3)
+			-- 해적이 달려든다. (먼저 눌러서 아직 안 나왔다면, 나오자마자 달려든다)
+			if eruptKind[model] then
+				eruptKind[model] = "rage"
+			end
+			for _, ghost in ipairs(ghosts) do
+				setGhostState(ghost, "lunge")
+			end
+			if not reduced then
+				shakeUntil = os.clock() + 0.45
+			end
 		end
-		if not reduced then
-			shakeUntil = os.clock() + 0.45
-		end
-	end
-	ghostLive = nil
-end)
+	end)
+end
 
 --------------------------------------------------
 -- 방해 아이템 연출 (Phase 8)
@@ -1974,6 +2711,12 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 				text, color = ("%s 승리"):format(data.name or ""), gold
 			end
 			resultText, resultColor = (won and not data.noContest) and "승리!" or (wasIn and not won and "패배" or text), color
+			-- Phase 32 : 같은 상대에게 또 이겨서 연승이 그대로다 (다른 사람이 낀 판에서 이겨야 오른다)
+			if won and data.sameFoes then
+				task.delay(2.8, function()
+					announce("🔥 같은 상대라 연승은 그대로! 다른 선원과 이기면 올라요", cream, 2.8)
+				end)
+			end
 			local alreadyOut = placeShown[model] == true
 			placeShown[model] = nil
 			if text then
@@ -2006,6 +2749,26 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 				announce(place and ("패배 · %d위"):format(place) or "패배", red, 2.4)
 			end)
 			resultText, resultColor = "패배", red
+		end
+	elseif kind == "FateCard" then
+		-- Phase 32 : 라운드마다 운명 카드
+		local card = config.findFateCard(data.card)
+		if own and card then
+			showFateCard(card, tonumber(data.stage) or 1)
+		end
+	elseif kind == "Milestone" then
+		-- Phase 32 : 끝없는 라운드 · 5라운드마다 보너스
+		if own then
+			local coins = tonumber(data.coins) or 0
+			announce(("🌊 %d 라운드 돌파!%s"):format(tonumber(data.stage) or 0, coins > 0 and ((data.pot and "  현상금 +%s" or "  +%s"):format(Utility.comma(coins))) or ""), gold, 2.4)
+			burst(pos + Vector3.new(0, 5, 0), gold, reduced and 10 or 36)
+			sound("jackpot", 1.2, 0.22)
+		end
+	elseif kind == "TutorialDone" then
+		-- Phase 32 : 튜토리얼 완료 (그 사람 화면에서만 크게)
+		if data.userId == player.UserId then
+			UIKit.rewardPopup({ title = "🎓 튜토리얼 완료!", text = ("%s 코인"):format(Utility.comma(tonumber(data.coins) or 0)), money = "chest", big = true })
+			announce("🎓 튜토리얼 완료! 이제 다른 선원들과 겨뤄 봐요", gold, 3)
 		end
 	elseif kind == "Stage" then
 		-- Phase 15 : 한 명이 떨어지고 다음 라운드가 시작된다
@@ -2143,7 +2906,7 @@ Run.Heartbeat:Connect(function()
 				end)
 			end
 		else
-			leaveStage()
+			leaveStage(true) -- Phase 32 : 까만 화면에서 원래 빛이 천천히 돌아온다
 		end
 	end
 
@@ -2202,6 +2965,13 @@ Run.Heartbeat:Connect(function()
 			if mySeat and (mySeat:GetAttribute(config.SeatAttributes.TurnOrder) or 0) > 0
 				and (mySeat:GetAttribute(config.SeatAttributes.CatchesLeft) or 0) <= 0 then
 				warning = "⚠ 분노한 해적"
+			end
+			detail.TextColor3 = red
+			-- Phase 32 : 경고가 없으면 이번 라운드의 운명 카드를 한 줄로
+			local card = warning == "" and config.findFateCard(model:GetAttribute("FateCard")) or nil
+			if card then
+				warning = ("%s %s · %s"):format(card.icon or "🃏", card.name or "", card.text or "")
+				detail.TextColor3 = card.color or gold
 			end
 			detail.Text = warning
 			if id ~= lastTurn then
@@ -2295,12 +3065,75 @@ Input.InputEnded:Connect(function(input)
 end)
 
 --------------------------------------------------
+-- Phase 32 : 1인칭
+--   내 자리에 앉아 게임 중일 때만 (관전 · 탈락 뒤에는 원래 카메라). 내 머리 · 모자 · 얼굴 장식은 내 화면에서만 숨긴다.
+--------------------------------------------------
+local showHead, firstPersonEye, drawViewButton
+do
+	local hiddenHead = {} -- [BasePart] = 원래 LocalTransparencyModifier
+	function showHead()
+		for part, value in pairs(hiddenHead) do
+			if part.Parent then
+				part.LocalTransparencyModifier = value
+			end
+		end
+		table.clear(hiddenHead)
+	end
+	local function hideHead(character)
+		local head = character:FindFirstChild("Head")
+		for _, item in ipairs(character:GetDescendants()) do
+			if item:IsA("BasePart") and (item == head or item:FindFirstAncestorOfClass("Accessory") ~= nil) then
+				if hiddenHead[item] == nil then
+					hiddenHead[item] = item.LocalTransparencyModifier
+				end
+				item.LocalTransparencyModifier = 1
+			end
+		end
+	end
+	function firstPersonEye(model)
+		if not firstPerson or not model or tableOfCharacter() ~= model then
+			showHead()
+			return nil
+		end
+		local character = player.Character
+		local head = character and character:FindFirstChild("Head")
+		if not head then
+			showHead()
+			return nil
+		end
+		hideHead(character)
+		return head.Position + head.CFrame.LookVector * 0.35 + Vector3.new(0, 0.3, 0)
+	end
+
+	-- 게임 중 오른쪽 위 「👁 1인칭」 버튼 (누를 때마다 3인칭 ↔ 1인칭 · 설정에 저장된다)
+	local viewButton = UIKit.button(gui, { text = "👁 1인칭", position = UDim2.new(1, -162, 0, 58), size = UDim2.fromOffset(150, 44), theme = "blue", textSize = 18, zIndex = 12 })
+	viewButton.Name = "ViewToggle"
+	viewButton.Visible = false
+	viewButton.Activated:Connect(function()
+		local want = not firstPerson
+		player:SetAttribute("Setting_firstPerson", want) -- 바로 바뀌게 (서버가 저장하고 같은 값을 돌려준다)
+		local request = remotes:FindFirstChild("VoyageRequest")
+		if request then
+			request:FireServer("settings", { firstPerson = want })
+		end
+		yaw = 0
+	end)
+	function drawViewButton()
+		local show = active ~= nil and cameraOn and tableOfCharacter() == active and player:GetAttribute("PirateFocus") ~= true
+		viewButton.Visible = show
+		viewButton.Text = firstPerson and "🎥 3인칭" or "👁 1인칭"
+	end
+end
+
+--------------------------------------------------
 -- 카메라 그리기
 --------------------------------------------------
 Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	local camera = workspace.CurrentCamera
 	local pos = center(active)
+	drawViewButton()
 	if not pos or not cameraOn or not camera then
+		showHead() -- Phase 32 : 1인칭에서 숨긴 머리를 되돌린다
 		restoreCamera()
 		return
 	end
@@ -2355,6 +3188,41 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		end
 	end
 
+	-- Phase 32 : 1인칭. 내 머리에서 통을 내려다본다. 해적이 튀어나오면 저절로 해적을 올려다본다.
+	--   내 팔(칼 꽂기 모션)은 보이고, 머리 · 모자는 내 화면에서만 숨긴다. 관전 중에는 쓰지 않는다.
+	local fpEye = firstPersonEye(active)
+	if fpEye then
+		local look = pos + Vector3.new(0, FRAME.Aim * 0.55, 0)
+		local lookFov = 74
+		if shot and shot.model == active then
+			local elapsed = os.clock() - shot.startedAt
+			if elapsed >= 0 then
+				local ghostAim = pos + facing(pos) * SCARE.GhostLunge + Vector3.new(0, SCARE.GhostRise + SCARE.AimLift, 0)
+				local a = math.clamp(elapsed / (SCARE.Lead + SCARE.Punch), 0, 1)
+				a = a * a * (3 - 2 * a)
+				local tail = shot.total - SCARE.Release
+				if elapsed > tail then
+					local b = math.clamp((elapsed - tail) / SCARE.Release, 0, 1)
+					a *= 1 - b * b * (3 - 2 * b)
+				end
+				look = look:Lerp(ghostAim, a)
+				lookFov = 74 + 10 * a
+			end
+		end
+		local toward = look - fpEye
+		if yaw ~= 0 and toward.Magnitude > 0.01 then
+			toward = CFrame.Angles(0, yaw * 0.6, 0):VectorToWorldSpace(toward)
+		end
+		local fpTarget = CFrame.lookAt(fpEye, fpEye + toward)
+		local alpha = 1 - math.exp(-dt * 14)
+		camera.CFrame = camera.CFrame:Lerp(fpTarget, alpha)
+		camera.FieldOfView += (lookFov - camera.FieldOfView) * alpha
+		if not reduced and player:GetAttribute("Setting_shake")~=false and os.clock() < shakeUntil then
+			local amp = (shakeUntil - os.clock()) * 0.25
+			camera.CFrame *= CFrame.new(math.sin(os.clock() * 70) * amp, math.cos(os.clock() * 53) * amp, 0)
+		end
+		return
+	end
 	local rayParams=RaycastParams.new()
  rayParams.FilterType=Enum.RaycastFilterType.Exclude
  local exclude={active,fx};if player.Character then table.insert(exclude,player.Character) end
@@ -2372,36 +3240,62 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 end)
 
 -- 잡기 고리는 매 프레임 줄어듭니다.
-Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, function()
-	if not catch or not catch.mine then
-		return
-	end
-	local now = workspace:GetServerTimeNow()
-	local window = catch.window or 0.6
-	if now < catch.opensAt then
-		local wait = math.clamp((catch.opensAt - now) / 0.9, 0, 1)
-		local ringSize = math.min(catchRingMax, 320 + wait * 420)
-		catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
-		ringStroke.Color = gold
-		ringStroke.Transparency = 0.15 + wait * 0.5
-		if catchText.Text == "" or catchText.Text == "…" then
-			catchText.Text = "기다려…"
+-- Phase 32 : 해적 종류마다 글자가 다르다 (쌍둥이 "하나 · 둘" · 갈고리 "◀ 왼쪽!" · 유령 "참아!" · 연타 "연타! 0/5")
+do
+	local WAIT_TEXT = { skull = "…", mash = "기다려…", twin = "기다려… (둘!)", side = "기다려… (방향!)" }
+	Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, function()
+		if not catch or not catch.mine then
+			return
 		end
-		catchText.TextColor3 = cream
-	elseif not catch.sent then
-		local left = math.clamp(1 - (now - catch.opensAt) / window, 0, 1)
-		local ringSize = math.min(catchRingMax, 150 + left * 330)
-		catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
-		ringStroke.Color = left > 0.35 and teal or red
-		ringStroke.Transparency = 0
-		catchText.Text = "지금!"
-		catchText.TextColor3 = cream
-		if left <= 0 then
-			catchText.Text = "놓쳤다…"
-			catchText.TextColor3 = red
+		local now = workspace:GetServerTimeNow()
+		local kind = catch.kind or "normal"
+		local stepInfo = catch.steps[catch.step] or catch.steps[1]
+		local opensAt = stepInfo.opensAt
+		local window = stepInfo.window or 0.6
+		if now < opensAt then
+			local wait = math.clamp((opensAt - now) / 0.9, 0, 1)
+			local ringSize = math.min(catchRingMax, 320 + wait * 420)
+			catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
+			ringStroke.Color = gold
+			ringStroke.Transparency = 0.15 + wait * 0.5
+			if not catch.done and (catch.step or 1) == 1 then
+				catchText.Text = WAIT_TEXT[kind] or "기다려…"
+				catchText.TextColor3 = cream
+			end
+		elseif not catch.done then
+			local left = math.clamp(1 - (now - opensAt) / window, 0, 1)
+			local ringSize = math.min(catchRingMax, 150 + left * 330)
+			catchRing.Size = UDim2.fromOffset(ringSize, ringSize)
+			ringStroke.Transparency = 0
+			if kind == "skull" then
+				-- 참는 시간 : 고리가 다 줄면 산다
+				ringStroke.Color = Color3.fromRGB(230, 236, 255)
+				catchText.Text = "✋ 참아!"
+				catchText.TextColor3 = Color3.fromRGB(230, 236, 255)
+				return
+			end
+			ringStroke.Color = left > 0.35 and teal or red
+			if kind == "mash" then
+				local need = catch.need or 5
+				catchText.Text = ("연타! %d/%d"):format(math.min(catch.taps or 0, need), need)
+				catchText.TextColor3 = gold
+			elseif kind == "side" then
+				catchText.Text = catch.side == "L" and "◀ 왼쪽!" or "오른쪽! ▶"
+				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
+			elseif kind == "twin" then
+				catchText.Text = (catch.step or 1) == 1 and "하나!" or "둘!"
+				catchText.TextColor3 = cream
+			else
+				catchText.Text = "지금!"
+				catchText.TextColor3 = cream
+			end
+			if left <= 0 then
+				catchText.Text = "놓쳤다…"
+				catchText.TextColor3 = red
+			end
 		end
-	end
-end)
+	end)
+end
 
 --------------------------------------------------
 -- 전시장 (미리보기 회전 · 장착 표시)

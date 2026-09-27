@@ -43,6 +43,13 @@ local function insideStage()
 	local effects = workspace:FindFirstChild("CursedBarrel_LocalEffects")
 	return effects ~= nil and effects:FindFirstChild("PrivateTableStage") ~= nil
 end
+-- Phase 32 : 무대의 어둠이 화면을 다 덮었는가 (Phase4Controller 가 까만 순간에 Dark 를 켠다).
+--   그 전에는 날씨 색보정 · 발밑 불빛을 그대로 둔다 (예전에는 무대가 생기자마자 꺼져서 색이 "툭" 바뀌었다)
+local function stageDark()
+	local effects = workspace:FindFirstChild("CursedBarrel_LocalEffects")
+	local stage = effects and effects:FindFirstChild("PrivateTableStage")
+	return stage ~= nil and stage:GetAttribute("Dark") == true
+end
 
 --------------------------------------------------
 -- 화면
@@ -428,8 +435,10 @@ Run.Heartbeat:Connect(function(dt)
 	if not stage then
 		applySky(sky)
 	else
-		weatherCC.Enabled = false
-		playerGlow.Enabled = false -- 무대는 따로 조명을 쓴다
+		if stageDark() then
+			weatherCC.Enabled = false
+			playerGlow.Enabled = false -- 무대는 따로 조명을 쓴다
+		end
 	end
 
 	-- 비는 카메라 위에서 쏟아진다
