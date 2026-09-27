@@ -58,12 +58,12 @@ padding.PaddingLeft = UDim.new(0, 10)
 padding.PaddingRight = UDim.new(0, 10)
 padding.Parent = panel
 
-local heading = UIKit.label(panel, { text = "🔮 누가 이길까요?", size = UDim2.new(1, 0, 0, 34), textSize = 24, color = gold, stroke = 3 })
+local heading = UIKit.label(panel, { text = "누가 이길까요?", size = UDim2.new(1, 0, 0, 34), textSize = 24, color = gold, stroke = 3 })
 heading.LayoutOrder = 0
 local reward = UIKit.label(panel, { text = "", size = UDim2.new(1, 0, 0, 24), textSize = 17, color = cream, stroke = 2 })
 reward.LayoutOrder = 1
 local PRIZE = tonumber(config.Prediction.Coins) or 300
-reward.Text = ("맞히면 🪙 %d 코인!"):format(PRIZE)
+reward.Text = ("맞히면 %d 코인!"):format(PRIZE)
 
 local buttons = {}
 local picked = {} -- [tableModel] = { roundId, name }
@@ -155,12 +155,12 @@ local function redraw(model)
 	local roundId = model:GetAttribute(TABLE_ATTR.RoundId)
 	local mine = picked[model]
 	if mine and mine.roundId == roundId then
-		heading.Text = "🔮 예측 완료"
-		reward.Text = ("「%s」 · 맞히면 🪙 %d"):format(mine.name, PRIZE)
+		heading.Text = "예측 완료"
+		reward.Text = ("「%s」 · 맞히면 %d 코인"):format(mine.name, PRIZE)
 		return
 	end
-	heading.Text = "🔮 누가 이길까요?"
-	reward.Text = ("맞히면 🪙 %d 코인!"):format(PRIZE)
+	heading.Text = "누가 이길까요?"
+	reward.Text = ("맞히면 %d 코인!"):format(PRIZE)
 	for index, entry in ipairs(participants(model)) do
 		local b = UIKit.button(panel, { text = entry.name, size = UDim2.new(1, 0, 0, 44), theme = "purple", textSize = 20 })
 		b.LayoutOrder = 10 + index
@@ -224,13 +224,13 @@ predict.OnClientEvent:Connect(function(data)
 		showToast(data.message or "예측할 수 없습니다", red)
 	elseif data.kind == "result" then
 		if data.correct then
-			showToast(data.coins and data.coins > 0 and ("🔮 예측 적중! %s 승리 · +%d 코인"):format(data.name or "", data.coins)
-				or "🔮 예측 적중! (오늘 보상은 다 받았어요)", teal)
+			showToast(data.coins and data.coins > 0 and ("예측 적중! %s 승리 · +%d 코인"):format(data.name or "", data.coins)
+				or "예측 적중! (오늘 보상은 다 받았어요)", teal)
 			if data.coins and data.coins > 0 then
-				UIKit.rewardPopup({ title = "🔮 예측 적중!", text = ("%d 코인"):format(data.coins), money = "cash3" })
+				UIKit.rewardPopup({ title = "예측 적중!", text = ("%d 코인"):format(data.coins), money = "cash3" })
 			end
 		else
-			showToast(data.name ~= "" and ("🔮 아쉽다! %s 님이 이겼다"):format(data.name) or "🔮 아쉽다! 예측이 빗나갔다", cream)
+			showToast(data.name ~= "" and ("아쉽다! %s 님이 이겼다"):format(data.name) or "아쉽다! 예측이 빗나갔다", cream)
 		end
 	end
 end)

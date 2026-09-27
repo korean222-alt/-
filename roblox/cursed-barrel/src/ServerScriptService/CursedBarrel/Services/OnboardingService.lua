@@ -49,8 +49,23 @@ function OnboardingService:_run(player)
 	local lookingSince = os.clock()
 	local retry = math.max(1, tonumber(TUTORIAL.SeatRetry) or 3)
 	local giveUp = tonumber(TUTORIAL.GiveUpAfter) or 45
-	-- 들어오자마자 앉히면 화면이 채 뜨기 전이다. 잠깐 둘러볼 틈을 준다
-	task.wait(2.5)
+	-- Phase 32.1 : 들어오자마자 앉히지 않는다. 환영 창(TutorialController)에서 「튜토리얼 시작」을 누르거나
+	--   WelcomeWait 초가 지나거나, 스스로 다른 테이블에 앉으려 하면(= 놀 준비가 됐다) 시작한다.
+	player:SetAttribute("TutorialWelcome", true)
+	local welcomeUntil = os.clock() + (tonumber(TUTORIAL.WelcomeWait) or 30)
+	while player.Parent == Players and os.clock() < welcomeUntil and player:GetAttribute("TutorialGo") ~= true do
+		local blocked = tostring(player:GetAttribute("SeatBlocked") or "")
+		if blocked:sub(1, 8) == "tutorial" then
+			break
+		end
+		task.wait(0.25)
+	end
+	if player.Parent ~= Players then
+		self._running[player] = nil
+		return
+	end
+	player:SetAttribute("TutorialWelcome", nil)
+	lookingSince = os.clock()
 	while player.Parent == Players and player:GetAttribute("TutorialDone") ~= true do
 		local seatedTutorial, seatedTable = onTutorialTable(player)
 		if seatedTutorial then

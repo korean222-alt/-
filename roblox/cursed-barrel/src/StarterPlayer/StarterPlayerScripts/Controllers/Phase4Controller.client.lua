@@ -52,6 +52,7 @@ local StabMotion = require(package.Shared:WaitForChild("StabMotion"))
 local PirateModel = require(package.Shared:WaitForChild("PirateModel"))
 local EliminationFX = require(package.Shared:WaitForChild("EliminationFX"))
 local UIKit = require(package.Shared:WaitForChild("UIKit"))
+local ArtAtlas = require(package.Shared:WaitForChild("ArtAtlas")) -- Phase 32.1 : 타로 카드 · 해적 종류 아이콘 그림
 local Utility = require(package.Shared:WaitForChild("Utility"))
 local SKIN_ATTR = config.Skins.PlayerAttributes
 local TABLE_ATTR = config.TableAttributes
@@ -485,9 +486,11 @@ local tutorial
 do
 	tutorial = Instance.new("Frame")
 	tutorial.Name = "Tutorial"
-	tutorial.AnchorPoint = Vector2.new(0, 0.5)
-	tutorial.Position = UDim2.new(0, 22, 0.5, 0)
-	tutorial.Size = UDim2.fromOffset(340, 236)
+	-- Phase 32.1 : 들어오면 먼저 뜨는 환영 창 (가운데). 「튜토리얼 시작」을 누르거나 WelcomeWait 초가 지나면 시작한다.
+	--   예전에는 들어오자마자 2.5초 만에 튜토리얼 테이블에 앉혀서 무엇을 하는지 모른 채 판이 흘러갔다.
+	tutorial.AnchorPoint = Vector2.new(0.5, 0.5)
+	tutorial.Position = UDim2.fromScale(0.5, 0.5)
+	tutorial.Size = UDim2.fromOffset(400, 262)
 	tutorial.BackgroundColor3 = Color3.new(1, 1, 1)
 	tutorial.BorderSizePixel = 0
 	tutorial.ZIndex = 14
@@ -502,21 +505,25 @@ do
 			textSize = size or 14, color = color or cream, alignX = Enum.TextXAlignment.Left, zIndex = 15,
 		})
 	end
-	tutorialLine("게임 방법", 12, gold, 26)
-	tutorialLine("① 의자에 앉기", 52, cream, 20)
-	tutorialLine("② 내 차례에 칼 꽂을 자리 고르기", 84, cream, 20)
-	tutorialLine("③ 해적이 나오면 눌러서 잡기! (종류마다 방법이 달라요)", 116, teal, 20)
+	UIKit.autoScale(tutorial, UIKit.phoneFactor)
+	tutorialLine("어서 와요, 선원!", 12, gold, 26)
+	tutorialLine("1. 차례가 오면 칼 꽂을 자리를 골라요", 52, cream, 19)
+	tutorialLine("2. 해적이 튀어나오면 바로 눌러서 잡아요", 82, cream, 19)
+	tutorialLine("3. 해적마다 잡는 법이 달라요. 튜토리얼에서 하나씩!", 112, teal, 19)
 	-- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
 	-- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
-	local practiceStatus = tutorialLine("", 148, Color3.fromRGB(255, 150, 130), 14)
+	local practiceStatus = tutorialLine("", 150, Color3.fromRGB(255, 150, 130), 16)
 	practiceStatus.TextWrapped = true
 	local practiceBusy = false
 	local practiceSerial = 0
-	button(tutorial, "연습 한 판", UDim2.new(1, -250, 1, -54), UDim2.fromOffset(118, 42), function(b)
+	button(tutorial, "튜토리얼 시작", UDim2.new(0.5, -90, 1, -58), UDim2.fromOffset(180, 46), function(b)
 		if practiceBusy then
 			return
 		end
 		local r = remotes:FindFirstChild("VoyageRequest")
+		if r and player:GetAttribute("TutorialDone") ~= true then
+			r:FireServer("tutorialGo") -- Phase 32.1 : 환영 창 대기를 끝낸다 (못 앉히면 서버가 곧 다시 찾는다)
+		end
 		local reply = remotes:WaitForChild("PracticeResult", 5)
 		if not r or not reply then
 			practiceStatus.Text = "서버 준비 중이에요. 잠시 후 다시 눌러 주세요"
@@ -540,7 +547,7 @@ do
 			practiceBusy = false
 			if ok then
 				practiceStatus.Text = ""
-				b.Text = "연습 한 판"
+				b.Text = "튜토리얼 시작"
 				tutorial.Visible = false
 			else
 				practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
@@ -561,7 +568,7 @@ do
 			b.Text = "다시 시도"
 		end)
 	end)
-	local skipButton = button(tutorial, "알겠어요", UDim2.new(1, -124, 1, -54), UDim2.fromOffset(110, 42), function()
+	local skipButton = button(tutorial, "알겠어요", UDim2.new(1, -112, 0, 12), UDim2.fromOffset(98, 36), function()
 		tutorial.Visible = false
 	    local r=remotes:FindFirstChild("VoyageRequest");if r then r:FireServer("tutorial") end
 	end)
@@ -572,9 +579,28 @@ do
 		skipButton.Visible = not mandatory
 		if mandatory and player:GetAttribute("TutorialDone") ~= true and not practiceBusy then
 			practiceStatus.TextColor3 = gold
-			practiceStatus.Text = "🎓 곧 튜토리얼 테이블로 안내해요 (해적 다섯 종류 배우기)"
+			practiceStatus.Text = "놓쳐도 괜찮아요. 천천히 배워요"
 		end
 	end
+	-- Phase 32.1 : 환영 창 대기 시간 (서버 OnboardingService 와 같은 WelcomeWait)
+	task.spawn(function()
+		local waitFor = tonumber(config.Tutorial and config.Tutorial.WelcomeWait) or 30
+		local startedAt = nil
+		while gui.Parent and player:GetAttribute("TutorialDone") ~= true do
+			if player:GetAttribute("TutorialWelcome") == true then
+				startedAt = startedAt or os.clock()
+				if tutorial.Visible and not practiceBusy then
+					local left = math.max(0, math.ceil(waitFor - (os.clock() - startedAt)))
+					practiceStatus.TextColor3 = cream
+					practiceStatus.Text = ("놓쳐도 괜찮아요 · %d초 뒤 자동으로 시작해요"):format(left)
+				end
+			elseif startedAt then
+				drawMandatory()
+				startedAt = nil
+			end
+			task.wait(0.25)
+		end
+	end)
 	player:GetAttributeChangedSignal("TutorialFree"):Connect(drawMandatory)
 	player:GetAttributeChangedSignal("TutorialActive"):Connect(drawMandatory)
 	drawMandatory()
@@ -627,87 +653,101 @@ end
 -- Phase 32 : 운명 카드 (라운드마다 한 장)
 --   가운데에서 뒷면 → 뒤집혀 앞면(그림 · 이름 · 규칙) → 잠시 뒤 사라지고, 규칙은 알림판 아래 한 줄로 남는다.
 --   누를 것이 없다 (아래 칼 고르는 창 · 잡기 입력을 가리지 않는다).
+--   Phase 32.1 : Blender 로 렌더한 타로 카드 그림 (ArtAtlas). 그림을 올리기 전에는 같은 모양을 UI 로 그린다.
+--   그 테이블에 앉은 사람 · 관전하는 사람 모두에게 같은 카드가 보인다.
 --------------------------------------------------
 local showFateCard
 do
-	local fateCard = Instance.new("Frame")
-	fateCard.Name = "FateCard"
-	fateCard.AnchorPoint = Vector2.new(0.5, 0.5)
-	fateCard.Position = UDim2.fromScale(0.5, 0.47)
-	fateCard.Size = UDim2.fromOffset(280, 380)
-	fateCard.BackgroundColor3 = Color3.new(1, 1, 1)
+	local tarot = ArtAtlas.tarot(gui, { name = "FateCard", position = UDim2.fromScale(0.5, 0.45), zIndex = 40 })
+	local fateCard = tarot.holder
 	fateCard.Visible = false
-	fateCard.Active = false
-	fateCard.ZIndex = 40
-	fateCard.Parent = gui
-	UIKit.corner(fateCard, 22)
-	local fateStroke = UIKit.outline(fateCard, 6)
-	local fateGradient = Instance.new("UIGradient")
-	fateGradient.Rotation = 90
-	fateGradient.Parent = fateCard
 	local fateScale = Instance.new("UIScale")
 	fateScale.Parent = fateCard
-	local fateTop = textLabel("Top", UDim2.new(1, -20, 0, 34), UDim2.fromOffset(10, 14), 24, fateCard)
-	fateTop.ZIndex = 41
-	local fateIcon = textLabel("Icon", UDim2.new(1, 0, 0, 150), UDim2.fromOffset(0, 58), 120, fateCard)
-	fateIcon.ZIndex = 41
-	fateIcon.TextWrapped = false
-	local fateName = textLabel("Name", UDim2.new(1, -20, 0, 50), UDim2.fromOffset(10, 212), 40, fateCard)
-	fateName.ZIndex = 41
-	local fateText = textLabel("Rule", UDim2.new(1, -28, 0, 96), UDim2.fromOffset(14, 266), 24, fateCard)
-	fateText.ZIndex = 41
-	fateText.TextYAlignment = Enum.TextYAlignment.Top
+	-- 위 : "N 라운드 · 운명 카드" · 아래 : 규칙 (카드 밖에 두어 뒤집을 때 함께 접히지 않는다)
+	local fateTop = textLabel("Top", UDim2.new(1.4, 0, 0, 34), UDim2.new(-0.2, 0, 0, -42), 26, fateCard)
+	fateTop.ZIndex = 49
+	fateTop.TextColor3 = gold
+	local fateRule = Instance.new("TextLabel")
+	fateRule.Name = "Rule"
+	fateRule.AnchorPoint = Vector2.new(0.5, 0)
+	fateRule.Position = UDim2.new(0.5, 0, 1, 10)
+	fateRule.Size = UDim2.fromOffset(330, 0)
+	fateRule.AutomaticSize = Enum.AutomaticSize.Y
+	fateRule.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+	fateRule.BackgroundTransparency = 0.08
+	fateRule.FontFace = UIKit.font(true)
+	fateRule.TextSize = 21
+	fateRule.TextWrapped = true
+	fateRule.TextColor3 = cream
+	fateRule.ZIndex = 49
+	fateRule.Parent = fateCard
+	UIKit.corner(fateRule, 12)
+	UIKit.textStroke(fateRule, 2)
+	local ruleStroke = Instance.new("UIStroke")
+	ruleStroke.Color = Color3.fromRGB(226, 178, 88)
+	ruleStroke.Thickness = 2
+	ruleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ruleStroke.Parent = fateRule
+	local rulePad = Instance.new("UIPadding")
+	rulePad.PaddingTop = UDim.new(0, 8)
+	rulePad.PaddingBottom = UDim.new(0, 8)
+	rulePad.PaddingLeft = UDim.new(0, 12)
+	rulePad.PaddingRight = UDim.new(0, 12)
+	rulePad.Parent = fateRule
 	local fateToken = 0
 	local function fitFate()
 		local camera = workspace.CurrentCamera
 		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-		return math.clamp(math.min((view.X - 24) / 300, (view.Y - 120) / 420), 0.45, 1)
+		-- 카드(408) + 위 글자(42) + 아래 규칙(~70)
+		return math.clamp(math.min((view.X - 24) / 340, (view.Y - 110) / 540), 0.42, 1)
 	end
-	local function paintFate(card, faceUp)
-		if faceUp then
-			local color = card.color or gold
-			fateGradient.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.25), color:Lerp(Color3.new(0, 0, 0), 0.45))
-			fateIcon.Text = card.icon or "🃏"
-			fateName.Text = card.name or ""
-			fateText.Text = card.text or ""
-			fateStroke.Color = Color3.fromRGB(19, 21, 27)
-		else
-			fateGradient.Color = ColorSequence.new(Color3.fromRGB(70, 40, 110), Color3.fromRGB(24, 14, 40))
-			fateIcon.Text = "🃏"
-			fateName.Text = "운명 카드"
-			fateText.Text = ""
-			fateStroke.Color = gold
-		end
+	local function fold(token, alpha, time, style)
+		local value = Instance.new("NumberValue")
+		value.Value = alpha == 0 and 1 or 0
+		value.Changed:Connect(function(v)
+			if token == fateToken then
+				tarot.setWidth(v)
+			end
+		end)
+		local tween = Tween:Create(value, TweenInfo.new(time, style, alpha == 0 and Enum.EasingDirection.In or Enum.EasingDirection.Out), { Value = alpha })
+		tween:Play()
+		tween.Completed:Connect(function()
+			value:Destroy()
+		end)
+		return tween
 	end
 	function showFateCard(card, stage)
 		fateToken += 1
 		local token = fateToken
 		local base = fitFate()
-		fateTop.Text = ("%d 라운드"):format(stage or 1)
-		paintFate(card, false)
+		fateTop.Text = ("%d 라운드 · 운명 카드"):format(stage or 1)
+		fateRule.Text = ""
+		fateRule.Visible = false
+		tarot.paint(card, false)
+		tarot.setWidth(1)
 		fateCard.Visible = true
 		fateCard.Rotation = -8
 		fateScale.Scale = base * 0.3
-		Tween:Create(fateScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
-		Tween:Create(fateCard, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+		Tween:Create(fateScale, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
+		Tween:Create(fateCard, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
 		sound("riser", 1.25, 0.16)
 		-- 뒤집기 : 폭을 0 으로 접었다가 앞면으로 편다
-		task.delay(0.55, function()
+		task.delay(0.75, function()
 			if token ~= fateToken then
 				return
 			end
-			local fold = Tween:Create(fateCard, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.fromOffset(0, 380) })
-			fold:Play()
-			fold.Completed:Wait()
+			fold(token, 0, 0.16, Enum.EasingStyle.Quad).Completed:Wait()
 			if token ~= fateToken then
 				return
 			end
-			paintFate(card, true)
-			Tween:Create(fateCard, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(280, 380) }):Play()
+			tarot.paint(card, true)
+			fold(token, 1, 0.24, Enum.EasingStyle.Back)
+			fateRule.Text = card.text or ""
+			fateRule.Visible = fateRule.Text ~= ""
 			sound("win", 1.5, 0.25)
 			blink(card.color or gold, 0.25)
 		end)
-		task.delay(2.3, function()
+		task.delay(3.05, function()
 			if token ~= fateToken then
 				return
 			end
@@ -715,7 +755,6 @@ do
 			task.delay(0.32, function()
 				if token == fateToken then
 					fateCard.Visible = false
-					fateCard.Size = UDim2.fromOffset(280, 380)
 				end
 			end)
 		end)
@@ -1673,7 +1712,7 @@ local function kindLook(kindId)
 	if not def then
 		return nil
 	end
-	return { id = kindId, color = def.color, icon = def.icon, label = def.short, name = def.name, ghostly = kindId == "skull" }
+	return { id = kindId, color = def.color, label = def.short, name = def.name, ghostly = kindId == "skull" }
 end
 
 local function decorate(rig, look)
@@ -1690,22 +1729,26 @@ local function decorate(rig, look)
 	outline.Adornee = rig.model
 	outline.Parent = rig.model
 	local anchor = rig.model.PrimaryPart
-	if anchor and look.icon then
+	if anchor then
+		-- Phase 32.1 : 이모지 대신 종류 아이콘 그림 + 짧은 말
 		local tag = Instance.new("BillboardGui")
 		tag.Name = "KindTag"
-		tag.Size = UDim2.fromOffset(150, 70)
+		tag.Size = UDim2.fromOffset(176, 64)
 		tag.StudsOffsetWorldSpace = Vector3.new(0, 4.9, 0)
 		tag.AlwaysOnTop = true
 		tag.LightInfluence = 0
 		tag.Adornee = anchor
 		tag.Parent = rig.model
+		ArtAtlas.icon(tag, look.id or "normal", { size = UDim2.fromOffset(60, 60), position = UDim2.new(0, 0, 0.5, 0), anchor = Vector2.new(0, 0.5) })
 		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1, 1)
+		text.Size = UDim2.new(1, -64, 0.8, 0)
+		text.Position = UDim2.new(0, 64, 0.1, 0)
 		text.BackgroundTransparency = 1
 		text.FontFace = UIKit.font(true)
 		text.TextScaled = true
+		text.TextXAlignment = Enum.TextXAlignment.Left
 		text.TextColor3 = look.color
-		text.Text = look.icon .. " " .. (look.label or "")
+		text.Text = look.label or ""
 		text.Parent = tag
 		UIKit.textStroke(text, 3)
 	end
@@ -1988,28 +2031,27 @@ end
 --------------------------------------------------
 local showIntro, hideIntro
 do
+	-- Phase 32.1 : 540x180 → 460x150 (85%) · 알림판 바로 아래로 올려 잡기 고리를 덜 가린다 · 이모지 대신 아이콘 그림
 	local introCard = Instance.new("Frame")
 	introCard.Name = "KindIntro"
-	introCard.AnchorPoint = Vector2.new(0.5, 0.5)
-	introCard.Position = UDim2.fromScale(0.5, 0.3)
-	introCard.Size = UDim2.fromOffset(540, 180)
+	introCard.AnchorPoint = Vector2.new(0.5, 0)
+	introCard.Position = UDim2.new(0.5, 0, 0, 186)
+	introCard.Size = UDim2.fromOffset(460, 150)
 	introCard.BackgroundColor3 = Color3.new(1, 1, 1)
 	introCard.Visible = false
 	introCard.Active = false
 	introCard.ZIndex = 30
 	introCard.Parent = gui
 	UIKit.gradient(introCard, UIKit.Colors.Body, UIKit.Colors.BodyDark, 90)
-	UIKit.corner(introCard, 18)
-	local introStroke = UIKit.outline(introCard, 5)
+	UIKit.corner(introCard, 16)
+	local introStroke = UIKit.outline(introCard, 4)
 	local introScale = Instance.new("UIScale")
 	introScale.Parent = introCard
-	local introIcon = textLabel("Icon", UDim2.fromOffset(130, 130), UDim2.fromOffset(18, 25), 96, introCard)
-	introIcon.ZIndex = 31
-	introIcon.TextWrapped = false
-	local introName = textLabel("Name", UDim2.new(1, -170, 0, 50), UDim2.fromOffset(158, 18), 38, introCard)
+	local introIcon = ArtAtlas.icon(introCard, "normal", { size = UDim2.fromOffset(112, 112), position = UDim2.new(0, 14, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = 31 })
+	local introName = textLabel("Name", UDim2.new(1, -150, 0, 40), UDim2.fromOffset(138, 14), 32, introCard)
 	introName.ZIndex = 31
 	introName.TextXAlignment = Enum.TextXAlignment.Left
-	local introHow = textLabel("How", UDim2.new(1, -176, 0, 96), UDim2.fromOffset(158, 70), 24, introCard)
+	local introHow = textLabel("How", UDim2.new(1, -154, 0, 84), UDim2.fromOffset(138, 58), 20, introCard)
 	introHow.ZIndex = 31
 	introHow.TextXAlignment = Enum.TextXAlignment.Left
 	introHow.TextYAlignment = Enum.TextYAlignment.Top
@@ -2017,7 +2059,10 @@ do
 	local function fitIntro()
 		local camera = workspace.CurrentCamera
 		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-		introScale.Scale = math.clamp(math.min((view.X - 24) / 560, view.Y / 520), 0.5, 1)
+		local boardScale = math.clamp(math.min((view.X - 20) / 450, view.Y / 560), 0.6, 1)
+		introScale.Scale = math.clamp(math.min((view.X - 24) / 480, view.Y / 560), 0.5, 1)
+		-- 알림판(50 + 100) · 경고 한 줄 아래
+		introCard.Position = UDim2.new(0.5, 0, 0, math.floor(50 + 134 * boardScale))
 	end
 	fitIntro()
 	if workspace.CurrentCamera then
@@ -2030,16 +2075,18 @@ do
 		end
 		introToken += 1
 		local token = introToken
-		introIcon.Text = def.icon or "☠"
-		introName.Text = (tutorial and "🎓 " or "✨ 처음 보는 해적 · ") .. (def.name or "해적")
+		ArtAtlas.setIcon(introIcon, kindId or "normal")
+		introName.Text = tutorial and (def.name or "해적") or ("처음 보는 해적 · " .. (def.name or "해적"))
 		introName.TextColor3 = def.color or gold
 		introHow.Text = def.how or ""
 		if introStroke then
 			introStroke.Color = def.color or gold
 		end
-		introCard.Visible = true
-		introScale.Scale = introScale.Scale * 0.85
 		fitIntro()
+		local full = introScale.Scale
+		introScale.Scale = full * 0.85
+		Tween:Create(introScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = full }):Play()
+		introCard.Visible = true
 		sound("riser", 1.4, 0.14)
 		task.delay(math.max(0.6, untilClock - os.clock()), function()
 			if token == introToken then
@@ -2075,7 +2122,7 @@ for index, key in ipairs({ "L", "R" }) do
 	half.ZIndex = 16
 	half.Parent = sideGuide
 	local arrow = textLabel("Arrow", UDim2.fromOffset(220, 140), UDim2.new(0.5, -110, 0.62, -70), 110, half)
-	arrow.Text = key == "L" and "◀" or "▶"
+	arrow.Text = key == "L" and "←" or "→"
 	arrow.TextTransparency = 0.7
 	arrow.ZIndex = 17
 	sideHalves[key] = { frame = half, arrow = arrow }
@@ -2143,30 +2190,48 @@ local function endCatchUI()
 end
 
 -- 해적 종류마다 화면 아래 한 줄 안내
-local function kindHint(data)
-	local kind = data.kind or "normal"
-	local touch = Input.TouchEnabled and not Input.KeyboardEnabled
-	local line
-	if kind == "twin" then
-		line = "👯 두 마리가 차례로! 나올 때마다 한 번씩"
-	elseif kind == "side" then
-		line = touch and "🪝 튀어나온 쪽 화면(왼쪽 · 오른쪽)을 눌러요" or "🪝 튀어나온 쪽 : ← → 또는 A D (화면 왼쪽 · 오른쪽 클릭도 돼요)"
-	elseif kind == "skull" then
-		line = "👻 해골 유령은 누르면 탈락! 사라질 때까지 참아요"
-	elseif kind == "mash" then
-		line = ("💰 칼을 붙잡았다! %d번 빠르게 연타"):format(data.need or 5)
-	elseif kind == "angry" then
-		line = "😡 먹물을 뚫고 튀어나올 때 눌러요"
-	else
-		line = touch and "☠ 해적이 튀어나오면 화면을 탭!" or "☠ 해적이 튀어나오면 스페이스 · E · 클릭!"
+-- Phase 32.1 : 한 줄만 (예전에는 신입 보호 · 먼저 누르면 탈락까지 세 줄이 겹쳐 떴다). 신입 보호는 작은 구명환 표시로.
+local kindHint
+do
+	local rookieBadge = Instance.new("Frame")
+	rookieBadge.Name = "Rookie"
+	rookieBadge.AnchorPoint = Vector2.new(0.5, 1)
+	rookieBadge.Position = UDim2.new(0.5, 0, 0.62, -6)
+	rookieBadge.Size = UDim2.fromOffset(190, 40)
+	rookieBadge.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+	rookieBadge.BackgroundTransparency = 0.25
+	rookieBadge.Visible = false
+	rookieBadge.ZIndex = 18
+	rookieBadge.Parent = catchStage
+	UIKit.corner(rookieBadge, 20)
+	ArtAtlas.icon(rookieBadge, "lifebuoy", { size = UDim2.fromOffset(36, 36), position = UDim2.new(0, 4, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = 19 })
+	local rookieText = textLabel("Text", UDim2.new(1, -48, 1, 0), UDim2.fromOffset(44, 0), 18, rookieBadge)
+	rookieText.Text = "신입 보호 : 한 번 봐줘요"
+	rookieText.TextXAlignment = Enum.TextXAlignment.Left
+	rookieText.TextColor3 = gold
+	rookieText.ZIndex = 19
+	function kindHint(data)
+		local kind = data.kind or "normal"
+		local touch = Input.TouchEnabled and not Input.KeyboardEnabled
+		local line
+		if kind == "twin" then
+			line = "두 마리가 차례로! 나올 때마다 한 번씩"
+		elseif kind == "side" then
+			line = touch and "튀어나온 쪽 화면(왼쪽 · 오른쪽)을 눌러요" or "튀어나온 쪽 : ← → 또는 A D"
+		elseif kind == "skull" then
+			line = "해골 유령은 누르면 탈락! 사라질 때까지 참아요"
+		elseif kind == "mash" then
+			line = ("칼을 붙잡았다! %d번 빠르게 연타"):format(data.need or 5)
+		elseif kind == "angry" then
+			line = "먹물을 뚫고 튀어나올 때 눌러요"
+		elseif (tonumber(data.games) or 99) < 5 then
+			line = touch and "해적이 튀어나오면 화면을 탭! (먼저 누르면 탈락)" or "해적이 튀어나오면 스페이스 · E · 클릭! (먼저 누르면 탈락)"
+		else
+			line = touch and "해적이 튀어나오면 화면을 탭!" or "해적이 튀어나오면 스페이스 · E · 클릭!"
+		end
+		rookieBadge.Visible = data.rookie == true and data.tutorial ~= true
+		return line
 	end
-	if data.rookie then
-		line ..= "\n🛟 신입 보호 : 한 번은 봐줘요"
-	end
-	if (tonumber(data.games) or 99) < 5 and kind ~= "skull" then
-		line ..= "\n⚠ 나오기 전에 누르면 탈락!"
-	end
-	return line
 end
 
 local lastTapAt = 0
@@ -2189,7 +2254,7 @@ function sendCatch(side)
 	end
 	if kind == "side" and side == nil then
 		-- 방향이 없는 누름은 보내지 않는다 (먼저 누른 것으로 치지 않는다)
-		catchHint.Text = "🪝 방향을 눌러요!  ← 왼쪽 · 오른쪽 →"
+		catchHint.Text = "방향을 눌러요!  ← 왼쪽 · 오른쪽 →"
 		return
 	end
 	lastTapAt = os.clock()
@@ -2396,7 +2461,7 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	if not data.mine then
 		if not angry then
 			task.delay(math.max(0, opensLocal - os.clock()), function()
-				announce(("%s %s 잡는 중!"):format(look and look.icon or "", data.name or ""), look and look.color or gold, 1.2)
+				announce(("%s 잡는 중!"):format(data.name or ""), look and look.color or gold, 1.2)
 			end)
 		end
 		return
@@ -2468,9 +2533,9 @@ do
 				tip = "더 빠르게 연타!"
 			end
 			if mine then
-				announce((data.saved == "tutorial" and "다시! " or "🛟 한 번 봐줄게요! ") .. tip, gold, 2.2)
+				announce((data.saved == "tutorial" and "다시! " or "한 번 봐줄게요! ") .. tip, gold, 2.2)
 			else
-				announce(("%s · 🛟 다시 한 번!"):format(data.name or ""), gold, 1.4)
+				announce(("%s · 다시 한 번!"):format(data.name or ""), gold, 1.4)
 			end
 			for _, ghost in ipairs(ghosts) do
 				setGhostState(ghost, "fading")
@@ -2483,7 +2548,7 @@ do
 			local reaction = tonumber(data.reaction)
 			local text
 			if data.reason == "held" then
-				text = mine and "참았다! 👻 유령이 사라졌다" or ((data.name or "") .. " 참았다!")
+				text = mine and "참았다! 유령이 사라졌다" or ((data.name or "") .. " 참았다!")
 			elseif mine then
 				local timing = reaction and ("%.2f초 만에 "):format(math.max(0, reaction)) or ""
 				text = timing .. (data.kind == "mash" and "연타 성공!" or "잡았다!") .. (data.perfect and " 퍼펙트!" or "")
@@ -2714,7 +2779,7 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 			-- Phase 32 : 같은 상대에게 또 이겨서 연승이 그대로다 (다른 사람이 낀 판에서 이겨야 오른다)
 			if won and data.sameFoes then
 				task.delay(2.8, function()
-					announce("🔥 같은 상대라 연승은 그대로! 다른 선원과 이기면 올라요", cream, 2.8)
+					announce("같은 상대라 연승은 그대로! 다른 선원과 이기면 올라요", cream, 2.8)
 				end)
 			end
 			local alreadyOut = placeShown[model] == true
@@ -2760,15 +2825,15 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 		-- Phase 32 : 끝없는 라운드 · 5라운드마다 보너스
 		if own then
 			local coins = tonumber(data.coins) or 0
-			announce(("🌊 %d 라운드 돌파!%s"):format(tonumber(data.stage) or 0, coins > 0 and ((data.pot and "  현상금 +%s" or "  +%s"):format(Utility.comma(coins))) or ""), gold, 2.4)
+			announce(("%d 라운드 돌파!%s"):format(tonumber(data.stage) or 0, coins > 0 and ((data.pot and "  현상금 +%s" or "  +%s"):format(Utility.comma(coins))) or ""), gold, 2.4)
 			burst(pos + Vector3.new(0, 5, 0), gold, reduced and 10 or 36)
 			sound("jackpot", 1.2, 0.22)
 		end
 	elseif kind == "TutorialDone" then
 		-- Phase 32 : 튜토리얼 완료 (그 사람 화면에서만 크게)
 		if data.userId == player.UserId then
-			UIKit.rewardPopup({ title = "🎓 튜토리얼 완료!", text = ("%s 코인"):format(Utility.comma(tonumber(data.coins) or 0)), money = "chest", big = true })
-			announce("🎓 튜토리얼 완료! 이제 다른 선원들과 겨뤄 봐요", gold, 3)
+			UIKit.rewardPopup({ title = "튜토리얼 완료!", text = ("%s 코인"):format(Utility.comma(tonumber(data.coins) or 0)), money = "chest", big = true })
+			announce("튜토리얼 완료! 이제 다른 선원들과 겨뤄 봐요", gold, 3)
 		end
 	elseif kind == "Stage" then
 		-- Phase 15 : 한 명이 떨어지고 다음 라운드가 시작된다
@@ -2970,7 +3035,7 @@ Run.Heartbeat:Connect(function()
 			-- Phase 32 : 경고가 없으면 이번 라운드의 운명 카드를 한 줄로
 			local card = warning == "" and config.findFateCard(model:GetAttribute("FateCard")) or nil
 			if card then
-				warning = ("%s %s · %s"):format(card.icon or "🃏", card.name or "", card.text or "")
+				warning = ("%s · %s"):format(card.name or "", card.text or "")
 				detail.TextColor3 = card.color or gold
 			end
 			detail.Text = warning
@@ -3105,8 +3170,8 @@ do
 		return head.Position + head.CFrame.LookVector * 0.35 + Vector3.new(0, 0.3, 0)
 	end
 
-	-- 게임 중 오른쪽 위 「👁 1인칭」 버튼 (누를 때마다 3인칭 ↔ 1인칭 · 설정에 저장된다)
-	local viewButton = UIKit.button(gui, { text = "👁 1인칭", position = UDim2.new(1, -162, 0, 58), size = UDim2.fromOffset(150, 44), theme = "blue", textSize = 18, zIndex = 12 })
+	-- 게임 중 오른쪽 위 「1인칭」 버튼 (누를 때마다 3인칭 ↔ 1인칭 · 설정에 저장된다)
+	local viewButton = UIKit.button(gui, { text = "1인칭", position = UDim2.new(1, -162, 0, 58), size = UDim2.fromOffset(150, 44), theme = "blue", textSize = 18, zIndex = 12 })
 	viewButton.Name = "ViewToggle"
 	viewButton.Visible = false
 	viewButton.Activated:Connect(function()
@@ -3121,7 +3186,7 @@ do
 	function drawViewButton()
 		local show = active ~= nil and cameraOn and tableOfCharacter() == active and player:GetAttribute("PirateFocus") ~= true
 		viewButton.Visible = show
-		viewButton.Text = firstPerson and "🎥 3인칭" or "👁 1인칭"
+		viewButton.Text = firstPerson and "3인칭" or "1인칭"
 	end
 end
 
@@ -3270,7 +3335,7 @@ do
 			if kind == "skull" then
 				-- 참는 시간 : 고리가 다 줄면 산다
 				ringStroke.Color = Color3.fromRGB(230, 236, 255)
-				catchText.Text = "✋ 참아!"
+				catchText.Text = "참아!"
 				catchText.TextColor3 = Color3.fromRGB(230, 236, 255)
 				return
 			end
@@ -3280,7 +3345,7 @@ do
 				catchText.Text = ("연타! %d/%d"):format(math.min(catch.taps or 0, need), need)
 				catchText.TextColor3 = gold
 			elseif kind == "side" then
-				catchText.Text = catch.side == "L" and "◀ 왼쪽!" or "오른쪽! ▶"
+				catchText.Text = catch.side == "L" and "← 왼쪽!" or "오른쪽! →"
 				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
 			elseif kind == "twin" then
 				catchText.Text = (catch.step or 1) == 1 and "하나!" or "둘!"

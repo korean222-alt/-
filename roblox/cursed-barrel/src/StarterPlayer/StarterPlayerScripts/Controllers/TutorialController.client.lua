@@ -16,6 +16,7 @@ local player = Players.LocalPlayer
 local package = RS:WaitForChild("CursedBarrel")
 local config = require(package.Shared:WaitForChild("GameConfig"))
 local UIKit = require(package.Shared:WaitForChild("UIKit"))
+local ArtAtlas = require(package.Shared:WaitForChild("ArtAtlas")) -- Phase 32.1 : 해적 종류 아이콘 그림 (이모지 대신)
 local remotes = package:WaitForChild("Remotes")
 local catchPrompt = remotes:WaitForChild(config.Remotes.CatchPrompt)
 
@@ -99,16 +100,22 @@ listPadding.PaddingBottom = UDim.new(0, 10)
 listPadding.PaddingLeft = UDim.new(0, 12)
 listPadding.PaddingRight = UDim.new(0, 12)
 listPadding.Parent = list
-local listTitle = UIKit.label(list, { text = "🎓 튜토리얼 · 해적 잡기", size = UDim2.new(1, 0, 0, 30), textSize = 20, color = UIKit.Colors.Gold, stroke = 2.5 })
+local listTitle = UIKit.label(list, { text = "튜토리얼 · 해적 잡기", size = UDim2.new(1, 0, 0, 30), textSize = 20, color = UIKit.Colors.Gold, stroke = 2.5 })
 listTitle.LayoutOrder = 0
 listTitle.TextXAlignment = Enum.TextXAlignment.Left
 local rows = {}
 for index, kindId in ipairs(TUTORIAL.Kinds or {}) do
 	local def = KINDS.List[kindId] or {}
-	local row = UIKit.label(list, { text = "", size = UDim2.new(1, 0, 0, 30), textSize = 18, color = UIKit.Colors.Cream, stroke = 2 })
-	row.LayoutOrder = index
+	local line = Instance.new("Frame")
+	line.Name = "Row" .. index
+	line.BackgroundTransparency = 1
+	line.Size = UDim2.new(1, 0, 0, 34)
+	line.LayoutOrder = index
+	line.Parent = list
+	local icon = ArtAtlas.icon(line, kindId, { size = UDim2.fromOffset(32, 32), position = UDim2.new(0, 0, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = list.ZIndex + 1 })
+	local row = UIKit.label(line, { text = "", size = UDim2.new(1, -40, 1, 0), position = UDim2.fromOffset(40, 0), textSize = 18, color = UIKit.Colors.Cream, stroke = 2 })
 	row.TextXAlignment = Enum.TextXAlignment.Left
-	rows[index] = { label = row, def = def }
+	rows[index] = { label = row, icon = icon, def = def }
 end
 local listFoot = UIKit.label(list, { text = "놓쳐도 괜찮아요! 다시 나와요", size = UDim2.new(1, 0, 0, 24), textSize = 15, color = UIKit.Colors.Cream, stroke = 2 })
 listFoot.LayoutOrder = 99
@@ -119,15 +126,22 @@ local function drawList(step)
 		local def = row.def
 		local done = index < step
 		local now = index == step
-		row.label.Text = ("%s %s %s  %s"):format(done and "✔" or (now and "▶" or "·"), def.icon or "", def.name or "", now and ("— " .. (def.short or "")) or "")
+		row.label.Text = ("%s%s"):format(def.name or "", done and "  완료" or (now and ("  " .. (def.short or "")) or ""))
 		row.label.TextColor3 = done and UIKit.Colors.Green or (now and (def.color or UIKit.Colors.Gold) or UIKit.Colors.Cream)
-		row.label.TextTransparency = (done or now) and 0 or 0.35
+		row.label.TextTransparency = (done or now) and 0 or 0.4
+		local art = row.icon:FindFirstChild("Art")
+		if art then
+			art.ImageTransparency = (done or now) and 0 or 0.5
+		end
 	end
 end
 
 local catchHintUntil = 0
 local finishedUntil = 0
 local lastTable = nil
+-- Phase 32.1 : "칼 꽂을 자리를 골라요" 는 첫 차례에 한 번만 (매 차례 떠서 헷갈렸다)
+local pickTold = false
+local pickShownUntil = 0
 
 local function seatedTable()
 	local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -151,14 +165,14 @@ end)
 player:GetAttributeChangedSignal("SeatBlocked"):Connect(function()
 	local why = tostring(player:GetAttribute("SeatBlocked") or ""):match("^(%a+)")
 	if why == "tutorial" then
-		UIKit.toast("🎓 먼저 튜토리얼을 끝내 주세요! 곧 튜토리얼 테이블로 안내해요", UIKit.Colors.Gold, 3)
+		UIKit.toast("먼저 튜토리얼을 끝내 주세요!", UIKit.Colors.Gold, 3)
 	elseif why == "busy" then
 		UIKit.toast("다른 선원이 튜토리얼 중인 테이블이에요", UIKit.Colors.Cream, 2.4)
 	end
 end)
 player:GetAttributeChangedSignal("TutorialFree"):Connect(function()
 	if player:GetAttribute("TutorialFree") == true then
-		UIKit.toast("빈 연습 테이블이 없어서 바로 시작해요! 처음 몇 판은 🛟 신입 보호가 있어요", UIKit.Colors.Gold, 3.4)
+		UIKit.toast("빈 연습 테이블이 없어서 바로 시작해요! 처음 몇 판은 신입 보호가 있어요", UIKit.Colors.Gold, 3.4)
 	end
 end)
 
@@ -179,12 +193,16 @@ Run.Heartbeat:Connect(function()
 	if mine then
 		local state = model:GetAttribute(TABLE_ATTR.State)
 		if state == STATES.Waiting or state == STATES.Countdown or state == STATES.Starting then
-			text = total > 0 and "🎓 튜토리얼! 해적 다섯 종류를 잡아 봐요" or "연습 판!"
+			text = total > 0 and "튜토리얼! 해적 다섯 종류를 하나씩 잡아 봐요" or "연습 판!"
 		elseif state == STATES.Playing then
 			if os.clock() < catchHintUntil then
 				text = nil -- 해적 설명 카드 · 잡기 안내가 대신한다
-			elseif model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId and step >= 1 and step <= total then
-				text = "🗡 칼 꽂을 자리를 골라요 (튜토리얼에서는 늘 해적이 나와요)"
+			elseif model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId and step >= 1 and step <= total and (not pickTold or os.clock() < pickShownUntil) then
+				if not pickTold then
+					pickTold = true
+					pickShownUntil = os.clock() + 5
+				end
+				text = "내 차례! 아래에서 칼 꽂을 자리를 하나 골라요"
 			elseif model:GetAttribute(TABLE_ATTR.BraveOfferUserId) == player.UserId then
 				text = "자리를 또 누르면 계속 꽂기 = 보너스 코인" -- Phase 24.10 : "한 번 더" 버튼 없음
 			end
@@ -198,11 +216,13 @@ Run.Heartbeat:Connect(function()
 		lastTable = nil
 	end
 	if not text and os.clock() < finishedUntil then
-		text = player:GetAttribute("TutorialDone") == true and "🎓 튜토리얼 끝! 이제 다른 선원들과 겨뤄 봐요" or "연습 끝!"
+		text = player:GetAttribute("TutorialDone") == true and "튜토리얼 끝! 이제 다른 선원들과 겨뤄 봐요" or "연습 끝!"
 	end
 	-- Phase 32 : 아직 안 앉았는데 튜토리얼을 기다리는 중
-	if not mine and not seatedTable() and player:GetAttribute("TutorialActive") == true and player:GetAttribute("TutorialDone") ~= true then
-		text = "🎓 곧 튜토리얼 테이블로 안내해요…"
+	-- (환영 창이 떠 있는 동안에는 띄우지 않는다)
+	if not mine and not seatedTable() and player:GetAttribute("TutorialActive") == true and player:GetAttribute("TutorialDone") ~= true
+		and player:GetAttribute("TutorialWelcome") ~= true then
+		text = "튜토리얼 테이블로 안내하는 중…"
 	end
 	card.Visible = text ~= nil
 	if text then

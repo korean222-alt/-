@@ -126,6 +126,9 @@ function Service:onRequest(player,action,a,b,c,d,e)
  local message=nil
  if action=="sync" then
  elseif action=="setting" then self:settings(player,a,b)
+ elseif action=="tutorialGo" then
+  -- Phase 32.1 : 환영 창에서 「튜토리얼 시작」 (OnboardingService 가 이것을 보고 연습 테이블에 앉힌다)
+  if player:GetAttribute("TutorialDone")~=true then player:SetAttribute("TutorialGo",true) end
  elseif action=="tutorial" then
   -- Phase 32 : 튜토리얼은 필수라 "알겠어요"로 건너뛸 수 없다 (연습 테이블을 못 찾아 필수가 풀린 사람만)
   if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then

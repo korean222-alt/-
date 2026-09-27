@@ -163,7 +163,7 @@ function RewardService:Spin(player, today, mode)
 			return false, "돌아온 해적 상자가 없어요"
 		end
 		if not spin.comebackReady then
-			return false, "🎁 한 판을 끝까지 하면 열 수 있어요"
+			return false, "한 판을 끝까지 하면 열 수 있어요"
 		end
 		profile.comebackChest = false
 		boost = ROULETTE.ComebackBoost
@@ -172,7 +172,7 @@ function RewardService:Spin(player, today, mode)
 			return false, REJECT.NoSpins
 		end
 		if not spin.unlocked then
-			return false, ("🔒 오늘 %d판을 끝까지 하면 열려요 (%d/%d)"):format(spin.need, spin.games, spin.need)
+			return false, ("오늘 %d판을 끝까지 하면 열려요 (%d/%d)"):format(spin.need, spin.games, spin.need)
 		end
 		profile.freeSpinDay = today
 	end

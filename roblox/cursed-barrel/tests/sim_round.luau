@@ -769,7 +769,18 @@ local expert = newHuman(101, 50, true)
 local s1 = runScenario({ name = "잘하는 사람 + AI 셋", humans = { { player = expert, policy = skilled } }, bots = 3, botSkill = 0.55, maxTime = 7200 })
 expect(s1.errors == 0, "오류 없이 돈다")
 expect(not s1.timedOut, "판이 끝난다")
-expect((s1.kinds.twin or 0) + (s1.kinds.side or 0) + (s1.kinds.skull or 0) + (s1.kinds.mash or 0) > 0 or s1.stages < 2, "2라운드부터 새 종류가 나온다")
+-- 사람 하나 + AI 셋이면 사람이 만나는 해적이 한 판에 몇 마리뿐이라 판마다 운이다. 종류 뽑기는 직접 본다
+local picker = Random.new(4242)
+local stage1, stage2, stage5 = {}, {}, {}
+for _ = 1, 400 do
+	local k1, k2, k5 = GameConfig.pickPirateKind(1, nil, picker), GameConfig.pickPirateKind(2, nil, picker), GameConfig.pickPirateKind(5, nil, picker)
+	stage1[k1] = (stage1[k1] or 0) + 1
+	stage2[k2] = (stage2[k2] or 0) + 1
+	stage5[k5] = (stage5[k5] or 0) + 1
+end
+expect(stage1.normal == 400, "1라운드는 보통 해적만")
+expect((stage2.twin or 0) > 40 and not stage2.side, ("2라운드부터 쌍둥이가 섞인다 (400번 중 %d)"):format(stage2.twin or 0))
+expect((stage5.twin or 0) > 0 and (stage5.side or 0) > 0 and (stage5.skull or 0) > 0 and (stage5.mash or 0) > 0 and not stage5.angry, "5라운드면 다섯 종류가 모두 섞인다 (분노한 해적은 7라운드부터)")
 local cardCount = 0
 for _ in pairs(s1.cards) do
 	cardCount += 1
@@ -786,7 +797,12 @@ expect(s2.stages > 8, ("8라운드를 넘긴다 (%d라운드까지 · 둘 다 �
 local rookie = newHuman(301, 0, true)
 local s3 = runScenario({ name = "서툰 신입 + AI 셋", humans = { { player = rookie, policy = hasty } }, bots = 3, maxTime = 1800 })
 expect(s3.errors == 0, "오류 없이 돈다")
-expect(s3.saves == 1, ("신입 보호는 한 판에 한 번 (%d번)"):format(s3.saves))
+local rookieMet = 0
+for _, count in pairs(s3.kinds) do
+	rookieMet += count
+end
+-- (AI 셋과 하면 해적을 한 번도 안 만나고 끝나는 판도 드물게 있다. 그때는 살려 줄 일이 없다)
+expect(s3.saves == 1 or rookieMet == 0, ("신입 보호는 한 판에 한 번 (%d번 · 만난 해적 %d)"):format(s3.saves, rookieMet))
 expect(not s3.timedOut, "판이 끝난다")
 
 -- 4) 튜토리얼 : 다섯 종류를 모두 잡아야 끝나고, 튜토리얼한 사람이 이긴다

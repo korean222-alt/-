@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "32.0.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
+C.Version = "32.1.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
 
 --------------------------------------------------
 -- Phase 17 : 출시에 필요한 ID 는 전부 이 파일에 적는다 (숫자만)
@@ -142,6 +142,11 @@ C.Images.Skins = {
 -- Phase 17 : 꽃잎 그림 (선택). roblox-cursed-barrel/fx/petal.png 를 올린 ID. 신화 스킨에 꽃잎 입자가 더 붙는다
 --   0 이어도 Blender 꽃잎 조각은 흩날린다.
 C.Images.Petal = 135693097571222
+-- Phase 32.1 : 운명 카드(타로) · 해적 종류 아이콘. art/sheets/ 의 PNG 네 장을 올린 이미지 ID.
+--   FateCards = { cards_1.png, cards_2.png, cards_3.png } · PirateIcons = icons.png
+--   0 인 동안에는 같은 모양의 카드 · 둥근 휘장을 UI 로 그려 보여 준다 (ArtAtlas).
+C.Images.FateCards = { 0, 0, 0 }
+C.Images.PirateIcons = 0
 C.Branding = {
  -- Exact user-supplied images are in assets/branding, unchanged.
  -- Roblox ImageButton requires a Roblox-uploaded image asset ID, not a local JPEG path.

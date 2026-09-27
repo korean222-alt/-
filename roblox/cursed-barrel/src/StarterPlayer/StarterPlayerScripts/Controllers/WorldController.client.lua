@@ -517,7 +517,7 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 		-- Phase 32 : 보상 표의 칸은 문자열 UserId 다 (RemoteEvent 는 숫자 칸 표를 그대로 넘기지 못한다)
 		local mine = data.rewards and (data.rewards[tostring(player.UserId)] or data.rewards[player.UserId])
 		if data.state == "victory" then
-			announce(mine and "🐙 크라켄 퇴치!" or "🐙 크라켄 퇴치! (대포로 맞힌 사람은 5,000 코인)", teal, 3)
+			announce(mine and "크라켄 퇴치!" or "크라켄 퇴치! (대포로 맞힌 사람은 5,000 코인)", teal, 3)
 			Sfx.play("Coins", { volume = 0.6 })
 		elseif data.state == "escaped" then
 			announce("크라켄이 물러났다", cream, 2.5)
@@ -533,7 +533,7 @@ worldCue.OnClientEvent:Connect(function(kind, data)
 				money = won and "chest" or "cash",
 			})
 			if not inTableMatch() then
-				announce(won and ("🐙 크라켄 퇴치!  +%s"):format(Utility.comma(coins)) or ("크라켄이 물러났다  +%s"):format(Utility.comma(coins)), won and teal or cream, 3)
+				announce(won and ("크라켄 퇴치!  +%s"):format(Utility.comma(coins)) or ("크라켄이 물러났다  +%s"):format(Utility.comma(coins)), won and teal or cream, 3)
 			end
 			Sfx.play("Coins", { volume = won and 0.9 or 0.5 })
 		end

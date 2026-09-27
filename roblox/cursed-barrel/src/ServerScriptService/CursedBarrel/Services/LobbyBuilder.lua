@@ -551,7 +551,7 @@ function LobbyBuilder:_buildLikeReward()
 	end
 	-- Phase 22 : 그룹 대신 출시 기념 코드로 준다 (🎟 코드에 love)
 	-- Phase 32 : "출시 기념" → "게임 출시 기념"
-	line("🎁 게임 출시 기념 선물!", 0, 0.4, Color3.fromRGB(255, 255, 255))
+	line("게임 출시 기념 선물!", 0, 0.4, Color3.fromRGB(255, 255, 255))
 	line("🎟 코드에 love 를 입력하세요", 0.4, 0.34, Color3.fromRGB(255, 226, 120))
 	line("파란 철제 드럼 무료!", 0.76, 0.24, Color3.fromRGB(120, 200, 255))
 

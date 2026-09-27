@@ -696,10 +696,8 @@ function Round:_drawCard(stage)
 	local cards = GameConfig.FateCards
 	local card = nil
 	if cards and cards.Enabled then
-		if self.tutorial then
-			-- 튜토리얼 : 첫 라운드에만 정해진 카드 (카드가 무엇인지 보여 준다)
-			card = stage == 1 and GameConfig.findFateCard(GameConfig.Tutorial.Card or "sleepy") or nil
-		else
+		-- Phase 32.1 : 튜토리얼 판에는 카드가 없다 (해적 종류만 배운다 · 한꺼번에 읽을 것을 줄인다)
+		if not self.tutorial then
 			card = GameConfig.drawFateCard(stage, self.card and self.card.id, self.random)
 		end
 	end
@@ -1059,6 +1057,10 @@ end
 function Round:_botThink(bot, token)
 	local config = GameConfig.Bots
 	local delay = config.ThinkMin + self.random:NextNumber() * math.max(0, config.ThinkMax - config.ThinkMin)
+	-- Phase 32.1 : 튜토리얼 판의 AI 는 천천히 고른다 (방금 본 것을 읽을 틈)
+	if self:_tutorialActive() then
+		delay += tonumber(GameConfig.Tutorial.BotThinkExtra) or 0
+	end
 	task.delay(delay, function()
 		if self.destroyed or token ~= self.turnToken or self.resolving then
 			return
@@ -2137,7 +2139,14 @@ function Round:_resolveCatch(success, reason)
 
 	self.phaseToken += 1
 	local token = self.phaseToken
-	task.delay(tutorialDone and (CATCH.Hold + 1.2) or CATCH.Hold, function()
+	-- Phase 32.1 : 튜토리얼에서 한 종류를 잡을 때마다 잠깐 쉰다 (체크 목록이 넘어가는 것을 보게)
+	local hold = CATCH.Hold
+	if tutorialDone then
+		hold += 1.2
+	elseif tutorialStep then
+		hold += tonumber(GameConfig.Tutorial.StepPause) or 0
+	end
+	task.delay(hold, function()
 		if self.destroyed or token ~= self.phaseToken then
 			return
 		end

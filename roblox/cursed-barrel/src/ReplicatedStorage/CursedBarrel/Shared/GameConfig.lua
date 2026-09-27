@@ -264,7 +264,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
-	LikeOnly = "🎟 게임 출시 기념 선물이에요 (코드에 love 입력 · 스폰 계단 아래 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다 · Phase 32 : 받침대가 스폰 계단 아래로 옮겼다
+	LikeOnly = "게임 출시 기념 선물이에요 (코드에 love 입력 · 스폰 계단 아래 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다 · Phase 32 : 받침대가 스폰 계단 아래로 옮겼다
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -1559,13 +1559,19 @@ GameConfig.Tutorial = {
 	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
 	Mandatory = true,
 	Kinds = { "normal", "twin", "side", "skull", "mash" },
-	IntroLead = 3.4, -- 설명 카드를 보여 주는 동안 (이 시간 뒤에 해적이 나온다)
+	IntroLead = 4.4, -- 설명 카드를 보여 주는 동안 (이 시간 뒤에 해적이 나온다) · Phase 32.1 : 3.4 → 4.4 (읽을 틈)
 	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
 	MaxIdleMisses = 3,
 	Reward = 500,
 	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
 	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
-	Card = "sleepy", -- 튜토리얼 첫 라운드의 운명 카드 (카드가 무엇인지 보여 준다)
+	-- Phase 32.1 : 천천히 (들어오자마자 시작되고 너무 빨리 흘러가서 한꺼번에 읽을 것이 많았다)
+	--   · 들어오면 먼저 환영 창. 「튜토리얼 시작」을 누르거나 WelcomeWait 초가 지나면 연습 테이블에 앉는다
+	--   · 튜토리얼 판에는 운명 카드가 없다 (해적 종류만 배운다)
+	--   · 해적을 잡을 때마다 StepPause 초 쉬고, AI 는 BotThinkExtra 초 더 천천히 고른다
+	WelcomeWait = 30,
+	StepPause = 2.2,
+	BotThinkExtra = 1.2,
 }
 
 --------------------------------------------------
@@ -1585,16 +1591,16 @@ GameConfig.PirateKinds = {
 	Enabled = true,
 	Order = { "normal", "twin", "side", "skull", "mash", "angry" },
 	List = {
-		normal = { name = "해적", icon = "☠", short = "탭!", how = "튀어나오면 한 번 눌러요!", color = Color3.fromRGB(101, 241, 211), unlock = 1, weight = 50 },
-		twin = { name = "쌍둥이 해적", icon = "👯", short = "하나 · 둘!", how = "두 마리가 차례로 튀어나와요. 나올 때마다 한 번씩!", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
+		normal = { name = "해적", short = "탭!", how = "튀어나오면 한 번 눌러요!", color = Color3.fromRGB(101, 241, 211), unlock = 1, weight = 50 },
+		twin = { name = "쌍둥이 해적", short = "하나 · 둘!", how = "두 마리가 차례로 튀어나와요. 나올 때마다 한 번씩!", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
 			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9 },
-		side = { name = "갈고리 해적", icon = "🪝", short = "◀ 쪽 · 쪽 ▶", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 16,
+		side = { name = "갈고리 해적", short = "← 쪽 · 쪽 →", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 16,
 			windowScale = 1.2 },
-		skull = { name = "해골 유령", icon = "👻", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
+		skull = { name = "해골 유령", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
 			show = 1.2 },
-		mash = { name = "욕심쟁이 해적", icon = "💰", short = "연타!", how = "칼을 붙잡았어요! 빠르게 여러 번 눌러요!", color = Color3.fromRGB(255, 206, 80), unlock = 5, weight = 12,
+		mash = { name = "욕심쟁이 해적", short = "연타!", how = "칼을 붙잡았어요! 빠르게 여러 번 눌러요!", color = Color3.fromRGB(255, 206, 80), unlock = 5, weight = 12,
 			taps = 5, tapsEvery = 4, maxTaps = 8, window = 1.8, minWindow = 1.3, minGap = 0.045 },
-		angry = { name = "분노한 해적", icon = "😡", short = "먹물 뒤에 탭!", how = "먹물을 뿜어요! 먹물을 뚫고 튀어나올 때 눌러요", color = Color3.fromRGB(255, 70, 60), unlock = 7, weight = 7 },
+		angry = { name = "분노한 해적", short = "먹물 뒤에 탭!", how = "먹물을 뿜어요! 먹물을 뚫고 튀어나올 때 눌러요", color = Color3.fromRGB(255, 70, 60), unlock = 7, weight = 7 },
 	},
 	FirstSightLead = 1.8, -- 처음 만나는 종류는 설명 카드를 보여 줄 만큼 해적이 늦게 나온다
 }
@@ -1641,21 +1647,21 @@ end
 --------------------------------------------------
 GameConfig.FateCards = {
 	Enabled = true,
-	RevealTime = 2.6, -- 카드를 뒤집어 보여 주는 동안 다음 차례를 기다린다
+	RevealTime = 3.4, -- Phase 32.1 : 2.6 → 3.4 (타로 카드를 읽을 시간) -- 카드를 뒤집어 보여 주는 동안 다음 차례를 기다린다
 	List = {
-		{ id = "gold", name = "황금 통", icon = "💰", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
-		{ id = "sleepy", name = "졸린 해적", icon = "😴", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
-		{ id = "storm", name = "성난 바다", icon = "🌊", text = "잡는 시간 -15% · 현상금 1.5배", weight = 9, window = 0.85, pot = 1.5, minStage = 2, color = Color3.fromRGB(80, 160, 255) },
-		{ id = "twins", name = "쌍둥이의 밤", icon = "👯", text = "이번 라운드 해적은 전부 쌍둥이!", weight = 8, kind = "twin", minStage = 2, color = Color3.fromRGB(255, 150, 70) },
-		{ id = "ghosts", name = "유령선", icon = "👻", text = "해골 유령이 자주 나와요 (누르지 말고 참기!)", weight = 8, kindBoost = { skull = 5 }, minStage = 4, color = Color3.fromRGB(230, 236, 255) },
-		{ id = "hooks", name = "갈고리 폭풍", icon = "🪝", text = "갈고리 해적이 자주 나와요 (방향 보고 누르기!)", weight = 8, kindBoost = { side = 5 }, minStage = 3, color = Color3.fromRGB(120, 180, 255) },
-		{ id = "greed", name = "황금 욕심", icon = "💎", text = "욕심쟁이 해적이 자주 · 잡으면 코인 2배", weight = 7, kindBoost = { mash = 5 }, catchCoins = 2, minStage = 5, color = Color3.fromRGB(120, 255, 214) },
-		{ id = "lucky", name = "행운의 통", icon = "🍀", text = "해적 -1 · 보물 폭발 2배", weight = 10, pirates = -1, surge = 2, gentle = true, color = Color3.fromRGB(120, 230, 120) },
-		{ id = "blades", name = "불꽃 칼날", icon = "🔥", text = "안전한 자리 코인 2배", weight = 10, safe = 2, gentle = true, color = Color3.fromRGB(255, 120, 70) },
-		{ id = "brave", name = "배짱 축제", icon = "🎯", text = "한 번 더 찌르기 보상 2배", weight = 8, brave = 2, gentle = true, color = Color3.fromRGB(255, 160, 70) },
-		{ id = "drift", name = "떠도는 해적", icon = "🌀", text = "차례마다 해적이 자리를 옮겨요", weight = 7, shuffle = true, minStage = 2, color = Color3.fromRGB(196, 150, 255) },
-		{ id = "hurry", name = "급한 물살", icon = "⏱", text = "고르는 시간이 짧아요", weight = 6, turn = 0.6, minStage = 2, color = Color3.fromRGB(255, 96, 78) },
-		{ id = "calm", name = "잔잔한 바다", icon = "⚓", text = "특별한 일 없음 · 숨 돌리기", weight = 6, gentle = true, color = Color3.fromRGB(244, 231, 198) },
+		{ id = "gold", name = "황금 통", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
+		{ id = "sleepy", name = "졸린 해적", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
+		{ id = "storm", name = "성난 바다", text = "잡는 시간 -15% · 현상금 1.5배", weight = 9, window = 0.85, pot = 1.5, minStage = 2, color = Color3.fromRGB(80, 160, 255) },
+		{ id = "twins", name = "쌍둥이의 밤", text = "이번 라운드 해적은 전부 쌍둥이!", weight = 8, kind = "twin", minStage = 2, color = Color3.fromRGB(255, 150, 70) },
+		{ id = "ghosts", name = "유령선", text = "해골 유령이 자주 나와요 (누르지 말고 참기!)", weight = 8, kindBoost = { skull = 5 }, minStage = 4, color = Color3.fromRGB(230, 236, 255) },
+		{ id = "hooks", name = "갈고리 폭풍", text = "갈고리 해적이 자주 나와요 (방향 보고 누르기!)", weight = 8, kindBoost = { side = 5 }, minStage = 3, color = Color3.fromRGB(120, 180, 255) },
+		{ id = "greed", name = "황금 욕심", text = "욕심쟁이 해적이 자주 · 잡으면 코인 2배", weight = 7, kindBoost = { mash = 5 }, catchCoins = 2, minStage = 5, color = Color3.fromRGB(120, 255, 214) },
+		{ id = "lucky", name = "행운의 통", text = "해적 -1 · 보물 폭발 2배", weight = 10, pirates = -1, surge = 2, gentle = true, color = Color3.fromRGB(120, 230, 120) },
+		{ id = "blades", name = "불꽃 칼날", text = "안전한 자리 코인 2배", weight = 10, safe = 2, gentle = true, color = Color3.fromRGB(255, 120, 70) },
+		{ id = "brave", name = "배짱 축제", text = "한 번 더 찌르기 보상 2배", weight = 8, brave = 2, gentle = true, color = Color3.fromRGB(255, 160, 70) },
+		{ id = "drift", name = "떠도는 해적", text = "차례마다 해적이 자리를 옮겨요", weight = 7, shuffle = true, minStage = 2, color = Color3.fromRGB(196, 150, 255) },
+		{ id = "hurry", name = "급한 물살", text = "고르는 시간이 짧아요", weight = 6, turn = 0.6, minStage = 2, color = Color3.fromRGB(255, 96, 78) },
+		{ id = "calm", name = "잔잔한 바다", text = "특별한 일 없음 · 숨 돌리기", weight = 6, gentle = true, color = Color3.fromRGB(244, 231, 198) },
 	},
 }
 

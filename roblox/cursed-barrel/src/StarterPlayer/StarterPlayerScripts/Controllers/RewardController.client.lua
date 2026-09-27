@@ -175,7 +175,7 @@ end
 local spinButton = button(side, "돌리기!", UDim2.new(1, 0, 0, 62), UDim2.fromOffset(0, 172), "green")
 local resultLabel = text(side, "", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 250), 24, COLORS.Gold)
 -- Phase 32 : 돌아온 해적 상자 (3일 이상 쉬다 와서 오늘 첫 판을 마치면 한 번 · 희귀 칸 확률이 오른다)
-local comebackButton = button(side, "🎁 돌아온 해적 상자!", UDim2.new(1, 0, 0, 54), UDim2.fromOffset(0, 322), "gold")
+local comebackButton = button(side, "돌아온 해적 상자!", UDim2.new(1, 0, 0, 54), UDim2.fromOffset(0, 322), "gold")
 comebackButton.Visible = false
 
 local spinning = false
@@ -210,7 +210,7 @@ local function drawRoulette()
 	elseif info.free then
 		spinButton.Text = "돌리기!"
 	elseif locked then
-		spinButton.Text = ("🔒 %d/%d판"):format(info.games or 0, info.need or 0)
+		spinButton.Text = ("잠김 %d/%d판"):format(info.games or 0, info.need or 0)
 	else
 		spinButton.Text = "내일 또!"
 	end
@@ -246,7 +246,7 @@ spinButton.Activated:Connect(function()
 		info.free = true
 		startSpin(nil)
 	elseif info and not info.unlocked and not info.spun then
-		resultLabel.Text = ("🔒 오늘 %d판을 끝까지 하면 열려요 (%d/%d)\nAI 선원 판도 세요!"):format(info.need or 0, info.games or 0, info.need or 0)
+		resultLabel.Text = ("오늘 %d판을 끝까지 하면 열려요 (%d/%d)\nAI 선원 판도 세요!"):format(info.need or 0, info.games or 0, info.need or 0)
 		resultLabel.TextColor3 = COLORS.Cream
 	end
 end)
@@ -302,7 +302,7 @@ local function spinTo(result)
 	spinning = false
 	local message, big = resultText(result)
 	if result.comeback then
-		message = "🎁 돌아온 해적 상자 · " .. message
+		message = "돌아온 해적 상자 · " .. message
 	end
 	resultLabel.Text = message
 	resultLabel.TextColor3 = big and COLORS.Gold or COLORS.Ink
@@ -367,7 +367,7 @@ local rouletteButton, rouletteDot = launcher("RouletteButton", "Roulette", "룰�
 	end
 end)
 
--- Phase 32 : 룰렛 버튼 위 자물쇠 "🔒 0/2" (오늘 두 판을 끝까지 하면 열린다 · AI 판 포함)
+-- Phase 32 : 룰렛 버튼 위 자물쇠 "0/2판" (오늘 두 판을 끝까지 하면 열린다 · AI 판 포함)
 local lockBadge = Instance.new("Frame")
 lockBadge.Name = "SpinLock"
 lockBadge.AnchorPoint = Vector2.new(0.5, 0)
@@ -380,14 +380,16 @@ lockBadge.Visible = false
 lockBadge.Parent = rouletteButton
 UIKit.corner(lockBadge, 10)
 UIKit.outline(lockBadge, 2, Color3.fromRGB(255, 206, 110))
-local lockText = UIKit.label(lockBadge, { text = "🔒 0/2", size = UDim2.fromScale(1, 1), textSize = 16, scaled = true, stroke = 2, zIndex = rouletteButton.ZIndex + 9 })
+-- Phase 32.1 : 자물쇠는 이모지 대신 Blender 아이콘 그림 (ArtAtlas)
+require(Shared:WaitForChild("ArtAtlas")).icon(lockBadge, "lock", { size = UDim2.fromOffset(30, 30), position = UDim2.new(0, -2, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = rouletteButton.ZIndex + 9 })
+local lockText = UIKit.label(lockBadge, { text = "0/2판", size = UDim2.new(1, -26, 1, 0), position = UDim2.fromOffset(24, 0), textSize = 16, scaled = true, stroke = 2, zIndex = rouletteButton.ZIndex + 9 })
 lockText.FontFace = Font.fromEnum(Enum.Font.GothamBlack)
 local function refreshLock()
 	local need = player:GetAttribute("SpinNeed") or 0
 	local games = player:GetAttribute("SpinGames") or 0
 	local locked = need > 0 and games < need and player:GetAttribute("SpinSpun") ~= true
 	lockBadge.Visible = locked
-	lockText.Text = ("🔒 %d/%d판"):format(games, need)
+	lockText.Text = ("%d/%d판"):format(games, need)
 end
 for _, name in ipairs({ "SpinNeed", "SpinGames", "SpinSpun" }) do
 	player:GetAttributeChangedSignal(name):Connect(function()
@@ -710,14 +712,14 @@ rewardCue.OnClientEvent:Connect(function(kind, ok, result)
 			state.roulette.free = info.unlocked and not info.spun
 		end
 		if info.comebackNow then
-			UIKit.toast("🎁 돌아온 해적 상자가 준비됐어요! (🎡 룰렛)", COLORS.Gold, 3.2)
+			UIKit.toast("돌아온 해적 상자가 준비됐어요! (룰렛 버튼)", COLORS.Gold, 3.2)
 			pendingRouletteOpen = true
 		elseif info.unlockedNow then
-			UIKit.toast("🎡 룰렛이 열렸어요! 무료로 돌려 보세요", COLORS.Gold, 3.2)
+			UIKit.toast("룰렛이 열렸어요! 무료로 돌려 보세요", COLORS.Gold, 3.2)
 			pendingRouletteOpen = true
 		elseif not info.unlocked and not info.spun then
 			local left = math.max(0, (info.need or 0) - (info.games or 0))
-			UIKit.toast(("🎡 룰렛까지 %d판!"):format(left), COLORS.Cream, 2.6)
+			UIKit.toast(("룰렛까지 %d판!"):format(left), COLORS.Cream, 2.6)
 		end
 		if rouletteWindow.Visible and not spinning then
 			drawRoulette()
