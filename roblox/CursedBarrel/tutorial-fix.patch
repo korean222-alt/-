@@ -1,0 +1,202 @@
+--- a/ReplicatedStorage.CursedBarrel.Shared.GameConfig
++++ b/ReplicatedStorage.CursedBarrel.Shared.GameConfig
+@@ -1583,13 +1583,17 @@
+ 	MaxIdleMisses = 5, -- Phase 38.3 : 3 → 5 (무엇을 누를지 몰라 가만히 있던 사람이 세 번 만에 떨어지고, 튜토리얼에 다시 앉혀졌다)
+ 	SkipAfter = 1, -- Phase 38.3 : 이만큼 잡으면 「튜토리얼 건너뛰기」가 열린다 (보상은 끝까지 해야 받는다)
+ 	Reward = 500,
++	-- Phase 38.4 : 튜토리얼 판의 AI 선원 수. 예전에는 테이블을 꽉 채워(4인 = AI 셋 · 6인 = AI 다섯)
++	--   내 차례 사이에 AI 차례만 15~30초씩 구경했다. 하나면 AI 차례 한 번(약 5초) 뒤 바로 내 차례.
++	--   빈 의자가 1 + Bots 개인 테이블이면 튜토리얼을 열 수 있다 (1 이면 스폰 앞 2인 테이블도 쓴다)
++	Bots = 1,
+ 	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
+-	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
++	GiveUpAfter = 25, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로) · Phase 38.4 : 45 → 25 (그동안 아무 테이블에도 못 앉는다)
+ 	-- Phase 32.1 : 천천히 (들어오자마자 시작되고 너무 빨리 흘러가서 한꺼번에 읽을 것이 많았다)
+ 	--   · 들어오면 먼저 환영 창. 「튜토리얼 시작」을 누르거나 WelcomeWait 초가 지나면 연습 테이블에 앉는다
+ 	--   · 튜토리얼 판에는 운명 카드가 없다 (해적 종류만 배운다)
+ 	--   · 해적을 잡을 때마다 StepPause 초 쉬고, AI 는 BotThinkExtra 초 더 천천히 고른다
+-	WelcomeWait = 30,
++	WelcomeWait = 15, -- Phase 38.4 : 30 → 15 (「튜토리얼 시작」을 못 본 사람은 30초 동안 아무것도 못 하고 서 있었다)
+ 	StepPause = 2.2,
+ 	BotThinkExtra = 1.2,
+ }
+--- a/ServerScriptService.CursedBarrel.Services.BotService
++++ b/ServerScriptService.CursedBarrel.Services.BotService
+@@ -339,6 +339,11 @@
+ 	return true
+ end
+ 
++-- Phase 38.4 : 튜토리얼 판에 앉힐 AI 수 (GameConfig.Tutorial.Bots · 최소 1)
++function BotService:_tutorialBots()
++	return math.max(1, math.floor(tonumber(GameConfig.Tutorial.Bots) or 1))
++end
++
+ -- AI 를 채워 맞출 전체 인원
+ -- 2인 테이블은 빈자리를 남기면 AI 가 영영 못 앉는다. 시작 인원만큼은 꼭 채운다.
+ function BotService:_targetSeated(gameTable)
+@@ -413,7 +418,14 @@
+ 	end
+ 
+ 	-- 한 번에 한 명씩 앉힌다. (우르르 앉으면 어색하다)
+-	if humans + #bots < self:_targetSeated(gameTable) then
++	-- ★ Phase 38.4 : 튜토리얼 판은 AI 를 Tutorial.Bots 명까지만 앉힌다.
++	--   Phase 24 에서 AI 가 테이블을 꽉 채우게 바뀌면서 튜토리얼도 4인 테이블은 AI 셋, 6인 테이블은 AI 다섯이 되었다.
++	--   내 차례 사이마다 AI 차례를 15~30초씩 구경만 하다가 나가는 사람이 많았다 (처음 설계는 "AI 둘").
++	local target = self:_targetSeated(gameTable)
++	if practiceTable then
++		target = math.min(target, math.max(gameTable:GetMinPlayers(), 1 + self:_tutorialBots()))
++	end
++	if humans + #bots < target then
+ 		self:_spawn(gameTable)
+ 	end
+ end
+@@ -493,9 +505,12 @@
+ 		return false, "캐릭터가 준비되면 다시 눌러 주세요"
+ 	end
+ 	local best, bestDistance = nil, math.huge
++	-- Phase 38.4 : 나 + AI(Tutorial.Bots) 만큼 빈 의자가 있으면 된다. 예전에는 3자리 이상만 받아서
++	--   스폰 앞 2인 테이블 넷은 못 쓰고, 사람이 붐비는 서버에서는 "튜토리얼 테이블로 안내하는 중…"만 45초 동안 떴다.
++	local needSeats = 1 + self:_tutorialBots()
+ 	for _, gameTable in ipairs(TableService:GetAllTables()) do
+ 		if not gameTable.destroyed and not gameTable.config.NoBots and gameTable.state == STATES.Waiting
+-			and gameTable:GetHumanCount() == 0 and #gameTable:GetFreeSeats() >= 3 then
++			and gameTable:GetHumanCount() == 0 and #gameTable:GetFreeSeats() >= needSeats then
+ 			local seat = gameTable:GetFreeSeats()[1]
+ 			local distance = (seat.Position - root.Position).Magnitude
+ 			if distance < bestDistance then
+--- a/ServerScriptService.CursedBarrel.Services.RoundService
++++ b/ServerScriptService.CursedBarrel.Services.RoundService
+@@ -818,11 +818,16 @@
+ 		local profile = ProfileService:Get(self.tutorialPlayer)
+ 		local replay = self.gameTable.model and self.gameTable.model:GetAttribute("TutorialReplay") == true
+ 		if (profile and not profile.tutorialDone) or replay then
+-			self.tutorial = { player = self.tutorialPlayer, step = 1, idle = 0 }
++			-- ★ Phase 38.4 : 튜토리얼 판에서 떨어져 다시 앉혀지면 처음부터가 아니라 잡아 둔 데서 이어 간다.
++			--   (예전에는 자리에서 일어나거나 쫓겨날 때마다 보통 해적부터 다시 해서, 두세 번 반복하다 나갔다)
++			local total = #(GameConfig.Tutorial.Kinds or {})
++			local resume = replay and 1 or math.floor(tonumber(self.tutorialPlayer:GetAttribute("TutorialProgress")) or 1)
++			resume = math.clamp(resume, 1, math.max(1, total))
++			self.tutorial = { player = self.tutorialPlayer, step = resume, idle = 0, replay = replay }
+ 			ProfileService:Funnel(self.tutorialPlayer, 2, "TutorialStarted")
+ 		end
+ 	end
+-	self:_set("TutorialStep", self.tutorial and 1 or 0)
++	self:_set("TutorialStep", self.tutorial and self.tutorial.step or 0)
+ 	-- Phase 11 : AI 선원이 한 명이라도 끼면 연습 판이다. (_rewardScale 이 이 값을 본다)
+ 	self.practice = false
+ 	for _, p in ipairs(participants) do
+@@ -1181,8 +1186,14 @@
+ 		return
+ 	end
+ 
+-	self.afk[player] = (self.afk[player] or 0) + 1
+-	if self.afk[player] >= Release.AFKTimeouts then
++	-- ★ Phase 38.4 : 튜토리얼 중인 사람은 자리 비움으로 일으켜 세우지 않는다.
++	--   칼 버튼을 못 찾아 서버가 대신 고른(시간 초과) 차례가 세 번이면 튜토리얼 판에서 쫓겨났고,
++	--   튜토리얼은 차례 세 번(보통 · 쌍둥이 · 해골)이 필요해서 마지막 해골 유령 직전에 쫓겨나 처음부터 다시 했다.
++	--   정말 자리를 비운 사람은 MaxIdleMisses(아무것도 안 누르고 놓치기)가 튜토리얼을 끝낸다.
++	if not self:_tutorialActive(player) then
++		self.afk[player] = (self.afk[player] or 0) + 1
++	end
++	if (self.afk[player] or 0) >= Release.AFKTimeouts then
+ 		-- 세 번 연속으로 고르지 않았다. 자리에서 일으켜 세운다. (이탈 처리는 RemoveParticipant 가 한다)
+ 		self.gameTable:RemovePlayer(player)
+ 		return
+@@ -1389,7 +1400,8 @@
+ 
+ 	-- ★ Phase 10 : "한 번 더" 제안. 결과를 보여주는 동안(ResultHold)만 누를 수 있다.
+ 	--   누르면 AcceptBrave 가 phaseToken 을 올려 아래의 "다음 사람 차례" 예약을 무효로 만든다.
+-	if BRAVE.Enabled and level < BRAVE.MaxChain and self:_pickableCount() >= BRAVE.MinPickable and not self:_tutorialActive(player) then
++	-- Phase 38.4 : 튜토리얼 판에서는 AI 도 "한 번 더"를 하지 않는다 (예전에는 AI 만 이어 꽂아서 내 차례가 더 늦게 왔다)
++	if BRAVE.Enabled and level < BRAVE.MaxChain and self:_pickableCount() >= BRAVE.MinPickable and not self:_tutorialActive() then
+ 		self.braveOffer = { player = player, token = token }
+ 		self:_set(TABLE_ATTR.BraveNextReward, self:_braveOfferValue(level + 1))
+ 		self:_set(TABLE_ATTR.BraveOfferEndsAt, GameConfig.now() + TIMING.ResultHold)
+@@ -2137,6 +2149,10 @@
+ 			self.tutorial.finished = true
+ 			tutorialDone = true
+ 		end
++		-- Phase 38.4 : 어디까지 잡았는지 기억해 둔다 (다시 앉혀지면 여기서 이어 간다 · 이 접속 동안만)
++		if not self.tutorial.replay then
++			player:SetAttribute("TutorialProgress", (not tutorialDone) and tutorialStep or nil)
++		end
+ 	end
+ 
+ 	catchResult:FireAllClients(gameTable.model, {
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller
+@@ -2265,7 +2265,8 @@
+ 		end
+ 	else
+ 		ContextActionService:UnbindAction(SEAT_LOCK_ACTION)
+-		if lockedHumanoid and lockedHumanoid.Parent then
++		-- Phase 38.4 : 튜토리얼 판에 앉아 있으면 잡기가 끝나도 점프를 켜지 않는다 (TutorialController 가 튜토리얼 동안 붙잡아 둔다)
++		if lockedHumanoid and lockedHumanoid.Parent and player:GetAttribute("TutorialSeatHold") ~= true then
+ 			lockedHumanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+ 		end
+ 		lockedHumanoid = nil
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController
+@@ -13,6 +13,7 @@
+ local RS = game:GetService("ReplicatedStorage")
+ local Run = game:GetService("RunService")
+ local Tags = game:GetService("CollectionService")
++local ContextActionService = game:GetService("ContextActionService")
+ 
+ local player = Players.LocalPlayer
+ local package = RS:WaitForChild("CursedBarrel")
+@@ -192,6 +193,42 @@
+ 	return nil
+ end
+ 
++-- ★ Phase 38.4 : 튜토리얼 판에 앉아 있는 동안에는 스페이스 · 점프 버튼으로 의자에서 일어나지 않는다.
++--   환영 창이 "클릭(스페이스)해서 잡아요"라고 가르치는데, 스페이스는 잡는 순간(Phase4Controller 의 의자 잠금)에만 막혀 있었다.
++--   해적이 나오기 전 · 잡은 뒤 · AI 차례에 스페이스(휴대폰은 점프 버튼)를 누르면 일어나서 튜토리얼 판이 기권으로 끝났고,
++--   몇 초 뒤 다시 앉혀져 보통 해적부터 다시 했다. 튜토리얼을 마치거나 건너뛰면 풀린다.
++--   (서버가 일으켜 세우는 것 : 건너뛰기 · 탈락은 humanoid.Sit = false 라 그대로 된다)
++local HOLD_ACTION = "CursedBarrel_TutorialSeatHold"
++local holding = false
++local heldHumanoid = nil
++local function setSeatHold(on)
++	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
++	if on and humanoid then
++		-- 잡기가 끝날 때 의자 잠금이 점프를 다시 켜도 여기서 곧바로 다시 끈다
++		if humanoid:GetStateEnabled(Enum.HumanoidStateType.Jumping) then
++			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
++		end
++		heldHumanoid = humanoid
++	end
++	if on == holding then
++		return
++	end
++	holding = on
++	player:SetAttribute("TutorialSeatHold", on or nil) -- Phase4Controller 의 의자 잠금이 이것을 보고 점프를 켜지 않는다
++	if on then
++		-- 잡는 동안에는 더 높은 순위의 의자 잠금(Phase4Controller)이 스페이스를 잡기로 받는다
++		ContextActionService:BindActionAtPriority(HOLD_ACTION, function()
++			return Enum.ContextActionResult.Sink
++		end, false, Enum.ContextActionPriority.High.Value + 50, Enum.KeyCode.Space)
++	else
++		ContextActionService:UnbindAction(HOLD_ACTION)
++		if heldHumanoid and heldHumanoid.Parent then
++			heldHumanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
++		end
++		heldHumanoid = nil
++	end
++end
++
+ catchPrompt.OnClientEvent:Connect(function(model, data)
+ 	if typeof(data) == "table" and data.mine and model == lastTable then
+ 		catchHintUntil = os.clock() + 3.5
+@@ -219,7 +256,10 @@
+ 		return
+ 	end
+ 	checkAt = os.clock() + 0.2
+-	local model = seatedTable() or lastTable
++	local seatedModel = seatedTable()
++	setSeatHold(seatedModel ~= nil and seatedModel:GetAttribute(TABLE_ATTR.Tutorial) == player.UserId
++		and player:GetAttribute("TutorialDone") ~= true)
++	local model = seatedModel or lastTable
+ 	local mine = model and model:GetAttribute(TABLE_ATTR.Tutorial) == player.UserId
+ 	if mine then
+ 		lastTable = model
