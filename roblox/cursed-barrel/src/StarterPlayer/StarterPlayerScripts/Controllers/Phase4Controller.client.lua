@@ -2031,7 +2031,7 @@ end
 --   처음 만나는 종류(또는 튜토리얼)는 해적이 나오기 전에 "무엇을 · 어떻게" 카드를 보여 준다.
 --   카드는 누를 수 없다 (아래의 잡기 입력을 가리지 않는다).
 --------------------------------------------------
-local showIntro, hideIntro
+local showIntro, hideIntro, showChip
 do
 	-- Phase 32.1 : 540x180 → 460x150 (85%) · 알림판 바로 아래로 올려 잡기 고리를 덜 가린다 · 이모지 대신 아이콘 그림
 	local introCard = Instance.new("Frame")
@@ -2093,12 +2093,59 @@ do
 		task.delay(math.max(0.6, untilClock - os.clock()), function()
 			if token == introToken then
 				introCard.Visible = false
+				-- Phase 35.1 : 큰 카드가 사라지면 위의 작은 띠로 남는다 (잡기가 끝날 때까지)
+				showChip(kindId)
 			end
 		end)
+	end
+
+	-- Phase 35.1 : 화면 맨 위의 작은 띠 (아이콘 · 이름 · 잡는 법 한마디). 누를 수 없다(잡기 입력을 막지 않는다).
+	--   처음 보는 종류는 큰 카드 → 띠, 이미 본 종류는 띠만, 보통 해적은 띠도 없다.
+	local chip = Instance.new("Frame")
+	chip.Name = "KindChip"
+	chip.AnchorPoint = Vector2.new(0.5, 0)
+	chip.Size = UDim2.fromOffset(330, 42)
+	chip.BackgroundColor3 = Color3.fromRGB(18, 20, 30)
+	chip.BackgroundTransparency = 0.25
+	chip.Visible = false
+	chip.Active = false
+	chip.ZIndex = 29
+	chip.Parent = gui
+	UIKit.corner(chip, 21)
+	local chipStroke = Instance.new("UIStroke")
+	chipStroke.Thickness = 2
+	chipStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	chipStroke.Parent = chip
+	local chipScale = Instance.new("UIScale")
+	chipScale.Parent = chip
+	local chipIcon = ArtAtlas.icon(chip, "normal", { size = UDim2.fromOffset(38, 38), position = UDim2.new(0, 4, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = 30 })
+	local chipText = textLabel("Text", UDim2.new(1, -54, 1, 0), UDim2.fromOffset(46, 0), 19, chip)
+	chipText.TextXAlignment = Enum.TextXAlignment.Left
+	chipText.TextWrapped = false
+	chipText.ZIndex = 30
+	function showChip(kindId)
+		local def = KINDS and KINDS.List[kindId or "normal"]
+		if not def or kindId == "normal" or not catch or not catch.mine or catch.done then
+			chip.Visible = false
+			return
+		end
+		local camera = workspace.CurrentCamera
+		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
+		chipScale.Scale = math.clamp(math.min((view.X - 24) / 360, view.Y / 560), 0.6, 1)
+		chip.Position = UDim2.new(0.5, 0, 0, math.floor(GuiService:GetGuiInset().Y + 6))
+		ArtAtlas.setIcon(chipIcon, kindId)
+		chipText.Text = ("%s · %s"):format(def.name or "", def.short or "")
+		chipText.TextColor3 = def.color or gold
+		chipStroke.Color = def.color or gold
+		chip.Visible = true
+		local full = chipScale.Scale
+		chipScale.Scale = full * 0.6
+		Tween:Create(chipScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = full }):Play()
 	end
 	function hideIntro()
 		introToken += 1
 		introCard.Visible = false
+		chip.Visible = false
 	end
 end
 
@@ -2232,6 +2279,10 @@ do
 			line = touch and "해적이 튀어나오면 화면을 탭!" or "해적이 튀어나오면 스페이스 · E · 클릭!"
 		end
 		rookieBadge.Visible = data.rookie == true and data.tutorial ~= true
+		-- Phase 35.1 : 아래 한 줄 안내는 처음 5판 · 튜토리얼 · 신입 보호 중에만 (그 뒤로는 위의 작은 띠가 알려 준다)
+		if (tonumber(data.games) or 99) >= 5 and not data.tutorial and not data.rookie then
+			return ""
+		end
 		return line
 	end
 end
@@ -2486,7 +2537,11 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	-- 처음 보는 종류 · 튜토리얼 : 해적이 나오기 0.5초 전까지 설명 카드
 	if data.intro then
 		-- Phase 34.1 : 카드는 IntroShow(1.5초)만 · 해적이 그보다 빨리 나오면 나오기 0.5초 전까지
-		showIntro(kind, math.min(os.clock() + (tonumber(KINDS and KINDS.IntroShow) or 1.5), opensLocal - 0.5), data.tutorial)
+		-- Phase 35.1 : 튜토리얼은 Tutorial.IntroShow(3초). 카드가 사라지면 위의 작은 띠로 남는다
+		local showFor = data.tutorial and (tonumber(config.Tutorial.IntroShow) or 3) or (tonumber(KINDS and KINDS.IntroShow) or 1.5)
+		showIntro(kind, math.min(os.clock() + showFor, opensLocal - 0.5), data.tutorial)
+	else
+		showChip(kind)
 	end
 	-- 잡기 창이 닫히고 서버 판정이 올 때까지 의자를 붙잡아 둔다. 결과가 오면 풀린다.
 	local lastStep = steps[#steps]
@@ -3137,8 +3192,10 @@ end)
 --   내 자리에 앉아 게임 중일 때만 (관전 · 탈락 뒤에는 원래 카메라). 내 머리 · 모자 · 얼굴 장식은 내 화면에서만 숨긴다.
 --------------------------------------------------
 local showHead, firstPersonEye, drawViewButton
+local FP_LIFT = 1.1 -- Phase 35.1 : 1인칭 시선을 이만큼(스터드) 올린다
 do
 	local hiddenHead = {} -- [BasePart] = 원래 LocalTransparencyModifier
+	local bodyTouched = {} -- Phase 35.1 : 1인칭에서 보이게 · 숨기게 바꾼 팔 · 몸통 (3인칭으로 돌아가면 다시 보이게)
 	function showHead()
 		for part, value in pairs(hiddenHead) do
 			if part.Parent then
@@ -3146,6 +3203,12 @@ do
 			end
 		end
 		table.clear(hiddenHead)
+		for part in pairs(bodyTouched) do
+			if part.Parent then
+				part.LocalTransparencyModifier = 0
+			end
+		end
+		table.clear(bodyTouched)
 	end
 	local function hideHead(character)
 		local head = character:FindFirstChild("Head")
@@ -3155,6 +3218,22 @@ do
 					hiddenHead[item] = item.LocalTransparencyModifier
 				end
 				item.LocalTransparencyModifier = 1
+			end
+		end
+	end
+	-- Phase 35.1 : 1인칭에서도 내 팔 · 손이 보인다 (칼 꽂는 팔 동작이 그대로 보인다).
+	--   Roblox 기본 카메라(TransparencyController)는 카메라가 머리에 붙으면 캐릭터 전체를 매 프레임 투명하게 만든다.
+	--   이 카메라는 그 뒤(Camera + 1)에 돌므로, 팔 · 손만 다시 보이게 하고 몸통 · 다리는 숨긴다(머리 안쪽 · 몸 속이 비치지 않게).
+	local ARM = {
+		RightUpperArm = true, RightLowerArm = true, RightHand = true,
+		LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
+		["Right Arm"] = true, ["Left Arm"] = true,
+	}
+	local function showArms(character)
+		for _, item in ipairs(character:GetChildren()) do
+			if item:IsA("BasePart") and item.Name ~= "HumanoidRootPart" and item.Name ~= "Head" then
+				item.LocalTransparencyModifier = ARM[item.Name] and 0 or 1
+				bodyTouched[item] = true
 			end
 		end
 	end
@@ -3170,7 +3249,8 @@ do
 			return nil
 		end
 		hideHead(character)
-		return head.Position + head.CFrame.LookVector * 0.35 + Vector3.new(0, 0.3, 0)
+		showArms(character)
+		return head.Position + head.CFrame.LookVector * 0.35 + Vector3.new(0, 0.4, 0)
 	end
 
 	-- 게임 중 오른쪽 위 「1인칭」 버튼 (누를 때마다 3인칭 ↔ 1인칭 · 설정에 저장된다)
@@ -3260,7 +3340,8 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 	--   내 팔(칼 꽂기 모션)은 보이고, 머리 · 모자는 내 화면에서만 숨긴다. 관전 중에는 쓰지 않는다.
 	local fpEye = firstPersonEye(active)
 	if fpEye then
-		local look = pos + Vector3.new(0, FRAME.Aim * 0.55, 0)
+		-- Phase 35.1 : 조금 더 위를 본다 (통 뚜껑과 해적이 튀어나오는 높이가 화면 가운데쯤. 예전에는 통 몸통을 내려다봤다)
+		local look = pos + Vector3.new(0, FRAME.Aim * 0.55 + FP_LIFT, 0)
 		local lookFov = 74
 		if shot and shot.model == active then
 			local elapsed = os.clock() - shot.startedAt

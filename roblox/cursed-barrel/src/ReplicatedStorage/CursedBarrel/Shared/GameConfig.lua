@@ -1559,7 +1559,8 @@ GameConfig.Tutorial = {
 	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
 	Mandatory = true,
 	Kinds = { "normal", "twin", "side", "skull", "mash" },
-	IntroLead = 2.0, -- 설명 카드를 띄운 뒤 해적이 나오기까지 (카드는 PirateKinds.IntroShow 초) · Phase 34.1 : 4.4 → 2.0 (너무 오래 기다렸다)
+	IntroLead = 3.5, -- 설명 카드를 띄운 뒤 해적이 나오기까지 · Phase 34.1 : 4.4 → 2.0 · Phase 35.1 : 튜토리얼은 카드 3초 + 0.5초
+	IntroShow = 3.0, -- Phase 35.1 : 튜토리얼 설명 카드를 보여 주는 시간 (그 뒤로는 위의 작은 띠)
 	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
 	MaxIdleMisses = 3,
 	Reward = 500,
