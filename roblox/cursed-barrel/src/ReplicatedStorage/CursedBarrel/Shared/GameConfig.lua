@@ -1595,7 +1595,7 @@ GameConfig.PirateKinds = {
 		normal = { name = "해적", short = "탭!", how = "튀어나오면 한 번 눌러요!", color = Color3.fromRGB(101, 241, 211), unlock = 1, weight = 50 },
 		twin = { name = "쌍둥이 해적", short = "둘 다 잡기!", how = "두 마리를 모두 잡아야 해요! 하나 튀어나오면 탭, 또 튀어나오면 한 번 더 탭", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
 			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9, tripleFrom = 4 }, -- Phase 38 : 풀린 뒤 4라운드(6라운드)부터 가끔 세쌍둥이
-		side = { name = "갈고리 해적", short = "← 쪽 · 쪽 →", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 9, -- Phase 38.2 : 16 → 9 (너무 자주 · 어려웠다)
+		side = { name = "갈고리 해적", short = "튀어나온 쪽!", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 9, -- Phase 38.2 : 16 → 9 (너무 자주 · 어려웠다)
 			windowScale = 1.7, feintFrom = 4, feintBase = 0.2, feintStep = 0.05, feintMax = 0.5 },
 			-- Phase 38.2 : 잡는 시간 1.2 → 1.7배 · 속임수는 풀린 뒤 4라운드(7라운드)부터 20% → 최대 50% (예전 5라운드부터 30% → 70%)
 		skull = { name = "해골 유령", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
