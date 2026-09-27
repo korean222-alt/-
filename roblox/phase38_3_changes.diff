@@ -396,25 +396,35 @@ diff -ru a/CannonService.lua b/CannonService.lua
  	return true
 diff -ru a/GameConfig.lua b/GameConfig.lua
 --- a/GameConfig.lua	2026-09-27 11:32:16.927363736 +0000
-+++ b/GameConfig.lua	2026-09-27 12:54:07.812213190 +0000
-@@ -353,7 +353,7 @@
++++ b/GameConfig.lua	2026-09-27 13:37:02.643049947 +0000
+@@ -353,9 +353,12 @@
  	--   예전에는 16번 잡은 뒤로는 창 0.16~0.24초짜리 분노한 해적만 나와서 사실상 8라운드쯤이 끝이었다.
  	--   이제 분노한 해적은 7라운드부터 가끔 섞여 나오는 해적 종류 중 하나다 (GameConfig.PirateKinds).
  	MaxPerPlayer = 9999,
 -	HardWindow = 0.40,
-+	HardWindow = 0.46, -- Phase 38.3 : 0.40 → 0.46 (기본 잡는 시간을 늘렸다)
- 	HardStep = 0.01, -- Phase 32 : 0.02 → 0.01 (0.40 → 0.30 까지 열 번에 걸쳐 천천히)
- 	PersonalDecay = 0.8,
+-	HardStep = 0.01, -- Phase 32 : 0.02 → 0.01 (0.40 → 0.30 까지 열 번에 걸쳐 천천히)
+-	PersonalDecay = 0.8,
++	-- Phase 38.3 : 잡는 시간을 크게 늘렸다. 예전에는 잡을 때마다 20% 씩 줄어 두 번째 잡기부터 바닥(어려운 경지)이라
++	--   기본값만 올려서는 거의 느껴지지 않았다 (쌍둥이처럼 줄지 않는 종류만 길어졌다).
++	--   원래 0.62 → 0.47 → 0.40 → … 0.30  /  이제 0.90 → 0.77 → 0.67 → 0.60 → … 0.45 (3인 기준)
++	HardWindow = 0.60, -- 0.40 → 0.60
++	HardStep = 0.01, -- Phase 32 : 0.02 → 0.01 (Phase 38.3 : 0.60 → 0.45 까지 열다섯 번에 걸쳐 천천히)
++	PersonalDecay = 0.88, -- Phase 38.3 : 0.8 → 0.88 (잡을 때마다 12% 씩만 줄어든다)
  	LeadDecay = 0.86,
-@@ -380,18 +380,21 @@
+ 	MinLead = 0.85, -- ★ 칼 꽂는 모션(최대 0.75초)이 끝나기 전에 해적이 나오면 안 된다
+ 	SpentReveal = 1.4, -- 분노한 해적을 보여주고 탈락시키기까지 (AngryCatchable = false 일 때만)
+@@ -380,18 +383,23 @@
  	Lead = 1.30,
  	LeadJitter = 0.5, -- 0 ~ 이 값만큼 무작위로 늦춘다. 박자를 외워서 누르는 것을 막는다.
  
 -	BaseWindow = 0.62, -- 첫 번째 잡기의 창 길이(초)
-+	BaseWindow = 0.75, -- 첫 번째 잡기의 창 길이(초) · Phase 38.3 : 0.62 → 0.75 ("너무 어려워서 나간다")
- 	StepPerCatch = 0.03, -- 이 테이블에서 누군가 잡을 때마다 모두의 창이 이만큼 좁아진다
+-	StepPerCatch = 0.03, -- 이 테이블에서 누군가 잡을 때마다 모두의 창이 이만큼 좁아진다
 -	MinWindow = 0.30, -- ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다) · Phase 32 : 0.2 → 0.3 (잘하는 사람이 끝없이 갈 수 있는 바닥)
-+	MinWindow = 0.34, -- Phase 38.3 : 0.30 → 0.34 · ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다) · Phase 32 : 0.2 → 0.3 (잘하는 사람이 끝없이 갈 수 있는 바닥)
++	BaseWindow = 0.90, -- 첫 번째 잡기의 창 길이(초) · Phase 38.3 : 0.62 → 0.90 ("너무 어려워서 나간다")
++	StepPerCatch = 0.02, -- 이 테이블에서 누군가 잡을 때마다 모두의 창이 이만큼 좁아진다 · Phase 38.3 : 0.03 → 0.02
++	-- Phase 38.3 : AI 선원이 잡을 확률은 예전 창 길이 기준으로 계산한다 (창만 늘리면 AI 가 거의 다 잡아서 판이 끝나지 않는다)
++	BotWindowScale = 0.69, -- 0.62 / 0.90
++	MinWindow = 0.45, -- Phase 38.3 : 0.30 → 0.45 · ★ 이 아래로는 내리지 않는다. (누른 시각은 따로 지연 보정을 받는다) · Phase 32 : 0.2 → 0.3 (잘하는 사람이 끝없이 갈 수 있는 바닥)
  	-- Phase 32 : 신입 보호. 판 수(Games)가 이보다 적은 사람은 한 판에 한 번, 놓치거나 먼저 눌러도 해적이 한 번 더 나온다.
 -	RookieGames = 3,
 +	RookieGames = 5, -- Phase 38.3 : 3 → 5 (첫 5판은 한 판에 한 번 더 기회)
@@ -432,7 +442,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  
  	-- 클라이언트가 보낸 "누른 시각"은 MaxLatency 안에서 이미 지연 보정을 받는다.
  	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
-@@ -513,7 +516,8 @@
+@@ -513,7 +521,8 @@
  	Small = { Id = "small", Name = "잭팟", Amount = 1000, Chance = 0.025 },
  }
  -- 현상금 상한 (Phase 21 : 60,000 → Phase 24 : 10,000. 한 판에 6만 코인이 나오던 원인)
@@ -442,7 +452,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  
  -- 이번 잡기의 창 길이. 서버에서만 호출한다.
  -- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
-@@ -1074,7 +1078,8 @@
+@@ -1074,7 +1083,8 @@
  -- AI 선원 (Phase 11)
  --
  -- 혼자 앉아 기다리는 사람이 있으면, 잠시 뒤 AI 선원이 빈 의자에 앉아 같이 한다.
@@ -452,7 +462,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  --
  -- ★ AI 와 함께한 판은 "연습 판"이다.
  --   코인은 RewardScale 만큼만 받고, 승수 · 연승 · 랭킹에는 들어가지 않는다.
-@@ -1558,11 +1563,14 @@
+@@ -1558,11 +1568,14 @@
  	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
  	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
  	Mandatory = true,
@@ -469,7 +479,17 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  	Reward = 500,
  	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
  	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
-@@ -1654,7 +1662,9 @@
+@@ -1596,7 +1609,8 @@
+ 		twin = { name = "쌍둥이 해적", short = "둘 다 잡기!", how = "두 마리를 모두 잡아야 해요! 하나 튀어나오면 탭, 또 튀어나오면 한 번 더 탭", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
+ 			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9, tripleFrom = 4 }, -- Phase 38 : 풀린 뒤 4라운드(6라운드)부터 가끔 세쌍둥이
+ 		side = { name = "갈고리 해적", short = "튀어나온 쪽!", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 9, -- Phase 38.2 : 16 → 9 (너무 자주 · 어려웠다)
+-			windowScale = 1.7, feintFrom = 4, feintBase = 0.2, feintStep = 0.05, feintMax = 0.5 },
++			windowScale = 1.4, feintFrom = 4, feintBase = 0.2, feintStep = 0.05, feintMax = 0.5 },
++			-- Phase 38.3 : windowScale 1.7 → 1.4 (기본 창이 0.62 → 0.90 으로 늘어서 1.05초 → 1.26초)
+ 			-- Phase 38.2 : 잡는 시간 1.2 → 1.7배 · 속임수는 풀린 뒤 4라운드(7라운드)부터 20% → 최대 50% (예전 5라운드부터 30% → 70%)
+ 		skull = { name = "해골 유령", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
+ 			show = 1.2, maxShow = 2.2, flickerFrom = 2 }, -- Phase 38 : 라운드마다 0.1초 더 오래 · 6라운드부터 깜빡임
+@@ -1654,7 +1668,9 @@
  	List = {
  		{ id = "gold", name = "황금 통", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
  		{ id = "sleepy", name = "졸린 해적", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
@@ -480,7 +500,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  		{ id = "twins", name = "쌍둥이의 밤", text = "이번 라운드 해적은 전부 쌍둥이!", weight = 8, kind = "twin", minStage = 2, color = Color3.fromRGB(255, 150, 70) },
  		{ id = "ghosts", name = "유령선", text = "해골 유령이 자주 나와요 (누르지 말고 참기!)", weight = 8, kindBoost = { skull = 5 }, minStage = 4, color = Color3.fromRGB(230, 236, 255) },
  		{ id = "hooks", name = "갈고리 폭풍", text = "갈고리 해적이 자주 나와요 (방향 보고 누르기!)", weight = 8, kindBoost = { side = 5 }, minStage = 3, color = Color3.fromRGB(120, 180, 255) },
-@@ -1663,11 +1673,45 @@
+@@ -1663,11 +1679,45 @@
  		{ id = "blades", name = "불꽃 칼날", text = "안전한 자리 코인 2배", weight = 10, safe = 2, gentle = true, color = Color3.fromRGB(255, 120, 70) },
  		{ id = "brave", name = "배짱 축제", text = "한 번 더 찌르기 보상 2배", weight = 8, brave = 2, gentle = true, color = Color3.fromRGB(255, 160, 70) },
  		{ id = "drift", name = "떠도는 해적", text = "차례마다 해적이 자리를 옮겨요", weight = 7, shuffle = true, minStage = 2, color = Color3.fromRGB(196, 150, 255) },
@@ -781,7 +801,7 @@ diff -ru a/LocaleData.lua b/LocaleData.lua
  }
 diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
 --- a/Phase4Controller.lua	2026-09-27 11:32:16.925729316 +0000
-+++ b/Phase4Controller.lua	2026-09-27 12:54:07.818576062 +0000
++++ b/Phase4Controller.lua	2026-09-27 13:36:22.648690376 +0000
 @@ -267,15 +267,23 @@
  local potPop = -10 -- Phase 21 : 마지막으로 잭팟이 터진 때 (현상금 숫자 튀기기)
  
@@ -873,7 +893,143 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  			fateRule.Visible = fateRule.Text ~= ""
  			sound("win", 1.5, 0.25)
  			blink(card.color or gold, 0.25)
-@@ -2428,6 +2445,9 @@
+@@ -1402,6 +1419,22 @@
+ 	칼이 닿는 순간마다 충격 고리가 퍼진다. (세 번 찌르기는 작은 고리 둘 + 큰 고리 하나)
+ 	돌려주는 값 = 칼이 완전히 꽂히기까지 걸리는 시간.
+ ]]
++-- Phase 38.3 : 칼을 쥐는 손 (R15 RightHand · R6 · AI 선원 Right Arm)
++local function knifeHandOf(character)
++	if not character then
++		return nil
++	end
++	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
++	return (hand and hand:IsA("BasePart")) and hand or nil
++end
++-- 손에 쥔 칼의 자리 (칼 틀 : 날 -Z · 손잡이 +Z. 손잡이를 쥔다)
++local function heldKnifeCF(hand)
++	local grip = hand.Name == "Right Arm" and CFrame.new(0, -1, 0) or CFrame.new(0, -0.25, 0)
++	return hand.CFrame * grip * CFrame.Angles(-math.pi / 2, 0, 0) * CFrame.new(0, 0, -0.8)
++end
++-- 손으로 휘두르는 모션은 첫 타격 직전에 손에서 던져 꽂는다. 나머지(칼이 날아다니는 모션)는 손에서 던져진 뒤 제 묘기를 한다
++local THROW_STYLES = { classic = true, overhead = true, slam = true }
++
+ local function stab(model, index, own, tension, userId, styleId)
+ 	local slots = model:FindFirstChild("KnifeSlots")
+ 	if not slots then
+@@ -1448,8 +1481,26 @@
+ 			end
+ 
+ 			local ctx = { target = copy:GetPivot(), look = slot.CFrame.LookVector, center = center(model) }
+-			copy:PivotTo(StabMotion.knifeAt(plan, 0, ctx))
+-			StabMotion.playBody(characterOfUser(model, userId), plan)
++			-- ★ Phase 38.3 : 칼이 손에서 출발한다 ("찌르는 모션이 없다" : 예전에는 칼이 통 위 허공에서 혼자 날아와 꽂혔다.
++			--   사람은 통에서 5~6 스터드 떨어져 앉아 손이 닿지 않으므로, 칼을 손에 쥐고 휘두르다가 던져 꽂는다)
++			local thrower = characterOfUser(model, userId)
++			local throwHand = knifeHandOf(thrower)
++			if throwHand and (throwHand.Position - ctx.target.Position).Magnitude > 20 then
++				throwHand = nil
++			end
++			local firstHit = (plan.hits[1] and plan.hits[1].t) or plan.total
++			local throwStyle = THROW_STYLES[plan.style] == true
++			local release, flight
++			if throwStyle then
++				flight = math.clamp(firstHit * 0.45, 0.12, 0.22)
++				release = math.max(0, firstHit - flight)
++			else
++				release = 0
++				flight = math.clamp(firstHit * 0.5, 0.1, 0.25)
++			end
++			local heldCF = throwHand and heldKnifeCF(throwHand) or nil
++			copy:PivotTo(heldCF or StabMotion.knifeAt(plan, 0, ctx))
++			StabMotion.playBody(thrower, plan)
+ 			if own then
+ 				sound("tick", 1.5 + 0.4 * tension, 0.12)
+ 			end
+@@ -1473,6 +1524,27 @@
+ 					follow:Disconnect()
+ 					return
+ 				end
++				if heldCF and t < release + flight then
++					if t < release then
++						-- 손에 쥐고 휘두른다
++						if throwHand.Parent then
++							heldCF = heldKnifeCF(throwHand)
++						end
++						copy:PivotTo(heldCF)
++						return
++					end
++					-- 손을 떠나 날아간다 : 던지는 모션은 끝으로 두 바퀴 반 돌며 첫 타격 자리로, 나머지는 제 궤적으로 빨려 들어간다
++					local a = math.clamp((t - release) / flight, 0, 1)
++					local dest = StabMotion.knifeAt(plan, throwStyle and firstHit or t, ctx)
++					local eased = throwStyle and a or (a * a * (3 - 2 * a))
++					local pos = heldCF.Position:Lerp(dest.Position, eased) + Vector3.new(0, math.sin(a * math.pi) * (throwStyle and 0.9 or 0.5), 0)
++					if throwStyle then
++						copy:PivotTo(CFrame.new(pos) * (dest - dest.Position) * CFrame.Angles(-(1 - a) * math.pi * 5, 0, 0))
++					else
++						copy:PivotTo(CFrame.new(pos) * (heldCF - heldCF.Position):Lerp(dest - dest.Position, eased))
++					end
++					return
++				end
+ 				copy:PivotTo(StabMotion.knifeAt(plan, t, ctx))
+ 			end)
+ 
+@@ -1979,6 +2051,15 @@
+ 	-- from : CFrame(1인칭 손의 칼) · Model(캐릭터) · nil(내 캐릭터) / ghost : 맞힐 해적 (없으면 통 뚜껑 쪽으로 빗나간다)
+ 	function throwKnife(model, from, ghost, hit, skinId)
+ 		local fromCF = typeof(from) == "CFrame" and from or nil
++		if not fromCF and from == nil then
++			-- ★ Phase 38.3 : 내 3인칭 던지기는 화면 오른쪽 아래(카메라 바로 앞)에서 날아간다.
++			--   예전에는 내 손에서 날아갔는데, 잡는 동안 카메라가 해적 쪽 클로즈업이라 내 손이 카메라 뒤에 있어서
++			--   칼이 거의 보이지 않았다 ("해적을 칼로 잡는 모션이 없다")
++			local camera = workspace.CurrentCamera
++			if camera then
++				fromCF = camera.CFrame * CFrame.new(1.1, -1.2, -2.2)
++			end
++		end
+ 		if not fromCF then
+ 			local hand = handOf(typeof(from) == "Instance" and from or player.Character)
+ 			if not hand then
+@@ -1989,15 +2070,37 @@
+ 		local ghostPart = ghost and ghost.rig and ghost.rig.model and ghost.rig.model.PrimaryPart
+ 		local target = ghostPart and (ghostPart.Position + Vector3.new(0, 0.6, 0)) or (lidTop(model) or fromCF.Position + fromCF.LookVector * 5)
+ 		local knife = hands.makeKnife(config.findSkin("Knife", skinId or "classic"))
+-		pcall(knife.ScaleTo, knife, 0.7)
++		pcall(knife.ScaleTo, knife, 0.9) -- Phase 38.3 : 0.7 → 0.9 (잘 보이게)
+ 		knife.Parent = fx
++		if not reduced then
++			-- Phase 38.3 : 날아가는 칼 꼬리 (어디서 어디로 던졌는지 보이게)
++			local skin = config.findSkin("Knife", skinId or "classic")
++			local blade = knife:FindFirstChild("Blade") or knife.PrimaryPart or knife:FindFirstChildWhichIsA("BasePart", true)
++			if blade then
++				local a0 = Instance.new("Attachment")
++				a0.Position = Vector3.new(0, 0, -0.5)
++				a0.Parent = blade
++				local a1 = Instance.new("Attachment")
++				a1.Position = Vector3.new(0, 0, 0.5)
++				a1.Parent = blade
++				local trail = Instance.new("Trail")
++				trail.Attachment0 = a0
++				trail.Attachment1 = a1
++				trail.Color = ColorSequence.new((skin and skin.trail) or Color3.fromRGB(226, 216, 190))
++				trail.LightEmission = 0.8
++				trail.Lifetime = 0.18
++				trail.Transparency = NumberSequence.new(0.1, 1)
++				trail.FaceCamera = true
++				trail.Parent = blade
++			end
++		end
+ 		local start = fromCF.Position
+ 		local dir = target - start
+ 		if dir.Magnitude < 0.1 then
+ 			knife:Destroy()
+ 			return
+ 		end
+-		local flight = math.clamp(dir.Magnitude / 40, 0.08, 0.2)
++		local flight = math.clamp(dir.Magnitude / 26, 0.14, 0.26) -- Phase 38.3 : 조금 천천히 (0.08~0.2초 → 0.14~0.26초)
+ 		local born = os.clock()
+ 		local stuck, stuckAt, rel = false, 0, nil
+ 		local conn
+@@ -2428,6 +2531,9 @@
  			line = ("칼을 붙잡았다! %d번 빠르게 연타"):format(data.need or 5)
  		elseif kind == "angry" then
  			line = "먹물을 뚫고 튀어나올 때 눌러요"
@@ -883,7 +1039,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  		elseif (tonumber(data.games) or 99) < 5 then
  			line = touch and "해적이 튀어나오면 화면을 탭! (먼저 누르면 탈락)" or "해적이 튀어나오면 스페이스 · E · 클릭! (먼저 누르면 탈락)"
  		else
-@@ -2701,6 +2721,10 @@
+@@ -2701,6 +2807,10 @@
  	if not data.mine then
  		if not angry then
  			task.delay(math.max(0, opensLocal - os.clock()), function()
@@ -894,7 +1050,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				announce(("%s 잡는 중!"):format(data.name or ""), look and look.color or gold, 1.2)
  			end)
  		end
-@@ -2714,12 +2738,23 @@
+@@ -2714,12 +2824,23 @@
  		opensLocal = opensLocal, index = data.index or 1,
  		level = level, max = data.max, rookie = data.rookie,
  		feint = data.feint, flicker = data.flicker, kindLevel = data.kindLevel,
@@ -919,7 +1075,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  	-- Phase 38.1 : 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (1인칭은 1인칭 손이 한다)
  	-- (해골 유령도 똑같이 든다 : 자세만 보고 유령인지 알 수 없게. 참는 것은 사람 몫)
  	if not hands.shown then
-@@ -2782,6 +2817,10 @@
+@@ -2782,6 +2903,10 @@
  			local tip = SAVE_TIP[data.reason] or "다시 해 봐요"
  			if data.kind == "mash" and (data.reason == "late" or data.reason == "timeout") then
  				tip = "더 빠르게 연타!"
@@ -930,7 +1086,18 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  			end
  			if mine then
  				announce((data.saved == "tutorial" and "다시! " or "한 번 봐줄게요! ") .. tip, gold, 2.2)
-@@ -3303,7 +3342,7 @@
+@@ -2813,7 +2938,9 @@
+ 				local who = Players:GetPlayerByUserId(data.userId or 0)
+ 				for index, ghost in ipairs(ghosts) do
+ 					task.delay((index - 1) * 0.12, function()
+-						throwKnife(model, thrower, ghost, true, who and who:GetAttribute(SKIN_ATTR.Knife) or nil)
++						if thrower then -- (몸이 없으면 던지지 않는다. nil 이면 내 화면 앞에서 날아가 버린다)
++							throwKnife(model, thrower, ghost, true, who and who:GetAttribute(SKIN_ATTR.Knife) or nil)
++						end
+ 					end)
+ 				end
+ 			end
+@@ -3303,7 +3430,7 @@
  			-- Phase 32 : 경고가 없으면 이번 라운드의 운명 카드를 한 줄로
  			local card = warning == "" and config.findFateCard(model:GetAttribute("FateCard")) or nil
  			if card then
@@ -939,7 +1106,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				detail.TextColor3 = card.color or gold
  			end
  			detail.Text = warning
-@@ -3643,6 +3682,13 @@
+@@ -3643,6 +3770,13 @@
  -- Phase 32 : 해적 종류마다 글자가 다르다 (쌍둥이 "하나 · 둘" · 갈고리 "◀ 왼쪽!" · 유령 "참아!" · 연타 "연타! 0/5")
  do
  	local WAIT_TEXT = { skull = "…", mash = "기다려…", twin = "기다려… (둘!)", side = "기다려… (방향!)" }
@@ -953,7 +1120,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  	Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, function()
  		if not catch or not catch.mine then
  			return
-@@ -3660,6 +3706,9 @@
+@@ -3660,6 +3794,9 @@
  			ringStroke.Transparency = 0.15 + wait * 0.5
  			if not catch.done and (catch.step or 1) == 1 then
  				catchText.Text = (kind == "twin" and #catch.steps >= 3) and "기다려… (셋!)" or (WAIT_TEXT[kind] or "기다려…")
@@ -963,7 +1130,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				catchText.TextColor3 = cream
  			end
  		elseif not catch.done then
-@@ -3670,7 +3719,7 @@
+@@ -3670,7 +3807,7 @@
  			if kind == "skull" then
  				-- 참는 시간 : 고리가 다 줄면 산다
  				ringStroke.Color = Color3.fromRGB(230, 236, 255)
@@ -972,7 +1139,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				catchText.TextColor3 = Color3.fromRGB(230, 236, 255)
  				return
  			end
-@@ -3684,9 +3733,12 @@
+@@ -3684,9 +3821,12 @@
  				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
  			elseif kind == "twin" then
  				catchText.Text = ({ "하나!", "둘!", "셋!" })[catch.step or 1] or "지금!"
@@ -1059,7 +1226,7 @@ diff -ru a/ReleaseService.lua b/ReleaseService.lua
    if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then
 diff -ru a/RoundService.lua b/RoundService.lua
 --- a/RoundService.lua	2026-09-27 11:32:16.928253561 +0000
-+++ b/RoundService.lua	2026-09-27 12:54:07.814793240 +0000
++++ b/RoundService.lua	2026-09-27 13:35:38.045108618 +0000
 @@ -687,8 +687,8 @@
  
  -- 이번 라운드 카드의 배율 (카드가 없거나 그 항목이 없으면 1)
@@ -1098,7 +1265,17 @@ diff -ru a/RoundService.lua b/RoundService.lua
  	end
  
  	-- Phase 8 : "저주의 재촉"을 맞았으면 이번 턴만 짧아진다.
-@@ -1604,6 +1606,14 @@
+@@ -1106,7 +1108,8 @@
+ 	local kind = catch.kind or "normal"
+ 	local steps = catch.steps or { { opensAt = catch.opensAt, window = catch.window } }
+ 	local first = steps[1]
+-	local chance = math.clamp(skill + (first.window - 0.45) * 1.6, 0.08, 0.92)
++	-- Phase 38.3 : 사람의 창을 늘린 만큼 AI 는 예전 창 길이로 본다 (BotWindowScale)
++	local chance = math.clamp(skill + (first.window * (tonumber(CATCH.BotWindowScale) or 1) - 0.45) * 1.6, 0.08, 0.92)
+ 	if kind == "skull" or kind == "mash" then
+ 		chance = math.clamp(skill + 0.2, 0.2, 0.9) -- 창 길이가 박자가 아니라 버티는 시간이다
+ 	end
+@@ -1604,6 +1607,14 @@
  	return player == nil or tutorial.player == player
  end
  
@@ -1113,7 +1290,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  -- Phase 32 : 이번 해적의 종류 (튜토리얼은 정해진 순서 · 운명 카드가 종류를 정하거나 확률을 바꾼다)
  function Round:_pickKind(player, stage)
  	if self:_tutorialActive(player) then
-@@ -1847,6 +1857,8 @@
+@@ -1847,6 +1858,8 @@
  			slot = slotIndex,
  			angry = angry or nil,
  			ink = angry and (CATCH.AngryInk or 2.4) or nil,
