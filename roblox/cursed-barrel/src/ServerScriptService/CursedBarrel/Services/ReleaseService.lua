@@ -99,11 +99,11 @@ function Service:settings(player,key,value)
  p.settings[key]=value;player:SetAttribute("Setting_"..key,value);Profiles:_touch(player)
 end
 -- Phase 24 : "연습 한 판" 은 결과를 반드시 돌려준다 (요청 제한 · 자료 로딩 중이어도). 안내창은 이 답을 보고 닫힌다.
-function Service:practice(player)
+function Service:practice(player,replay)
  local reply=self.practiceResult
  if not self.practiceLimits:check(player.UserId) then reply:FireClient(player,false,"잠시 후 다시 눌러 주세요 / Please try again in a moment");return end
  if not Profiles:Get(player) then reply:FireClient(player,false,"자료를 불러오는 중이에요. 잠시 후 다시 눌러 주세요 / Loading your data, try again soon");return end
- local ok,why=Bots:SeatForPractice(player)
+ local ok,why=Bots:SeatForPractice(player,replay==true)
  reply:FireClient(player,ok==true,why)
  self:sync(player,why)
 end
@@ -119,14 +119,18 @@ function Service:settingsBatch(player,batch)
  self:sync(player)
 end
 function Service:onRequest(player,action,a,b,c,d,e)
- if action=="practice" then self:practice(player);return end
+ if action=="practice" then self:practice(player,a=="replay");return end
  if action=="settings" then self:settingsBatch(player,a);return end
  if not self.limits:check(player.UserId) or typeof(action)~="string" then return end
  local p=Profiles:Get(player);if not p then return end
  local message=nil
  if action=="sync" then
  elseif action=="setting" then self:settings(player,a,b)
- elseif action=="tutorial" then p.tutorialDone=true;player:SetAttribute("TutorialDone",true);Profiles:_touch(player)
+ elseif action=="tutorial" then
+  -- Phase 32 : 튜토리얼은 필수라 "알겠어요"로 건너뛸 수 없다 (연습 테이블을 못 찾아 필수가 풀린 사람만)
+  if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then
+   p.tutorialDone=true;player:SetAttribute("TutorialDone",true);Profiles:_touch(player)
+  end
  elseif action=="weekly" and typeof(a)=="string" then message=Profiles:ClaimWeekly(player,a) and "보상 지급 / Reward claimed" or "조건 미달 또는 이미 지급 / Not claimable"
  elseif action=="season" and safeId(a) then message=Profiles:ClaimSeason(player,a) and "시즌 보상 지급 / Season reward claimed" or "조건 미달 또는 이미 지급 / Not claimable"
  elseif action=="invite" then self:invite(player,a);return

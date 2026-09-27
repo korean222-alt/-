@@ -474,7 +474,8 @@ end
 --------------------------------------------------
 
 -- 처음 온 사람을 빈 테이블에 앉힌다. 성공하면 true.
-function BotService:SeatForPractice(player)
+-- replay : Phase 32 "튜토리얼 다시 하기" (이미 마친 사람도 해적 종류 안내를 다시 받는다)
+function BotService:SeatForPractice(player, replay)
 	if not GameConfig.Tutorial.Enabled or not BOTS.Enabled then
 		return false, "지금은 연습 판을 열 수 없습니다"
 	end
@@ -505,6 +506,7 @@ function BotService:SeatForPractice(player)
 		player:SetAttribute("AFK", false)
 	end
 	best:SetTableAttribute(GameConfig.TableAttributes.Tutorial, player.UserId)
+	best:SetTableAttribute("TutorialReplay", replay == true)
 	self._waitingSince[best] = os.clock() - 10
 	local seat = best:GetFreeSeats()[1]
 	root.CFrame = seat.CFrame * CFrame.new(0, 3, 0)

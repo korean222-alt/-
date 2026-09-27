@@ -474,6 +474,30 @@ function GameTable:_onOccupantChanged(seat)
 		return
 	end
 
+	-- Phase 32 : 필수 튜토리얼
+	--   · 튜토리얼을 아직 안 마친 사람은 자기 튜토리얼 테이블에만 앉는다 (OnboardingService 가 앉혀 준다)
+	--   · 남의 튜토리얼 테이블에는 앉을 수 없다 (튜토리얼 판은 칼이 정해진 자리에 꽂히는 연습 판이다)
+	local blocked = nil
+	if not bot then
+		local tutorialId = self.model and self.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+		local mandatory = GameConfig.Tutorial and GameConfig.Tutorial.Mandatory
+		if tutorialId ~= 0 and tutorialId ~= player.UserId then
+			blocked = "busy"
+		elseif mandatory and tutorialId ~= player.UserId and player:GetAttribute("TutorialDone") ~= true and player:GetAttribute("TutorialFree") ~= true then
+			blocked = "tutorial"
+		end
+	end
+	if blocked then
+		GameConfig.log(("%s : %s 착석을 되돌립니다 (%s)"):format(self.tableId, player.Name, blocked))
+		player:SetAttribute("SeatBlocked", blocked .. ":" .. tostring(os.clock()))
+		task.defer(function()
+			if seat.Occupant == occupant then
+				occupant.Sit = false
+			end
+		end)
+		return
+	end
+
 	self:_seat(player, seat)
 end
 

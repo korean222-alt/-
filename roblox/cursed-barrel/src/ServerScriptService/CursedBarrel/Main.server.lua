@@ -92,6 +92,7 @@ PredictionService:Start()
 TournamentService:Start()
 RewardService:Start()
 RescueService:Start()
+require(Services.OnboardingService):Start() -- Phase 32 : 필수 튜토리얼 (처음 온 사람을 연습 테이블에 앉힌다)
 
 -- Phase 24 : 출시 전 점검 — ReleaseConfig 에 아직 0 으로 남은 ID 를 출력창에 모아 적는다.
 do

@@ -270,6 +270,10 @@ local function migrate(raw)
 	if funnel and funnel == funnel and funnel < math.huge then
 		profile.funnel = math.clamp(math.floor(funnel), 0, 99)
 	end
+	-- 이미 놀던 사람은 첫 방문 흐름 분석에 넣지 않는다
+	if profile.funnel == 0 and ((profile.games or 0) > 0 or profile.tutorialDone) then
+		profile.funnel = 99
+	end
 	profile.schema = SCHEMA
 	return profile
 end
@@ -574,6 +578,8 @@ function ProfileService:_load(player)
  self._writable[player]=writable
  if player.Parent~=Players then self:_release(player);return end
  player:SetAttribute("DataWritable",writable)
+ -- Phase 32 : 처음 온 사람 (첫 방문 흐름 1단계)
+ if not profile.tutorialDone and (profile.games or 0)==0 then self:Funnel(player,1,"Joined") end
  self:_rollDaily(player,profile)
  self:_rollWeekly(profile)
  self:_touch(player)
@@ -766,6 +772,22 @@ function ProfileService:CountGame(player)
 	local after = GameConfig.spinState(profile, today)
 	self:_touch(player)
 	return profile.dayGames, (not before.unlocked) and after.unlocked and not after.spun, (not before.comebackReady) and after.comebackReady
+end
+
+-- Phase 32 : 첫 방문 흐름 (AnalyticsService 온보딩 단계). 한 사람에게 단계마다 한 번, 앞 단계보다 뒤일 때만 보낸다.
+--   1 Joined · 2 TutorialStarted · 3 FirstPirate · 4 TutorialDone · 5 FirstGameFinished · 6 SecondGameFinished
+--   Creator Hub → 분석 → 온보딩 에서 몇 %가 어느 단계에서 나가는지 본다.
+function ProfileService:Funnel(player, step, name)
+	local profile = self._profiles[player]
+	if not profile or (profile.funnel or 0) >= step then
+		return
+	end
+	profile.funnel = step
+	self._dirty[player] = true
+	task.spawn(function()
+		local analytics = game:GetService("AnalyticsService")
+		pcall(analytics.LogOnboardingFunnelStepEvent, analytics, player, step, name)
+	end)
 end
 
 -- Phase 32 : 이 해적 종류를 처음 만나는가 (처음이면 기록하고 true)
