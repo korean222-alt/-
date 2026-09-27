@@ -1,6 +1,6 @@
 -- Release configuration. IDs are deliberately zero until the owner creates assets.
 local C = {}
-C.Version = "32.1.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
+C.Version = "34.0.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
 
 --------------------------------------------------
 -- Phase 17 : 출시에 필요한 ID 는 전부 이 파일에 적는다 (숫자만)

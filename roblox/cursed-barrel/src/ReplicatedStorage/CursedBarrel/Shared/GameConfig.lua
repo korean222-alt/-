@@ -264,7 +264,7 @@ GameConfig.RejectMessages = {
 	VipOnly = "VIP 패스 전용입니다",
 	PackOnly = "스타터 팩 전용입니다",
 	SeasonOnly = "시즌 보상으로만 받을 수 있습니다",
-	LikeOnly = "게임 출시 기념 선물이에요 (코드에 love 입력 · 스폰 계단 아래 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다 · Phase 32 : 받침대가 스폰 계단 아래로 옮겼다
+	LikeOnly = "게임 출시 기념 선물이에요 (코드에 love 입력 · 상점 앞 받침대)", -- Phase 24 : 예전 "계단 아래 그룹 가입" 안내는 틀린 설명이었다 · Phase 32 : 받침대가 스폰 계단 아래로 옮겼다
 	-- Phase 13
 	AlreadyClaimed = "오늘은 이미 받았습니다",
 	NoSpins = "오늘은 이미 돌렸습니다. 내일 다시 돌릴 수 있어요",
@@ -1592,7 +1592,7 @@ GameConfig.PirateKinds = {
 	Order = { "normal", "twin", "side", "skull", "mash", "angry" },
 	List = {
 		normal = { name = "해적", short = "탭!", how = "튀어나오면 한 번 눌러요!", color = Color3.fromRGB(101, 241, 211), unlock = 1, weight = 50 },
-		twin = { name = "쌍둥이 해적", short = "하나 · 둘!", how = "두 마리가 차례로 튀어나와요. 나올 때마다 한 번씩!", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
+		twin = { name = "쌍둥이 해적", short = "둘 다 잡기!", how = "두 마리를 모두 잡아야 해요! 하나 튀어나오면 탭, 또 튀어나오면 한 번 더 탭", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
 			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9 },
 		side = { name = "갈고리 해적", short = "← 쪽 · 쪽 →", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 16,
 			windowScale = 1.2 },

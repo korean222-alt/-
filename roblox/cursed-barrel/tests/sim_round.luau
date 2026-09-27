@@ -793,6 +793,32 @@ local s2 = runScenario({ name = "잘하는 사람 둘 (끝없는 라운드)", hu
 expect(s2.errors == 0, "오류 없이 돈다")
 expect(s2.stages > 8, ("8라운드를 넘긴다 (%d라운드까지 · 둘 다 한 번도 안 놓치면 끝나지 않는다)"):format(s2.stages))
 
+-- 2b) 쌍둥이는 둘 다 잡아야 한다 : 첫째만 누르고 둘째를 안 누르면 놓친 것이다
+local function twinOnce(round, player, data)
+	if data.kind == "twin" then
+		local first = (data.steps or {})[1] or { opensAt = data.opensAt }
+		fakeTask.delay(first.opensAt - NOW + 0.2, function()
+			round:HandleCatchInput(player, first.opensAt + 0.17, false)
+		end)
+		return
+	end
+	skilled(round, player, data)
+end
+local steady, lazy = newHuman(211, 80, true), newHuman(212, 80, true)
+local s2b = runScenario({ name = "쌍둥이를 한 마리만 잡는 사람", humans = { { player = steady, policy = skilled }, { player = lazy, policy = twinOnce } }, bots = 0, maxTime = 1800 })
+local lazyTwins, lazyTwinCaught = 0, 0
+for _, r in ipairs(s2b.results) do
+	if r.userId == lazy.UserId and r.kind == "twin" then
+		lazyTwins += 1
+		if r.success then
+			lazyTwinCaught += 1
+		end
+	end
+end
+expect(s2b.errors == 0, "오류 없이 돈다")
+expect(lazyTwins >= 1 and lazyTwinCaught == 0, ("한 마리만 잡으면 놓친 것 (쌍둥이 %d번 · 잡음 %d)"):format(lazyTwins, lazyTwinCaught))
+expect(s2b.winner == steady.UserId, "둘 다 잡는 사람이 이긴다")
+
 -- 3) 서툰 신입 : 한 번은 살려 주고 그다음엔 탈락
 local rookie = newHuman(301, 0, true)
 local s3 = runScenario({ name = "서툰 신입 + AI 셋", humans = { { player = rookie, policy = hasty } }, bots = 3, maxTime = 1800 })

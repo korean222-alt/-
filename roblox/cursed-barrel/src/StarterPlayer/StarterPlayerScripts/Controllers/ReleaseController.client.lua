@@ -282,7 +282,7 @@ function draw()
    {"🎯 내 차례에 칼 꽂을 자리를 고르세요","🎯 On your turn, pick a slot"},
    {"☠ 해적이 나오면 눌러서 잡기! 먼저 누르면 탈락","☠ Tap when the pirate pops out! Too early = out"},
    -- Phase 32 : 해적 종류 · 운명 카드
-   {"쌍둥이 해적 : 두 마리가 차례로, 나올 때마다 한 번씩","Twins: two pop in turn, tap once for each"},
+   {"쌍둥이 해적 : 두 마리를 모두 잡아야 해요. 나올 때마다 한 번씩","Twins: catch both! Tap once for each as they pop"},
    {"갈고리 해적 : 튀어나온 쪽(왼쪽 · 오른쪽)을 눌러요","Hook: tap the side it pops out on (left · right)"},
    {"해골 유령 : 누르면 탈락! 사라질 때까지 참기","Skull ghost: don't tap! Wait until it fades"},
    {"욕심쟁이 해적 : 칼을 붙잡았다! 빠르게 연타","Greedy: it grabbed the knife! Mash quickly"},
@@ -375,8 +375,10 @@ remotes.PresentationCue.OnClientEvent:Connect(function(event,model,payload)
      game:GetService("TweenService"):Create(shoulder,TweenInfo.new(0.35),{C0=original*CFrame.Angles(0,0,math.rad(115))}):Play()
      task.delay(1.4,function() if shoulder.Parent then game:GetService("TweenService"):Create(shoulder,TweenInfo.new(0.4),{C0=original}):Play() end end)
     end
-    local crown=Instance.new("BillboardGui");crown.Size=UDim2.fromOffset(90,58);crown.StudsOffset=Vector3.new(0,2,0);crown.MaxDistance=90;crown.Parent=head
-    local text=Instance.new("TextLabel");text.Size=UDim2.fromScale(1,1);text.BackgroundTransparency=1;text.Text="👑";text.TextSize=48;text.TextColor3=Color3.fromRGB(255,210,110);text.Parent=crown;game:GetService("Debris"):AddItem(crown,4)
+    -- Phase 33.1 : 왕관 크기를 픽셀(90x58)이 아니라 스터드(머리 폭쯤)로 정한다. 예전에는 멀리 있는 다른 사람이 이겨도
+    --   화면에서 늘 같은 크기라 사람보다 훨씬 크게 보였다. 이모지 대신 금 왕관 그림(MoneyIcon "crown")
+    local crown=Instance.new("BillboardGui");crown.Size=UDim2.fromScale(2.2,2.2);crown.StudsOffset=Vector3.new(0,2.3,0);crown.MaxDistance=90;crown.LightInfluence=0;crown.Parent=head
+    require(need(sharedFolder,"MoneyIcon")).view(crown,"crown",{size=UDim2.fromScale(1,1),spin=true});game:GetService("Debris"):AddItem(crown,4)
    end
   end
  elseif event=="Eliminate" then

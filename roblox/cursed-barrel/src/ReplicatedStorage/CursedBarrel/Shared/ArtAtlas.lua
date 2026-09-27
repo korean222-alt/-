@@ -77,6 +77,46 @@ local function paintCell(image, cell)
 	image.ImageRectSize = cell.size
 end
 
+-- Phase 33.1 : 그림 ID 가 있어도 그림이 실제로 불러와지기 전(심사 중 · 권한 없음 · 느린 휴대폰)에는 빈칸이었다.
+--   이제 그림이 다 불러와질 때까지 대신 그린 모양을 보여 주고, 불러오지 못하면 개발자 콘솔(F9)에 까닭을 한 번 남긴다.
+local ContentProvider = game:GetService("ContentProvider")
+local checked = {}
+local function report(image)
+	if checked[image] then
+		return
+	end
+	checked[image] = true
+	task.spawn(function()
+		pcall(function()
+			ContentProvider:PreloadAsync({ image }, function(content, status)
+				if status ~= Enum.AssetFetchStatus.Success then
+					warn(("[CursedBarrel] 그림을 불러오지 못했어요 : %s (%s). 에셋 관리자에서 심사가 끝났는지, "
+						.. "게임이 그룹 소유라면 그림도 그 그룹으로 올렸는지 확인해 주세요"):format(tostring(content), tostring(status)))
+				end
+			end)
+		end)
+	end)
+end
+
+-- art 가 불러와지면 fallback 을 숨긴다 (그 전에는 fallback 이 보인다)
+local function showWhenLoaded(art, fallback)
+	if art:GetAttribute("LoadWatch") ~= true then
+		art:SetAttribute("LoadWatch", true)
+		art:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+			local target = art:FindFirstChild("Fallback")
+			if art.IsLoaded and art.Visible and target and target.Value then
+				target.Value.Visible = false
+			end
+		end)
+	end
+	local link = art:FindFirstChild("Fallback") or Instance.new("ObjectValue")
+	link.Name = "Fallback"
+	link.Value = fallback
+	link.Parent = art
+	fallback.Visible = not art.IsLoaded
+	report(art.Image)
+end
+
 --------------------------------------------------
 -- 아이콘
 --------------------------------------------------
@@ -108,7 +148,7 @@ function ArtAtlas.icon(parent, id, props)
 	art.Size = UDim2.fromScale(1, 1)
 	art.BackgroundTransparency = 1
 	art.ScaleType = Enum.ScaleType.Fit
-	art.ZIndex = holder.ZIndex
+	art.ZIndex = holder.ZIndex + 2
 	art.Parent = holder
 
 	-- 대신 그리는 휘장 : 둥근 판 · 금테 · 한 글자
@@ -164,6 +204,9 @@ function ArtAtlas.setIcon(holder, id)
 	end
 	if badge then
 		badge.Visible = cell == nil
+		if cell and art then
+			showWhenLoaded(art, badge)
+		end
 		local color = ICON_COLOR[id] or Color3.fromRGB(226, 178, 88)
 		local fill = badge:FindFirstChildOfClass("UIGradient")
 		if fill then
@@ -254,7 +297,7 @@ function ArtAtlas.tarot(parent, props)
 	art.Size = UDim2.fromScale(1, 1)
 	art.BackgroundTransparency = 1
 	art.ScaleType = Enum.ScaleType.Stretch
-	art.ZIndex = z + 1
+	art.ZIndex = z + 7 -- 대신 그린 카드(z+1 ~ z+6) 위 · 이름(z+8) 아래
 	art.Parent = face
 
 	-- 그림이 없을 때 : 남색 카드 · 금테 두 줄 · 로마 숫자 · 둥근 창 · 휘장 · 이름판
@@ -321,6 +364,7 @@ function ArtAtlas.tarot(parent, props)
 		plain.Visible = cell == nil
 		if cell then
 			paintCell(art, cell)
+			showWhenLoaded(art, plain)
 		end
 		title.Visible = faceUp == true
 		title.Text = faceUp and card and card.name or ""

@@ -873,6 +873,8 @@ do
 	darkGui.Name = "CursedBarrel_Darkness"
 	darkGui.ResetOnSpawn = false
 	darkGui.IgnoreGuiInset = true
+	-- Phase 33.1 : 휴대폰 노치 · 둥근 모서리 쪽(안전 영역 밖)까지 덮는다 (예전에는 화면 양옆에 어둠이 잘린 띠가 남았다)
+	darkGui.ScreenInsets = Enum.ScreenInsets.None
 	darkGui.DisplayOrder = 1 -- 알림판 · 칼 고르는 창 · 잡기 화면보다 아래 (3D 화면만 덮는다)
 	darkGui.Parent = player:WaitForChild("PlayerGui")
 	local veil = Instance.new("Frame")
@@ -2036,7 +2038,7 @@ do
 	introCard.Name = "KindIntro"
 	introCard.AnchorPoint = Vector2.new(0.5, 0)
 	introCard.Position = UDim2.new(0.5, 0, 0, 186)
-	introCard.Size = UDim2.fromOffset(460, 150)
+	introCard.Size = UDim2.fromOffset(460, 118) -- Phase 33.1 : 150 → 118 (아래 절반이 비어 있었다)
 	introCard.BackgroundColor3 = Color3.new(1, 1, 1)
 	introCard.Visible = false
 	introCard.Active = false
@@ -2047,11 +2049,11 @@ do
 	local introStroke = UIKit.outline(introCard, 4)
 	local introScale = Instance.new("UIScale")
 	introScale.Parent = introCard
-	local introIcon = ArtAtlas.icon(introCard, "normal", { size = UDim2.fromOffset(112, 112), position = UDim2.new(0, 14, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = 31 })
-	local introName = textLabel("Name", UDim2.new(1, -150, 0, 40), UDim2.fromOffset(138, 14), 32, introCard)
+	local introIcon = ArtAtlas.icon(introCard, "normal", { size = UDim2.fromOffset(96, 96), position = UDim2.new(0, 12, 0.5, 0), anchor = Vector2.new(0, 0.5), zIndex = 31 })
+	local introName = textLabel("Name", UDim2.new(1, -134, 0, 38), UDim2.fromOffset(118, 10), 30, introCard)
 	introName.ZIndex = 31
 	introName.TextXAlignment = Enum.TextXAlignment.Left
-	local introHow = textLabel("How", UDim2.new(1, -154, 0, 84), UDim2.fromOffset(138, 58), 20, introCard)
+	local introHow = textLabel("How", UDim2.new(1, -134, 0, 62), UDim2.fromOffset(118, 50), 20, introCard)
 	introHow.ZIndex = 31
 	introHow.TextXAlignment = Enum.TextXAlignment.Left
 	introHow.TextYAlignment = Enum.TextYAlignment.Top
@@ -2059,10 +2061,10 @@ do
 	local function fitIntro()
 		local camera = workspace.CurrentCamera
 		local view = camera and camera.ViewportSize or Vector2.new(1280, 720)
-		local boardScale = math.clamp(math.min((view.X - 20) / 450, view.Y / 560), 0.6, 1)
 		introScale.Scale = math.clamp(math.min((view.X - 24) / 480, view.Y / 560), 0.5, 1)
-		-- 알림판(50 + 100) · 경고 한 줄 아래
-		introCard.Position = UDim2.new(0.5, 0, 0, math.floor(50 + 134 * boardScale))
+		-- Phase 33.1 : 잡는 동안에는 알림판이 숨으므로 화면 맨 위(Roblox 메뉴 줄 바로 아래)에 붙인다.
+		--   예전(알림판 아래)에는 가로 휴대폰에서 화면 가운데 = 잡기 고리 한가운데를 덮었다.
+		introCard.Position = UDim2.new(0.5, 0, 0, math.floor(GuiService:GetGuiInset().Y + 8))
 	end
 	fitIntro()
 	if workspace.CurrentCamera then
@@ -2215,7 +2217,7 @@ do
 		local touch = Input.TouchEnabled and not Input.KeyboardEnabled
 		local line
 		if kind == "twin" then
-			line = "두 마리가 차례로! 나올 때마다 한 번씩"
+			line = "두 마리 모두 잡아요! 나올 때마다 한 번씩 (한 마리만 잡으면 놓친 거예요)"
 		elseif kind == "side" then
 			line = touch and "튀어나온 쪽 화면(왼쪽 · 오른쪽)을 눌러요" or "튀어나온 쪽 : ← → 또는 A D"
 		elseif kind == "skull" then
@@ -2300,7 +2302,7 @@ function sendCatch(side)
 	if (catch.step or 1) < #catch.steps then
 		-- 쌍둥이 : 첫째를 잡았다
 		catch.step += 1
-		catchText.Text = "하나! 하나 더…"
+		catchText.Text = "1/2 잡았다! 하나 더…"
 		catchText.TextColor3 = teal
 		sound("win", 1.6, 0.2)
 		local first = liveGhosts[1]
