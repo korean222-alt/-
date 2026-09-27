@@ -1,0 +1,695 @@
+diff -ru a/BotService.lua b/BotService.lua
+--- a/BotService.lua	2026-09-27 11:32:16.927865647 +0000
++++ b/BotService.lua	2026-09-27 11:50:51.579794656 +0000
+@@ -386,10 +386,15 @@
+ 		end
+ 	end
+ 
+-	-- 사람이 없거나, 사람만으로 시작 인원이 찼으면 AI 는 비켜 준다.
++	-- 사람이 없으면 AI 는 비켜 준다.
+ 	-- Phase 24 : 앉은 사람 중 누가 AI 를 꺼 두었어도 비켜 준다 (연습 판은 직접 부른 것이라 예외)
++	-- ★ Phase 38.3 : 사람만으로 시작 인원이 차도 AI 가 비키지 않는다. 앉은 사람 모두가 AI 선원을 켜 두었으면
++	--   남은 빈자리를 AI 가 채운다 (예전에는 사람이 둘 앉으면 AI 가 모두 떠나고 다시 오지 않았다).
++	--   누가 「🤖 AI 선원 끔」을 누르면 예전처럼 사람끼리만 한다. (사람이 「앉기」를 누르면 AI 는 여전히 자리를 내준다)
++	--   토너먼트 테이블은 예외 : AI 가 끼면 점수 없는 연습 판이 되므로, 사람이 시작 인원만큼 모이면 예전처럼 AI 가 비킨다.
+ 	local practiceTable = tutorialId and tutorialId ~= 0
+-	if humans == 0 or humans >= minPlayers or (not practiceTable and not self:_humansWantBots(gameTable)) then
++	local humansOnly = gameTable.config.Tournament == true and humans >= minPlayers
++	if humans == 0 or humansOnly or (not practiceTable and not self:_humansWantBots(gameTable)) then
+ 		self._waitingSince[gameTable] = nil
+ 		for _, bot in ipairs(bots) do
+ 			self:_despawn(bot)
+diff -ru a/CannonController.lua b/CannonController.lua
+--- a/CannonController.lua	2026-09-27 11:32:16.925601653 +0000
++++ b/CannonController.lua	2026-09-27 11:38:43.640195011 +0000
+@@ -304,7 +304,38 @@
+ 			end
+ 		end
+ 	end
+-	local aimPoint = best and best.pos or bodyTarget(ray, now) or (ray.Origin + ray.Direction * 150)
++	-- Phase 38.3 : 약점 · 눈 쪽으로 돌릴 수 없으면, 누른 크라켄 몸통 자리를 그대로 겨눈다 (서버도 몸통을 명중으로 친다).
++	--   예전에는 여기서 "카메라 광선 150 스터드 앞"을 포구에서 겨눴다. 카메라는 포구 뒤 9 · 위 4.5 스터드라
++	--   가까운 다리(10~25 스터드)를 누르면 포탄이 누른 곳과 몇 스터드 어긋난 선으로 날아가 빗나갔다.
++	local aimPoint = best and best.pos or bodyTarget(ray, now)
++	if not aimPoint then
++		local raid = workspace:GetAttribute("RaidActive") == true
++		local list = {}
++		for _, slam in pairs(slams) do
++			table.insert(list, slam)
++		end
++		local body = T.bodyHit(ray.Origin, ray.Direction, now, {
++			amp = T.agitation(workspace:GetAttribute("WorldPhase") or "day", raid),
++			rise = raid and T.HeadRaidRise or 0,
++			slams = raid and list or nil,
++			range = CANNON.Range + 40,
++		})
++		if body and reachable(aiming.muzzle, aiming.outward, body.point) then
++			-- 몸통 겉면보다 조금 안쪽(중심 쪽)을 겨눠서 포구에서 봐도 확실히 몸통을 지나가게 한다
++			aimPoint = body.point:Lerp(body.center, 0.5)
++		end
++	end
++	if not aimPoint then
++		-- 크라켄이 아닌 곳 : 카메라 광선이 바다에 닿는 곳(없으면 먼 곳)을 겨눈다 (누른 곳으로 날아간다)
++		local far = ray.Origin + ray.Direction * 150
++		if ray.Direction.Y < -0.01 then
++			local d = (K.SeaY - ray.Origin.Y) / ray.Direction.Y
++			if d > 0 and d < 150 then
++				far = ray.Origin + ray.Direction * d
++			end
++		end
++		aimPoint = far
++	end
+ 	local dir = (aimPoint - aiming.muzzle)
+ 	if dir.Magnitude < 1 then
+ 		return
+diff -ru a/GameConfig.lua b/GameConfig.lua
+--- a/GameConfig.lua	2026-09-27 11:32:16.927363736 +0000
++++ b/GameConfig.lua	2026-09-27 11:46:03.853191178 +0000
+@@ -513,7 +513,8 @@
+ 	Small = { Id = "small", Name = "잭팟", Amount = 1000, Chance = 0.025 },
+ }
+ -- 현상금 상한 (Phase 21 : 60,000 → Phase 24 : 10,000. 한 판에 6만 코인이 나오던 원인)
+-GameConfig.Pot.Cap = 10000
++-- Phase 38.3 : 상한을 없앤다 (끝없는 라운드라 오래 버틸수록 현상금이 계속 쌓인다)
++GameConfig.Pot.Cap = math.huge
+ 
+ -- 이번 잡기의 창 길이. 서버에서만 호출한다.
+ -- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
+@@ -1074,7 +1075,8 @@
+ -- AI 선원 (Phase 11)
+ --
+ -- 혼자 앉아 기다리는 사람이 있으면, 잠시 뒤 AI 선원이 빈 의자에 앉아 같이 한다.
+--- 사람이 더 오면(MinPlayers 이상) 대기 중인 AI 는 자리를 비켜 준다.
++-- 사람이 「앉기」를 누르면 대기 중인 AI 는 자리를 비켜 준다.
++-- Phase 38.3 : 사람이 둘 이상이어도 모두 AI 선원을 켜 두었으면 남은 빈 의자를 AI 가 채운다.
+ --
+ -- ★ AI 와 함께한 판은 "연습 판"이다.
+ --   코인은 RewardScale 만큼만 받고, 승수 · 연승 · 랭킹에는 들어가지 않는다.
+@@ -1558,11 +1560,14 @@
+ 	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
+ 	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
+ 	Mandatory = true,
+-	Kinds = { "normal", "twin", "side", "skull", "mash" },
++	-- Phase 38.3 : 다섯 종류 → 셋 (보통 · 쌍둥이 · 해골 유령). "길고 어렵다"며 중간에 나가는 사람이 많았다.
++	--   갈고리 · 욕심쟁이는 실제 판에서 처음 만날 때 설명 카드가 뜨고 늦게 나온다 (FirstSightLead) · 신입 보호도 있다.
++	Kinds = { "normal", "twin", "skull" },
+ 	IntroLead = 3.5, -- 설명 카드를 띄운 뒤 해적이 나오기까지 · Phase 34.1 : 4.4 → 2.0 · Phase 35.1 : 튜토리얼은 카드 3초 + 0.5초
+ 	IntroShow = 3.0, -- Phase 35.1 : 튜토리얼 설명 카드를 보여 주는 시간 (그 뒤로는 위의 작은 띠)
+ 	TutorialWindowScale = 2.0, -- 튜토리얼 해적의 잡기 창 배율
+-	MaxIdleMisses = 3,
++	MaxIdleMisses = 5, -- Phase 38.3 : 3 → 5 (무엇을 누를지 몰라 가만히 있던 사람이 세 번 만에 떨어지고, 튜토리얼에 다시 앉혀졌다)
++	SkipAfter = 1, -- Phase 38.3 : 이만큼 잡으면 「튜토리얼 건너뛰기」가 열린다 (보상은 끝까지 해야 받는다)
+ 	Reward = 500,
+ 	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
+ 	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
+diff -ru a/GameTable.lua b/GameTable.lua
+--- a/GameTable.lua	2026-09-27 11:32:16.928375431 +0000
++++ b/GameTable.lua	2026-09-27 11:44:35.151455715 +0000
+@@ -332,6 +332,43 @@
+ 			self:_onOccupantChanged(seat)
+ 		end))
+ 	end
++	-- Phase 38.3 : 튜토리얼 테이블이 되거나 풀리면 빈 의자를 잠그거나 연다 (_refresh)
++	if self.model then
++		self.cleaner:add(self.model:GetAttributeChangedSignal(TABLE_ATTR.Tutorial):Connect(function()
++			self:_refresh()
++		end))
++	end
++end
++
++-- Phase 32 · 38.3 : 이 사람이 이 테이블에 앉을 수 없는 까닭 (없으면 nil)
++--   · "busy"     : 다른 사람이 튜토리얼 중인 테이블이다
++--   · "tutorial" : 이 사람이 아직 튜토리얼을 마치지 않았다 (자기 튜토리얼 테이블에만 앉는다)
++function GameTable:_seatBlockReason(player)
++	if GameConfig.isBot(player) then
++		return nil
++	end
++	local tutorialId = self.model and self.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
++	local mandatory = GameConfig.Tutorial and GameConfig.Tutorial.Mandatory
++	if tutorialId ~= 0 and tutorialId ~= player.UserId then
++		return "busy"
++	elseif mandatory and tutorialId ~= player.UserId and player:GetAttribute("TutorialDone") ~= true and player:GetAttribute("TutorialFree") ~= true then
++		return "tutorial"
++	end
++	return nil
++end
++
++-- Phase 38.3 : 튜토리얼 중인 사람이 지금 이 테이블에 앉아 있다 → 남은 빈 의자는 아무도 못 앉게 잠근다
++function GameTable:_tutorialLocked()
++	local tutorialId = self.model and self.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
++	if tutorialId == 0 then
++		return false
++	end
++	for _, occupant in pairs(self.playerOfSeat) do
++		if occupant.UserId == tutorialId and not GameConfig.isBot(occupant) then
++			return true
++		end
++	end
++	return false
+ end
+ 
+ function GameTable:_ensurePrompt(seat)
+@@ -395,6 +432,15 @@
+ 		return
+ 	end
+ 
++	-- ★ Phase 38.3 : 앉을 수 없는 사람이면 AI 를 비키게 하기 전에 멈춘다.
++	--   예전에는 튜토리얼 테이블의 AI 자리에서 남이 「앉기」를 누르면 AI 가 먼저 사라지고, 그다음에 착석이 막혀서
++	--   튜토리얼 판의 AI 선원이 하나씩 없어졌다. (튜토리얼 중인 사람이 다른 테이블 AI 자리를 눌러도 같았다)
++	local blocked = self:_seatBlockReason(player)
++	if blocked then
++		player:SetAttribute("SeatBlocked", blocked .. ":" .. tostring(os.clock()))
++		return
++	end
++
+ 	-- Phase 24 : AI 가 테이블을 꽉 채워도 사람이 오면 AI 가 자리를 내준다 (기다리는 동안만)
+ 	local occupant = self.playerOfSeat[seat]
+ 	if occupant then
+@@ -477,16 +523,7 @@
+ 	-- Phase 32 : 필수 튜토리얼
+ 	--   · 튜토리얼을 아직 안 마친 사람은 자기 튜토리얼 테이블에만 앉는다 (OnboardingService 가 앉혀 준다)
+ 	--   · 남의 튜토리얼 테이블에는 앉을 수 없다 (튜토리얼 판은 칼이 정해진 자리에 꽂히는 연습 판이다)
+-	local blocked = nil
+-	if not bot then
+-		local tutorialId = self.model and self.model:GetAttribute(TABLE_ATTR.Tutorial) or 0
+-		local mandatory = GameConfig.Tutorial and GameConfig.Tutorial.Mandatory
+-		if tutorialId ~= 0 and tutorialId ~= player.UserId then
+-			blocked = "busy"
+-		elseif mandatory and tutorialId ~= player.UserId and player:GetAttribute("TutorialDone") ~= true and player:GetAttribute("TutorialFree") ~= true then
+-			blocked = "tutorial"
+-		end
+-	end
++	local blocked = (not bot) and self:_seatBlockReason(player) or nil
+ 	if blocked then
+ 		GameConfig.log(("%s : %s 착석을 되돌립니다 (%s)"):format(self.tableId, player.Name, blocked))
+ 		player:SetAttribute("SeatBlocked", blocked .. ":" .. tostring(os.clock()))
+@@ -603,16 +640,18 @@
+ 	self.model:SetAttribute(TABLE_ATTR.SeatedCount, count)
+ 
+ 	local joinable = self:IsJoinable()
++	-- Phase 38.3 : 튜토리얼 중인 사람이 앉아 있는 동안에는 남은 의자에 「앉기」도 없고 몸으로 부딪혀도 앉지 못한다
++	local tutorialLocked = self:_tutorialLocked()
+ 	for _, seat in ipairs(self.seats) do
+ 		-- AI 선원이 앉은 의자는 비어 보이지만(Occupant 가 없다) 몸으로 부딪혀서는 앉을 수 없다.
+ 		-- Phase 24 : 기다리는 동안에는 "앉기"를 누르면 AI 가 비켜 준다 (_onPromptTriggered)
+ 		local botSeat = GameConfig.isBot(self.playerOfSeat[seat])
+ 		local prompt = seat:FindFirstChildOfClass("ProximityPrompt")
+ 		if prompt then
+-			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil
++			prompt.Enabled = not self.destroyed and joinable and seat.Occupant == nil and not tutorialLocked
+ 		end
+ 
+-		local shouldDisable = botSeat or ((not joinable) and seat.Occupant == nil)
++		local shouldDisable = botSeat or ((not joinable) and seat.Occupant == nil) or (tutorialLocked and seat.Occupant == nil)
+ 		if seat.Disabled ~= shouldDisable then
+ 			seat.Disabled = shouldDisable
+ 		end
+diff -ru a/KrakenController.lua b/KrakenController.lua
+--- a/KrakenController.lua	2026-09-27 11:32:16.925563949 +0000
++++ b/KrakenController.lua	2026-09-27 11:38:55.329492142 +0000
+@@ -825,8 +825,8 @@
+ 			if arm then
+ 				arm.flinchUntil = os.clock() + 0.45
+ 			end
+-		elseif data.hit == "eye" and head then
+-			head.squintUntil = os.clock() + 0.8
++		elseif (data.hit == "eye" or data.hit == "head") and head then -- Phase 38.3 : 머리 몸통에 맞아도 움찔
++			head.squintUntil = os.clock() + (data.hit == "eye" and 0.8 or 0.5)
+ 		end
+ 	end)
+ end)
+diff -ru a/KrakenTargets.lua b/KrakenTargets.lua
+--- a/KrakenTargets.lua	2026-09-27 11:32:16.926921357 +0000
++++ b/KrakenTargets.lua	2026-09-27 11:38:24.084720302 +0000
+@@ -189,10 +189,81 @@
+ 	return proj - math.sqrt(r2 - d2)
+ end
+ 
++--------------------------------------------------
++-- Phase 38.3 : 크라켄 몸통
++--   예전에는 빛나는 약점 · 눈 · 치켜든 다리 끝만 맞았다. 그래서 갑판에 드러누운 큰 다리, 물 위의 머리,
++--   갑판을 내려친 다리를 쏘면 전부 "빗나갔다"였다 ("크라켄이 안 맞아").
++--   이제 몸통 어디든 맞으면 명중이다. 약점 · 눈 · 막기는 여전히 더 아프다 (먼저 본다).
++--------------------------------------------------
++T.BodySamples = 14
++T.BodyMargin = 1.2 -- 화면의 다리(부드럽게 옮겨 가는 날뜀 · 말린 끝)와 판정의 작은 차이를 덮는다
++
++local function slamBodyRadius(u)
++	return 0.6 + (3.6 - 0.6) * (1 - u) ^ 1.1 -- KrakenController 의 내려치는 다리 굵기와 같다
++end
++
++local restingCache = nil
++local function restingBodies()
++	if not restingCache then
++		restingCache = {}
++		for index, spec in ipairs(K.Resting or {}) do
++			local ok, samples = pcall(K.restingSample, spec, T.BodySamples + 6)
++			restingCache[index] = ok and samples or {}
++		end
++	end
++	return restingCache
++end
++
++--[[
++	광선이 크라켄 몸통에 처음 닿는 곳. 바다 속(물 아래)은 치지 않는다.
++	돌려주는 값 : { kind = "arm"(움직이는 다리 · index) | "head" | "body"(누운 다리 · 내려친 다리), index, point, distance } 또는 nil
++]]
++function T.bodyHit(origin, dir, t, opts)
++	opts = opts or {}
++	local range = opts.range or 200
++	local margin = opts.bodyMargin or T.BodyMargin
++	local floorY = K.SeaY - 0.3
++	local best = nil
++	local function consider(kind, index, center, radius)
++		local d = T.rayDistance(origin, dir, center, radius)
++		if d and d <= range and (not best or d < best.distance) then
++			local point = origin + dir * d
++			if point.Y >= floorY then
++				best = { kind = kind, index = index, point = point, distance = d, center = center }
++			end
++		end
++	end
++	for index, spec in ipairs(K.Arms) do
++		for _, s in ipairs(K.sample(spec, t, T.BodySamples, opts.amp)) do
++			if s.p.Y + s.r > floorY then
++				consider("arm", index, s.p, s.r + margin)
++			end
++		end
++	end
++	for index, samples in ipairs(restingBodies()) do
++		for _, s in ipairs(samples) do
++			consider("body", index, s.p, s.r + margin)
++		end
++	end
++	local center = T.headBasis(t, opts.rise)
++	consider("head", 0, center, K.Head.mantle * 0.5)
++	for _, slam in ipairs(opts.slams or {}) do
++		local tip = T.slamTip(slam, t)
++		if tip then
++			local count = 10
++			for i, p in ipairs(T.slamSpine(slam, tip, count)) do
++				consider("body", slam.id, p, slamBodyRadius((i - 1) / (count - 1)) + margin)
++			end
++		end
++	end
++	return best
++end
++
+ --[[
+ 	포탄이 무엇을 맞혔는가. 가장 가까운 것 하나.
+-	opts = { amp, rise, slams = {slam...}, armRadius, eyeRadius, slamRadius, range }
+-	돌려주는 값 : { kind = "arm"|"eye"|"slam", index, slam, point, distance } 또는 nil
++	opts = { amp, rise, slams = {slam...}, armRadius, eyeRadius, slamRadius, range, body }
++	돌려주는 값 : { kind = "arm"|"eye"|"slam"|"head"|"body", index, slam, point, distance } 또는 nil
++	  약점 · 눈 · 치켜든 다리 끝을 먼저 보고, 없으면 몸통 (opts.body == false 면 몸통은 보지 않는다)
+ ]]
+ function T.findHit(origin, dir, t, opts)
+ 	opts = opts or {}
+@@ -218,6 +289,9 @@
+ 			end
+ 		end
+ 	end
++	if not best and opts.body ~= false then
++		best = T.bodyHit(origin, dir, t, opts)
++	end
+ 	return best
+ end
+ 
+diff -ru a/LocaleData.lua b/LocaleData.lua
+--- a/LocaleData.lua	2026-09-27 11:32:16.926839041 +0000
++++ b/LocaleData.lua	2026-09-27 11:48:38.324091379 +0000
+@@ -1070,4 +1070,30 @@
+  [ [=[장착 완료 / Equipped]=] ] = [=[Equipped]=],
+  -- Phase 32 ~ 38 (tools/locale_phase32.py)
+  [ [=[튀어나온 쪽!]=] ] = [=[Tap its side!]=],
++ -- Phase 38.3
++ [ [=[AI 선원이 있는 판은 예측할 수 없습니다]=] ] = [=[You can't predict a round with AI crew]=],
++ [ [=[빈자리는 잠시 뒤 AI 가 채워요]=] ] = [=[AI crew fills empty seats shortly]=],
++ [ [=[튜토리얼 건너뛰기]=] ] = [=[Skip tutorial]=],
++ [ [=[정말 건너뛸까요? 한 번 더!]=] ] = [=[Really skip? Tap again!]=],
++ [ [=[건너뛰는 중…]=] ] = [=[Skipping…]=],
++ [ [=[튜토리얼을 건너뛰었어요! 이제 아무 테이블에나 앉아 보세요]=] ] = [=[Tutorial skipped! Now grab a seat at any table]=],
++ [ [=[튜토리얼! 해적 %d종류를 하나씩 잡아 봐요]=] ] = [=[Tutorial! Catch %d kinds of pirates, one by one]=],
++ [ [=[내 차례! 아래 칼 버튼 중 아무거나 하나 눌러요]=] ] = [=[Your turn! Tap any knife button below]=],
++ [ [=[AI 선원 차례예요. 내 차례를 기다려요]=] ] = [=[AI crew's turn. Wait for yours]=],
++ [ [=[기다려… 아직!]=] ] = [=[Wait… not yet!]=],
++ [ [=[참아! 누르지 마!]=] ] = [=[Hold it! Don't tap!]=],
++ [ [=[지금 탭!]=] ] = [=[Tap now!]=],
++ [ [=[지금 클릭!]=] ] = [=[Click now!]=],
++ [ [=[하나! 탭!]=] ] = [=[One! Tap!]=],
++ [ [=[둘! 탭!]=] ] = [=[Two! Tap!]=],
++ [ [=[셋! 탭!]=] ] = [=[Three! Tap!]=],
++ [ [=[하나! 클릭!]=] ] = [=[One! Click!]=],
++ [ [=[둘! 클릭!]=] ] = [=[Two! Click!]=],
++ [ [=[셋! 클릭!]=] ] = [=[Three! Click!]=],
++ [ [=[해적이 튀어나오면 화면 아무 곳이나 탭!]=] ] = [=[When the pirate pops out, tap anywhere!]=],
++ [ [=[해적이 튀어나오면 클릭 (또는 스페이스 · E)!]=] ] = [=[When the pirate pops out, click (or Space · E)!]=],
++ [ [=[2. 해적이 튀어나오면 화면을 탭해서 잡아요]=] ] = [=[2. When a pirate pops out, tap the screen to catch it]=],
++ [ [=[2. 해적이 튀어나오면 클릭(스페이스)해서 잡아요]=] ] = [=[2. When a pirate pops out, click (or Space) to catch it]=],
++ [ [=[해적이 튀어나오는 순간 화면 아무 곳이나 탭! (미리 누르면 다시 해요)]=] ] = [=[Tap anywhere the moment it pops out! (Too early = try again)]=],
++ [ [=[해적이 튀어나오는 순간 클릭 · 스페이스 · E! (미리 누르면 다시 해요)]=] ] = [=[Click · Space · E the moment it pops out! (Too early = try again)]=],
+ }
+diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
+--- a/Phase4Controller.lua	2026-09-27 11:32:16.925729316 +0000
++++ b/Phase4Controller.lua	2026-09-27 11:50:29.820721830 +0000
+@@ -267,15 +267,23 @@
+ local potPop = -10 -- Phase 21 : 마지막으로 잭팟이 터진 때 (현상금 숫자 튀기기)
+ 
+ local bannerToken = 0
++local bannerFade = nil -- Phase 38.3 : 지금 돌고 있는 사라짐 트윈
+ local function announce(message, color, hold)
+ 	bannerToken += 1
+ 	local token = bannerToken
++	-- ★ Phase 38.3 : 앞 알림이 사라지는 중(0.4초)에 새 알림이 오면, 돌던 트윈이 새 글자까지 투명하게 만들었다.
++	--   "○○ 잡는 중!"(1.2초)이 사라지는 동안 "○○ 잡았다!"가 도착하면 잡았다가 안 보였다 (쌍둥이 · 연타 · 갈고리처럼 오래 걸리는 해적)
++	if bannerFade then
++		bannerFade:Cancel()
++		bannerFade = nil
++	end
+ 	banner.Text = message
+ 	banner.TextColor3 = color or gold
+ 	banner.TextTransparency = 0
+ 	task.delay(hold or 1.8, function()
+ 		if token == bannerToken then
+-			Tween:Create(banner, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
++			bannerFade = Tween:Create(banner, TweenInfo.new(0.4), { TextTransparency = 1 })
++			bannerFade:Play()
+ 		end
+ 	end)
+ end
+@@ -509,7 +517,9 @@
+ 	UIKit.autoScale(tutorial, UIKit.phoneFactor)
+ 	tutorialLine("어서 와요, 선원!", 12, gold, 26)
+ 	tutorialLine("1. 차례가 오면 칼 꽂을 자리를 골라요", 52, cream, 19)
+-	tutorialLine("2. 해적이 튀어나오면 바로 눌러서 잡아요", 82, cream, 19)
++	-- Phase 38.3 : "바로 눌러서" → 무엇을 누르는지까지 (휴대폰 = 화면 탭 · PC = 클릭 / 스페이스)
++	tutorialLine((Input.TouchEnabled and not Input.KeyboardEnabled) and "2. 해적이 튀어나오면 화면을 탭해서 잡아요"
++		or "2. 해적이 튀어나오면 클릭(스페이스)해서 잡아요", 82, cream, 19)
+ 	tutorialLine("3. 해적마다 잡는 법이 달라요. 튜토리얼에서 하나씩!", 112, teal, 19)
+ 	-- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
+ 	-- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
+@@ -2428,6 +2438,9 @@
+ 			line = ("칼을 붙잡았다! %d번 빠르게 연타"):format(data.need or 5)
+ 		elseif kind == "angry" then
+ 			line = "먹물을 뚫고 튀어나올 때 눌러요"
++		elseif data.tutorial then
++			-- Phase 38.3 : 튜토리얼에서는 먼저 눌러도 탈락하지 않는다 (다시 나온다)
++			line = touch and "해적이 튀어나오는 순간 화면 아무 곳이나 탭! (미리 누르면 다시 해요)" or "해적이 튀어나오는 순간 클릭 · 스페이스 · E! (미리 누르면 다시 해요)"
+ 		elseif (tonumber(data.games) or 99) < 5 then
+ 			line = touch and "해적이 튀어나오면 화면을 탭! (먼저 누르면 탈락)" or "해적이 튀어나오면 스페이스 · E · 클릭! (먼저 누르면 탈락)"
+ 		else
+@@ -2701,6 +2714,10 @@
+ 	if not data.mine then
+ 		if not angry then
+ 			task.delay(math.max(0, opensLocal - os.clock()), function()
++				-- Phase 38.3 : 결과(잡았다 · 탈락)가 먼저 왔으면 "잡는 중!"으로 덮지 않는다
++				if pendingPop[model] ~= popToken then
++					return
++				end
+ 				announce(("%s 잡는 중!"):format(data.name or ""), look and look.color or gold, 1.2)
+ 			end)
+ 		end
+@@ -2715,11 +2732,17 @@
+ 		level = level, max = data.max, rookie = data.rookie,
+ 		feint = data.feint, flicker = data.flicker, kindLevel = data.kindLevel,
+ 		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
++		tutorial = data.tutorial == true, -- Phase 38.3 : 튜토리얼이면 "지금 탭!"처럼 무엇을 누를지까지 적는다
+ 	}
+ 	catchGui.Visible = true
+ 	catchButton.Active = true
+ 	catchText.Text = ""
+ 	catchHint.Text = kindHint(data)
++	-- Phase 38.3 : 튜토리얼에서는 아래 안내 한 줄을 크고 진하게 ("뭘 눌러야 할지 모르겠다"는 말이 많았다)
++	catchHint.TextSize = data.tutorial and 24 or 18
++	catchHint.TextTransparency = data.tutorial and 0 or 0.25
++	catchHint.TextColor3 = data.tutorial and gold or cream
++	catchText.TextSize = data.tutorial and 50 or 64 -- 튜토리얼 글자("참아! 누르지 마!")가 길어서 조금 줄인다
+ 	-- Phase 38.1 : 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (1인칭은 1인칭 손이 한다)
+ 	-- (해골 유령도 똑같이 든다 : 자세만 보고 유령인지 알 수 없게. 참는 것은 사람 몫)
+ 	if not hands.shown then
+@@ -2782,6 +2805,10 @@
+ 			local tip = SAVE_TIP[data.reason] or "다시 해 봐요"
+ 			if data.kind == "mash" and (data.reason == "late" or data.reason == "timeout") then
+ 				tip = "더 빠르게 연타!"
++			elseif data.saved == "tutorial" and (data.reason == "late" or data.reason == "timeout") and data.kind ~= "skull" then
++				-- Phase 38.3 : 아무것도 안 누르고 놓쳤다 = 무엇을 누를지 모른다. 누르는 법을 그대로 적는다
++				local touch = Input.TouchEnabled and not Input.KeyboardEnabled
++				tip = touch and "해적이 튀어나오면 화면 아무 곳이나 탭!" or "해적이 튀어나오면 클릭 (또는 스페이스 · E)!"
+ 			end
+ 			if mine then
+ 				announce((data.saved == "tutorial" and "다시! " or "한 번 봐줄게요! ") .. tip, gold, 2.2)
+@@ -3643,6 +3670,13 @@
+ -- Phase 32 : 해적 종류마다 글자가 다르다 (쌍둥이 "하나 · 둘" · 갈고리 "◀ 왼쪽!" · 유령 "참아!" · 연타 "연타! 0/5")
+ do
+ 	local WAIT_TEXT = { skull = "…", mash = "기다려…", twin = "기다려… (둘!)", side = "기다려… (방향!)" }
++	-- Phase 38.3 : 튜토리얼에서는 "지금!" 대신 누르는 법까지 ("지금 탭!" · "지금 클릭!")
++	local function tapWord()
++		if Input.TouchEnabled and not Input.KeyboardEnabled then
++			return "탭!"
++		end
++		return "클릭!"
++	end
+ 	Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, function()
+ 		if not catch or not catch.mine then
+ 			return
+@@ -3660,6 +3694,9 @@
+ 			ringStroke.Transparency = 0.15 + wait * 0.5
+ 			if not catch.done and (catch.step or 1) == 1 then
+ 				catchText.Text = (kind == "twin" and #catch.steps >= 3) and "기다려… (셋!)" or (WAIT_TEXT[kind] or "기다려…")
++				if catch.tutorial and kind ~= "skull" then
++					catchText.Text = "기다려… 아직!"
++				end
+ 				catchText.TextColor3 = cream
+ 			end
+ 		elseif not catch.done then
+@@ -3670,7 +3707,7 @@
+ 			if kind == "skull" then
+ 				-- 참는 시간 : 고리가 다 줄면 산다
+ 				ringStroke.Color = Color3.fromRGB(230, 236, 255)
+-				catchText.Text = "참아!"
++				catchText.Text = catch.tutorial and "참아! 누르지 마!" or "참아!"
+ 				catchText.TextColor3 = Color3.fromRGB(230, 236, 255)
+ 				return
+ 			end
+@@ -3684,9 +3721,12 @@
+ 				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
+ 			elseif kind == "twin" then
+ 				catchText.Text = ({ "하나!", "둘!", "셋!" })[catch.step or 1] or "지금!"
++				if catch.tutorial then
++					catchText.Text = catchText.Text .. " " .. tapWord()
++				end
+ 				catchText.TextColor3 = cream
+ 			else
+-				catchText.Text = "지금!"
++				catchText.Text = catch.tutorial and ("지금 " .. tapWord()) or "지금!"
+ 				catchText.TextColor3 = cream
+ 			end
+ 			if left <= 0 then
+diff -ru a/PredictionService.lua b/PredictionService.lua
+--- a/PredictionService.lua	2026-09-27 11:32:16.927790100 +0000
++++ b/PredictionService.lua	2026-09-27 11:40:08.044457726 +0000
+@@ -5,6 +5,7 @@
+ 
+ 	· 로벅스나 코인을 거는 도박이 아니다. 걸지 않고 고르기만 한다. 맞히면 서버가 코인을 준다.
+ 	· 그 판에 참가한 사람은 고를 수 없다. 한 판에 한 번만 고른다.
++	· Phase 38.3 : AI 선원이 낀 판(연습 판) · 튜토리얼 판은 예측할 수 없다.
+ 	· 판 초반(한 바퀴 돌기 전, 테이블 PredictOpen)에만 받는다. 결과가 뻔해진 뒤에는 받지 않는다.
+ 	· 하루에 보상을 받는 적중 횟수에 상한이 있다. (GameConfig.Prediction.DailyCap)
+ ]]
+@@ -61,6 +62,15 @@
+ 	if round.isParticipant[player] or gameTable:HasPlayer(player) then
+ 		return "참가 중인 판은 예측할 수 없습니다"
+ 	end
++	-- Phase 38.3 : AI 선원이 낀 판 · 튜토리얼 판은 예측을 받지 않는다
++	if round.practice or round.tutorial ~= nil then
++		return "AI 선원이 있는 판은 예측할 수 없습니다"
++	end
++	for _, participant in ipairs(round.participants) do
++		if GameConfig.isBot(participant) then
++			return "AI 선원이 있는 판은 예측할 수 없습니다"
++		end
++	end
+ 	if typeof(targetUserId) ~= "number" or targetUserId ~= targetUserId then
+ 		return "고를 사람을 다시 누르세요"
+ 	end
+diff -ru a/ReleaseController.lua b/ReleaseController.lua
+--- a/ReleaseController.lua	2026-09-27 11:32:16.925335287 +0000
++++ b/ReleaseController.lua	2026-09-27 11:45:34.813256592 +0000
+@@ -124,6 +124,7 @@
+ --   (오른쪽 · 왼쪽은 버튼 줄, 휴대폰은 아래 양 끝에 이동 · 점프 버튼이 있어 가운데 아래를 쓴다)
+ --   누르면 설정(aiCrew)이 저장되어 다시 바꿀 때까지 어느 테이블에서나 그대로 간다. (설정 탭에도 같은 항목이 있다)
+ --   앉은 사람 중 한 명이라도 끄면 그 테이블에는 AI 가 오지 않는다.
++--   Phase 38.3 : 사람이 둘 이상 앉아도, 모두 켜 두었으면 남은 빈자리를 AI 가 채운다.
+ local aiBar=Instance.new("Frame");aiBar.Name="AiCrewBar";aiBar.AnchorPoint=Vector2.new(0.5,1);aiBar.Position=UDim2.new(0.5,0,1,-18)
+ aiBar.Size=UDim2.fromOffset(440,94);aiBar.BackgroundTransparency=1;aiBar.Visible=false;aiBar.Parent=gui
+ UIKit.autoScale(aiBar,UIKit.phoneFactor)
+@@ -144,7 +145,7 @@
+  local tableType=t and t:GetAttribute(Config.TableAttributes.TableType)
+  local tourney=tableType and TableConfig.Types[tableType] and TableConfig.Types[tableType].Tournament
+  paint(aiButton,on and "🤖 AI 선원 켬" or "🤖 AI 선원 끔",on and "green" or "grey")
+- local hint=on and (tourney and "AI 와 한 판은 토너먼트 점수가 없어요" or "혼자면 잠시 뒤 AI 가 와요") or "사람만 기다려요"
++ local hint=on and (tourney and "AI 와 한 판은 토너먼트 점수가 없어요" or "빈자리는 잠시 뒤 AI 가 채워요") or "사람만 기다려요"
+  local hostId=t and t:GetAttribute(Config.TableAttributes.HostUserId) or 0
+  local seated=t and t:GetAttribute(Config.TableAttributes.SeatedCount) or 0
+  local need=t and t:GetAttribute(Config.TableAttributes.MinPlayers) or 2
+diff -ru a/ReleaseService.lua b/ReleaseService.lua
+--- a/ReleaseService.lua	2026-09-27 11:32:16.927738292 +0000
++++ b/ReleaseService.lua	2026-09-27 11:46:44.315106769 +0000
+@@ -137,6 +137,20 @@
+  elseif action=="tutorialGo" then
+   -- Phase 32.1 : 환영 창에서 「튜토리얼 시작」 (OnboardingService 가 이것을 보고 연습 테이블에 앉힌다)
+   if player:GetAttribute("TutorialDone")~=true then player:SetAttribute("TutorialGo",true) end
++ elseif action=="tutorialSkip" then
++  -- Phase 38.3 : 해적을 한 번 잡은 뒤에는 튜토리얼을 건너뛸 수 있다 (보상은 끝까지 한 사람만).
++  --   자리에서 일어나면 AI 만 남은 판은 RoundService 가 접는다 (사람이 모두 나간 판과 같다)
++  local t=Tables:GetTableOfPlayer(player)
++  local r=t and Rounds:GetRound(t)
++  if r and r.CanSkipTutorial and r:CanSkipTutorial(player) then
++   Profiles:MarkTutorialDone(player)
++   Profiles:Funnel(player,4,"TutorialDone")
++   task.spawn(function()
++    local analytics=game:GetService("AnalyticsService")
++    pcall(analytics.LogCustomEvent,analytics,player,"TutorialSkipped",tonumber(t.model and t.model:GetAttribute("TutorialStep")) or 0)
++   end)
++   t:RemovePlayer(player)
++  end
+  elseif action=="tutorial" then
+   -- Phase 32 : 튜토리얼은 필수라 "알겠어요"로 건너뛸 수 없다 (연습 테이블을 못 찾아 필수가 풀린 사람만)
+   if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then
+diff -ru a/RoundService.lua b/RoundService.lua
+--- a/RoundService.lua	2026-09-27 11:32:16.928253561 +0000
++++ b/RoundService.lua	2026-09-27 11:46:44.314807568 +0000
+@@ -869,7 +869,8 @@
+ 	self:_set(TABLE_ATTR.LastPickSafe, true)
+ 	self:_set(TABLE_ATTR.BraveLevel, 0)
+ 	self:_set(TABLE_ATTR.Practice, self.practice)
+-	self:_set(TABLE_ATTR.PredictOpen, GameConfig.Prediction.Enabled == true)
++	-- Phase 38.3 : AI 선원이 낀 판(연습 판) · 튜토리얼 판은 "누가 이길까요?" 를 열지 않는다 (AI 판에 거는 것을 막는다)
++	self:_set(TABLE_ATTR.PredictOpen, GameConfig.Prediction.Enabled == true and not self.practice and self.tutorial == nil)
+ 	self:_set(TABLE_ATTR.WinnerTakesAll, self:_winnerTakesAll())
+ 	self:_publishStage()
+ 	self:_clearBraveOffer()
+@@ -1604,6 +1605,14 @@
+ 	return player == nil or tutorial.player == player
+ end
+ 
++-- Phase 38.3 : 「튜토리얼 건너뛰기」를 받을 수 있는가 (해적을 Tutorial.SkipAfter 번 잡은 뒤부터)
++function Round:CanSkipTutorial(player)
++	if not self:_tutorialActive(player) then
++		return false
++	end
++	return (self.tutorial.step or 1) > (tonumber(GameConfig.Tutorial.SkipAfter) or 1)
++end
++
+ -- Phase 32 : 이번 해적의 종류 (튜토리얼은 정해진 순서 · 운명 카드가 종류를 정하거나 확률을 바꾼다)
+ function Round:_pickKind(player, stage)
+ 	if self:_tutorialActive(player) then
+diff -ru a/TutorialController.lua b/TutorialController.lua
+--- a/TutorialController.lua	2026-09-27 11:32:16.925243147 +0000
++++ b/TutorialController.lua	2026-09-27 11:47:25.390509503 +0000
+@@ -2,7 +2,9 @@
+ -- 연습 판 안내. 처음 온 사람이 AI 선원과 한 판을 하며 한 단계씩 안내를 받는다.
+ --
+ -- Phase 32 : 튜토리얼은 필수다 (서버 OnboardingService 가 처음 온 사람을 연습 테이블에 앉힌다).
+---   · 해적 종류 다섯을 하나씩 잡아 봐야 끝난다. 왼쪽에 체크 목록 (테이블 Attribute TutorialStep)
++--   · 해적 종류(GameConfig.Tutorial.Kinds)를 하나씩 잡아 봐야 끝난다. 왼쪽에 체크 목록 (테이블 Attribute TutorialStep)
++--   · Phase 38.3 : 해적을 한 번 잡은 뒤에는 체크 목록 아래 「튜토리얼 건너뛰기」 (두 번 눌러야 건너뛴다)
++--   · Phase 38.3 : 내 차례마다 "아래 칼 버튼 아무거나" 안내 (예전에는 첫 차례에 5초만 떠서 뭘 누를지 몰랐다)
+ --   · 튜토리얼 동안 내 칼은 늘 해적 자리에 꽂힌다. 놓쳐도 탈락하지 않고 같은 해적이 다시 나온다.
+ --   · 해적이 나오기 전에 설명 카드가 뜬다 (Phase4Controller)
+ --   · 튜토리얼을 마치기 전에 다른 테이블에 앉으려 하면 서버가 되돌리고 SeatBlocked 로 알린다
+@@ -74,7 +76,7 @@
+ end
+ 
+ --------------------------------------------------
+--- Phase 32 : 왼쪽 체크 목록 (해적 다섯 종류)
++-- Phase 32 : 왼쪽 체크 목록 (튜토리얼 해적 종류)
+ --------------------------------------------------
+ local list = Instance.new("Frame")
+ list.Name = "TutorialChecklist"
+@@ -121,6 +123,44 @@
+ listFoot.LayoutOrder = 99
+ listFoot.TextXAlignment = Enum.TextXAlignment.Left
+ 
++-- Phase 38.3 : 튜토리얼 건너뛰기 (해적을 Tutorial.SkipAfter 번 잡은 뒤부터 · 실수로 눌리지 않게 두 번 눌러야 한다)
++local skipArmedUntil = 0
++local skipping = false
++local skipButton = UIKit.button(list, { text = "튜토리얼 건너뛰기", size = UDim2.new(1, 0, 0, 40), theme = "grey", textSize = 17 })
++skipButton.Name = "SkipTutorial"
++skipButton.LayoutOrder = 100
++skipButton.Visible = false
++skipButton.Activated:Connect(function()
++	if os.clock() > skipArmedUntil then
++		skipArmedUntil = os.clock() + 3
++		skipButton.Text = "정말 건너뛸까요? 한 번 더!"
++		task.delay(3.05, function()
++			if os.clock() > skipArmedUntil and not skipping then
++				skipButton.Text = "튜토리얼 건너뛰기"
++			end
++		end)
++		return
++	end
++	local request = remotes:FindFirstChild("VoyageRequest")
++	if request then
++		skipping = true
++		skipButton.Text = "건너뛰는 중…"
++		request:FireServer("tutorialSkip")
++		task.delay(4, function()
++			if player:GetAttribute("TutorialDone") ~= true then
++				skipping = false
++				skipButton.Text = "튜토리얼 건너뛰기"
++			end
++		end)
++	end
++end)
++player:GetAttributeChangedSignal("TutorialDone"):Connect(function()
++	if skipping and player:GetAttribute("TutorialDone") == true then
++		skipping = false
++		UIKit.toast("튜토리얼을 건너뛰었어요! 이제 아무 테이블에나 앉아 보세요", UIKit.Colors.Gold, 3.4)
++	end
++end)
++
+ local function drawList(step)
+ 	for index, row in ipairs(rows) do
+ 		local def = row.def
+@@ -139,9 +179,6 @@
+ local catchHintUntil = 0
+ local finishedUntil = 0
+ local lastTable = nil
+--- Phase 32.1 : "칼 꽂을 자리를 골라요" 는 첫 차례에 한 번만 (매 차례 떠서 헷갈렸다)
+-local pickTold = false
+-local pickShownUntil = 0
+ 
+ local function seatedTable()
+ 	local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+@@ -193,16 +230,15 @@
+ 	if mine then
+ 		local state = model:GetAttribute(TABLE_ATTR.State)
+ 		if state == STATES.Waiting or state == STATES.Countdown or state == STATES.Starting then
+-			text = total > 0 and "튜토리얼! 해적 다섯 종류를 하나씩 잡아 봐요" or "연습 판!"
++			text = total > 0 and ("튜토리얼! 해적 %d종류를 하나씩 잡아 봐요"):format(total) or "연습 판!"
+ 		elseif state == STATES.Playing then
+ 			if os.clock() < catchHintUntil then
+ 				text = nil -- 해적 설명 카드 · 잡기 안내가 대신한다
+-			elseif model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId and step >= 1 and step <= total and (not pickTold or os.clock() < pickShownUntil) then
+-				if not pickTold then
+-					pickTold = true
+-					pickShownUntil = os.clock() + 5
+-				end
+-				text = "내 차례! 아래에서 칼 꽂을 자리를 하나 골라요"
++			elseif model:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId and step >= 1 and step <= total then
++				-- Phase 38.3 : 튜토리얼 동안은 내 차례마다 (예전에는 첫 차례에 5초만 떠서 다음부터 뭘 누를지 몰랐다)
++				text = "내 차례! 아래 칼 버튼 중 아무거나 하나 눌러요"
++			elseif step >= 1 and step <= total then
++				text = "AI 선원 차례예요. 내 차례를 기다려요"
+ 			elseif model:GetAttribute(TABLE_ATTR.BraveOfferUserId) == player.UserId then
+ 				text = "자리를 또 누르면 계속 꽂기 = 보너스 코인" -- Phase 24.10 : "한 번 더" 버튼 없음
+ 			end
+@@ -233,5 +269,7 @@
+ 	list.Visible = showList == true and player:GetAttribute("PirateFocus") ~= true
+ 	if list.Visible then
+ 		drawList(step)
++		skipButton.Visible = step > (tonumber(TUTORIAL.SkipAfter) or 1) and step <= total
++			and model:GetAttribute(TABLE_ATTR.State) == STATES.Playing and player:GetAttribute("TutorialDone") ~= true
+ 	end
+ end)
