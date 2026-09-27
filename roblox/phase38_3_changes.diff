@@ -64,8 +64,20 @@ diff -ru a/CannonController.lua b/CannonController.lua
  		return
 diff -ru a/GameConfig.lua b/GameConfig.lua
 --- a/GameConfig.lua	2026-09-27 11:32:16.927363736 +0000
-+++ b/GameConfig.lua	2026-09-27 11:46:03.853191178 +0000
-@@ -513,7 +513,8 @@
++++ b/GameConfig.lua	2026-09-27 12:33:38.655139652 +0000
+@@ -391,7 +391,10 @@
+ 
+ 	-- ★ Phase 11 : 해적이 나오기 전에 누르면 그 자리에서 실패다. (예전에는 세 번까지 봐줬다)
+ 	EarlyTolerance = 0.06, -- 시계 오차. 창이 열리기 이만큼 전까지는 "딱 맞춰 누른 것"으로 친다
+-	ArmDelay = 0.3, -- 칼을 고른 직후 이 시간 안의 입력은 버린다 (자리 버튼을 두 번 누른 손가락)
++	-- 칼을 고른 직후(= 해적 출현) 이 시간 안의 입력은 버린다 (자리 버튼을 두 번 누른 손가락)
++	-- Phase 38.3 : 0.3 → 0.7. 안전한 자리 뒤 "한 번 더 꽂기"로 다른 자리를 누르다가 그 칸이 해적이면,
++	--   이어 누른 손가락이 "너무 빨랐다"로 잡혀 탈락했다. 해적은 MinLead(0.85초)보다 먼저 나오지 않으므로 잡는 창은 그대로다.
++	ArmDelay = 0.7,
+ 
+ 	-- 클라이언트가 보낸 "누른 시각"은 MaxLatency 안에서 이미 지연 보정을 받는다.
+ 	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
+@@ -513,7 +516,8 @@
  	Small = { Id = "small", Name = "잭팟", Amount = 1000, Chance = 0.025 },
  }
  -- 현상금 상한 (Phase 21 : 60,000 → Phase 24 : 10,000. 한 판에 6만 코인이 나오던 원인)
@@ -75,7 +87,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  
  -- 이번 잡기의 창 길이. 서버에서만 호출한다.
  -- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
-@@ -1074,7 +1075,8 @@
+@@ -1074,7 +1078,8 @@
  -- AI 선원 (Phase 11)
  --
  -- 혼자 앉아 기다리는 사람이 있으면, 잠시 뒤 AI 선원이 빈 의자에 앉아 같이 한다.
@@ -85,7 +97,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  --
  -- ★ AI 와 함께한 판은 "연습 판"이다.
  --   코인은 RewardScale 만큼만 받고, 승수 · 연승 · 랭킹에는 들어가지 않는다.
-@@ -1558,11 +1560,14 @@
+@@ -1558,11 +1563,14 @@
  	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
  	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
  	Mandatory = true,
@@ -351,7 +363,7 @@ diff -ru a/LocaleData.lua b/LocaleData.lua
  }
 diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
 --- a/Phase4Controller.lua	2026-09-27 11:32:16.925729316 +0000
-+++ b/Phase4Controller.lua	2026-09-27 11:50:29.820721830 +0000
++++ b/Phase4Controller.lua	2026-09-27 12:33:38.662387716 +0000
 @@ -267,15 +267,23 @@
  local potPop = -10 -- Phase 21 : 마지막으로 잭팟이 터진 때 (현상금 숫자 튀기기)
  
@@ -409,10 +421,17 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				announce(("%s 잡는 중!"):format(data.name or ""), look and look.color or gold, 1.2)
  			end)
  		end
-@@ -2715,11 +2732,17 @@
+@@ -2714,12 +2731,23 @@
+ 		opensLocal = opensLocal, index = data.index or 1,
  		level = level, max = data.max, rookie = data.rookie,
  		feint = data.feint, flicker = data.flicker, kindLevel = data.kindLevel,
- 		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
+-		armUntil = os.clock() + (config.Catch.ArmDelay or 0.3),
++		-- Phase 38.3 : 해적 출현 뒤 ArmDelay(0.7초) 동안의 누름은 버린다 (한 번 더 꽂으려던 손가락 · 탈락하지 않는다).
++		--   서버 시계 기준으로 맞추고, 해적이 튀어나오기 0.1초 전에는 반드시 풀린다
++		armUntil = math.min(
++			typeof(data.armUntil) == "number" and (data.armUntil + offset) or (os.clock() + (config.Catch.ArmDelay or 0.7)),
++			opensLocal - 0.1
++		),
 +		tutorial = data.tutorial == true, -- Phase 38.3 : 튜토리얼이면 "지금 탭!"처럼 무엇을 누를지까지 적는다
  	}
  	catchGui.Visible = true
@@ -427,7 +446,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  	-- Phase 38.1 : 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (1인칭은 1인칭 손이 한다)
  	-- (해골 유령도 똑같이 든다 : 자세만 보고 유령인지 알 수 없게. 참는 것은 사람 몫)
  	if not hands.shown then
-@@ -2782,6 +2805,10 @@
+@@ -2782,6 +2810,10 @@
  			local tip = SAVE_TIP[data.reason] or "다시 해 봐요"
  			if data.kind == "mash" and (data.reason == "late" or data.reason == "timeout") then
  				tip = "더 빠르게 연타!"
@@ -438,7 +457,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  			end
  			if mine then
  				announce((data.saved == "tutorial" and "다시! " or "한 번 봐줄게요! ") .. tip, gold, 2.2)
-@@ -3643,6 +3670,13 @@
+@@ -3643,6 +3675,13 @@
  -- Phase 32 : 해적 종류마다 글자가 다르다 (쌍둥이 "하나 · 둘" · 갈고리 "◀ 왼쪽!" · 유령 "참아!" · 연타 "연타! 0/5")
  do
  	local WAIT_TEXT = { skull = "…", mash = "기다려…", twin = "기다려… (둘!)", side = "기다려… (방향!)" }
@@ -452,7 +471,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  	Run:BindToRenderStep("CursedBarrel_CatchRing", Enum.RenderPriority.Last.Value, function()
  		if not catch or not catch.mine then
  			return
-@@ -3660,6 +3694,9 @@
+@@ -3660,6 +3699,9 @@
  			ringStroke.Transparency = 0.15 + wait * 0.5
  			if not catch.done and (catch.step or 1) == 1 then
  				catchText.Text = (kind == "twin" and #catch.steps >= 3) and "기다려… (셋!)" or (WAIT_TEXT[kind] or "기다려…")
@@ -462,7 +481,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				catchText.TextColor3 = cream
  			end
  		elseif not catch.done then
-@@ -3670,7 +3707,7 @@
+@@ -3670,7 +3712,7 @@
  			if kind == "skull" then
  				-- 참는 시간 : 고리가 다 줄면 산다
  				ringStroke.Color = Color3.fromRGB(230, 236, 255)
@@ -471,7 +490,7 @@ diff -ru a/Phase4Controller.lua b/Phase4Controller.lua
  				catchText.TextColor3 = Color3.fromRGB(230, 236, 255)
  				return
  			end
-@@ -3684,9 +3721,12 @@
+@@ -3684,9 +3726,12 @@
  				catchText.TextColor3 = Color3.fromRGB(150, 205, 255)
  			elseif kind == "twin" then
  				catchText.Text = ({ "하나!", "둘!", "셋!" })[catch.step or 1] or "지금!"
@@ -558,7 +577,7 @@ diff -ru a/ReleaseService.lua b/ReleaseService.lua
    if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then
 diff -ru a/RoundService.lua b/RoundService.lua
 --- a/RoundService.lua	2026-09-27 11:32:16.928253561 +0000
-+++ b/RoundService.lua	2026-09-27 11:46:44.314807568 +0000
++++ b/RoundService.lua	2026-09-27 12:33:38.658717846 +0000
 @@ -869,7 +869,8 @@
  	self:_set(TABLE_ATTR.LastPickSafe, true)
  	self:_set(TABLE_ATTR.BraveLevel, 0)
@@ -584,6 +603,15 @@ diff -ru a/RoundService.lua b/RoundService.lua
  -- Phase 32 : 이번 해적의 종류 (튜토리얼은 정해진 순서 · 운명 카드가 종류를 정하거나 확률을 바꾼다)
  function Round:_pickKind(player, stage)
  	if self:_tutorialActive(player) then
+@@ -1847,6 +1856,8 @@
+ 			slot = slotIndex,
+ 			angry = angry or nil,
+ 			ink = angry and (CATCH.AngryInk or 2.4) or nil,
++			-- Phase 38.3 : 이 시각(서버 시계) 전의 누름은 버린다. 화면도 받은 때가 아니라 이 시각으로 센다 (느린 연결에서 잡는 창을 먹지 않게)
++			armUntil = startedAt + (tonumber(CATCH.ArmDelay) or 0),
+ 			intro = intro or nil,
+ 			tutorial = tutorial or nil,
+ 			retry = retry or nil,
 diff -ru a/TutorialController.lua b/TutorialController.lua
 --- a/TutorialController.lua	2026-09-27 11:32:16.925243147 +0000
 +++ b/TutorialController.lua	2026-09-27 11:47:25.390509503 +0000
