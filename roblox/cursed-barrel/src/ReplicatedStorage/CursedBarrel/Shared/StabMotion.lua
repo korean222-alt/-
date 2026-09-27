@@ -350,6 +350,64 @@ function StabMotion.playBody(character, plan)
 	end)
 end
 
+-- Phase 38.1 : 해적을 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (on) · 준비 풀기 (off) · 던지는 휘두름 (swing)
+--   관절 C0 는 내 화면에서만 바뀐다 (다른 사람에게는 복제되지 않는다)
+local readyState = setmetatable({}, { __mode = "k" }) -- [character] = true
+function StabMotion.throwReady(character, on)
+	local set = joints(character)
+	if not set then
+		return
+	end
+	if on == (readyState[character] == true) then
+		return
+	end
+	readyState[character] = on or nil
+	local info = TweenInfo.new(on and 0.28 or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local function go(joint, goal)
+		if joint and goal and joint.Parent then
+			TweenService:Create(joint, info, { C0 = goal }):Play()
+		end
+	end
+	if on then
+		go(armPose(set, "right", 158, 14)) -- 팔을 머리 뒤로 젖힌다
+		go(waistPose(set, -6, -14)) -- 몸을 살짝 뒤로 · 오른쪽으로 비튼다
+	else
+		for _, joint in ipairs({ set.right, set.waist }) do
+			if joint and joint.Parent then
+				TweenService:Create(joint, info, { C0 = home(joint) }):Play()
+			end
+		end
+	end
+end
+function StabMotion.throwSwing(character, keepReady)
+	local set = joints(character)
+	if not set then
+		return
+	end
+	local fast = TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	local joint, goal = armPose(set, "right", 55, 4)
+	if joint and goal and joint.Parent then
+		TweenService:Create(joint, fast, { C0 = goal }):Play()
+	end
+	local waist, lean = waistPose(set, 14, 10)
+	if waist and lean and waist.Parent then
+		TweenService:Create(waist, fast, { C0 = lean }):Play()
+	end
+	task.delay(0.16, function()
+		-- 아직 기다리는 중이면(쌍둥이 · 연타) 다시 젖히고, 아니면 제자리로
+		local again = keepReady == true and readyState[character] == true
+		readyState[character] = nil
+		StabMotion.throwReady(character, again)
+		if not again then
+			for _, j in ipairs({ set.right, set.waist }) do
+				if j and j.Parent then
+					TweenService:Create(j, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C0 = home(j) }):Play()
+				end
+			end
+		end
+	end)
+end
+
 -- 상점 미리보기 : 내 캐릭터로 몸 동작만 보여 준다. (내 화면에서만 보인다)
 function StabMotion.preview(character, style)
 	local plan = StabMotion.plan(style, 0.32)

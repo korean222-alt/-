@@ -56,6 +56,7 @@ local DIVE_PULL = pose(1.15, -0.45, -2.1, 0, 24, -16) -- 더 멀리 당기기
 local SPIN_POSE = pose(0.8, -0.35, -3.0, -10, 8, -6) -- 손 안에서 돌리기 (날이 카메라 뒤로 넘어가지 않을 만큼 멀리)
 local HIGH = pose(0.3, 0.6, -1.75, 72, 0, 0) -- 머리 위로 들기 (두 손)
 local BOLT_HIGH = pose(0.2, 0.95, -1.9, 88, 0, 0)
+local AIM = pose(1.0, 0.1, -2.1, 58, 18, -20) -- Phase 38.1 : 던질 준비 (칼을 어깨 뒤로 젖혔다)
 local GRAB = pose(0.45, -0.1, -2.3, 35, -6, -14) -- 잡기 : 주먹을 위로 휘두른다
 local CHEER = pose(0.45, 0.45, -1.95, 84, 0, 14)
 local DROP = pose(1.2, -3.4, -2.0, -70, 25, 0)
@@ -250,6 +251,8 @@ function Hands.new(player)
 	self.player = player
 	self.want = false -- 이번 프레임에 1인칭인가 (카메라 그리기가 정한다)
 	self.ready = false -- 내 차례인가
+	self.aiming = false -- Phase 38.1 : 해적을 기다리는 중 (칼을 젖혀 던질 준비)
+	self.tension = 0 -- 0 ~ 1 : 해적이 나올 때가 가까울수록 크다 (손이 더 떨린다)
 	self.lean = 0 -- 카메라가 앞으로 나가는 거리 (찌를 때)
 	self.leanVector = Vector3.zero -- 카메라에 더할 월드 오프셋 (슬롯 쪽 수평 방향 × lean)
 	self.leanDir = Vector3.zero
@@ -371,6 +374,10 @@ function Hands:toss()
 	local camera = workspace.CurrentCamera
 	local from = camera.CFrame * self.localPose
 	self.action = { kind = "toss", started = os.clock(), from = self.localPose }
+	-- 젖혀 둔 칼이면 칼끝이 해적 쪽을 향하도록 휘두르는 순간의 자세에서 떠난다
+	if self.aiming then
+		from = camera.CFrame * TOSS
+	end
 	return from
 end
 
@@ -537,7 +544,11 @@ function Hands:update(dt)
 	local swayCF = CFrame.new(self.sway.X * 0.35, self.sway.Y * 0.35 + bob, 0) * CFrame.Angles(self.sway.Y * 0.3, self.sway.X * 0.3, 0)
 
 	local goal = self.ready and READY or REST
-	if self.ready then
+	if self.aiming then
+		-- 던질 준비 : 칼을 뒤로 젖히고, 나올 때가 가까울수록 손이 떨리고 더 젖힌다
+		local k = math.clamp(self.tension or 0, 0, 1)
+		goal = AIM * CFrame.new(0.05 * k, 0.08 * k, 0.15 * k) * CFrame.Angles(math.rad(10 * k) + math.sin(now * 31) * 0.02 * (0.3 + k), 0, math.sin(now * 27) * 0.02 * (0.3 + k))
+	elseif self.ready then
 		-- 내 차례 : 칼끝이 조금 떨린다
 		goal = goal * CFrame.Angles(math.sin(now * 23) * 0.012, 0, math.sin(now * 17) * 0.012)
 	end
@@ -597,7 +608,7 @@ function Hands:update(dt)
 				knifeWorld = cam * self.localPose * swayCF
 				holding = false
 			elseif t < 0.42 then
-				self.localPose = DRAW_FROM:Lerp(REST, smooth((t - 0.2) / 0.22))
+				self.localPose = DRAW_FROM:Lerp(self.aiming and AIM or REST, smooth((t - 0.2) / 0.22))
 				knifeWorld = cam * self.localPose * swayCF
 			else
 				self.action = nil

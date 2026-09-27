@@ -327,6 +327,12 @@ do
 		step(h, 1 / 60)
 	end
 	check(h.action == nil, "잡기 휘두르기는 0.34초 안에 끝난다")
+	h.aiming, h.tension = true, 1
+	for _ = 1, 60 do
+		step(h, 1 / 60)
+	end
+	print(("  던질 준비 : 주먹 화면 좌표 %s"):format(tostring(camera.CFrame:PointToObjectSpace(fistOf(h)))))
+	check(inView(camera.CFrame, fistOf(h), 0.97), "던질 준비 : 젖힌 주먹이 화면 안에 보인다")
 	local tossFrom = h:toss()
 	check(typeof(tossFrom) == "CFrame", "던지기 : 칼이 손을 떠나는 자리를 돌려준다")
 	step(h, 1 / 60)
@@ -335,6 +341,7 @@ do
 		step(h, 1 / 60)
 	end
 	check(h.action == nil and h.knife.Parent ~= nil, "던지기 : 0.42초 뒤 새 칼을 뽑아 든다")
+	h.aiming = false
 	h:cheer()
 	for _ = 1, 60 do
 		step(h, 1 / 60)

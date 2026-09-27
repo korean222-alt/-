@@ -1922,7 +1922,7 @@ end
 --   내 누름 : 누르는 순간 던진다 (1인칭이면 1인칭 손이 휙, 3인칭이면 내 캐릭터 손에서). 맞는 때면 해적에 꽂히고, 아니면 빗나간다.
 --   다른 사람 : 잡았다는 결과가 오면 그 사람 손에서 해적마다 한 자루씩 날아간다.
 --------------------------------------------------
-local throwKnife
+local throwKnife, aimThird
 do
 	local function handOf(character)
 		if not character then
@@ -1931,6 +1931,51 @@ do
 		local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm") or character:FindFirstChild("Head")
 		return hand and hand:IsA("BasePart") and hand or nil
 	end
+	-- Phase 38.1 : 3인칭 던질 준비 — 해적을 기다리는 동안 팔을 머리 뒤로 젖히고, 손에 칼을 쥐고 있다
+	local heldKnife, heldConn, heldHideUntil, swingUntil = nil, nil, 0, 0
+	function aimThird(on, swing, keep)
+		local character = player.Character
+		if swing then
+			-- 휘두름이 끝나면 StabMotion 이 스스로 다시 젖히거나(keep) 제자리로 돌린다
+			StabMotion.throwSwing(character, keep)
+			heldHideUntil = os.clock() + 0.22 -- 던진 칼은 손을 떠났다 (잠시 뒤 새 칼)
+			swingUntil = os.clock() + 0.2
+			if not keep and heldKnife then
+				heldHideUntil = math.huge
+			end
+			return
+		end
+		if on then
+			StabMotion.throwReady(character, true)
+			if not heldKnife then
+				heldKnife = hands.makeKnife(config.findSkin("Knife", player:GetAttribute(SKIN_ATTR.Knife) or "classic"))
+				pcall(heldKnife.ScaleTo, heldKnife, 0.7)
+				heldKnife.Parent = fx
+				heldConn = Run.RenderStepped:Connect(function()
+					local hand = handOf(player.Character)
+					if not hand or not heldKnife or not heldKnife.Parent then
+						return
+					end
+					local hidden = os.clock() < heldHideUntil
+					heldKnife:PivotTo(hidden and CFrame.new(0, -500, 0) or hand.CFrame * CFrame.new(0, -0.25, 0) * CFrame.Angles(-math.pi / 2, 0, 0) * CFrame.new(0, 0, -0.8))
+				end)
+			end
+		else
+			if heldConn then
+				heldConn:Disconnect()
+				heldConn = nil
+			end
+			if heldKnife then
+				heldKnife:Destroy()
+				heldKnife = nil
+			end
+			heldHideUntil = 0
+			if os.clock() >= swingUntil then
+				StabMotion.throwReady(character, false) -- 휘두르는 중이면 휘두름이 끝나고 스스로 돌아온다
+			end
+		end
+	end
+
 	-- from : CFrame(1인칭 손의 칼) · Model(캐릭터) · nil(내 캐릭터) / ghost : 맞힐 해적 (없으면 통 뚜껑 쪽으로 빗나간다)
 	function throwKnife(model, from, ghost, hit, skinId)
 		local fromCF = typeof(from) == "CFrame" and from or nil
@@ -2345,6 +2390,7 @@ local function endCatchUI()
 	sideGuide.Visible = false
 	hideIntro()
 	setSeatLock(false)
+	aimThird(false) -- Phase 38.1 : 던질 준비 자세를 푼다
 end
 
 -- 해적 종류마다 화면 아래 한 줄 안내
@@ -2430,6 +2476,12 @@ function sendCatch(side)
 		local onTarget = inWindow and kind ~= "skull" and not (kind == "side" and side ~= catch.side)
 		local ghost = liveGhosts[math.min(catch.step or 1, #liveGhosts)]
 		local from = hands:toss()
+		if not from then
+			-- 3인칭 : 젖혀 둔 팔을 휘둘러 던진다. 쌍둥이 다음 마리 · 연타가 남았으면 다시 젖힌다
+			local keep = (kind == "mash" and (catch.taps or 0) + 1 < (catch.need or 5))
+				or (kind == "twin" and onTarget and (catch.step or 1) < #catch.steps)
+			aimThird(true, true, keep)
+		end
 		throwKnife(catch.model, from, inWindow and ghost or nil, onTarget, player:GetAttribute(SKIN_ATTR.Knife))
 	end
 	if now < stepInfo.opensAt - (config.Catch.EarlyTolerance or 0) then
@@ -2668,6 +2720,10 @@ catchPrompt.OnClientEvent:Connect(function(model, data)
 	catchButton.Active = true
 	catchText.Text = ""
 	catchHint.Text = kindHint(data)
+	-- Phase 38.1 : 기다리는 동안 칼을 뒤로 젖혀 던질 준비 (1인칭은 1인칭 손이 한다)
+	if not hands.shown and kind ~= "skull" then
+		aimThird(true)
+	end
 	sideGuide.Visible = kind == "side"
 	drawSides(nil)
 	-- 처음 보는 종류 · 튜토리얼 : 해적이 나오기 0.5초 전까지 설명 카드
@@ -3542,6 +3598,12 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		-- Phase 37 : 1인칭 손이 칼을 찌르는 동안 몸이 슬롯 쪽으로 숙여진다 (팔이 슬롯에 닿을 만큼)
 		hands.want = true
 		hands.ready = active:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId
+		-- Phase 38.1 : 해적을 기다리는 동안 칼을 젖혀 던질 준비 (유령은 던지면 안 되니 들지 않는다)
+		hands.aiming = catch ~= nil and catch.mine and not catch.done and catch.model == active and catch.kind ~= "skull"
+		if hands.aiming then
+			local stepInfo = catch.steps[catch.step or 1] or catch.steps[1]
+			hands.tension = math.clamp(1 - (stepInfo.opensAt - workspace:GetServerTimeNow()) / 1.5, 0, 1)
+		end
 		fpEye += hands.leanVector
 		local fpTarget = CFrame.lookAt(fpEye, fpEye + toward)
 		local alpha = 1 - math.exp(-dt * 14)
