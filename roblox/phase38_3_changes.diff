@@ -396,7 +396,7 @@ diff -ru a/CannonService.lua b/CannonService.lua
  	return true
 diff -ru a/GameConfig.lua b/GameConfig.lua
 --- a/GameConfig.lua	2026-09-27 11:32:16.927363736 +0000
-+++ b/GameConfig.lua	2026-09-27 13:37:02.643049947 +0000
++++ b/GameConfig.lua	2026-09-27 13:40:41.374681848 +0000
 @@ -353,9 +353,12 @@
  	--   예전에는 16번 잡은 뒤로는 창 0.16~0.24초짜리 분노한 해적만 나와서 사실상 8라운드쯤이 끝이었다.
  	--   이제 분노한 해적은 7라운드부터 가끔 섞여 나오는 해적 종류 중 하나다 (GameConfig.PirateKinds).
@@ -442,7 +442,41 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  
  	-- 클라이언트가 보낸 "누른 시각"은 MaxLatency 안에서 이미 지연 보정을 받는다.
  	-- 그래서 창이 닫힌 뒤의 여유는 시계 오차 정도만 둔다. (Phase 9 까지 0.4 초라 너무 쉬웠다)
-@@ -513,7 +521,8 @@
+@@ -410,7 +418,10 @@
+ 	-- ★ Phase 6 수정: 잡는 데 성공하면 아직 아무도 꽂지 않은 자리 중에서
+ 	--   새 해적을 이만큼 더 숨긴다. 통을 새로 채우지 않아도 긴장이 이어진다.
+ 	ArmOnCatch = 1,
+-	MinFreeSlotsToArm = 1, -- 남은 빈 자리가 이보다 적으면 숨길 곳이 없다
++	-- ★ Phase 38.3 : 잡으면 새 해적을 숨기는 것은 통 안에 해적이 한 마리도 안 남았을 때만.
++	--   예전에는 잡을 때마다 숨겨서 해적 수가 줄지 않는데 빈칸만 줄어, 통 뒤쪽으로 갈수록 거의 매번 해적이었다.
++	ArmOnlyWhenEmpty = true,
++	MinFreeSlotsToArm = 2, -- 남은 빈 자리가 이보다 적으면 숨길 곳이 없다 · Phase 38.3 : 1 → 2 (통의 마지막 두 칸은 새로 숨기지 않는다)
+ }
+ 
+ --------------------------------------------------
+@@ -432,14 +443,17 @@
+ 	ContinueCooldown = 0.5,
+ }
+ 
+--- Phase 24.10 : 라운드(통)가 올라갈수록 해적이 늘어난다. 1 · 2라운드는 1~2마리, 끝까지 가면 최대 5마리.
++-- Phase 24.10 : 라운드(통)가 올라갈수록 해적이 늘어난다. (Phase 38.3 : 1 · 2라운드 1마리 → 최대 4마리)
+ --   ByStage[라운드] 마리 (마지막 값 이후는 그대로). 통이 작은 테이블은 칼 자리의 MaxShare 까지만 (10칸 → 4마리).
+ --   폭풍(크라켄 습격) 추가 해적은 여기에 더해진다.
++-- ★ Phase 38.3 : "해적이 너무 자주 나온다". 한 판을 돌려 보니 2인 테이블(10칸)은 칼 2.5번에 한 번(40%),
++--   4라운드부터는 거의 두 번에 한 번이 해적이었다. 늘어나는 속도를 늦추고 상한을 낮췄다.
++--   (예전 : { 1, 2, 2, 3, 3, 4, 4, 5 } · 최대 5 · 칼 자리의 40%)
+ GameConfig.RoundPirates = {
+ 	Enabled = true,
+-	ByStage = { 1, 2, 2, 3, 3, 4, 4, 5 },
+-	Max = 5,
+-	MaxShare = 0.4,
++	ByStage = { 1, 1, 2, 2, 2, 3, 3, 3, 4 },
++	Max = 4,
++	MaxShare = 0.3, -- 10칸 · 12칸 → 최대 3마리, 16칸 · 24칸 → 최대 4마리
+ }
+ 
+ --------------------------------------------------
+@@ -513,7 +527,8 @@
  	Small = { Id = "small", Name = "잭팟", Amount = 1000, Chance = 0.025 },
  }
  -- 현상금 상한 (Phase 21 : 60,000 → Phase 24 : 10,000. 한 판에 6만 코인이 나오던 원인)
@@ -452,7 +486,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  
  -- 이번 잡기의 창 길이. 서버에서만 호출한다.
  -- personal : 이 사람이 이번 판에 이미 잡은 횟수 (Phase 11 : 잡을수록 빨라진다)
-@@ -1074,7 +1083,8 @@
+@@ -1074,7 +1089,8 @@
  -- AI 선원 (Phase 11)
  --
  -- 혼자 앉아 기다리는 사람이 있으면, 잠시 뒤 AI 선원이 빈 의자에 앉아 같이 한다.
@@ -462,7 +496,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  --
  -- ★ AI 와 함께한 판은 "연습 판"이다.
  --   코인은 RewardScale 만큼만 받고, 승수 · 연승 · 랭킹에는 들어가지 않는다.
-@@ -1558,11 +1568,14 @@
+@@ -1558,11 +1574,14 @@
  	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
  	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
  	Mandatory = true,
@@ -479,7 +513,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  	Reward = 500,
  	SeatRetry = 3, -- 빈 연습 테이블이 없으면 이 간격(초)으로 다시 찾는다
  	GiveUpAfter = 45, -- 이만큼(초) 동안 연습 테이블을 못 찾으면 필수를 풀어 준다 (신입 보호는 그대로)
-@@ -1596,7 +1609,8 @@
+@@ -1596,7 +1615,8 @@
  		twin = { name = "쌍둥이 해적", short = "둘 다 잡기!", how = "두 마리를 모두 잡아야 해요! 하나 튀어나오면 탭, 또 튀어나오면 한 번 더 탭", color = Color3.fromRGB(255, 150, 70), unlock = 2, weight = 18,
  			gapMin = 0.45, gapMax = 0.85, secondScale = 0.9, tripleFrom = 4 }, -- Phase 38 : 풀린 뒤 4라운드(6라운드)부터 가끔 세쌍둥이
  		side = { name = "갈고리 해적", short = "튀어나온 쪽!", how = "왼쪽이나 오른쪽으로 튀어나와요. 그쪽을 눌러요!\n(화면 왼쪽·오른쪽 / ← → / A D)", color = Color3.fromRGB(120, 180, 255), unlock = 3, weight = 9, -- Phase 38.2 : 16 → 9 (너무 자주 · 어려웠다)
@@ -489,7 +523,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  			-- Phase 38.2 : 잡는 시간 1.2 → 1.7배 · 속임수는 풀린 뒤 4라운드(7라운드)부터 20% → 최대 50% (예전 5라운드부터 30% → 70%)
  		skull = { name = "해골 유령", short = "참아!", how = "반투명 유령이에요. 누르면 안 돼요! 사라질 때까지 참아요", color = Color3.fromRGB(230, 236, 255), unlock = 4, weight = 12,
  			show = 1.2, maxShow = 2.2, flickerFrom = 2 }, -- Phase 38 : 라운드마다 0.1초 더 오래 · 6라운드부터 깜빡임
-@@ -1654,7 +1668,9 @@
+@@ -1654,7 +1674,9 @@
  	List = {
  		{ id = "gold", name = "황금 통", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
  		{ id = "sleepy", name = "졸린 해적", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
@@ -500,7 +534,7 @@ diff -ru a/GameConfig.lua b/GameConfig.lua
  		{ id = "twins", name = "쌍둥이의 밤", text = "이번 라운드 해적은 전부 쌍둥이!", weight = 8, kind = "twin", minStage = 2, color = Color3.fromRGB(255, 150, 70) },
  		{ id = "ghosts", name = "유령선", text = "해골 유령이 자주 나와요 (누르지 말고 참기!)", weight = 8, kindBoost = { skull = 5 }, minStage = 4, color = Color3.fromRGB(230, 236, 255) },
  		{ id = "hooks", name = "갈고리 폭풍", text = "갈고리 해적이 자주 나와요 (방향 보고 누르기!)", weight = 8, kindBoost = { side = 5 }, minStage = 3, color = Color3.fromRGB(120, 180, 255) },
-@@ -1663,11 +1679,45 @@
+@@ -1663,11 +1685,45 @@
  		{ id = "blades", name = "불꽃 칼날", text = "안전한 자리 코인 2배", weight = 10, safe = 2, gentle = true, color = Color3.fromRGB(255, 120, 70) },
  		{ id = "brave", name = "배짱 축제", text = "한 번 더 찌르기 보상 2배", weight = 8, brave = 2, gentle = true, color = Color3.fromRGB(255, 160, 70) },
  		{ id = "drift", name = "떠도는 해적", text = "차례마다 해적이 자리를 옮겨요", weight = 7, shuffle = true, minStage = 2, color = Color3.fromRGB(196, 150, 255) },
@@ -1226,8 +1260,31 @@ diff -ru a/ReleaseService.lua b/ReleaseService.lua
    if not (Config.Tutorial and Config.Tutorial.Mandatory) or player:GetAttribute("TutorialFree")==true then
 diff -ru a/RoundService.lua b/RoundService.lua
 --- a/RoundService.lua	2026-09-27 11:32:16.928253561 +0000
-+++ b/RoundService.lua	2026-09-27 13:35:38.045108618 +0000
-@@ -687,8 +687,8 @@
++++ b/RoundService.lua	2026-09-27 13:40:41.375508637 +0000
+@@ -523,7 +523,7 @@
+ 	-- Phase 12 : 폭풍(크라켄 습격) 동안 해적이 늘어난다. 통에 고를 자리는 넉넉히 남긴다.
+ 	local extra = math.max(0, math.floor(tonumber(GameConfig.worldMods().extraPirate) or 0))
+ 	local slots = TableConfig.getSlotCount(self.gameTable.typeName)
+-	-- Phase 24.10 : 라운드가 올라갈수록 해적이 늘어난다 (1 · 2라운드 1~2마리 → 최대 5마리)
++	-- Phase 24.10 : 라운드가 올라갈수록 해적이 늘어난다 (Phase 38.3 : 1 · 2라운드 1마리 → 최대 4마리)
+ 	local ramp = GameConfig.RoundPirates
+ 	if ramp and ramp.Enabled then
+ 		local list = ramp.ByStage
+@@ -611,6 +611,13 @@
+ -- 어떤 경로로 해적이 사라져도(잡기·탈락·이탈) 다음 턴에는 반드시 복구된다.
+ function Round:_ensureDanger()
+ 	local target = self:_targetPirateCount()
++	-- ★ Phase 38.3 : 차례마다 정원까지 채우지 않는다. 해적 수는 그대로인데 빈칸만 줄어서
++	--   통 뒤쪽으로 갈수록 거의 매번 해적이었다 ("해적이 너무 자주 나온다").
++	--   이 안전망은 원래 "통에 해적이 한 마리도 없는 채로 끝까지 가는 것"을 막으려던 것이라 한 마리만 지킨다.
++	--   (정원은 통을 새로 채울 때 _refillBarrel 이 맞춘다)
++	if CATCH.ArmOnlyWhenEmpty == true then
++		target = math.min(target, 1)
++	end
+ 	local live = self:_liveDangerCount()
+ 	if live >= target then
+ 		self:_publishPirateCount()
+@@ -687,8 +694,8 @@
  
  -- 이번 라운드 카드의 배율 (카드가 없거나 그 항목이 없으면 1)
  function Round:_cardValue(key)
@@ -1238,7 +1295,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  end
  
  -- 새 라운드의 카드를 뽑아 모두에게 보여 준다. 보여 주는 동안 다음 차례를 미룬다.
-@@ -702,6 +702,7 @@
+@@ -702,6 +709,7 @@
  		end
  	end
  	self.card = card
@@ -1246,7 +1303,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  	self:_set("FateCard", card and card.id or "")
  	if card then
  		presentation:FireAllClients("FateCard", self.gameTable.model, { card = card.id, stage = stage })
-@@ -869,7 +870,8 @@
+@@ -869,7 +877,8 @@
  	self:_set(TABLE_ATTR.LastPickSafe, true)
  	self:_set(TABLE_ATTR.BraveLevel, 0)
  	self:_set(TABLE_ATTR.Practice, self.practice)
@@ -1256,7 +1313,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  	self:_set(TABLE_ATTR.WinnerTakesAll, self:_winnerTakesAll())
  	self:_publishStage()
  	self:_clearBraveOffer()
-@@ -1009,7 +1011,7 @@
+@@ -1009,7 +1018,7 @@
  	local duration = tonumber(self.gameTable.config.TurnDuration) or 0
  	-- Phase 32 : "급한 물살" 카드
  	if duration > 0 and self.card and self.card.turn then
@@ -1265,7 +1322,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  	end
  
  	-- Phase 8 : "저주의 재촉"을 맞았으면 이번 턴만 짧아진다.
-@@ -1106,7 +1108,8 @@
+@@ -1106,7 +1115,8 @@
  	local kind = catch.kind or "normal"
  	local steps = catch.steps or { { opensAt = catch.opensAt, window = catch.window } }
  	local first = steps[1]
@@ -1275,7 +1332,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  	if kind == "skull" or kind == "mash" then
  		chance = math.clamp(skill + 0.2, 0.2, 0.9) -- 창 길이가 박자가 아니라 버티는 시간이다
  	end
-@@ -1604,6 +1607,14 @@
+@@ -1604,6 +1614,14 @@
  	return player == nil or tutorial.player == player
  end
  
@@ -1290,7 +1347,7 @@ diff -ru a/RoundService.lua b/RoundService.lua
  -- Phase 32 : 이번 해적의 종류 (튜토리얼은 정해진 순서 · 운명 카드가 종류를 정하거나 확률을 바꾼다)
  function Round:_pickKind(player, stage)
  	if self:_tutorialActive(player) then
-@@ -1847,6 +1858,8 @@
+@@ -1847,6 +1865,8 @@
  			slot = slotIndex,
  			angry = angry or nil,
  			ink = angry and (CATCH.AngryInk or 2.4) or nil,
@@ -1299,6 +1356,16 @@ diff -ru a/RoundService.lua b/RoundService.lua
  			intro = intro or nil,
  			tutorial = tutorial or nil,
  			retry = retry or nil,
+@@ -2088,7 +2108,8 @@
+ 	--   결과를 보내기 전에 숨기는 이유: 아래 payload 의 "남은 해적 수"가 맞아야 하기 때문이다.
+ 	--   숨긴 자리 번호는 payload 에 넣지 않는다. 나가는 것은 마릿수까지다.
+ 	local armed = 0
+-	if success and not gameTable.destroyed and gameTable.state == STATES.Playing and not self:_tutorialActive(player) then
++	if success and not gameTable.destroyed and gameTable.state == STATES.Playing and not self:_tutorialActive(player)
++		and (CATCH.ArmOnlyWhenEmpty ~= true or self:_liveDangerCount() == 0) then -- Phase 38.3 : 남은 해적이 없을 때만
+ 		armed = self:_armDanger(CATCH.ArmOnCatch)
+ 	end
+ 	-- Phase 11 : 잡은 횟수는 성공했을 때만 오른다. 그만큼 이 사람의 다음 해적이 빨라진다.
 diff -ru a/StabMotion.lua b/StabMotion.lua
 --- a/StabMotion.lua	2026-09-27 11:32:16.926442201 +0000
 +++ b/StabMotion.lua	2026-09-27 12:49:57.117372212 +0000
