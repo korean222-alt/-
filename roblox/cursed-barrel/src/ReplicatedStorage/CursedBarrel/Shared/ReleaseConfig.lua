@@ -145,8 +145,8 @@ C.Images.Petal = 135693097571222
 -- Phase 32.1 : 운명 카드(타로) · 해적 종류 아이콘. art/sheets/ 의 PNG 네 장을 올린 이미지 ID.
 --   FateCards = { cards_1.png, cards_2.png, cards_3.png } · PirateIcons = icons.png
 --   0 인 동안에는 같은 모양의 카드 · 둥근 휘장을 UI 로 그려 보여 준다 (ArtAtlas).
-C.Images.FateCards = { 0, 0, 0 }
-C.Images.PirateIcons = 0
+C.Images.FateCards = { 84058785932304, 128327244792765, 98549239739811 } -- cards_1 · cards_2 · cards_3
+C.Images.PirateIcons = 136231713729717 -- icons
 C.Branding = {
  -- Exact user-supplied images are in assets/branding, unchanged.
  -- Roblox ImageButton requires a Roblox-uploaded image asset ID, not a local JPEG path.
