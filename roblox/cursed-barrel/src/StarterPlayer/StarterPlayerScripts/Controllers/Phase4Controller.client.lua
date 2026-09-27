@@ -53,6 +53,7 @@ local PirateModel = require(package.Shared:WaitForChild("PirateModel"))
 local EliminationFX = require(package.Shared:WaitForChild("EliminationFX"))
 local UIKit = require(package.Shared:WaitForChild("UIKit"))
 local ArtAtlas = require(package.Shared:WaitForChild("ArtAtlas")) -- Phase 32.1 : 타로 카드 · 해적 종류 아이콘 그림
+local hands = require(package.Shared:WaitForChild("FirstPersonHands")).new(player) -- Phase 37 : 1인칭 전용 손
 local Utility = require(package.Shared:WaitForChild("Utility"))
 local SKIN_ATTR = config.Skins.PlayerAttributes
 local TABLE_ATTR = config.TableAttributes
@@ -1452,8 +1453,14 @@ local function stab(model, index, own, tension, userId, styleId)
 			end
 
 			local started = os.clock()
+			-- Phase 37 : 1인칭이면 내 칼은 1인칭 손이 직접 들어 올려 꽂는다 (날아가는 칼을 손이 움직인다)
+			local byHand = userId == player.UserId and hands:takeStab(copy, ctx, plan, STAB.Settle)
 			local follow
 			follow = Run.RenderStepped:Connect(function()
+				if byHand then
+					follow:Disconnect()
+					return
+				end
 				if not copy.Parent then
 					follow:Disconnect()
 					return
@@ -2311,6 +2318,7 @@ function sendCatch(side)
 		return
 	end
 	lastTapAt = os.clock()
+	hands:grab() -- Phase 37 : 1인칭 손이 해적을 향해 주먹을 휘두른다
 	local now = workspace:GetServerTimeNow()
 	catchInput:FireServer(catch.model, now, side)
 	local stepInfo = catch.steps[catch.step] or catch.steps[1]
@@ -2815,6 +2823,9 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 				end
 			end
 			local won = data.userId ~= 0 and data.userId == player.UserId
+			if won then
+				hands:cheer() -- Phase 37 : 1인칭 손이 칼을 치켜든다
+			end
 			local text, color
 			if won and data.noContest then
 				-- Phase 24 : 아무도 제대로 꽂기 전에 상대가 전부 나간 판. 보상 없이 끝난다
@@ -2866,6 +2877,7 @@ cues.OnClientEvent:Connect(function(kind, model, data)
 		end
 		-- Phase 15 : 탈락한 사람 화면에는 "패배 · 4위". 이유(놓쳤다 · 너무 빨랐다)를 먼저 보여 주고 이어서 뜬다.
 		if data.userId == player.UserId then
+			hands:drop() -- Phase 37 : 1인칭 손이 힘없이 떨어진다
 			placeShown[model] = true
 			local place = tonumber(data.place)
 			task.delay(1.1, function()
@@ -3221,18 +3233,12 @@ do
 			end
 		end
 	end
-	-- Phase 35.1 : 1인칭에서도 내 팔 · 손이 보인다 (칼 꽂는 팔 동작이 그대로 보인다).
-	--   Roblox 기본 카메라(TransparencyController)는 카메라가 머리에 붙으면 캐릭터 전체를 매 프레임 투명하게 만든다.
-	--   이 카메라는 그 뒤(Camera + 1)에 돌므로, 팔 · 손만 다시 보이게 하고 몸통 · 다리는 숨긴다(머리 안쪽 · 몸 속이 비치지 않게).
-	local ARM = {
-		RightUpperArm = true, RightLowerArm = true, RightHand = true,
-		LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
-		["Right Arm"] = true, ["Left Arm"] = true,
-	}
+	-- Phase 37 : 1인칭에서는 진짜 몸(팔 포함)을 모두 숨기고, 1인칭 전용 손(FirstPersonHands)이 칼을 쥐고 꽂는다.
+	--   (Phase 35.1 에서는 진짜 팔을 보였는데, 머리에 붙은 카메라에서는 팔이 화면 아래 끝에 걸려 잘 안 보였다)
 	local function showArms(character)
 		for _, item in ipairs(character:GetChildren()) do
 			if item:IsA("BasePart") and item.Name ~= "HumanoidRootPart" and item.Name ~= "Head" then
-				item.LocalTransparencyModifier = ARM[item.Name] and 0 or 1
+				item.LocalTransparencyModifier = 1
 				bodyTouched[item] = true
 			end
 		end
@@ -3279,6 +3285,7 @@ end
 Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	local camera = workspace.CurrentCamera
 	local pos = center(active)
+	hands.want = false -- Phase 37 : 1인칭일 때만 아래에서 true
 	drawViewButton()
 	if not pos or not cameraOn or not camera then
 		showHead() -- Phase 32 : 1인칭에서 숨긴 머리를 되돌린다
@@ -3362,6 +3369,10 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		if yaw ~= 0 and toward.Magnitude > 0.01 then
 			toward = CFrame.Angles(0, yaw * 0.6, 0):VectorToWorldSpace(toward)
 		end
+		-- Phase 37 : 1인칭 손이 칼을 찌르는 동안 몸이 슬롯 쪽으로 숙여진다 (팔이 슬롯에 닿을 만큼)
+		hands.want = true
+		hands.ready = active:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId
+		fpEye += hands.leanVector
 		local fpTarget = CFrame.lookAt(fpEye, fpEye + toward)
 		local alpha = 1 - math.exp(-dt * 14)
 		camera.CFrame = camera.CFrame:Lerp(fpTarget, alpha)
@@ -3386,6 +3397,11 @@ Run:BindToRenderStep("CursedBarrel_TableCamera", Enum.RenderPriority.Camera.Valu
 		local amp = (shakeUntil - os.clock()) * 0.4
 		camera.CFrame *= CFrame.new(math.sin(os.clock() * 70) * amp, math.cos(os.clock() * 53) * amp, 0)
 	end
+end)
+
+-- Phase 37 : 1인칭 손 (카메라가 자리를 잡은 뒤에 그린다)
+Run:BindToRenderStep("CursedBarrel_FPHands", Enum.RenderPriority.Camera.Value + 2, function(dt)
+	hands:update(dt)
 end)
 
 -- 잡기 고리는 매 프레임 줄어듭니다.
