@@ -6,9 +6,10 @@ local B = require(script.Parent.Build)
 local P = {}
 local M = Enum.Material
 
-local LEAF = {"#5fae4e", "#6cbb55", "#7fc65c", "#4f9d48", "#8acb5f"}
-local PINE = {"#3f8452", "#4a9159", "#367a4b"}
-local ROCK = {"#9aa3a8", "#8b949a", "#a9b1b5", "#7f888e"}
+-- 생존 톤 팔레트: 채도를 낮춘 짙은 숲색. 자원(열매 등)만 선명한 색을 남겨 눈에 띄게 한다.
+local LEAF = {"#4a6b3a", "#557a40", "#3f5f35", "#5e7f45", "#46663c"}
+local PINE = {"#27402f", "#2e4a35", "#22392b"}
+local ROCK = {"#6f7479", "#666b70", "#7a7f83", "#5e6368"}
 
 local function pick(rng, list)
 	return list[rng:NextInteger(1, #list)]
@@ -42,7 +43,7 @@ function P.tree(parent, at, rng, scale, name)
 		{Vector3.new(4, 3.4, 4), CFrame.new(-0.8, -0.6, 2.3)},
 	}
 	for i, blob in ipairs(blobs) do
-		local c = Color3.fromHex(leafCol):Lerp(Color3.fromHex("#b6e27a"), (i == 4) and 0.25 or rng:NextNumber() * 0.1)
+		local c = Color3.fromHex(leafCol):Lerp(Color3.fromHex("#8fa86a"), (i == 4) and 0.25 or rng:NextNumber() * 0.1)
 		B.ellipsoid(m, blob[1] * scale, top * CFrame.new(blob[2].Position * scale), c, M.SmoothPlastic)
 	end
 	return B.decorate(m)
@@ -58,9 +59,69 @@ function P.pine(parent, at, rng, scale)
 	for i = 0, 3 do
 		local t = i / 4
 		local d = (8 - i * 1.7) * scale
-		B.cone(m, d, h * 0.34, base * CFrame.new(0, h * (0.22 + t * 0.2), 0), Color3.fromHex(col):Lerp(Color3.fromHex("#6fbf6a"), t * 0.35), M.SmoothPlastic, 7)
+		B.cone(m, d, h * 0.34, base * CFrame.new(0, h * (0.22 + t * 0.2), 0), Color3.fromHex(col):Lerp(Color3.fromHex("#4f6f4a"), t * 0.35), M.SmoothPlastic, 7)
 	end
 	return B.decorate(m)
+end
+
+-- 숲 경계용 키 큰 전나무 (파트 10개로 가볍게). 99 Nights 같은 빽빽하고 어두운 숲 벽을 만든다.
+function P.tallPine(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "TallPine")
+	local base = at * yaw(rng)
+	local h = (20 + rng:NextNumber() * 10) * scale
+	B.cyl(m, h * 0.62, 1.4 * scale, base * CFrame.new(0, h * 0.31, 0), "#3e2c20", M.Wood, true)
+	local col = Color3.fromHex(pick(rng, PINE))
+	for i = 0, 2 do
+		local t = i / 3
+		B.cone(m, (9 - i * 2.2) * scale, h * 0.36, base * CFrame.new(0, h * (0.3 + t * 0.24), 0), col:Lerp(Color3.fromHex("#3d5a44"), t * 0.4), M.SmoothPlastic, 3)
+	end
+	return B.decorate(m)
+end
+
+-- 말라 죽은 나무: 가지만 남은 회갈색 줄기
+function P.deadTree(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "DeadTree")
+	local base = at * yaw(rng)
+	local h = (8 + rng:NextNumber() * 5) * scale
+	local col = "#5b5046"
+	B.cyl(m, h, 1.1 * scale, base * CFrame.new(0, h / 2, 0) * CFrame.Angles(math.rad(rng:NextInteger(-6, 6)), 0, 0), col, M.Wood, true)
+	for i = 1, 4 do
+		local y = h * (0.45 + i * 0.12)
+		local a = math.rad(i * 97 + rng:NextInteger(0, 40))
+		local len = (3.4 - i * 0.5) * scale
+		B.cyl(m, len, 0.35 * scale, base * CFrame.new(0, y, 0) * CFrame.Angles(0, a, math.rad(35 + i * 6)) * CFrame.new(len / 2, 0, 0), col, M.Wood)
+	end
+	return B.decorate(m)
+end
+
+-- 쓰러진 통나무 (이끼 조금)
+function P.log(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "FallenLog")
+	local base = at * yaw(rng)
+	local len = (7 + rng:NextNumber() * 4) * scale
+	B.cyl(m, len, 1.6 * scale, base * CFrame.new(0, 0.7 * scale, 0), "#4e3a2a", M.Wood)
+	B.cyl(m, 0.3, 1.3 * scale, base * CFrame.new(len / 2, 0.7 * scale, 0), "#a88a62", M.Wood)
+	B.ellipsoid(m, Vector3.new(len * 0.5, 0.5, 1.4) * scale, base * CFrame.new(-len * 0.1, 1.45 * scale, 0), "#4a6b3a", M.SmoothPlastic)
+	return B.decorate(m)
+end
+
+-- 밤에 은은하게 빛나는 버섯 무리 (어둠 속 길잡이)
+function P.mushrooms(parent, at, rng)
+	local m = B.model(parent, "GlowShrooms")
+	local cols = {"#62d9c4", "#8fb8ff", "#b58cff"}
+	local col = pick(rng, cols)
+	for _ = 1, 4 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = rng:NextNumber() * 1.3
+		local h = 0.5 + rng:NextNumber() * 0.8
+		local p = at * CFrame.new(math.cos(a) * r, 0, math.sin(a) * r)
+		B.cyl(m, h, 0.22, p * CFrame.new(0, h / 2, 0), "#d9d2c3", M.SmoothPlastic, true)
+		B.ellipsoid(m, Vector3.new(0.8, 0.4, 0.8) * (0.8 + h * 0.4), p * CFrame.new(0, h, 0), col, M.Neon)
+	end
+	return B.decorate(m, false)
 end
 
 function P.rock(parent, at, rng, scale, name)
@@ -79,7 +140,7 @@ function P.rock(parent, at, rng, scale, name)
 		B.block(m, piece[1] * scale, base * CFrame.new(piece[2].Position * scale) * tilt, c, M.Slate)
 	end
 	-- 이끼 한 줌
-	B.ellipsoid(m, Vector3.new(2.6, 0.6, 2) * scale, base * CFrame.new(-0.4 * scale, 3.1 * scale, 0.3 * scale), "#7fb85a", M.SmoothPlastic)
+	B.ellipsoid(m, Vector3.new(2.6, 0.6, 2) * scale, base * CFrame.new(-0.4 * scale, 3.1 * scale, 0.3 * scale), "#55703f", M.SmoothPlastic)
 	return B.decorate(m)
 end
 
@@ -120,7 +181,7 @@ function P.reeds(parent, at, rng, scale)
 		local h = (3.5 + rng:NextNumber() * 2.5) * scale
 		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-12, 12)), 0, math.rad(rng:NextInteger(-12, 12)))
 		local stem = base * CFrame.new(math.cos(a) * r * scale, 0, math.sin(a) * r * scale) * tilt
-		B.cyl(m, h, 0.28 * scale, stem * CFrame.new(0, h / 2, 0), "#8cbf5a", M.SmoothPlastic, true)
+		B.cyl(m, h, 0.28 * scale, stem * CFrame.new(0, h / 2, 0), "#7f9a52", M.SmoothPlastic, true)
 		if i % 2 == 0 then
 			B.ellipsoid(m, Vector3.new(0.55, 1.4, 0.55) * scale, stem * CFrame.new(0, h + 0.3, 0), "#c9a46a", M.SmoothPlastic)
 		end
@@ -128,7 +189,7 @@ function P.reeds(parent, at, rng, scale)
 	-- 풀 잎사귀
 	for i = 1, 6 do
 		local a = CFrame.Angles(0, math.rad(i * 60 + rng:NextInteger(0, 30)), 0)
-		B.wedge(m, Vector3.new(0.2, 2.4 * scale, 1.2 * scale), base * a * CFrame.new(0, 1.2 * scale, -1 * scale), "#79b84f", M.SmoothPlastic)
+		B.wedge(m, Vector3.new(0.2, 2.4 * scale, 1.2 * scale), base * a * CFrame.new(0, 1.2 * scale, -1 * scale), "#6b8a48", M.SmoothPlastic)
 	end
 	return B.decorate(m)
 end

@@ -269,7 +269,8 @@ function C.Briarhorn()
 end
 
 -- ============================================================================ 밤의 괴물
-local SHADOW, SHADOW_L = "#2a2138", "#3d2f55"
+-- 안개 속에서는 몸이 거의 안 보이고 빛나는 눈만 먼저 보이도록 아주 어둡게
+local SHADOW, SHADOW_L = "#16111f", "#241b33"
 
 function C.Crawler()
 	local r = newRig("Crawler")
@@ -282,7 +283,7 @@ function C.Crawler()
 	group(r, "Head", Vector3.new(0, 1.0, -0.9), "Body")
 	E(r, "Head", Vector3.new(1.4, 1.0, 1.1), Vector3.new(0, 1.0, -1.25), SHADOW)
 	for _, p in ipairs({Vector3.new(-0.35, 1.2, -1.74), Vector3.new(0.35, 1.2, -1.74), Vector3.new(0, 1.42, -1.66)}) do
-		Ball(r, "Head", 0.3, p, "#ff3b5c", M.Neon)
+		Ball(r, "Head", 0.38, p, "#ff3b5c", M.Neon)
 	end
 	for _, s in ipairs({-1, 1}) do
 		Wedge(r, "Head", Vector3.new(0.18, 0.35, 0.8), Vector3.new(s * 0.4, 0.62, -1.9), "#d8cfe6", 0, 0, 0)
@@ -309,7 +310,7 @@ function C.Runner()
 	Wedge(r, "Head", Vector3.new(0.55, 0.4, 0.8), Vector3.new(0, 1.8, -1.9), SHADOW_L, 0, 0, 0)
 	for _, s in ipairs({-1, 1}) do
 		Wedge(r, "Head", Vector3.new(0.14, 0.6, 0.35), Vector3.new(s * 0.3, 2.45, -1.2), SHADOW_L, 0, 0, s * -10)
-		Ball(r, "Head", 0.22, Vector3.new(s * 0.25, 2.05, -1.72), "#ffd23b", M.Neon)
+		Ball(r, "Head", 0.3, Vector3.new(s * 0.25, 2.05, -1.74), "#ffd23b", M.Neon)
 	end
 	for _, leg in ipairs({{"LegFL", -1, -0.7}, {"LegFR", 1, -0.7}, {"LegBL", -1, 0.9}, {"LegBR", 1, 0.9}}) do
 		local name, s, z = leg[1], leg[2], leg[3]
@@ -324,7 +325,7 @@ end
 
 function C.Brute()
 	local r = newRig("Brute")
-	local ROCK, CRACK = "#3a3346", "#c35cff"
+	local ROCK, CRACK = "#25202d", "#c35cff"
 	group(r, "Body", Vector3.new(0, 2.4, 0))
 	Box(r, "Body", Vector3.new(3.4, 2.9, 2.6), Vector3.new(0, 2.9, 0), ROCK, 6, 0, 0, M.Slate)
 	Box(r, "Body", Vector3.new(2.6, 1.2, 2.2), Vector3.new(0, 1.7, 0.1), "#312b3b", 0, 0, 0, M.Slate)

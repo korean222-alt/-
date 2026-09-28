@@ -866,7 +866,8 @@ function C.Briarhorn()
 end
 
 -- ============================================================================ 밤의 괴물
-local SHADOW, SHADOW_L = "#2a2138", "#3d2f55"
+-- 안개 속에서는 몸이 거의 안 보이고 빛나는 눈만 먼저 보이도록 아주 어둡게
+local SHADOW, SHADOW_L = "#16111f", "#241b33"
 
 function C.Crawler()
 	local r = newRig("Crawler")
@@ -879,7 +880,7 @@ function C.Crawler()
 	group(r, "Head", Vector3.new(0, 1.0, -0.9), "Body")
 	E(r, "Head", Vector3.new(1.4, 1.0, 1.1), Vector3.new(0, 1.0, -1.25), SHADOW)
 	for _, p in ipairs({Vector3.new(-0.35, 1.2, -1.74), Vector3.new(0.35, 1.2, -1.74), Vector3.new(0, 1.42, -1.66)}) do
-		Ball(r, "Head", 0.3, p, "#ff3b5c", M.Neon)
+		Ball(r, "Head", 0.38, p, "#ff3b5c", M.Neon)
 	end
 	for _, s in ipairs({-1, 1}) do
 		Wedge(r, "Head", Vector3.new(0.18, 0.35, 0.8), Vector3.new(s * 0.4, 0.62, -1.9), "#d8cfe6", 0, 0, 0)
@@ -906,7 +907,7 @@ function C.Runner()
 	Wedge(r, "Head", Vector3.new(0.55, 0.4, 0.8), Vector3.new(0, 1.8, -1.9), SHADOW_L, 0, 0, 0)
 	for _, s in ipairs({-1, 1}) do
 		Wedge(r, "Head", Vector3.new(0.14, 0.6, 0.35), Vector3.new(s * 0.3, 2.45, -1.2), SHADOW_L, 0, 0, s * -10)
-		Ball(r, "Head", 0.22, Vector3.new(s * 0.25, 2.05, -1.72), "#ffd23b", M.Neon)
+		Ball(r, "Head", 0.3, Vector3.new(s * 0.25, 2.05, -1.74), "#ffd23b", M.Neon)
 	end
 	for _, leg in ipairs({{"LegFL", -1, -0.7}, {"LegFR", 1, -0.7}, {"LegBL", -1, 0.9}, {"LegBR", 1, 0.9}}) do
 		local name, s, z = leg[1], leg[2], leg[3]
@@ -921,7 +922,7 @@ end
 
 function C.Brute()
 	local r = newRig("Brute")
-	local ROCK, CRACK = "#3a3346", "#c35cff"
+	local ROCK, CRACK = "#25202d", "#c35cff"
 	group(r, "Body", Vector3.new(0, 2.4, 0))
 	Box(r, "Body", Vector3.new(3.4, 2.9, 2.6), Vector3.new(0, 2.9, 0), ROCK, 6, 0, 0, M.Slate)
 	Box(r, "Body", Vector3.new(2.6, 1.2, 2.2), Vector3.new(0, 1.7, 0.1), "#312b3b", 0, 0, 0, M.Slate)
@@ -999,9 +1000,10 @@ local B = require(script.Parent.Build)
 local P = {}
 local M = Enum.Material
 
-local LEAF = {"#5fae4e", "#6cbb55", "#7fc65c", "#4f9d48", "#8acb5f"}
-local PINE = {"#3f8452", "#4a9159", "#367a4b"}
-local ROCK = {"#9aa3a8", "#8b949a", "#a9b1b5", "#7f888e"}
+-- 생존 톤 팔레트: 채도를 낮춘 짙은 숲색. 자원(열매 등)만 선명한 색을 남겨 눈에 띄게 한다.
+local LEAF = {"#4a6b3a", "#557a40", "#3f5f35", "#5e7f45", "#46663c"}
+local PINE = {"#27402f", "#2e4a35", "#22392b"}
+local ROCK = {"#6f7479", "#666b70", "#7a7f83", "#5e6368"}
 
 local function pick(rng, list)
 	return list[rng:NextInteger(1, #list)]
@@ -1035,7 +1037,7 @@ function P.tree(parent, at, rng, scale, name)
 		{Vector3.new(4, 3.4, 4), CFrame.new(-0.8, -0.6, 2.3)},
 	}
 	for i, blob in ipairs(blobs) do
-		local c = Color3.fromHex(leafCol):Lerp(Color3.fromHex("#b6e27a"), (i == 4) and 0.25 or rng:NextNumber() * 0.1)
+		local c = Color3.fromHex(leafCol):Lerp(Color3.fromHex("#8fa86a"), (i == 4) and 0.25 or rng:NextNumber() * 0.1)
 		B.ellipsoid(m, blob[1] * scale, top * CFrame.new(blob[2].Position * scale), c, M.SmoothPlastic)
 	end
 	return B.decorate(m)
@@ -1051,9 +1053,69 @@ function P.pine(parent, at, rng, scale)
 	for i = 0, 3 do
 		local t = i / 4
 		local d = (8 - i * 1.7) * scale
-		B.cone(m, d, h * 0.34, base * CFrame.new(0, h * (0.22 + t * 0.2), 0), Color3.fromHex(col):Lerp(Color3.fromHex("#6fbf6a"), t * 0.35), M.SmoothPlastic, 7)
+		B.cone(m, d, h * 0.34, base * CFrame.new(0, h * (0.22 + t * 0.2), 0), Color3.fromHex(col):Lerp(Color3.fromHex("#4f6f4a"), t * 0.35), M.SmoothPlastic, 7)
 	end
 	return B.decorate(m)
+end
+
+-- 숲 경계용 키 큰 전나무 (파트 10개로 가볍게). 99 Nights 같은 빽빽하고 어두운 숲 벽을 만든다.
+function P.tallPine(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "TallPine")
+	local base = at * yaw(rng)
+	local h = (20 + rng:NextNumber() * 10) * scale
+	B.cyl(m, h * 0.62, 1.4 * scale, base * CFrame.new(0, h * 0.31, 0), "#3e2c20", M.Wood, true)
+	local col = Color3.fromHex(pick(rng, PINE))
+	for i = 0, 2 do
+		local t = i / 3
+		B.cone(m, (9 - i * 2.2) * scale, h * 0.36, base * CFrame.new(0, h * (0.3 + t * 0.24), 0), col:Lerp(Color3.fromHex("#3d5a44"), t * 0.4), M.SmoothPlastic, 3)
+	end
+	return B.decorate(m)
+end
+
+-- 말라 죽은 나무: 가지만 남은 회갈색 줄기
+function P.deadTree(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "DeadTree")
+	local base = at * yaw(rng)
+	local h = (8 + rng:NextNumber() * 5) * scale
+	local col = "#5b5046"
+	B.cyl(m, h, 1.1 * scale, base * CFrame.new(0, h / 2, 0) * CFrame.Angles(math.rad(rng:NextInteger(-6, 6)), 0, 0), col, M.Wood, true)
+	for i = 1, 4 do
+		local y = h * (0.45 + i * 0.12)
+		local a = math.rad(i * 97 + rng:NextInteger(0, 40))
+		local len = (3.4 - i * 0.5) * scale
+		B.cyl(m, len, 0.35 * scale, base * CFrame.new(0, y, 0) * CFrame.Angles(0, a, math.rad(35 + i * 6)) * CFrame.new(len / 2, 0, 0), col, M.Wood)
+	end
+	return B.decorate(m)
+end
+
+-- 쓰러진 통나무 (이끼 조금)
+function P.log(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "FallenLog")
+	local base = at * yaw(rng)
+	local len = (7 + rng:NextNumber() * 4) * scale
+	B.cyl(m, len, 1.6 * scale, base * CFrame.new(0, 0.7 * scale, 0), "#4e3a2a", M.Wood)
+	B.cyl(m, 0.3, 1.3 * scale, base * CFrame.new(len / 2, 0.7 * scale, 0), "#a88a62", M.Wood)
+	B.ellipsoid(m, Vector3.new(len * 0.5, 0.5, 1.4) * scale, base * CFrame.new(-len * 0.1, 1.45 * scale, 0), "#4a6b3a", M.SmoothPlastic)
+	return B.decorate(m)
+end
+
+-- 밤에 은은하게 빛나는 버섯 무리 (어둠 속 길잡이)
+function P.mushrooms(parent, at, rng)
+	local m = B.model(parent, "GlowShrooms")
+	local cols = {"#62d9c4", "#8fb8ff", "#b58cff"}
+	local col = pick(rng, cols)
+	for _ = 1, 4 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = rng:NextNumber() * 1.3
+		local h = 0.5 + rng:NextNumber() * 0.8
+		local p = at * CFrame.new(math.cos(a) * r, 0, math.sin(a) * r)
+		B.cyl(m, h, 0.22, p * CFrame.new(0, h / 2, 0), "#d9d2c3", M.SmoothPlastic, true)
+		B.ellipsoid(m, Vector3.new(0.8, 0.4, 0.8) * (0.8 + h * 0.4), p * CFrame.new(0, h, 0), col, M.Neon)
+	end
+	return B.decorate(m, false)
 end
 
 function P.rock(parent, at, rng, scale, name)
@@ -1072,7 +1134,7 @@ function P.rock(parent, at, rng, scale, name)
 		B.block(m, piece[1] * scale, base * CFrame.new(piece[2].Position * scale) * tilt, c, M.Slate)
 	end
 	-- 이끼 한 줌
-	B.ellipsoid(m, Vector3.new(2.6, 0.6, 2) * scale, base * CFrame.new(-0.4 * scale, 3.1 * scale, 0.3 * scale), "#7fb85a", M.SmoothPlastic)
+	B.ellipsoid(m, Vector3.new(2.6, 0.6, 2) * scale, base * CFrame.new(-0.4 * scale, 3.1 * scale, 0.3 * scale), "#55703f", M.SmoothPlastic)
 	return B.decorate(m)
 end
 
@@ -1113,7 +1175,7 @@ function P.reeds(parent, at, rng, scale)
 		local h = (3.5 + rng:NextNumber() * 2.5) * scale
 		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-12, 12)), 0, math.rad(rng:NextInteger(-12, 12)))
 		local stem = base * CFrame.new(math.cos(a) * r * scale, 0, math.sin(a) * r * scale) * tilt
-		B.cyl(m, h, 0.28 * scale, stem * CFrame.new(0, h / 2, 0), "#8cbf5a", M.SmoothPlastic, true)
+		B.cyl(m, h, 0.28 * scale, stem * CFrame.new(0, h / 2, 0), "#7f9a52", M.SmoothPlastic, true)
 		if i % 2 == 0 then
 			B.ellipsoid(m, Vector3.new(0.55, 1.4, 0.55) * scale, stem * CFrame.new(0, h + 0.3, 0), "#c9a46a", M.SmoothPlastic)
 		end
@@ -1121,7 +1183,7 @@ function P.reeds(parent, at, rng, scale)
 	-- 풀 잎사귀
 	for i = 1, 6 do
 		local a = CFrame.Angles(0, math.rad(i * 60 + rng:NextInteger(0, 30)), 0)
-		B.wedge(m, Vector3.new(0.2, 2.4 * scale, 1.2 * scale), base * a * CFrame.new(0, 1.2 * scale, -1 * scale), "#79b84f", M.SmoothPlastic)
+		B.wedge(m, Vector3.new(0.2, 2.4 * scale, 1.2 * scale), base * a * CFrame.new(0, 1.2 * scale, -1 * scale), "#6b8a48", M.SmoothPlastic)
 	end
 	return B.decorate(m)
 end
@@ -1282,9 +1344,26 @@ function S.core(parent, at)
 		local rune = B.block(m, Vector3.new(1.2, 0.1, 0.5), at * a * CFrame.new(0, 3.42, -2.9), "#6ff3e0", M.Neon)
 		rune.Name = "Rune"
 	end
-	-- 떠 있는 큰 수정 + 주변 작은 수정 (클라이언트가 천천히 돌린다)
+	-- 제단 위 성스러운 모닥불: 밤에 기지 전체를 비추는 유일한 큰 불빛 (99 Nights 의 캠프파이어 역할)
+	local fire = B.model(m, "Bonfire")
+	for i = 0, 7 do
+		local a = math.rad(i * 45 + 10)
+		local bottom = (at * CFrame.new(math.cos(a) * 3.1, 3.4, math.sin(a) * 3.1)).Position
+		local top = (at * CFrame.new(math.cos(a) * 0.5, 7.4, math.sin(a) * 0.5)).Position
+		B.cyl(fire, (top - bottom).Magnitude + 0.4, 0.75, CFrame.lookAt((bottom + top) / 2, top) * CFrame.Angles(0, math.rad(90), 0),
+			i % 2 == 0 and "#4a3322" or "#5c4029", M.Wood)
+	end
+	local ember = B.ball(fire, 2.4, at * CFrame.new(0, 4.3, 0), "#ff8a2a", M.Neon, {Transparency = 0.15})
+	ember.Name = "Ember"
+	local flames = Instance.new("Fire")
+	flames.Size, flames.Heat = 10, 14
+	flames.Color, flames.SecondaryColor = Color3.fromHex("#ff7a2a"), Color3.fromHex("#ffd36b")
+	flames.Parent = ember
+	B.light(ember, "PointLight", {Range = 56, Brightness = 2.6, Color = Color3.fromHex("#ffb070"), Shadows = true})
+	CollectionService:AddTag(fire, "NightLight")
+	-- 불길 위에 떠 있는 수정 (클라이언트가 천천히 돌린다)
 	local crystal = B.model(m, "Crystal")
-	local center = at * CFrame.new(0, 8.5, 0)
+	local center = at * CFrame.new(0, 11, 0)
 	local main = B.block(crystal, Vector3.new(2.6, 5.2, 2.6), center * CFrame.Angles(0, math.rad(45), 0), "#79f2e4", M.Glass,
 		{Transparency = 0.15, Reflectance = 0.1})
 	main.Name = "Heart"
@@ -1294,10 +1373,11 @@ function S.core(parent, at)
 	B.wedge(crystal, Vector3.new(2.6, 1.8, 1.3), center * CFrame.Angles(math.pi, math.rad(45), 0) * CFrame.new(0, 3.5, -0.65), "#79f2e4", M.Glass, {Transparency = 0.15})
 	B.wedge(crystal, Vector3.new(2.6, 1.8, 1.3), center * CFrame.Angles(math.pi, math.rad(225), 0) * CFrame.new(0, 3.5, -0.65), "#79f2e4", M.Glass, {Transparency = 0.15})
 	B.light(main, "PointLight", {Range = 28, Brightness = 2.2, Color = Color3.fromHex("#6ff3e0"), Shadows = false})
+	-- 제단 둘레 돌 기둥 (횃대)
 	for i = 0, 4 do
 		local a = CFrame.Angles(0, math.rad(i * 72 + 20), 0)
-		local size = Vector3.new(0.9, 2.2 + (i % 2) * 1.1, 0.9)
-		B.block(m, size, at * a * CFrame.new(0, 3.4 + size.Y / 2 - 0.4, -2.6) * CFrame.Angles(math.rad(-18), math.rad(45), 0), "#8ff5e8", M.Glass, {Transparency = 0.1})
+		local size = Vector3.new(1.1, 2.6 + (i % 2) * 1.2, 1.1)
+		B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate)
 	end
 	local hit = B.hitbox(m, Vector3.new(7.5, 12, 7.5), at * CFrame.new(0, 6, 0), true)
 	hit.Name = "CoreHitbox"
@@ -2710,15 +2790,16 @@ function Map:BuildTerrain()
 	pcall(function()
 		T.Decoration = true
 	end)
-	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#7cc05a"))
-	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#62a94d"))
-	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#a8825a"))
-	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#7a5b3e"))
-	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#e6d3a0"))
-	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#b0aca2"))
-	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#8e9296"))
-	T.WaterColor = Color3.fromHex("#4fb8d8")
-	T.WaterTransparency = 0.55
+	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥
+	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#51693c"))
+	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#425a33"))
+	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#6d5741"))
+	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#4a3b2c"))
+	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#9c8f6e"))
+	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#77746c"))
+	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#62666b"))
+	T.WaterColor = Color3.fromHex("#2c4f5c")
+	T.WaterTransparency = 0.45
 	T.WaterReflectance = 0.35
 	T.WaterWaveSize = 0.08
 	T.WaterWaveSpeed = 6
@@ -3008,23 +3089,27 @@ end
 -- ============================================================= 숲, 소품, 연못, 알파의 숲
 function Map:BuildScenery()
 	local decor, rng = self.DecorFolder, self.Rng
-	-- 바깥 숲 띠
-	local count = 110
-	for i = 1, count do
-		local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
-		local r = C.PlayRadius + 6 + rng:NextNumber() * 20
-		local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
-		local onLane = false
+	-- 바깥 숲 벽: 키 큰 전나무 두 줄. 기지 밖 어디서 봐도 숲에 둘러싸인 느낌을 준다.
+	local function onLane(pos, width)
 		for _, lane in ipairs(self.Lanes) do
-			if pos:Dot(lane.Dir) &gt; 0 and math.abs(pos:Dot(lane.Side)) &lt; 16 then
-				onLane = true
+			if pos:Dot(lane.Dir) &gt; 0 and math.abs(pos:Dot(lane.Side)) &lt; width then
+				return true
 			end
 		end
-		if not onLane then
-			if rng:NextNumber() &lt; 0.45 then
-				Props.pine(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.5)
-			else
-				Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
+		return false
+	end
+	for row, spec in ipairs({{130, 4, 16}, {95, 26, 22}}) do
+		local count, inner, spread = table.unpack(spec)
+		for i = 1, count do
+			local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
+			local r = C.PlayRadius + inner + rng:NextNumber() * spread
+			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+			if not onLane(pos, 16) then
+				if row == 1 and rng:NextNumber() &lt; 0.2 then
+					Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
+				else
+					Props.tallPine(decor, CFrame.new(pos), rng, 0.9 + rng:NextNumber() * 0.5)
+				end
 			end
 		end
 	end
@@ -3043,20 +3128,26 @@ function Map:BuildScenery()
 			end
 		end
 	end
-	scatter(16, 5, function(at)
+	scatter(22, 4, function(at)
+		Props.tallPine(decor, at, rng, 0.6 + rng:NextNumber() * 0.35)
+	end)
+	scatter(8, 5, function(at)
 		Props.tree(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
-	scatter(8, 4, function(at)
-		Props.pine(decor, at, rng, 0.8 + rng:NextNumber() * 0.3)
+	scatter(10, 4, function(at)
+		Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5)
+	end)
+	scatter(10, 5, function(at)
+		Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
 	scatter(18, 3, function(at)
 		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.5)
 	end)
-	scatter(16, 3, function(at)
+	scatter(12, 3, function(at)
 		Props.bush(decor, at, rng, 0.6 + rng:NextNumber() * 0.4, false)
 	end)
-	scatter(40, 1.5, function(at)
-		Props.flowers(decor, at, rng)
+	scatter(22, 1.5, function(at)
+		Props.mushrooms(decor, at, rng)
 	end)
 
 	-- 연못 가장자리: 갈대, 바위, 수련 잎
@@ -3073,10 +3164,10 @@ function Map:BuildScenery()
 	for i = 1, 6 do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = rng:NextNumber() * (pr - 3)
-		local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#5aa854", MAT.SmoothPlastic, true)
+		local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#3f6a3c", MAT.SmoothPlastic, true)
 		pad.Name = "LilyPad"
 		if i % 2 == 0 then
-			B.ball(decor, 0.6, pad.Position + Vector3.new(0.3, 0.2, 0), "#ffc2dc", MAT.SmoothPlastic)
+			B.ball(decor, 0.5, pad.Position + Vector3.new(0.3, 0.2, 0), "#8fb8ff", MAT.Neon)
 		end
 	end
 
@@ -3092,10 +3183,10 @@ function Map:BuildScenery()
 			B.block(grove, Vector3.new(0.3, 2, 0.1), stone.CFrame * CFrame.new(0, 0.5, -0.72), "#b6ff8a", MAT.Neon)
 		end
 	end
-	for _ = 1, 14 do
+	for _ = 1, 10 do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = 4 + rng:NextNumber() * (gr - 6)
-		Props.flowers(grove, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
+		Props.mushrooms(grove, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
 	end
 	B.light(B.block(grove, Vector3.new(1, 1, 1), CFrame.new(gx, 6, gz), "#ffffff", MAT.SmoothPlastic, {Transparency = 1}), "PointLight",
 		{Range = 26, Brightness = 1.2, Color = Color3.fromHex("#c9ff9a"), Shadows = false})
@@ -4347,6 +4438,7 @@ return CC
             <string name="Name">EnvironmentController</string>
             <ProtectedString name="Source">-- 하늘·조명·안개를 낮 → 노을 → 밤 → 새벽으로 부드럽게 바꾸고, 기지 소품(수정, 횃불, 떨어진 자원)을 살아 움직이게 한다.
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local CollectionService = game:GetService("CollectionService")
@@ -4361,28 +4453,29 @@ local function ensure(className, name, props)
 	return o
 end
 
--- 단계별 분위기
+-- 단계별 분위기 (생존 톤): 낮은 평범하게 밝은 숲, 밤은 짙은 안개 속 어둠. 낮과 밤의 대비가 긴장감을 만든다.
+-- 밤에는 기지 불빛과 캐릭터가 든 등불만 안전하게 느껴지고, 괴물은 안개 속에서 빛나는 눈부터 보인다.
 local LOOKS = {
-	Day = {Clock = 14.2, Brightness = 2.4, Ambient = "#4a5566", Outdoor = "#8a93a3", Exposure = 0.1,
-		Atmo = {Density = 0.28, Haze = 1.2, Glare = 0.3, Color = "#c7dcef", Decay = "#9fb6c9"},
-		Grade = {Brightness = 0.02, Contrast = 0.08, Saturation = 0.14, TintColor = "#ffffff"}, Bloom = 0.5},
-	Dusk = {Clock = 17.6, Brightness = 2.0, Ambient = "#5a4a5c", Outdoor = "#a07a74", Exposure = 0.05,
-		Atmo = {Density = 0.33, Haze = 2.2, Glare = 0.9, Color = "#ffc59a", Decay = "#b0687a"},
-		Grade = {Brightness = 0, Contrast = 0.1, Saturation = 0.18, TintColor = "#ffe6d2"}, Bloom = 0.7},
-	Night = {Clock = 0.2, Brightness = 1.1, Ambient = "#2c3150", Outdoor = "#3e4a78", Exposure = 0.25,
-		Atmo = {Density = 0.38, Haze = 1.6, Glare = 0.1, Color = "#3b3f6b", Decay = "#1d2140"},
-		Grade = {Brightness = 0.02, Contrast = 0.12, Saturation = -0.05, TintColor = "#c8d4ff"}, Bloom = 1.0},
-	Dawn = {Clock = 6.4, Brightness = 1.8, Ambient = "#51475e", Outdoor = "#9a8aa6", Exposure = 0.1,
-		Atmo = {Density = 0.3, Haze = 2.0, Glare = 0.6, Color = "#ffd0c2", Decay = "#9a86b8"},
-		Grade = {Brightness = 0.02, Contrast = 0.08, Saturation = 0.12, TintColor = "#fff0f0"}, Bloom = 0.7},
+	Day = {Clock = 13.2, Brightness = 2.3, Ambient = "#3d444a", Outdoor = "#868d86", Exposure = 0.05,
+		Atmo = {Density = 0.3, Offset = 0.18, Haze = 1.8, Glare = 0.2, Color = "#b3c1b6", Decay = "#77867a"},
+		Grade = {Brightness = 0.01, Contrast = 0.12, Saturation = -0.03, TintColor = "#f6f7ee"}, Bloom = 0.45},
+	Dusk = {Clock = 17.8, Brightness = 1.4, Ambient = "#3a2c2c", Outdoor = "#8a5f52", Exposure = -0.05,
+		Atmo = {Density = 0.44, Offset = 0.12, Haze = 2.6, Glare = 0.8, Color = "#d9895a", Decay = "#5e2f33"},
+		Grade = {Brightness = -0.02, Contrast = 0.16, Saturation = -0.02, TintColor = "#ffd2b0"}, Bloom = 0.7},
+	Night = {Clock = 0.2, Brightness = 0.35, Ambient = "#07090f", Outdoor = "#10152a", Exposure = -0.15,
+		Atmo = {Density = 0.6, Offset = 0.05, Haze = 2.8, Glare = 0, Color = "#1a2130", Decay = "#090c14"},
+		Grade = {Brightness = -0.02, Contrast = 0.2, Saturation = -0.32, TintColor = "#b6c4ff"}, Bloom = 1.3},
+	Dawn = {Clock = 6.3, Brightness = 1.2, Ambient = "#2e2c36", Outdoor = "#6e6478", Exposure = -0.05,
+		Atmo = {Density = 0.46, Offset = 0.1, Haze = 2.6, Glare = 0.4, Color = "#b99aa4", Decay = "#4b4058"},
+		Grade = {Brightness = 0, Contrast = 0.14, Saturation = -0.12, TintColor = "#ffe6e6"}, Bloom = 0.7},
 }
 
 function Env:Init()
 	Lighting.GlobalShadows = true
 	Lighting.EnvironmentDiffuseScale = 1
 	Lighting.EnvironmentSpecularScale = 1
-	self.Atmo = ensure("Atmosphere", "WildAtmosphere", {Offset = 0.2})
-	ensure("Sky", "WildSky", {StarCount = 3500, CelestialBodiesShown = true, SunAngularSize = 18, MoonAngularSize = 14})
+	self.Atmo = ensure("Atmosphere", "WildAtmosphere", {Offset = 0.15})
+	ensure("Sky", "WildSky", {StarCount = 1200, CelestialBodiesShown = true, SunAngularSize = 14, MoonAngularSize = 9})
 	self.Bloom = ensure("BloomEffect", "WildBloom", {Intensity = 0.5, Size = 28, Threshold = 1.5})
 	self.Grade = ensure("ColorCorrectionEffect", "WildGrade", {})
 	ensure("SunRaysEffect", "WildSunRays", {Intensity = 0.05, Spread = 0.8})
@@ -4392,6 +4485,7 @@ function Env:Init()
 	workspace:GetAttributeChangedSignal("Phase"):Connect(function() self:PhaseChanged() end)
 	self:PhaseChanged()
 	self.Drops = {}
+	self.Lanterns = {}
 	RunService.RenderStepped:Connect(function(dt) self:Step(dt) end)
 end
 
@@ -4421,12 +4515,13 @@ function Env:Apply(name, seconds)
 	end
 	go(Lighting, {Brightness = look.Brightness, Ambient = Color3.fromHex(look.Ambient), OutdoorAmbient = Color3.fromHex(look.Outdoor),
 		ExposureCompensation = look.Exposure})
-	go(self.Atmo, {Density = look.Atmo.Density, Haze = look.Atmo.Haze, Glare = look.Atmo.Glare, Color = Color3.fromHex(look.Atmo.Color),
-		Decay = Color3.fromHex(look.Atmo.Decay)})
+	go(self.Atmo, {Density = look.Atmo.Density, Offset = look.Atmo.Offset, Haze = look.Atmo.Haze, Glare = look.Atmo.Glare,
+		Color = Color3.fromHex(look.Atmo.Color), Decay = Color3.fromHex(look.Atmo.Decay)})
 	go(self.Grade, {Brightness = look.Grade.Brightness, Contrast = look.Grade.Contrast, Saturation = look.Grade.Saturation,
 		TintColor = Color3.fromHex(look.Grade.TintColor)})
 	go(self.Bloom, {Intensity = look.Bloom})
-	self:SetNightLights(name == "Night" or name == "Dusk")
+	self.Dark = name == "Night" or name == "Dusk"
+	self:SetNightLights(self.Dark)
 end
 
 function Env:PhaseChanged()
@@ -4443,10 +4538,13 @@ function Env:PhaseChanged()
 end
 
 function Env:SetNightLights(on)
+	self.Flicker = {}
 	for _, model in ipairs(CollectionService:GetTagged("NightLight")) do
 		for _, d in ipairs(model:GetDescendants()) do
 			if d:IsA("PointLight") then
 				d.Enabled = on
+				if not d:GetAttribute("BaseBrightness") then d:SetAttribute("BaseBrightness", d.Brightness) end
+				table.insert(self.Flicker, d)
 			end
 		end
 	end
@@ -4468,6 +4566,14 @@ function Env:Step()
 		self:Apply("Dusk", 8)
 	end
 	local t = os.clock()
+	-- 불빛 흔들림 (횃불·모닥불이 살아 있는 느낌)
+	if self.Dark and self.Flicker then
+		for i, light in ipairs(self.Flicker) do
+			local base = light:GetAttribute("BaseBrightness") or 1
+			light.Brightness = base * (0.85 + 0.15 * math.sin(t * 9 + i * 1.7) * math.sin(t * 5.3 + i))
+		end
+	end
+	self:UpdateLanterns()
 	local root = workspace:FindFirstChild("WILDHOLD")
 	local base = root and root:FindFirstChild("Base")
 	-- Core 수정: 천천히 돌며 떠 있고, 체력이 줄면 붉게 물든다
@@ -4501,6 +4607,32 @@ function Env:Step()
 		end
 		for part in pairs(self.Drops) do
 			if not part.Parent then self.Drops[part] = nil end
+		end
+	end
+end
+
+-- 밤에는 모든 플레이어 캐릭터가 작은 등불을 든다 (어둠 속에서 서로를 찾을 수 있게)
+function Env:UpdateLanterns()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local char = player.Character
+		local rootPart = char and char:FindFirstChild("HumanoidRootPart")
+		if rootPart then
+			local light = self.Lanterns[player]
+			if not light or light.Parent ~= rootPart then
+				light = Instance.new("PointLight")
+				light.Name = "WildLantern"
+				light.Range, light.Brightness, light.Shadows = 20, 1.2, false
+				light.Color = Color3.fromHex("#ffc98a")
+				light.Parent = rootPart
+				self.Lanterns[player] = light
+			end
+			light.Enabled = self.Dark == true
+		end
+	end
+	for player, light in pairs(self.Lanterns) do
+		if not player.Parent then
+			light:Destroy()
+			self.Lanterns[player] = nil
 		end
 	end
 end

@@ -22,9 +22,26 @@ function S.core(parent, at)
 		local rune = B.block(m, Vector3.new(1.2, 0.1, 0.5), at * a * CFrame.new(0, 3.42, -2.9), "#6ff3e0", M.Neon)
 		rune.Name = "Rune"
 	end
-	-- 떠 있는 큰 수정 + 주변 작은 수정 (클라이언트가 천천히 돌린다)
+	-- 제단 위 성스러운 모닥불: 밤에 기지 전체를 비추는 유일한 큰 불빛 (99 Nights 의 캠프파이어 역할)
+	local fire = B.model(m, "Bonfire")
+	for i = 0, 7 do
+		local a = math.rad(i * 45 + 10)
+		local bottom = (at * CFrame.new(math.cos(a) * 3.1, 3.4, math.sin(a) * 3.1)).Position
+		local top = (at * CFrame.new(math.cos(a) * 0.5, 7.4, math.sin(a) * 0.5)).Position
+		B.cyl(fire, (top - bottom).Magnitude + 0.4, 0.75, CFrame.lookAt((bottom + top) / 2, top) * CFrame.Angles(0, math.rad(90), 0),
+			i % 2 == 0 and "#4a3322" or "#5c4029", M.Wood)
+	end
+	local ember = B.ball(fire, 2.4, at * CFrame.new(0, 4.3, 0), "#ff8a2a", M.Neon, {Transparency = 0.15})
+	ember.Name = "Ember"
+	local flames = Instance.new("Fire")
+	flames.Size, flames.Heat = 10, 14
+	flames.Color, flames.SecondaryColor = Color3.fromHex("#ff7a2a"), Color3.fromHex("#ffd36b")
+	flames.Parent = ember
+	B.light(ember, "PointLight", {Range = 56, Brightness = 2.6, Color = Color3.fromHex("#ffb070"), Shadows = true})
+	CollectionService:AddTag(fire, "NightLight")
+	-- 불길 위에 떠 있는 수정 (클라이언트가 천천히 돌린다)
 	local crystal = B.model(m, "Crystal")
-	local center = at * CFrame.new(0, 8.5, 0)
+	local center = at * CFrame.new(0, 11, 0)
 	local main = B.block(crystal, Vector3.new(2.6, 5.2, 2.6), center * CFrame.Angles(0, math.rad(45), 0), "#79f2e4", M.Glass,
 		{Transparency = 0.15, Reflectance = 0.1})
 	main.Name = "Heart"
@@ -34,10 +51,11 @@ function S.core(parent, at)
 	B.wedge(crystal, Vector3.new(2.6, 1.8, 1.3), center * CFrame.Angles(math.pi, math.rad(45), 0) * CFrame.new(0, 3.5, -0.65), "#79f2e4", M.Glass, {Transparency = 0.15})
 	B.wedge(crystal, Vector3.new(2.6, 1.8, 1.3), center * CFrame.Angles(math.pi, math.rad(225), 0) * CFrame.new(0, 3.5, -0.65), "#79f2e4", M.Glass, {Transparency = 0.15})
 	B.light(main, "PointLight", {Range = 28, Brightness = 2.2, Color = Color3.fromHex("#6ff3e0"), Shadows = false})
+	-- 제단 둘레 돌 기둥 (횃대)
 	for i = 0, 4 do
 		local a = CFrame.Angles(0, math.rad(i * 72 + 20), 0)
-		local size = Vector3.new(0.9, 2.2 + (i % 2) * 1.1, 0.9)
-		B.block(m, size, at * a * CFrame.new(0, 3.4 + size.Y / 2 - 0.4, -2.6) * CFrame.Angles(math.rad(-18), math.rad(45), 0), "#8ff5e8", M.Glass, {Transparency = 0.1})
+		local size = Vector3.new(1.1, 2.6 + (i % 2) * 1.2, 1.1)
+		B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate)
 	end
 	local hit = B.hitbox(m, Vector3.new(7.5, 12, 7.5), at * CFrame.new(0, 6, 0), true)
 	hit.Name = "CoreHitbox"

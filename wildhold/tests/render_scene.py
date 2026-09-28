@@ -12,8 +12,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "renders")
 os.makedirs(OUT, exist_ok=True)
 P = Matrix(((1, 0, 0), (0, 0, -1), (0, 1, 0)))
-TERRAIN = {"Grass": (0.49, 0.75, 0.35), "LeafyGrass": (0.38, 0.66, 0.30), "Ground": (0.66, 0.51, 0.35), "Mud": (0.48, 0.36, 0.24),
-           "Sand": (0.90, 0.83, 0.63), "Cobblestone": (0.69, 0.67, 0.64), "Rock": (0.56, 0.57, 0.59), "Water": (0.31, 0.72, 0.85)}
+# MapService 의 SetMaterialColor 와 같은 색 (생존 톤)
+TERRAIN = {"Grass": (0.32, 0.41, 0.24), "LeafyGrass": (0.26, 0.35, 0.20), "Ground": (0.43, 0.34, 0.25), "Mud": (0.29, 0.23, 0.17),
+           "Sand": (0.61, 0.56, 0.43), "Cobblestone": (0.47, 0.45, 0.42), "Rock": (0.38, 0.40, 0.42), "Water": (0.17, 0.31, 0.36)}
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -25,8 +26,13 @@ scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("World")
 scene.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.62, 0.78, 0.95, 1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.8
+world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.55, 0.60, 0.60, 1)
+world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.7
+# 흐린 숲 안개 (Roblox Atmosphere 를 흉내)
+_vol = world.node_tree.nodes.new("ShaderNodeVolumePrincipled")
+_vol.inputs["Density"].default_value = 0.0035
+_vol.inputs["Color"].default_value = (0.66, 0.71, 0.68, 1)
+world.node_tree.links.new(_vol.outputs["Volume"], world.node_tree.nodes["World Output"].inputs["Volume"])
 
 
 def material(name, color=None, emissive=False, alpha=1.0):

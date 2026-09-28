@@ -68,15 +68,16 @@ function Map:BuildTerrain()
 	pcall(function()
 		T.Decoration = true
 	end)
-	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#7cc05a"))
-	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#62a94d"))
-	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#a8825a"))
-	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#7a5b3e"))
-	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#e6d3a0"))
-	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#b0aca2"))
-	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#8e9296"))
-	T.WaterColor = Color3.fromHex("#4fb8d8")
-	T.WaterTransparency = 0.55
+	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥
+	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#51693c"))
+	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#425a33"))
+	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#6d5741"))
+	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#4a3b2c"))
+	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#9c8f6e"))
+	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#77746c"))
+	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#62666b"))
+	T.WaterColor = Color3.fromHex("#2c4f5c")
+	T.WaterTransparency = 0.45
 	T.WaterReflectance = 0.35
 	T.WaterWaveSize = 0.08
 	T.WaterWaveSpeed = 6
@@ -366,23 +367,27 @@ end
 -- ============================================================= 숲, 소품, 연못, 알파의 숲
 function Map:BuildScenery()
 	local decor, rng = self.DecorFolder, self.Rng
-	-- 바깥 숲 띠
-	local count = 110
-	for i = 1, count do
-		local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
-		local r = C.PlayRadius + 6 + rng:NextNumber() * 20
-		local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
-		local onLane = false
+	-- 바깥 숲 벽: 키 큰 전나무 두 줄. 기지 밖 어디서 봐도 숲에 둘러싸인 느낌을 준다.
+	local function onLane(pos, width)
 		for _, lane in ipairs(self.Lanes) do
-			if pos:Dot(lane.Dir) > 0 and math.abs(pos:Dot(lane.Side)) < 16 then
-				onLane = true
+			if pos:Dot(lane.Dir) > 0 and math.abs(pos:Dot(lane.Side)) < width then
+				return true
 			end
 		end
-		if not onLane then
-			if rng:NextNumber() < 0.45 then
-				Props.pine(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.5)
-			else
-				Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
+		return false
+	end
+	for row, spec in ipairs({{130, 4, 16}, {95, 26, 22}}) do
+		local count, inner, spread = table.unpack(spec)
+		for i = 1, count do
+			local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
+			local r = C.PlayRadius + inner + rng:NextNumber() * spread
+			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+			if not onLane(pos, 16) then
+				if row == 1 and rng:NextNumber() < 0.2 then
+					Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
+				else
+					Props.tallPine(decor, CFrame.new(pos), rng, 0.9 + rng:NextNumber() * 0.5)
+				end
 			end
 		end
 	end
@@ -401,20 +406,26 @@ function Map:BuildScenery()
 			end
 		end
 	end
-	scatter(16, 5, function(at)
+	scatter(22, 4, function(at)
+		Props.tallPine(decor, at, rng, 0.6 + rng:NextNumber() * 0.35)
+	end)
+	scatter(8, 5, function(at)
 		Props.tree(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
-	scatter(8, 4, function(at)
-		Props.pine(decor, at, rng, 0.8 + rng:NextNumber() * 0.3)
+	scatter(10, 4, function(at)
+		Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5)
+	end)
+	scatter(10, 5, function(at)
+		Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
 	scatter(18, 3, function(at)
 		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.5)
 	end)
-	scatter(16, 3, function(at)
+	scatter(12, 3, function(at)
 		Props.bush(decor, at, rng, 0.6 + rng:NextNumber() * 0.4, false)
 	end)
-	scatter(40, 1.5, function(at)
-		Props.flowers(decor, at, rng)
+	scatter(22, 1.5, function(at)
+		Props.mushrooms(decor, at, rng)
 	end)
 
 	-- 연못 가장자리: 갈대, 바위, 수련 잎
@@ -431,10 +442,10 @@ function Map:BuildScenery()
 	for i = 1, 6 do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = rng:NextNumber() * (pr - 3)
-		local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#5aa854", MAT.SmoothPlastic, true)
+		local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#3f6a3c", MAT.SmoothPlastic, true)
 		pad.Name = "LilyPad"
 		if i % 2 == 0 then
-			B.ball(decor, 0.6, pad.Position + Vector3.new(0.3, 0.2, 0), "#ffc2dc", MAT.SmoothPlastic)
+			B.ball(decor, 0.5, pad.Position + Vector3.new(0.3, 0.2, 0), "#8fb8ff", MAT.Neon)
 		end
 	end
 
@@ -450,10 +461,10 @@ function Map:BuildScenery()
 			B.block(grove, Vector3.new(0.3, 2, 0.1), stone.CFrame * CFrame.new(0, 0.5, -0.72), "#b6ff8a", MAT.Neon)
 		end
 	end
-	for _ = 1, 14 do
+	for _ = 1, 10 do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = 4 + rng:NextNumber() * (gr - 6)
-		Props.flowers(grove, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
+		Props.mushrooms(grove, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
 	end
 	B.light(B.block(grove, Vector3.new(1, 1, 1), CFrame.new(gx, 6, gz), "#ffffff", MAT.SmoothPlastic, {Transparency = 1}), "PointLight",
 		{Range = 26, Brightness = 1.2, Color = Color3.fromHex("#c9ff9a"), Shadows = false})
