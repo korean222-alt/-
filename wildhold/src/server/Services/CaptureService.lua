@@ -1,0 +1,141 @@
+local RS=game:GetService("ReplicatedStorage")
+local Http=game:GetService("HttpService")
+local P=require(RS.Shared.Config.PetConfig)
+local G=require(RS.Shared.Config.GameConfig)
+local R=require(RS.Shared.Modules.PetRules)
+local U=require(RS.Shared.Modules.Utility)
+local S={}
+function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
+function S:Reset()
+    self.Wild,self.Attempts={},{}
+    self.ctx.Map.WildFolder:ClearAllChildren()
+    if G.ActiveStage<6 then return end
+    for _,spawn in ipairs(P.Spawns) do
+        local uid=Http:GenerateGUID(false)
+        local data={SpeciesId=spawn[1],Level=spawn[2]};local stats=R.stats(data,P)
+        local pos=Vector3.new(spawn[3],2,spawn[4])
+        local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
+        part.CanCollide,part.CanTouch,part.Transparency=false,false,1
+        part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
+        local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
+            Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={}}
+        wild.Label=U.label(part,"",5);self.Wild[uid]=wild
+        local prompt=U.prompt(part,"Hunt","펫으로 약화 / 포획",Enum.KeyCode.E)
+        prompt.Triggered:Connect(function(player)
+            if wild.HP/wild.MaxHP>P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
+            else self:Attempt(player,uid,"Trap",false) end
+        end)
+    end
+end
+function S:CanFight(player,wild)
+    return not wild.Owner or wild.Owner==player or not wild.Owner.Parent or os.clock()>(wild.ClaimUntil or 0)
+        or (self.ctx.Run:IsParticipant(player) and wild.Owner and self.ctx.Run:IsParticipant(wild.Owner))
+end
+function S:Damage(wild,amount,player)
+    if self.ctx.Clock.Phase~="Day" or self.Wild[wild.Id]~=wild or wild.Busy or wild.ExhaustUntil then return end
+    if not self.ctx.Data:Ready(player) or not self:CanFight(player,wild) then return end
+    if not wild.Owner or not wild.Owner.Parent or os.clock()>(wild.ClaimUntil or 0) then wild.Owner=player end
+    wild.ClaimUntil=os.clock()+45
+    wild.Contributors[player]=(wild.Contributors[player] or 0)+amount
+    wild.HP=math.max(1,wild.HP-amount) -- deliberate nonlethal hunt state
+    if wild.HP/wild.MaxHP<=P.CaptureHP then wild.ExhaustUntil=os.clock()+P.ExhaustSeconds end
+end
+function S:Nearest(position,range)
+    local best,distance=nil,range
+    for _,wild in pairs(self.Wild) do
+        local d=(wild.Part.Position-position).Magnitude
+        if d<distance and not wild.Busy and not wild.ExhaustUntil then best,distance=wild,d end
+    end
+    return best
+end
+function S:Chance(player,wild,better,bait)
+    local profile=self.ctx.Data:Get(player)
+    if P.FirstCaptureGuaranteed and profile and not profile.Tutorial.Captured and wild.SpeciesId=="Mossling" then return 1 end
+    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,better,bait,wild.Failures,P)
+end
+function S:Attempt(player,uid,trap,bait)
+    if G.ActiveStage<6 or type(uid)~="string" or (trap~="Trap" and trap~="BetterTrap") or type(bait)~="boolean" then return end
+    if not self.ctx.Data:Ready(player) or not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
+    if os.clock()-(self.Last[player] or -100)<0.5 then return end;self.Last[player]=os.clock()
+    if self.Attempts[player] then return end
+    local wild=self.Wild[uid]
+    if not wild or wild.Busy or wild.HP/wild.MaxHP>P.CaptureHP or not U.near(player,wild.Part.Position,P.CaptureRange) then return end
+    -- First contributor has capture priority. Teammates may assist without stealing.
+    if wild.Owner and wild.Owner~=player and wild.Owner.Parent and os.clock()<(wild.ClaimUntil or 0) then
+        self.ctx.Notify(player,"먼저 사냥을 시작한 동료에게 포획 우선권이 있습니다.");return
+    end
+    if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,"보유 공간이나 임시 펫 공간이 가득 찼습니다.");return end
+    local items=self.ctx.Crafting.Items[player]
+    if not items or items[trap]<=0 or (bait and items.Bait<=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
+    self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
+    wild.Busy=player
+    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trap=="BetterTrap",bait)}
+    self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
+end
+function S:Finish(player,attempt)
+    local wild=attempt.Wild
+    self.Attempts[player]=nil;wild.Busy=nil
+    if self.Wild[wild.Id]~=wild then return end
+    if not self.ctx.Data:Ready(player) or self.ctx.Clock.Phase~="Day" or not U.near(player,wild.Part.Position,P.CaptureRange) then
+        if player.Parent then self.ctx.Notify(player,"포획 중단 · 사거리나 생존 상태를 확인하세요. 사용한 덫은 소모됩니다.") end;return
+    end
+    if math.random()<attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
+        self.Wild[wild.Id]=nil;wild.Part:Destroy()
+        for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
+        self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
+        self.ctx.PetFX:FireClient(player,"Capture",P.Species[wild.SpeciesId].Name)
+    else
+        wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
+        self.ctx.Notify(player,"빠져나왔습니다! 다음 시도의 성공 확률이 올랐습니다.")
+        self.ctx.PetFX:FireClient(player,"Fail")
+    end
+end
+function S:RemovePlayer(player)
+    local attempt=self.Attempts[player]
+    if attempt then attempt.Wild.Busy=nil end
+    self.Attempts[player],self.Last[player]=nil,nil
+    for _,wild in pairs(self.Wild) do wild.Contributors[player]=nil;if wild.Owner==player then wild.Owner=nil end end
+end
+function S:Tick(dt)
+    if G.ActiveStage<6 then return end
+    for player,attempt in pairs(self.Attempts) do if os.clock()>=attempt.EndsAt then self:Finish(player,attempt) end end
+    for _,wild in pairs(self.Wild) do
+        local spec=P.Species[wild.SpeciesId]
+        if wild.ExhaustUntil and not wild.Busy and os.clock()>wild.ExhaustUntil then
+            wild.ExhaustUntil,wild.Owner,wild.Failures,wild.Contributors=nil,nil,0,{};wild.HP=wild.MaxHP
+            wild.Part.Position=wild.Home
+        end
+        if self.ctx.Clock.Phase=="Day" and wild.Owner and not wild.ExhaustUntil and not wild.Busy then
+            local pet=self.ctx.Pets:Nearest(wild.Part.Position,18)
+            local root,human=U.aliveRoot(wild.Owner)
+            local target=pet and pet.Part or root
+            if target and (target.Position-wild.Home).Magnitude<32 then
+                local delta=U.flat(target.Position-wild.Part.Position)
+                if delta.Magnitude>6 then
+                    wild.Part.Position=wild.Part.Position+delta.Unit*math.min(delta.Magnitude,10*dt)
+                elseif os.clock()>=wild.NextAttack then
+                    wild.NextAttack=os.clock()+1.4;wild.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
+                    if pet then self.ctx.Pets:Damage(pet,wild.Damage*R.element(spec.Element,P.Species[pet.Data.SpeciesId].Element))
+                    elseif human then human:TakeDamage(wild.Damage) end
+                end
+            else
+                wild.Owner,wild.ExhaustUntil,wild.Contributors=nil,nil,{};wild.HP=wild.MaxHP;wild.Part.Position=wild.Home
+            end
+        end
+        wild.Part:SetAttribute("Exhausted",wild.ExhaustUntil~=nil)
+        wild.Label.Text=string.format("%s Lv%d · %d/%d%s",spec.Name,wild.Level,math.ceil(wild.HP),wild.MaxHP,wild.ExhaustUntil and " · 포획 가능" or "")
+    end
+end
+function S:Snapshot(player)
+    local list={};local root=U.aliveRoot(player);if not root then return list end
+    for uid,wild in pairs(self.Wild) do
+        local distance=(root.Position-wild.Part.Position).Magnitude
+        if distance<90 then
+            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
+                Distance=math.floor(distance),Chance=self:Chance(player,wild,false,false),BetterChance=self:Chance(player,wild,true,true),
+                Ready=wild.HP/wild.MaxHP<=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()>(wild.ClaimUntil or 0)}
+        end
+    end
+    table.sort(list,function(a,b) return a.Distance<b.Distance end);return list
+end
+return S

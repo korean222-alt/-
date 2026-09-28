@@ -1,0 +1,6 @@
+std = "roblox_min"
+
+[rules]
+shadowing = "allow"
+multiple_statements = "allow"
+unused_variable = "warn"

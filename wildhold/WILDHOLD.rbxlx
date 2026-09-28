@@ -1,0 +1,2395 @@
+<?xml version='1.0' encoding='utf-8'?>
+<roblox version="4">
+  <External>null</External>
+  <External>nil</External>
+  <Item class="Workspace" referent="RBX000001">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="FilteringEnabled">true</bool>
+    </Properties>
+  </Item>
+  <Item class="Lighting" referent="RBX000002">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <token name="Technology">4</token>
+      <float name="ClockTime">14</float>
+      <float name="Brightness">2.4</float>
+      <bool name="GlobalShadows">true</bool>
+      <float name="ShadowSoftness">0.25</float>
+      <float name="EnvironmentDiffuseScale">1</float>
+      <float name="EnvironmentSpecularScale">1</float>
+      <Color3 name="Ambient"><R>0.2745</R><G>0.3059</G><B>0.3608</B></Color3>
+      <Color3 name="OutdoorAmbient"><R>0.5020</R><G>0.5176</G><B>0.5490</B></Color3>
+      <float name="ExposureCompensation">0.1</float>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="RBX000003">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="RBX000004">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="Folder" referent="RBX000005">
+        <Properties>
+          <string name="Name">Config</string>
+        </Properties>
+        <Item class="ModuleScript" referent="RBX000006">
+          <Properties>
+            <string name="Name">AudioConfig</string>
+            <ProtectedString name="Source">-- Supply audio assets owned by / shared with this Experience. Empty IDs are silent.
+return {Volume=0.35, Capture="", Fail="", Night="", Secured="", Click=""}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000007">
+          <Properties>
+            <string name="Name">DataConfig</string>
+            <ProtectedString name="Source">return {
+    StudioMemory = true, -- Studio practice only. Live servers ALWAYS use DataStore.
+    StoreName = "WILDHOLD_Pets_v1", StudioStoreName = "WILDHOLD_Pets_TEST_v1",
+    Version = 2, LeaseSeconds = 120, LeaseSafety = 15, SaveInterval = 30,
+    RetrySeconds = 2, Retries = 3, ShutdownSeconds = 25,
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000008">
+          <Properties>
+            <string name="Name">DefenseConfig</string>
+            <ProtectedString name="Source">return {
+    Wall = {Name = "벽", Size = {11, 6, 3}, Blocks = true, Levels = {
+        {HP = 250, Cost = {Wood = 10}, Repair = {Wood = 3}},
+        {HP = 450, Cost = {Wood = 8, Stone = 10}, Repair = {Wood = 2, Stone = 2}},
+        {HP = 750, Cost = {Stone = 12, Scrap = 6}, Repair = {Stone = 3, Scrap = 1}},
+    }},
+    Gate = {Name = "문", Size = {11, 6, 2}, Blocks = true, Levels = {
+        {HP = 220, Cost = {Wood = 8}, Repair = {Wood = 3}},
+    }},
+    ArrowTower = {Name = "화살 포탑", Size = {4, 10, 4}, Levels = {
+        {HP = 180, Damage = 16, Range = 42, Interval = 1.1, Cost = {Wood = 15, Stone = 5}, Repair = {Wood = 4}},
+        {HP = 260, Damage = 25, Range = 47, Interval = 0.9, Cost = {Wood = 12, Stone = 8, Scrap = 3}, Repair = {Wood = 3, Stone = 2}},
+        {HP = 380, Damage = 36, Range = 52, Interval = 0.75, Cost = {Stone = 12, Scrap = 8}, Repair = {Stone = 3, Scrap = 2}},
+    }},
+    SpikeTrap = {Name = "가시 함정", Size = {9, 1, 9}, Levels = {
+        {HP = 140, Damage = 12, Range = 6, Interval = 1.5, Cost = {Wood = 8, Stone = 4}, Repair = {Wood = 2}},
+        {HP = 220, Damage = 23, Range = 7, Interval = 1.2, Cost = {Stone = 8, Scrap = 3}, Repair = {Stone = 2}},
+    }},
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000009">
+          <Properties>
+            <string name="Name">EnemyConfig</string>
+            <ProtectedString name="Source">return {
+    Crawler = {HP = 80, Damage = 12, Speed = 8, Range = 5, Interval = 1.3, Size = 3, ScrapDrop = 1, Color = {137, 103, 154}},
+    Runner = {HP = 52, Damage = 9, Speed = 14, Range = 4, Interval = 0.8, Size = 2.5, Aggro = 22, ScrapDrop = 1, Color = {213, 126, 119}},
+    Brute = {HP = 290, Damage = 28, Speed = 5, Range = 6, Interval = 1.8, Size = 5, Aggro = 20, ScrapDrop = 3, Color = {151, 143, 120}},
+    Howler = {HP = 950, Damage = 35, Speed = 4, Range = 7, Interval = 1.8, Size = 7, AuraRange = 24, AuraMultiplier = 1.3, ScrapDrop = 5, Color = {205, 164, 217}},
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000010">
+          <Properties>
+            <string name="Name">GameConfig</string>
+            <ProtectedString name="Source">return {
+    ActiveStage = 8, -- 5: pets, 6: capture, 7: data, 8: tutorial/UI
+    MaxPlayers = 6,
+    TargetNights = 3,
+    FirstDaySeconds = 300,
+    DaySeconds = 180,
+    NightSeconds = 180,
+    WarningSeconds = 45,
+    StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
+    StartDelay = 15,
+    ResultSeconds = 20,
+    DawnSeconds = 4,
+    TickSeconds = 0.2,
+    StateInterval = 0.5,
+    CoreHP = 1000,
+    TowerDamageScale = 0.7, -- tuning hypothesis: pets should supply mobile damage
+    InteractionRange = 13,
+    InteractionCooldown = 0.35,
+    SpearRange = 11,
+    SpearDamage = 24,
+    SpearCooldown = 0.55,
+    HarvestDamage = 25,
+    PickupRadius = 5,
+    DepositRadius = 9,
+    CarryCapacity = 60,
+    DeathDropFraction = 0.3,
+    RespawnSeconds = 4,
+    EnemyLimit = 35,
+    PathInterval = 1.5,
+    PathJobsLimit = 2,
+    RunnerLeash = 32,
+    RepairFraction = 0.3,
+    NightRepairMultiplier = 2,
+    DropLifetime = 45,
+    DropLimit = 180,
+    FXLifetime = 0.12,
+    DayClock = 13,
+    NightClock = 0,
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000011">
+          <Properties>
+            <string name="Name">MapConfig</string>
+            <ProtectedString name="Source">return {
+    GroundSize = 320,
+    LaneRadius = 130,
+    WaypointRadii = {130, 95, 70, 52, 36, 18, 7},
+    LaneAngles = {0, 120, 240},
+    WallRadii = {38, 50},
+    TowerRadius = 29,
+    TrapRadius = 64,
+    ResourceRadius = 62,
+    NodesPerResource = 5,
+    Spawn = {0, 1, 15},
+    Warehouse = {13, 2, 10},
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000012">
+          <Properties>
+            <string name="Name">PetConfig</string>
+            <ProtectedString name="Source">return {
+    ActiveLimit = 3, ServerLimit = 18, CollectionLimit = 100, PendingLimit = 8,
+    MaxLevel = 40, RegionCap = 10, Growth = 0.07, SwapCooldown = 6,
+    FollowSpeed = 18, Leash = 70, Aggro = 24, DayRecovery = 30,
+    StandDamage = 1.2, StandRange = 1.25, CaptureHP = 0.25,
+    CaptureRange = 16, CaptureSeconds = 2.4, ExhaustSeconds = 40,
+    FirstCaptureGuaranteed = true, FailBonus = 0.07, ChanceCap = 0.95,
+    NightXP = 35, CaptureXP = 12, KillXP = 3, NightCoins = 30, ClearCoins = 60,
+    Order = {"Mossling", "Emberpup", "Shellbub", "Briarhorn"},
+    Species = {
+        Mossling = {Name = "모슬링", Element = "Leaf", Role = "근접", HP = 110, Damage = 13, Range = 5, Interval = 0.8, Capture = 0.65, Color = {131,207,133}},
+        Emberpup = {Name = "엠버펍", Element = "Ember", Role = "원거리", HP = 85, Damage = 18, Range = 25, Interval = 1.4, Splash = 7, Capture = 0.48, Color = {246,151,103}},
+        Shellbub = {Name = "셸버브", Element = "Tide", Role = "탱커", HP = 240, Damage = 9, Range = 5, Interval = 1.3, Taunt = 18, Capture = 0.48, Color = {116,186,229}},
+        Briarhorn = {Name = "브라이어혼 α", Element = "Leaf", Role = "알파", HP = 420, Damage = 26, Range = 7, Interval = 1.5, Splash = 8, Capture = 0.25, Color = {192,158,226}},
+    },
+    Spawns = {
+        {"Mossling",1,24,30},{"Mossling",1,34,28},{"Mossling",2,-35,42},
+        {"Mossling",2,48,50},{"Mossling",3,-50,65},
+        {"Emberpup",3,75,40},{"Emberpup",4,90,60},
+        {"Shellbub",3,-68,45},{"Shellbub",4,-85,65},
+        {"Briarhorn",6,0,115},
+    },
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000013">
+          <Properties>
+            <string name="Name">RecipeConfig</string>
+            <ProtectedString name="Source">return {
+    Order = {"Trap", "BetterTrap", "Bait", "Snack"},
+    Recipes = {
+        Trap = {Name="포획 덫", Cost={Wood=2,Fiber=3}},
+        BetterTrap = {Name="강화 덫", Cost={Wood=2,Fiber=3,Scrap=2}},
+        Bait = {Name="열매 먹이", Cost={Berry=3}},
+        Snack = {Name="회복 간식", Cost={Berry=2,Fiber=1}},
+    },
+    Starter = {Trap=5,BetterTrap=0,Bait=1,Snack=1}, Limit=30,
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000014">
+          <Properties>
+            <string name="Name">ResourceConfig</string>
+            <ProtectedString name="Source">return {
+    Order = {"Wood", "Stone", "Fiber", "Scrap", "Berry"},
+    Labels = {Wood = "나무", Stone = "돌", Fiber = "섬유", Scrap = "고철", Berry = "열매"},
+    Types = {
+        Wood = {HP = 75, Yield = 8, Respawn = 35, Color = {130, 102, 75}},
+        Stone = {HP = 100, Yield = 6, Respawn = 40, Color = {138, 150, 158}},
+        Fiber = {HP = 25, Yield = 5, Respawn = 25, Color = {126, 175, 111}},
+        Scrap = {HP = 100, Yield = 4, Respawn = 50, Color = {119, 145, 163}},
+        Berry = {HP = 25, Yield = 4, Respawn = 30, Color = {208, 112, 144}},
+    },
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000015">
+          <Properties>
+            <string name="Name">WaveConfig</string>
+            <ProtectedString name="Source">return {
+    PerExtraPlayer = 0.35,
+    HealthPerNight = 0.10,
+    DamagePerNight = 0.06,
+    SpawnInterval = 2,
+    Waves = {
+        {{Kind = "Crawler", Count = 8}},
+        {{Kind = "Crawler", Count = 12}, {Kind = "Runner", Count = 4}, {Kind = "Brute", Count = 1}},
+        {{Kind = "Howler", Count = 1, Boss = true}, {Kind = "Crawler", Count = 10}, {Kind = "Runner", Count = 4}},
+    },
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Folder" referent="RBX000016">
+        <Properties>
+          <string name="Name">Modules</string>
+        </Properties>
+        <Item class="ModuleScript" referent="RBX000017">
+          <Properties>
+            <string name="Name">PetRules</string>
+            <ProtectedString name="Source">local P = {}
+function P.copy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}; for k,v in pairs(value) do result[k] = P.copy(v) end; return result
+end
+function P.count(value) local n=0; for _ in pairs(value) do n=n+1 end; return n end
+function P.element(a,b)
+    local beats={Ember="Leaf",Leaf="Tide",Tide="Ember"}
+    if beats[a]==b then return 1.5 elseif beats[b]==a then return 0.75 end
+    return 1
+end
+function P.stats(pet,config)
+    local spec=config.Species[pet.SpeciesId]
+    local level=math.min(pet.Level,config.RegionCap)
+    local scale=1+(level-1)*config.Growth
+    return {HP=math.floor(spec.HP*scale),Damage=spec.Damage*scale,Range=spec.Range,Level=level}
+end
+function P.chance(base,hp,maxHP,better,bait,failures,config)
+    if hp/maxHP&gt;config.CaptureHP then return 0 end
+    local health=1+(1-hp/maxHP/config.CaptureHP)*0.25
+    return math.min(config.ChanceCap,base*health*(better and 1.35 or 1)*(bait and 1.2 or 1)+failures*config.FailBonus)
+end
+function P.addXP(pet,amount,config)
+    pet.Exp=pet.Exp+amount
+    while pet.Level&lt;config.MaxLevel and pet.Exp&gt;=pet.Level*40 do
+        pet.Exp=pet.Exp-pet.Level*40; pet.Level=pet.Level+1
+    end
+    if pet.Level&gt;=config.MaxLevel then pet.Exp=0 end
+end
+function P.party(ids,pets,limit)
+    if type(ids)~="table" or #ids&gt;limit then return nil end
+    local seen,result={},{}
+    for _,uid in ipairs(ids) do
+        if type(uid)~="string" or not pets[uid] or seen[uid] then return nil end
+        seen[uid]=true; table.insert(result,uid)
+    end
+    return result
+end
+function P.canAcquire(lock,token,now)
+    return lock==nil or (type(lock)=="table" and (lock.Token==token or (type(lock.Expires)=="number" and lock.Expires&lt;=now)))
+end
+return P
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000018">
+          <Properties>
+            <string name="Name">Rules</string>
+            <ProtectedString name="Source">-- Pure rules: no Roblox dependencies; executable in tests and Luau.
+local Rules = {}
+function Rules.canAfford(wallet, cost)
+    for kind, amount in pairs(cost) do
+        if type(amount) ~= "number" or amount &lt; 0 or amount ~= amount then return false end
+        if (wallet[kind] or 0) &lt; amount then return false end
+    end
+    return true
+end
+function Rules.spend(wallet, cost)
+    if not Rules.canAfford(wallet, cost) then return false end
+    for kind, amount in pairs(cost) do wallet[kind] = wallet[kind] - amount end
+    return true
+end
+function Rules.total(wallet)
+    local total = 0
+    for _, amount in pairs(wallet) do total = total + amount end
+    return total
+end
+function Rules.pickupAmount(wallet, amount, capacity)
+    return math.max(0, math.min(amount, capacity - Rules.total(wallet)))
+end
+function Rules.scaledCount(base, players, factor)
+    return math.floor(base * (1 + (math.max(1, players) - 1) * factor))
+end
+function Rules.repairCost(cost, multiplier)
+    local result = {}
+    for kind, amount in pairs(cost) do result[kind] = math.ceil(amount * multiplier) end
+    return result
+end
+function Rules.upgradeHP(hp, oldMax, newMax)
+    return math.min(newMax, hp + newMax - oldMax)
+end
+function Rules.buildQueue(wave, players, factor)
+    local buckets, queue = {}, {}
+    for _, entry in ipairs(wave) do
+        table.insert(buckets, {Kind = entry.Kind, Boss = entry.Boss == true,
+            Left = entry.Boss and entry.Count or Rules.scaledCount(entry.Count, players, factor)})
+    end
+    local pending = true
+    while pending do
+        pending = false
+        for _, bucket in ipairs(buckets) do
+            if bucket.Left &gt; 0 then
+                table.insert(queue, {Kind = bucket.Kind, Boss = bucket.Boss})
+                bucket.Left = bucket.Left - 1
+                pending = true
+            end
+        end
+    end
+    return queue
+end
+return Rules
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000019">
+          <Properties>
+            <string name="Name">Utility</string>
+            <ProtectedString name="Source">local U = {}
+function U.folder(parent, name)
+    local f = Instance.new("Folder")
+    f.Name, f.Parent = name, parent
+    return f
+end
+function U.part(parent, name, size, position, color)
+    local p = Instance.new("Part")
+    p.Name, p.Size, p.Position = name, size, position
+    p.Anchored, p.TopSurface, p.BottomSurface = true, Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+    p.Color = color or Color3.fromRGB(135, 147, 145)
+    p.Parent = parent
+    return p
+end
+function U.label(part, text, offset)
+    local gui = Instance.new("BillboardGui")
+    gui.Name, gui.Size, gui.StudsOffset = "Label", UDim2.fromOffset(210, 46), Vector3.new(0, offset or 5, 0)
+    gui.MaxDistance, gui.AlwaysOnTop, gui.Parent = 100, false, part
+    local label = Instance.new("TextLabel")
+    label.Size, label.BackgroundTransparency = UDim2.fromScale(1, 1), 1
+    label.Text, label.TextSize, label.TextColor3 = text, 14, Color3.fromRGB(246, 249, 244)
+    label.TextStrokeTransparency, label.Font, label.Parent = 0.3, Enum.Font.GothamBold, gui
+    return label
+end
+function U.prompt(part, name, text, key, offset)
+    local attach = Instance.new("Attachment")
+    attach.Position, attach.Parent = offset or Vector3.new(), part
+    local p = Instance.new("ProximityPrompt")
+    p.Name, p.ActionText, p.ObjectText = name, text, part.Name
+    p.KeyboardKeyCode, p.MaxActivationDistance = key or Enum.KeyCode.E, 12
+    p.RequiresLineOfSight, p.HoldDuration = false, 0
+    p.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
+    p.Parent = attach
+    return p
+end
+function U.aliveRoot(player)
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local human = char and char:FindFirstChildOfClass("Humanoid")
+    if root and human and human.Health &gt; 0 then return root, human end
+    return nil
+end
+function U.near(player, position, range)
+    local root = U.aliveRoot(player)
+    return root ~= nil and (root.Position - position).Magnitude &lt;= range
+end
+function U.flat(v) return Vector3.new(v.X, 0, v.Z) end
+function U.color(rgb) return Color3.fromRGB(rgb[1], rgb[2], rgb[3]) end
+return U
+</ProtectedString>
+          </Properties>
+        </Item>
+      </Item>
+      <Item class="Folder" referent="RBX000020">
+        <Properties>
+          <string name="Name">Visuals</string>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="RBX000021">
+      <Properties>
+        <string name="Name">PetModels</string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="RBX000022">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="RBX000023">
+      <Properties>
+        <string name="Name">ServerMain</string>
+        <ProtectedString name="Source">local Players=game:GetService("Players")
+local RS=game:GetService("ReplicatedStorage")
+local Engine=game:GetService("RunService")
+local C=require(RS.Shared.Config.GameConfig)
+local U=require(RS.Shared.Modules.Utility)
+assert(C.ActiveStage&gt;=1 and C.ActiveStage&lt;=8,"ActiveStage must be 1..8")
+local folder=Instance.new("Folder");folder.Name,folder.Parent="Remotes",RS
+local remotes={}
+for _,name in ipairs({"State","AttackRequest","Notice","FX","PetAction","CraftAction","CaptureAction","PetFX"}) do
+    local event=Instance.new("RemoteEvent");event.Name,event.Parent=name,folder;remotes[name]=event
+end
+local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=remotes.PetFX,SessionId=game:GetService("HttpService"):GenerateGUID(false)}
+ctx.Notify=function(player,message) if player then remotes.Notice:FireClient(player,message) else remotes.Notice:FireAllClients(message) end end
+local names={Map="MapService",Clock="DayNightService",Core="CoreService",Resources="ResourceService",Defenses="DefenseService",
+    Enemies="EnemyService",Waves="WaveService",Run="RunService",Combat="CombatService",Data="DataService",Pets="PetService",
+    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService"}
+for key,name in pairs(names) do ctx[key]=require(script.Parent.Services[name]) end
+ctx.Map:Build()
+for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Combat"}) do ctx[name]:Init(ctx) end
+ctx.Clock:Begin("Waiting",0,0)
+remotes.PetAction.OnServerEvent:Connect(function(player,action,value) ctx.Pets:Action(player,action,value) end)
+remotes.CraftAction.OnServerEvent:Connect(function(player,item) ctx.Crafting:Craft(player,item) end)
+remotes.CaptureAction.OnServerEvent:Connect(function(player,uid,trap,bait) ctx.Capture:Attempt(player,uid,trap,bait) end)
+ctx.Map.CagePrompt.Triggered:Connect(function(player) ctx.Pets:Action(player,"Register") end)
+ctx.Map.CraftPrompt.Triggered:Connect(function(player)
+    if C.ActiveStage&gt;=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft") end
+end)
+for _,slot in ipairs(ctx.Map.Slots) do
+    if slot.Kind=="PetStand" then
+        U.prompt(slot.Pad,"PlacePet","펫 배치").Triggered:Connect(function(player)
+            if C.ActiveStage&gt;=5 then ctx.Pets:AssignStand(player,slot) end
+        end)
+    end
+end
+Players.RespawnTime=C.RespawnSeconds
+local loading={}
+local function playerAdded(player)
+    if loading[player] then return end;loading[player]=true
+    if not ctx.Data:Load(player) then loading[player]=nil;return end
+    if not player.Parent or not ctx.Run:Join(player) then ctx.Data:Save(player,true);loading[player]=nil;return end
+    ctx.Resources:AddPlayer(player);ctx.Crafting:AddPlayer(player);ctx.Pets:AddPlayer(player)
+    player.RespawnLocation=ctx.Map.Spawn
+    player.CharacterAdded:Connect(function(character) if ctx.Run:IsParticipant(player) then ctx.Combat:Equip(player,character) end end)
+    if player.Character then task.spawn(function() ctx.Combat:Equip(player,player.Character) end) end
+end
+Players.PlayerAdded:Connect(playerAdded)
+Players.PlayerRemoving:Connect(function(player)
+    ctx.Data:Save(player,true);ctx.Pets:RemovePlayer(player);ctx.Capture:RemovePlayer(player)
+    ctx.Crafting:RemovePlayer(player);ctx.Resources:RemovePlayer(player)
+    ctx.Combat.LastAttack[player],ctx.Defenses.LastAction[player],loading[player]=nil,nil,nil
+    ctx.Run:Leave(player)
+end)
+for _,player in ipairs(Players:GetPlayers()) do task.spawn(playerAdded,player) end
+game:BindToClose(function() ctx.Data:Close() end)
+local elapsed,broadcast=0,0
+Engine.Heartbeat:Connect(function(dt)
+    elapsed,broadcast=elapsed+dt,broadcast+dt
+    if elapsed&gt;=C.TickSeconds then
+        local step=math.min(elapsed,C.TickSeconds*2);elapsed=0
+        ctx.Data:Tick();ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
+        ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
+    end
+    if broadcast&gt;=C.StateInterval then
+        broadcast=0
+        local clock=ctx.Clock
+        for player in pairs(ctx.Run.Participants) do
+            local session=ctx.Data.Sessions[player]
+            if session and player.Parent then
+                remotes.State:FireClient(player,{
+                    Phase=clock.Phase,Night=clock.Night,Target=C.TargetNights,EndsAt=clock.Phase=="Waiting" and (ctx.Run.StartAt or 0) or clock.EndsAt,
+                    CoreHP=ctx.Core.HP,CoreMaxHP=C.CoreHP,Bag=ctx.Resources.Bags[player],Bank=ctx.Resources.Bank,
+                    Enemies=ctx.Enemies:Count(),Spawned=ctx.Waves.Spawned,Total=#ctx.Waves.Queue,
+                    Result=ctx.Run.Result,Stage=C.ActiveStage,Players=ctx.Run:Count(),TimeScale=clock:Scale(),
+                    Pets=ctx.Pets:Snapshot(player),Wild=ctx.Capture:Snapshot(player),Items=ctx.Crafting.Items[player],
+                    Coins=session.Profile.Coins,Dex=session.Profile.Dex,SaveStatus=session.Status,Practice=ctx.Data.Memory,
+                    Objective=C.ActiveStage&gt;=8 and ctx.Tutorial:Objective(player) or nil,
+                })
+            end
+        end
+    end
+end)
+print("WILDHOLD stages 1–8 prototype ready. Studio uses practice data by default.")
+</ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="Folder" referent="RBX000024">
+      <Properties>
+        <string name="Name">Services</string>
+      </Properties>
+      <Item class="ModuleScript" referent="RBX000025">
+        <Properties>
+          <string name="Name">CaptureService</string>
+          <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local Http=game:GetService("HttpService")
+local P=require(RS.Shared.Config.PetConfig)
+local G=require(RS.Shared.Config.GameConfig)
+local R=require(RS.Shared.Modules.PetRules)
+local U=require(RS.Shared.Modules.Utility)
+local S={}
+function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
+function S:Reset()
+    self.Wild,self.Attempts={},{}
+    self.ctx.Map.WildFolder:ClearAllChildren()
+    if G.ActiveStage&lt;6 then return end
+    for _,spawn in ipairs(P.Spawns) do
+        local uid=Http:GenerateGUID(false)
+        local data={SpeciesId=spawn[1],Level=spawn[2]};local stats=R.stats(data,P)
+        local pos=Vector3.new(spawn[3],2,spawn[4])
+        local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
+        part.CanCollide,part.CanTouch,part.Transparency=false,false,1
+        part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
+        local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
+            Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={}}
+        wild.Label=U.label(part,"",5);self.Wild[uid]=wild
+        local prompt=U.prompt(part,"Hunt","펫으로 약화 / 포획",Enum.KeyCode.E)
+        prompt.Triggered:Connect(function(player)
+            if wild.HP/wild.MaxHP&gt;P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
+            else self:Attempt(player,uid,"Trap",false) end
+        end)
+    end
+end
+function S:CanFight(player,wild)
+    return not wild.Owner or wild.Owner==player or not wild.Owner.Parent or os.clock()&gt;(wild.ClaimUntil or 0)
+        or (self.ctx.Run:IsParticipant(player) and wild.Owner and self.ctx.Run:IsParticipant(wild.Owner))
+end
+function S:Damage(wild,amount,player)
+    if self.ctx.Clock.Phase~="Day" or self.Wild[wild.Id]~=wild or wild.Busy or wild.ExhaustUntil then return end
+    if not self.ctx.Data:Ready(player) or not self:CanFight(player,wild) then return end
+    if not wild.Owner or not wild.Owner.Parent or os.clock()&gt;(wild.ClaimUntil or 0) then wild.Owner=player end
+    wild.ClaimUntil=os.clock()+45
+    wild.Contributors[player]=(wild.Contributors[player] or 0)+amount
+    wild.HP=math.max(1,wild.HP-amount) -- deliberate nonlethal hunt state
+    if wild.HP/wild.MaxHP&lt;=P.CaptureHP then wild.ExhaustUntil=os.clock()+P.ExhaustSeconds end
+end
+function S:Nearest(position,range)
+    local best,distance=nil,range
+    for _,wild in pairs(self.Wild) do
+        local d=(wild.Part.Position-position).Magnitude
+        if d&lt;distance and not wild.Busy and not wild.ExhaustUntil then best,distance=wild,d end
+    end
+    return best
+end
+function S:Chance(player,wild,better,bait)
+    local profile=self.ctx.Data:Get(player)
+    if P.FirstCaptureGuaranteed and profile and not profile.Tutorial.Captured and wild.SpeciesId=="Mossling" then return 1 end
+    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,better,bait,wild.Failures,P)
+end
+function S:Attempt(player,uid,trap,bait)
+    if G.ActiveStage&lt;6 or type(uid)~="string" or (trap~="Trap" and trap~="BetterTrap") or type(bait)~="boolean" then return end
+    if not self.ctx.Data:Ready(player) or not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
+    if os.clock()-(self.Last[player] or -100)&lt;0.5 then return end;self.Last[player]=os.clock()
+    if self.Attempts[player] then return end
+    local wild=self.Wild[uid]
+    if not wild or wild.Busy or wild.HP/wild.MaxHP&gt;P.CaptureHP or not U.near(player,wild.Part.Position,P.CaptureRange) then return end
+    -- First contributor has capture priority. Teammates may assist without stealing.
+    if wild.Owner and wild.Owner~=player and wild.Owner.Parent and os.clock()&lt;(wild.ClaimUntil or 0) then
+        self.ctx.Notify(player,"먼저 사냥을 시작한 동료에게 포획 우선권이 있습니다.");return
+    end
+    if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,"보유 공간이나 임시 펫 공간이 가득 찼습니다.");return end
+    local items=self.ctx.Crafting.Items[player]
+    if not items or items[trap]&lt;=0 or (bait and items.Bait&lt;=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
+    self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
+    wild.Busy=player
+    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trap=="BetterTrap",bait)}
+    self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
+end
+function S:Finish(player,attempt)
+    local wild=attempt.Wild
+    self.Attempts[player]=nil;wild.Busy=nil
+    if self.Wild[wild.Id]~=wild then return end
+    if not self.ctx.Data:Ready(player) or self.ctx.Clock.Phase~="Day" or not U.near(player,wild.Part.Position,P.CaptureRange) then
+        if player.Parent then self.ctx.Notify(player,"포획 중단 · 사거리나 생존 상태를 확인하세요. 사용한 덫은 소모됩니다.") end;return
+    end
+    if math.random()&lt;attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
+        self.Wild[wild.Id]=nil;wild.Part:Destroy()
+        for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
+        self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
+        self.ctx.PetFX:FireClient(player,"Capture",P.Species[wild.SpeciesId].Name)
+    else
+        wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
+        self.ctx.Notify(player,"빠져나왔습니다! 다음 시도의 성공 확률이 올랐습니다.")
+        self.ctx.PetFX:FireClient(player,"Fail")
+    end
+end
+function S:RemovePlayer(player)
+    local attempt=self.Attempts[player]
+    if attempt then attempt.Wild.Busy=nil end
+    self.Attempts[player],self.Last[player]=nil,nil
+    for _,wild in pairs(self.Wild) do wild.Contributors[player]=nil;if wild.Owner==player then wild.Owner=nil end end
+end
+function S:Tick(dt)
+    if G.ActiveStage&lt;6 then return end
+    for player,attempt in pairs(self.Attempts) do if os.clock()&gt;=attempt.EndsAt then self:Finish(player,attempt) end end
+    for _,wild in pairs(self.Wild) do
+        local spec=P.Species[wild.SpeciesId]
+        if wild.ExhaustUntil and not wild.Busy and os.clock()&gt;wild.ExhaustUntil then
+            wild.ExhaustUntil,wild.Owner,wild.Failures,wild.Contributors=nil,nil,0,{};wild.HP=wild.MaxHP
+            wild.Part.Position=wild.Home
+        end
+        if self.ctx.Clock.Phase=="Day" and wild.Owner and not wild.ExhaustUntil and not wild.Busy then
+            local pet=self.ctx.Pets:Nearest(wild.Part.Position,18)
+            local root,human=U.aliveRoot(wild.Owner)
+            local target=pet and pet.Part or root
+            if target and (target.Position-wild.Home).Magnitude&lt;32 then
+                local delta=U.flat(target.Position-wild.Part.Position)
+                if delta.Magnitude&gt;6 then
+                    wild.Part.Position=wild.Part.Position+delta.Unit*math.min(delta.Magnitude,10*dt)
+                elseif os.clock()&gt;=wild.NextAttack then
+                    wild.NextAttack=os.clock()+1.4;wild.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
+                    if pet then self.ctx.Pets:Damage(pet,wild.Damage*R.element(spec.Element,P.Species[pet.Data.SpeciesId].Element))
+                    elseif human then human:TakeDamage(wild.Damage) end
+                end
+            else
+                wild.Owner,wild.ExhaustUntil,wild.Contributors=nil,nil,{};wild.HP=wild.MaxHP;wild.Part.Position=wild.Home
+            end
+        end
+        wild.Part:SetAttribute("Exhausted",wild.ExhaustUntil~=nil)
+        wild.Label.Text=string.format("%s Lv%d · %d/%d%s",spec.Name,wild.Level,math.ceil(wild.HP),wild.MaxHP,wild.ExhaustUntil and " · 포획 가능" or "")
+    end
+end
+function S:Snapshot(player)
+    local list={};local root=U.aliveRoot(player);if not root then return list end
+    for uid,wild in pairs(self.Wild) do
+        local distance=(root.Position-wild.Part.Position).Magnitude
+        if distance&lt;90 then
+            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
+                Distance=math.floor(distance),Chance=self:Chance(player,wild,false,false),BetterChance=self:Chance(player,wild,true,true),
+                Ready=wild.HP/wild.MaxHP&lt;=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()&gt;(wild.ClaimUntil or 0)}
+        end
+    end
+    table.sort(list,function(a,b) return a.Distance&lt;b.Distance end);return list
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000026">
+        <Properties>
+          <string name="Name">CombatService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local C = require(RS.Shared.Config.GameConfig)
+local S = {}
+function S:Init(ctx)
+    self.ctx, self.LastAttack = ctx, {}
+    ctx.Attack.OnServerEvent:Connect(function(player) self:Attack(player) end)
+end
+function S:Equip(player, character)
+    local human = character:WaitForChild("Humanoid", 10)
+    local backpack = player:WaitForChild("Backpack", 10)
+    if not human or not backpack or not character.Parent then return end
+    character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
+    local tool = Instance.new("Tool")
+    tool.Name, tool.CanBeDropped, tool.RequiresHandle = "Spear", false, true
+    tool:SetAttribute("WildholdSpear", true)
+    local handle = Instance.new("Part")
+    handle.Name, handle.Size = "Handle", Vector3.new(0.3, 5, 0.3)
+    handle.Color, handle.CanCollide, handle.Massless = Color3.fromRGB(187, 157, 104), false, true
+    handle.Parent, tool.Parent = tool, backpack
+    human:EquipTool(tool)
+    human.Died:Connect(function()
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root then self.ctx.Resources:OnDeath(player, root.Position) end
+    end)
+end
+function S:Attack(player)
+    if C.ActiveStage &lt; 2 or not self.ctx.Run:IsParticipant(player) then return end
+    local phase = self.ctx.Clock.Phase
+    if phase ~= "Day" and phase ~= "Night" then return end
+    local root = U.aliveRoot(player)
+    if not root or (self.ctx.Data and not self.ctx.Data:Ready(player)) then return end
+    local tool = player.Character:FindFirstChildOfClass("Tool")
+    if not tool or tool:GetAttribute("WildholdSpear") ~= true then return end
+    local now = os.clock()
+    if now - (self.LastAttack[player] or -math.huge) &lt; C.SpearCooldown then return end
+    self.LastAttack[player] = now
+    -- Client sends intent only. Server chooses a nearby valid target and damage.
+    local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
+    if enemy then
+        self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position)
+        self.ctx.Enemies:Damage(enemy, C.SpearDamage)
+        return
+    end
+    if C.ActiveStage &gt;= 6 and self.ctx.Clock.Phase == "Day" then
+        local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
+        if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) then
+            self.ctx.Capture:Damage(wild, C.SpearDamage, player)
+            self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
+            return
+        end
+    end
+    local best, distance = nil, C.SpearRange
+    for _, node in ipairs(self.ctx.Map.Nodes) do
+        local d = (node.Part.Position - root.Position).Magnitude
+        if node.HP &gt; 0 and d &lt; distance and self.ctx.Enemies:ClearShot(root.Position, node.Part.Position) then best, distance = node, d end
+    end
+    if best then
+        self.ctx.FX:FireAllClients("Harvest", root.Position, best.Part.Position)
+        self.ctx.Resources:Harvest(player, best)
+    end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000027">
+        <Properties>
+          <string name="Name">CoreService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local C = require(RS.Shared.Config.GameConfig)
+local Core = {}
+function Core:Init(ctx) self.ctx = ctx; self:Reset() end
+function Core:Reset() self.HP = C.CoreHP; self:Update() end
+function Core:Update()
+    self.ctx.Map.Core:SetAttribute("CurrentHealth", self.HP)
+    self.ctx.Map.Core:SetAttribute("MaxHealth", C.CoreHP)
+    self.ctx.Map.CoreLabel.Text = string.format("CORE  %d / %d", self.HP, C.CoreHP)
+end
+function Core:Damage(amount)
+    if self.ctx.Clock.Phase ~= "Night" or self.HP &lt;= 0 then return end
+    self.HP = math.max(0, self.HP - amount)
+    self:Update()
+    if self.HP == 0 then self.ctx.Run:Finish(false, "Core가 파괴되었습니다") end
+end
+return Core
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000028">
+        <Properties>
+          <string name="Name">CraftingService</string>
+          <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local C=require(RS.Shared.Config.RecipeConfig)
+local G=require(RS.Shared.Config.GameConfig)
+local R=require(RS.Shared.Modules.PetRules)
+local U=require(RS.Shared.Modules.Utility)
+local S={}
+function S:Init(ctx) self.ctx,self.Items,self.Last=ctx,{},{} end
+function S:AddPlayer(player) self.Items[player]=R.copy(C.Starter) end
+function S:RemovePlayer(player) self.Items[player],self.Last[player]=nil,nil end
+function S:Reset() for player in pairs(self.Items) do self:AddPlayer(player) end end
+function S:Use(player,item)
+    local inventory=self.Items[player]
+    if inventory and (inventory[item] or 0)&gt;0 then inventory[item]=inventory[item]-1;return true end
+    return false
+end
+function S:Craft(player,item)
+    if G.ActiveStage&lt;6 or type(item)~="string" or not C.Recipes[item] or not self.ctx.Data:Ready(player) then return end
+    if not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
+    if os.clock()-(self.Last[player] or -100)&lt;0.4 then return end
+    self.Last[player]=os.clock()
+    if not U.near(player,self.ctx.Map.Workbench.Position,G.InteractionRange) then self.ctx.Notify(player,"기지 제작대 근처에서 제작할 수 있습니다.");return end
+    local items=self.Items[player];if not items or items[item]&gt;=C.Limit then return end
+    if self.ctx.Resources:Spend(C.Recipes[item].Cost) then items[item]=items[item]+1;self.ctx.Notify(player,C.Recipes[item].Name.." 제작 완료")
+    else self.ctx.Notify(player,"공용 창고의 재료가 부족합니다.") end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000029">
+        <Properties>
+          <string name="Name">DataService</string>
+          <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local Engine=game:GetService("RunService")
+local Http=game:GetService("HttpService")
+local C=require(RS.Shared.Config.DataConfig)
+local G=require(RS.Shared.Config.GameConfig)
+local P=require(RS.Shared.Config.PetConfig)
+local R=require(RS.Shared.Modules.PetRules)
+local S={}
+function S:Init(ctx)
+    self.ctx,self.Sessions,self.MemoryRecords=ctx,{},{}
+    self.Memory=G.ActiveStage&lt;7 or (Engine:IsStudio() and C.StudioMemory)
+    if not self.Memory then self.Store=game:GetService("DataStoreService"):GetDataStore(Engine:IsStudio() and C.StudioStoreName or C.StoreName) end
+end
+function S:NewProfile()
+    local uid=Http:GenerateGUID(false)
+    return {Version=C.Version,Coins=0,Pets={[uid]={Uid=uid,SpeciesId="Mossling",Level=1,Exp=0,Favorite=true,CaughtAt=os.time(),CaughtRegion="Grassland"}},
+        Party={uid},Loadouts={},Dex={Mossling={Seen=true,Caught=true}},UnlockedRegions={Grassland=true},ClearedRegions={},
+        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={}}
+end
+function S:Validate(data)
+    if type(data)~="table" or type(data.Version)~="number" or data.Version&lt;1 or data.Version&gt;C.Version then return nil end
+    for _,key in ipairs({"Pets","Party","Dex","UnlockedRegions","ClearedRegions","Stats"}) do if type(data[key])~="table" then return nil end end
+    local function integer(n) return type(n)=="number" and n==n and n&gt;=0 and n%1==0 and n&lt;1e12 end
+    if not integer(data.Coins) or not integer(data.Stats.NightsSurvived) or not integer(data.Stats.Clears) then return nil end
+    if R.count(data.Pets)&gt;P.CollectionLimit then return nil end
+    for uid,pet in pairs(data.Pets) do
+        if type(uid)~="string" or type(pet)~="table" or pet.Uid~=uid or not P.Species[pet.SpeciesId]
+            or not integer(pet.Level) or pet.Level&lt;1 or pet.Level&gt;P.MaxLevel or not integer(pet.Exp) then return nil end
+    end
+    local output=R.copy(data)
+    -- Version 1 migration preserves every pet and only normalizes selected slots.
+    local selected,seen={},{}
+    for _,uid in ipairs(output.Party) do if output.Pets[uid] and not seen[uid] and #selected&lt;P.ActiveLimit then selected[#selected+1]=uid;seen[uid]=true end end
+    output.Party=selected
+    for _,key in ipairs({"Loadouts","Tutorial","Receipts"}) do
+        if output[key]~=nil and type(output[key])~="table" then return nil end
+        output[key]=output[key] or {}
+    end
+    output.Version=C.Version
+    return output
+end
+function S:Transform(key,fn)
+    if self.Memory then
+        local result=fn(R.copy(self.MemoryRecords[key]))
+        if result then self.MemoryRecords[key]=R.copy(result) end
+        return R.copy(result)
+    end
+    return self.Store:UpdateAsync(key,fn)
+end
+function S:Load(player)
+    if self.Sessions[player] then return false end
+    local token,key,starter=Http:GenerateGUID(false),"u_"..player.UserId,self:NewProfile()
+    local ok,record
+    for attempt=1,C.Retries do
+        ok,record=pcall(function() return self:Transform(key,function(old)
+            if old~=nil and (type(old)~="table" or old.Schema~=1) then return nil end
+            if old and not R.canAcquire(old.Lock,token,os.time()) then return nil end
+            local data
+            if old then data=self:Validate(old.Data) else data=R.copy(starter) end
+            if not data then return nil end
+            return {Schema=1,Data=data,Lock={Token=token,Expires=os.time()+C.LeaseSeconds}}
+        end) end)
+        if ok then break end
+        task.wait(C.RetrySeconds)
+    end
+    if not ok or not record then player:Kick("저장 데이터가 사용 중이거나 불러오지 못했습니다. 잠시 후 다시 접속해 주세요."); return false end
+    self.Sessions[player]={Key=key,Token=token,Profile=R.copy(record.Data),Ready=true,Revision=0,Ack=0,
+        Status=self.Memory and "Practice" or "Saved",LeaseUntil=record.Lock.Expires,NextSave=os.clock()+C.SaveInterval}
+    return true
+end
+function S:Ready(player) local s=self.Sessions[player]; return s and s.Ready and not s.Closing end
+function S:Get(player) local s=self.Sessions[player]; return s and s.Profile end
+function S:Mutate(player,fn)
+    local s=self.Sessions[player]
+    if not self:Ready(player) then return false end
+    fn(s.Profile) -- callbacks MUST NOT yield
+    s.Revision=s.Revision+1; s.Status=self.Memory and "Practice" or "Unsaved"
+    return true
+end
+function S:Save(player,release)
+    local s=self.Sessions[player]; if not s then return end
+    if release then s.Closing,s.Ready,s.Release=true,false,true end
+    if s.Busy then s.Again=true;return end
+    s.Busy=true
+    task.spawn(function()
+        repeat
+            s.Again=false
+            local snapshot,revision,releasing=R.copy(s.Profile),s.Revision,s.Release
+            s.Status="Saving"
+            local ok,result
+            for attempt=1,C.Retries do
+                ok,result=pcall(function() return self:Transform(s.Key,function(old)
+                    if not old or old.Schema~=1 or not old.Lock or old.Lock.Token~=s.Token or old.Lock.Expires&lt;=os.time() then return nil end
+                    return {Schema=1,Data=snapshot,Lock=not releasing and {Token=s.Token,Expires=os.time()+C.LeaseSeconds} or nil}
+                end) end)
+                if ok then break end
+                task.wait(C.RetrySeconds)
+            end
+            if ok and result then
+                s.Ack=revision;s.LeaseUntil=result.Lock and result.Lock.Expires or 0
+                s.Status=self.Memory and "Practice" or (s.Revision==revision and "Saved" or "Unsaved")
+                if self.ctx.Pets then self.ctx.Pets:Saved(player,snapshot) end
+                if releasing then self.Sessions[player]=nil;break end
+                s.NextSave=os.clock()+C.SaveInterval
+                if s.Release then s.Again=true end
+            elseif ok then
+                s.Ready,s.Closing,s.Status=false,true,"LockLost"
+                self.Sessions[player]=nil
+                player:Kick("데이터 세션이 만료되었습니다. 안전한 재접속이 필요합니다.")
+                break
+            else
+                s.Status,s.NextSave="Retrying",os.clock()+C.RetrySeconds
+                if player.Parent then self.ctx.Notify(player,"저장 재시도 중입니다. 확정 표시를 확인해 주세요.") end
+                break
+            end
+        until not s.Again
+        s.Busy=false
+    end)
+end
+function S:Tick()
+    for player,s in pairs(self.Sessions) do
+        if s.Ready and os.time()&gt;=s.LeaseUntil-C.LeaseSafety then
+            player:Kick("저장 연결을 복구하지 못했습니다. 잠시 후 다시 접속해 주세요."); self:Save(player,true)
+        elseif not s.Busy and (s.Release or os.clock()&gt;=s.NextSave) then self:Save(player,s.Release) end
+    end
+end
+function S:Close()
+    for player in pairs(self.Sessions) do self:Save(player,true) end
+    local stop=os.clock()+C.ShutdownSeconds
+    while next(self.Sessions) and os.clock()&lt;stop do self:Tick();task.wait(0.1) end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000030">
+        <Properties>
+          <string name="Name">DayNightService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local Engine = game:GetService("RunService")
+local C = require(RS.Shared.Config.GameConfig)
+local D = {Phase = "Waiting", Night = 0, EndsAt = 0}
+function D:Scale()
+    return Engine:IsStudio() and math.max(1, C.StudioTimeScale) or 1
+end
+function D:Begin(phase, night, seconds)
+    self.Phase, self.Night = phase, night
+    self.EndsAt = workspace:GetServerTimeNow() + seconds / self:Scale()
+    local dark = phase == "Night"
+    Lighting.ClockTime = dark and C.NightClock or C.DayClock
+    Lighting.Brightness = dark and 2 or 3
+    Lighting.Ambient = dark and Color3.fromRGB(106, 115, 147) or Color3.fromRGB(145, 145, 145)
+    Lighting.OutdoorAmbient = dark and Color3.fromRGB(100, 110, 140) or Color3.fromRGB(155, 155, 155)
+end
+function D:Remaining()
+    return math.max(0, self.EndsAt - workspace:GetServerTimeNow())
+end
+function D:Expired() return self:Remaining() &lt;= 0 end
+return D
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000031">
+        <Properties>
+          <string name="Name">DefenseService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local Rules = require(RS.Shared.Modules.Rules)
+local C = require(RS.Shared.Config.GameConfig)
+local D = require(RS.Shared.Config.DefenseConfig)
+local S = {}
+function S:Init(ctx)
+    self.ctx, self.Slots, self.LastAction = ctx, {}, {}
+    for _, slot in ipairs(ctx.Map.Slots) do
+        if D[slot.Kind] then
+            self.Slots[slot.Id] = slot
+            slot.Label = U.label(slot.Pad, "", 4)
+            slot.BuildPrompt = U.prompt(slot.Pad, "Build", "건설", Enum.KeyCode.E, Vector3.new(0, 2, 0))
+            slot.RepairPrompt = U.prompt(slot.Pad, "Repair", "수리", Enum.KeyCode.R, Vector3.new(0, 4, 0))
+            slot.BuildPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Build") end)
+            slot.RepairPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Repair") end)
+        end
+    end
+    self:Reset()
+end
+function S:CostText(cost)
+    local R = require(RS.Shared.Config.ResourceConfig)
+    local parts = {}
+    for _, kind in ipairs(R.Order) do
+        if cost[kind] then table.insert(parts, R.Labels[kind] .. " " .. cost[kind]) end
+    end
+    return table.concat(parts, " · ")
+end
+function S:Reset()
+    self.ctx.Map.DefensesFolder:ClearAllChildren()
+    self.LastAction = {}
+    for _, slot in pairs(self.Slots) do
+        slot.Visual, slot.NextAttack, slot.LastMutation = nil, 0, -math.huge
+        slot.Level = C.ActiveStage &gt;= 3 and slot.InitialLevel or 0
+        slot.HP = slot.Level &gt; 0 and D[slot.Kind].Levels[slot.Level].HP or 0
+        self:Render(slot)
+    end
+end
+function S:Render(slot)
+    if slot.Visual then slot.Visual:Destroy(); slot.Visual = nil end
+    if slot.Level &gt; 0 then
+        local spec = D[slot.Kind]
+        local size = Vector3.new(table.unpack(spec.Size))
+        local p = U.part(self.ctx.Map.DefensesFolder, slot.Id, size, slot.Pad.Position + Vector3.new(0, size.Y / 2, 0))
+        p.CFrame = slot.Pad.CFrame + Vector3.new(0, size.Y / 2, 0)
+        p.Color = slot.Kind == "ArrowTower" and Color3.fromRGB(204, 186, 133) or Color3.fromRGB(116 + slot.Level * 15, 129 + slot.Level * 12, 133)
+        p.CanCollide = slot.Kind ~= "Gate" and slot.Kind ~= "SpikeTrap"
+        p:SetAttribute("SlotId", slot.Id)
+        slot.Visual = p
+    end
+    self:Refresh(slot)
+end
+function S:Refresh(slot)
+    local spec = D[slot.Kind]
+    local stats = spec.Levels[slot.Level]
+    local nextStats = spec.Levels[slot.Level + 1]
+    local phase = self.ctx.Clock.Phase
+    slot.Pad:SetAttribute("Level", slot.Level)
+    slot.Pad:SetAttribute("CurrentHealth", slot.HP)
+    if slot.Visual then slot.Visual:SetAttribute("CurrentHealth", slot.HP) end
+    slot.Label.Text = spec.Name .. (stats and string.format(" Lv%d  %d/%d", slot.Level, slot.HP, stats.HP) or " · 빈 자리")
+    slot.BuildPrompt.Enabled = C.ActiveStage &gt;= 3 and phase == "Day" and nextStats ~= nil
+    slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 " or "강화 ") .. (nextStats and self:CostText(nextStats.Cost) or "최대")
+    slot.BuildPrompt.ObjectText = spec.Name
+    slot.RepairPrompt.Enabled = C.ActiveStage &gt;= 3 and (phase == "Day" or phase == "Night") and stats ~= nil and slot.HP &lt; stats.HP
+    local mult = phase == "Night" and C.NightRepairMultiplier or 1
+    slot.RepairPrompt.ActionText = "수리 " .. (stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or "")
+    slot.RepairPrompt.ObjectText = spec.Name
+end
+function S:RefreshAll() for _, slot in pairs(self.Slots) do self:Refresh(slot) end end
+function S:Interact(player, slot, action)
+    if C.ActiveStage &lt; 3 or not self.ctx.Run:IsParticipant(player) then return end
+    if not U.near(player, slot.Pad.Position, C.InteractionRange) then return end
+    local now = os.clock()
+    if now - (self.LastAction[player] or -math.huge) &lt; C.InteractionCooldown then return end
+    self.LastAction[player] = now
+    if now - (slot.LastMutation or -math.huge) &lt; C.InteractionCooldown then return end
+    local phase, spec = self.ctx.Clock.Phase, D[slot.Kind]
+    if action == "Build" then
+        if phase ~= "Day" then return end
+        local nextStats = spec.Levels[slot.Level + 1]
+        if not nextStats then return end
+        if not self.ctx.Resources:Spend(nextStats.Cost) then self.ctx.Notify(player, "공용 창고의 자원이 부족합니다"); return end
+        -- No yielding in validation, spend, mutation: simultaneous requests serialize.
+        local oldHP = slot.Level &gt; 0 and spec.Levels[slot.Level].HP or 0
+        slot.HP = Rules.upgradeHP(slot.HP, oldHP, nextStats.HP)
+        slot.Level = slot.Level + 1
+        slot.LastMutation = now
+        self:Render(slot)
+        self.ctx.Notify(player, spec.Name .. " Lv" .. slot.Level .. " 완성")
+    elseif action == "Repair" then
+        if phase ~= "Day" and phase ~= "Night" then return end
+        local stats = spec.Levels[slot.Level]
+        if not stats or slot.HP &gt;= stats.HP then return end
+        local cost = Rules.repairCost(stats.Repair, phase == "Night" and C.NightRepairMultiplier or 1)
+        if not self.ctx.Resources:Spend(cost) then self.ctx.Notify(player, "수리 자원이 부족합니다"); return end
+        slot.HP = math.min(stats.HP, slot.HP + math.ceil(stats.HP * C.RepairFraction))
+        slot.LastMutation = now
+        self:Refresh(slot)
+    end
+end
+function S:Damage(slot, amount)
+    if slot.Level == 0 or slot.HP &lt;= 0 then return end
+    slot.HP = math.max(0, slot.HP - amount)
+    if slot.HP == 0 then slot.Level = 0; self:Render(slot) else self:Refresh(slot) end
+end
+function S:Barrier(laneId, position)
+    local closest, distance = nil, math.huge
+    local dir = self.ctx.Map.Lanes[laneId].Dir
+    local radius = U.flat(position):Dot(dir)
+    for _, slot in pairs(self.Slots) do
+        if slot.LaneId == laneId and slot.Level &gt; 0 and D[slot.Kind].Blocks then
+            local r = U.flat(slot.Pad.Position):Dot(dir)
+            local delta = radius - r
+            if delta &gt;= -2 and delta &lt; distance then closest, distance = slot, delta end
+        end
+    end
+    return closest
+end
+function S:Nearest(position, radius)
+    local closest, distance = nil, radius
+    for _, slot in pairs(self.Slots) do
+        if slot.Level &gt; 0 and slot.Kind ~= "SpikeTrap" then
+            local d = U.flat(slot.Pad.Position - position).Magnitude
+            if d &lt; distance then closest, distance = slot, d end
+        end
+    end
+    return closest
+end
+function S:Tick()
+    if C.ActiveStage &lt; 3 or self.ctx.Clock.Phase ~= "Night" then return end
+    local now = os.clock()
+    for _, slot in pairs(self.Slots) do
+        local stats = D[slot.Kind].Levels[slot.Level]
+        if stats and stats.Damage and now &gt;= slot.NextAttack then
+            local origin = slot.Visual.Position + Vector3.new(0, slot.Visual.Size.Y / 2, 0)
+            local target = self.ctx.Enemies:Nearest(origin, stats.Range, slot.Kind == "ArrowTower", slot.Visual)
+            if target then
+                slot.NextAttack = now + stats.Interval
+                if slot.Kind == "SpikeTrap" then
+                    for _, enemy in pairs(self.ctx.Enemies.Units) do
+                        if U.flat(enemy.Part.Position - slot.Pad.Position).Magnitude &lt;= stats.Range then self.ctx.Enemies:Damage(enemy, stats.Damage) end
+                    end
+                else
+                    self.ctx.FX:FireAllClients("Arrow", origin, target.Part.Position)
+                    self.ctx.Enemies:Damage(target, stats.Damage * (C.ActiveStage &gt;= 5 and C.TowerDamageScale or 1))
+                end
+            end
+        end
+    end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000032">
+        <Properties>
+          <string name="Name">EnemyService</string>
+          <ProtectedString name="Source">local Players = game:GetService("Players")
+local Pathfinding = game:GetService("PathfindingService")
+local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local C = require(RS.Shared.Config.GameConfig)
+local E = require(RS.Shared.Config.EnemyConfig)
+local W = require(RS.Shared.Config.WaveConfig)
+local P = require(RS.Shared.Config.PetConfig)
+local S = {}
+function S:Init(ctx) self.ctx, self.Units, self.NextId, self.PathJobs = ctx, {}, 0, 0 end
+function S:Reset()
+    for _, unit in pairs(self.Units) do unit.Dead = true end
+    self.Units = {}
+    self.ctx.Map.EnemiesFolder:ClearAllChildren()
+end
+function S:Count() local n = 0; for _ in pairs(self.Units) do n = n + 1 end; return n end
+function S:Spawn(kind, laneId, night, boss)
+    if self:Count() &gt;= C.EnemyLimit then return false end
+    self.NextId = self.NextId + 1
+    local spec, lane = E[kind], self.ctx.Map.Lanes[laneId]
+    local p = U.part(self.ctx.Map.EnemiesFolder, kind .. self.NextId, Vector3.new(spec.Size, spec.Size, spec.Size), lane.Points[1], U.color(spec.Color))
+    p.CanCollide = false
+    local unit = {Id = self.NextId, Kind = kind, Part = p, Spec = spec, LaneId = laneId,
+        HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight)),
+        Damage = spec.Damage * (1 + (night - 1) * W.DamagePerNight),
+        Waypoint = 2, NextAttack = 0, NextPath = 0, Boss = boss, Dead = false}
+    unit.MaxHP = unit.HP
+    p.Position = Vector3.new(p.Position.X, spec.Size / 2 + 0.2, p.Position.Z)
+    unit.Label = U.label(p, kind .. " " .. unit.HP, spec.Size / 2 + 2)
+    p:SetAttribute("EnemyId", unit.Id)
+    p:SetAttribute("CurrentHealth", unit.HP)
+    p:SetAttribute("MaxHealth", unit.MaxHP)
+    self.Units[unit.Id] = unit
+    return true
+end
+function S:Damage(unit, amount)
+    if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return end
+    unit.HP = math.max(0, unit.HP - amount)
+    unit.Part:SetAttribute("CurrentHealth", unit.HP)
+    unit.Label.Text = unit.Kind .. " " .. math.ceil(unit.HP)
+    if unit.HP &lt;= 0 then
+        unit.Dead = true
+        self.Units[unit.Id] = nil
+        local position = unit.Part.Position
+        unit.Part:Destroy()
+        self.ctx.Resources:Drop("Scrap", unit.Spec.ScrapDrop, position)
+        if self.ctx.Pets then
+            for player in pairs(self.ctx.Run.Participants) do
+                if U.near(player, position, 90) then self.ctx.Pets:Award(player, P.KillXP) end
+            end
+        end
+        if unit.Boss then self.ctx.Waves.BossDefeated = true end
+    end
+end
+function S:ClearShot(origin, destination, ignored)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Include
+    -- Only actual defense obstacles block combat rays; characters and FX never do.
+    local obstacles = {}
+    for _, part in ipairs(self.ctx.Map.DefensesFolder:GetChildren()) do
+        local slot = self.ctx.Defenses.Slots[part.Name]
+        if part ~= ignored and (part.CanCollide or (slot and slot.Kind == "Gate")) then table.insert(obstacles, part) end
+    end
+    params.FilterDescendantsInstances = obstacles
+    return workspace:Raycast(origin, destination - origin, params) == nil
+end
+function S:Nearest(position, range, lineOfSight, ignored)
+    local best, distance = nil, range
+    for _, unit in pairs(self.Units) do
+        local d = (unit.Part.Position - position).Magnitude
+        if d &lt; distance and (not lineOfSight or self:ClearShot(position, unit.Part.Position, ignored)) then best, distance = unit, d end
+    end
+    return best
+end
+function S:Move(unit, goal, dt)
+    local pos = unit.Part.Position
+    local delta = U.flat(goal - pos)
+    if delta.Magnitude &lt; 0.05 then return end
+    local nextPos = pos + delta.Unit * math.min(delta.Magnitude, unit.Spec.Speed * dt)
+    unit.Part.CFrame = CFrame.lookAt(nextPos, nextPos + delta.Unit)
+    unit.Part:SetAttribute("State", "MoveToTarget")
+end
+function S:RequestPath(unit, goal)
+    if unit.PathPending or os.clock() &lt; unit.NextPath or self.PathJobs &gt;= C.PathJobsLimit then return end
+    unit.NextPath, unit.PathPending = os.clock() + C.PathInterval, true
+    self.PathJobs = self.PathJobs + 1
+    local from = unit.Part.Position
+    task.spawn(function()
+        local path = Pathfinding:CreatePath({AgentRadius = 2, AgentHeight = 4, AgentCanJump = false, WaypointSpacing = 4})
+        local ok = pcall(function() path:ComputeAsync(from, goal) end)
+        self.PathJobs = self.PathJobs - 1
+        unit.PathPending = false
+        if not unit.Dead then
+            unit.Path = ok and path.Status == Enum.PathStatus.Success and path:GetWaypoints() or nil
+            unit.PathIndex = 2
+        end
+        path:Destroy()
+    end)
+end
+function S:RunnerTarget(unit)
+    if (U.flat(unit.Part.Position - self.ctx.Map.Lanes[unit.LaneId].Dir * U.flat(unit.Part.Position):Dot(self.ctx.Map.Lanes[unit.LaneId].Dir))).Magnitude &gt; C.RunnerLeash then return nil end
+    local best, distance = nil, unit.Spec.Aggro
+    for _, player in ipairs(Players:GetPlayers()) do
+        local root, humanoid = U.aliveRoot(player)
+        if root and self.ctx.Run:IsParticipant(player) and not player.Character:FindFirstChildOfClass("ForceField") then
+            local d = (root.Position - unit.Part.Position).Magnitude
+            if d &lt; distance then best, distance = {Root = root, Humanoid = humanoid}, d end
+        end
+    end
+    return best
+end
+function S:TryAttack(unit, position, radius, fn)
+    if U.flat(unit.Part.Position - position).Magnitude &gt; radius then return false end
+    unit.Part:SetAttribute("State", "Attack")
+    if os.clock() &gt;= unit.NextAttack then
+        unit.NextAttack = os.clock() + unit.Spec.Interval
+        local multiplier = 1
+        for _, other in pairs(self.Units) do
+            if other.Kind == "Howler" and other ~= unit and (other.Part.Position - unit.Part.Position).Magnitude &lt;= other.Spec.AuraRange then multiplier = other.Spec.AuraMultiplier; break end
+        end
+        fn(math.ceil(unit.Damage * multiplier))
+    end
+    return true
+end
+function S:Tick(dt)
+    if C.ActiveStage &lt; 4 or self.ctx.Clock.Phase ~= "Night" then return end
+    for _, unit in pairs(self.Units) do
+        if self.ctx.Clock.Phase ~= "Night" then break end
+        self:UpdateUnit(unit, dt)
+    end
+end
+function S:UpdateUnit(unit, dt)
+    local pet = self.ctx.Pets and self.ctx.Pets:Nearest(unit.Part.Position, unit.Kind == "Runner" and unit.Spec.Aggro or 6)
+    -- Tank taunts force nearby lane enemies to engage it when in line of sight.
+    if self.ctx.Pets then
+        for _,candidate in pairs(self.ctx.Pets.Active) do
+            if candidate.Data.SpeciesId == "Shellbub" and candidate.HP &gt; 0 and (candidate.Part.Position-unit.Part.Position).Magnitude&lt;18 then pet=candidate;break end
+        end
+    end
+    if pet and self:ClearShot(unit.Part.Position,pet.Part.Position) then
+        if not self:TryAttack(unit,pet.Part.Position,unit.Spec.Range+2,function(d) self.ctx.Pets:Damage(pet,d) end) then self:Move(unit,pet.Part.Position,dt) end
+        return
+    end
+    local target = unit.Kind == "Runner" and self:RunnerTarget(unit) or nil
+    if target then
+        local clear = self:ClearShot(unit.Part.Position, target.Root.Position)
+        if clear then
+            unit.Path = nil
+            if not self:TryAttack(unit, target.Root.Position, unit.Spec.Range, function(d)
+                if (target.Root.Position - unit.Part.Position).Magnitude &lt;= unit.Spec.Range then target.Humanoid:TakeDamage(d) end
+            end) then self:Move(unit, target.Root.Position, dt) end
+            return
+        end
+        self:RequestPath(unit, target.Root.Position)
+        local waypoint = unit.Path and unit.Path[unit.PathIndex]
+        if waypoint then
+            if U.flat(waypoint.Position - unit.Part.Position).Magnitude &lt; 2 then unit.PathIndex = unit.PathIndex + 1 end
+            if self:ClearShot(unit.Part.Position, Vector3.new(waypoint.Position.X, unit.Part.Position.Y, waypoint.Position.Z)) then self:Move(unit, waypoint.Position, dt); return end
+        end
+        -- Failed/pending path falls back to attacking the lane barrier, never stalls.
+    end
+    local barrier = self.ctx.Defenses:Barrier(unit.LaneId, unit.Part.Position)
+    if unit.Kind == "Brute" then
+        local nearby = self.ctx.Defenses:Nearest(unit.Part.Position, unit.Spec.Aggro)
+        if nearby and (not barrier or U.flat(nearby.Pad.Position - unit.Part.Position).Magnitude &lt; U.flat(barrier.Pad.Position - unit.Part.Position).Magnitude) then barrier = nearby end
+    end
+    if barrier then
+        if not self:TryAttack(unit, barrier.Pad.Position, unit.Spec.Range, function(d) self.ctx.Defenses:Damage(barrier, d) end) then self:Move(unit, barrier.Pad.Position, dt) end
+        return
+    end
+    local lane = self.ctx.Map.Lanes[unit.LaneId]
+    -- A destroyed wall may leave us past a waypoint. Never backtrack outward.
+    local radius = U.flat(unit.Part.Position):Dot(lane.Dir)
+    while unit.Waypoint &lt; #lane.Points and U.flat(lane.Points[unit.Waypoint]):Dot(lane.Dir) &gt; radius + 1 do unit.Waypoint = unit.Waypoint + 1 end
+    local core = self.ctx.Map.Core.Position
+    if self:TryAttack(unit, core, unit.Spec.Range + 4, function(d) self.ctx.Core:Damage(d) end) then return end
+    local goal = lane.Points[unit.Waypoint]
+    if U.flat(goal - unit.Part.Position).Magnitude &lt; 2 and unit.Waypoint &lt; #lane.Points then unit.Waypoint = unit.Waypoint + 1 end
+    self:Move(unit, lane.Points[unit.Waypoint], dt)
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000033">
+        <Properties>
+          <string name="Name">MapService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local C = require(RS.Shared.Config.MapConfig)
+local R = require(RS.Shared.Config.ResourceConfig)
+local Map = {}
+function Map:Build()
+    -- Only replace objects belonging to this prototype.
+    local old = workspace:FindFirstChild("WILDHOLD")
+    if old then old:Destroy() end
+    self.Root = U.folder(workspace, "WILDHOLD")
+    self.Map = U.folder(self.Root, "Map")
+    self.LanesFolder = U.folder(self.Map, "Lanes")
+    self.SlotsFolder = U.folder(self.Map, "DefenseSlots")
+    self.NodesFolder = U.folder(self.Root, "ResourceNodes")
+    self.DropsFolder = U.folder(self.Root, "Drops")
+    self.DefensesFolder = U.folder(self.Root, "Defenses")
+    self.EnemiesFolder = U.folder(self.Root, "Enemies")
+    self.FXFolder = U.folder(self.Root, "FX")
+    self.PetsFolder = U.folder(self.Root, "Pets")
+    self.WildFolder = U.folder(self.Root, "WildPets")
+    self.Base = U.folder(self.Root, "Base")
+    self.Lanes, self.Slots, self.Nodes = {}, {}, {}
+    U.part(self.Map, "Grassland", Vector3.new(C.GroundSize, 2, C.GroundSize), Vector3.new(0, -1, 0), Color3.fromRGB(100, 122, 112))
+    self.Core = U.part(self.Base, "Core", Vector3.new(8, 10, 8), Vector3.new(0, 5, 0), Color3.fromRGB(117, 220, 201))
+    self.Core.Material = Enum.Material.Neon
+    self.CoreLabel = U.label(self.Core, "CORE", 8)
+    self.Warehouse = U.part(self.Base, "팀 공용 창고", Vector3.new(6, 4, 6), Vector3.new(table.unpack(C.Warehouse)), Color3.fromRGB(168, 145, 105))
+    U.label(self.Warehouse, "공용 창고\n가까이 오면 자동 입금", 5)
+    local spawn = Instance.new("SpawnLocation")
+    spawn.Name, spawn.Size, spawn.Position = "ExpeditionSpawn", Vector3.new(8, 1, 8), Vector3.new(table.unpack(C.Spawn))
+    spawn.Anchored, spawn.Neutral, spawn.Duration, spawn.Parent = true, true, 3, self.Base
+    self.Spawn = spawn
+    self.Cage = U.part(self.Base, "펫 우리", Vector3.new(7,2,7), Vector3.new(16,1,16), Color3.fromRGB(145,210,159))
+    U.label(self.Cage, "펫 우리 · 등록 후 밤 생존", 4)
+    self.CagePrompt = U.prompt(self.Cage, "Register", "미확정 펫 등록")
+    self.Workbench = U.part(self.Base, "제작대", Vector3.new(5,3,4), Vector3.new(-16,1.5,16), Color3.fromRGB(199,167,122))
+    U.label(self.Workbench, "덫 · 먹이 · 회복 제작", 4)
+    self.CraftPrompt = U.prompt(self.Workbench, "Craft", "제작 열기")
+    for i, angle in ipairs(C.LaneAngles) do
+        local rad = math.rad(angle)
+        local dir = Vector3.new(math.sin(rad), 0, -math.cos(rad))
+        local side = Vector3.new(-dir.Z, 0, dir.X)
+        local folder = U.folder(self.LanesFolder, "Lane" .. i)
+        local lane = {Id = i, Dir = dir, Side = side, Points = {}}
+        for n, radius in ipairs(C.WaypointRadii) do
+            local pos = dir * radius + Vector3.new(0, 2, 0)
+            table.insert(lane.Points, pos)
+            local waypoint = U.part(folder, tostring(n), Vector3.new(1, 1, 1), pos)
+            waypoint.Transparency, waypoint.CanCollide, waypoint.CanQuery = 1, false, false
+        end
+        local road = U.part(self.Map, "LaneRoad" .. i, Vector3.new(12, 0.1, C.LaneRadius), dir * (C.LaneRadius / 2) + Vector3.new(0, 0.06, 0), Color3.fromRGB(145, 147, 139))
+        road.CFrame = CFrame.lookAt(road.Position, road.Position + dir)
+        road.CanCollide = false
+        local sign = U.part(folder, "Entry", Vector3.new(1, 1, 1), dir * (C.LaneRadius - 5) + Vector3.new(0, 5, 0))
+        sign.Transparency, sign.CanCollide, sign.CanQuery = 1, false, false
+        U.label(sign, "진입로 " .. i, 4)
+        self.Lanes[i] = lane
+        for _, radius in ipairs(C.WallRadii) do self:AddSlot("Wall", i, dir * radius, 0) end
+        self:AddSlot("ArrowTower", i, dir * C.TowerRadius + side * 10, i == 1 and 1 or 0)
+        self:AddSlot("SpikeTrap", i, dir * C.TrapRadius, 0)
+        self:AddSlot("PetStand", i, dir * 21 + side * -10, 0)
+    end
+    self.Slots[1].InitialLevel, self.Slots[6].InitialLevel = 1, 1
+    self:AddSlot("Wall", 1, self.Lanes[1].Dir * 78, 0)
+    self:AddSlot("Wall", 2, self.Lanes[2].Dir * 78, 0)
+    for i = 1, 2 do self:AddSlot("Gate", i, self.Lanes[i].Dir * 26, 0) end
+    self:AddSlot("ArrowTower", 3, self.Lanes[3].Dir * 43 - self.Lanes[3].Side * 10, 0)
+    self:AddSlot("SpikeTrap", 3, self.Lanes[3].Dir * 83, 0)
+    self:AddSlot("PetStand", 1, Vector3.new(-14, 0, 12), 0)
+    for k, kind in ipairs(R.Order) do
+        local spec = R.Types[kind]
+        for n = 1, C.NodesPerResource do
+            local angle = math.rad(k * 67 + n * 6)
+            local radius = C.ResourceRadius + (n % 3) * 12
+            local pos = Vector3.new(math.cos(angle) * radius, 2.5, math.sin(angle) * radius)
+            local p = U.part(self.NodesFolder, kind .. n, Vector3.new(4, 5, 4), pos, U.color(spec.Color))
+            p:SetAttribute("ResourceType", kind)
+            p:SetAttribute("MaxHealth", spec.HP)
+            p:SetAttribute("CurrentHealth", spec.HP)
+            p:SetAttribute("RespawnTime", spec.Respawn)
+            local label = U.label(p, R.Labels[kind], 4)
+            table.insert(self.Nodes, {Part = p, Kind = kind, Label = label})
+        end
+    end
+    return self
+end
+function Map:AddSlot(kind, laneId, pos, initialLevel)
+    local id = string.format("S%02d", #self.Slots + 1)
+    local p = U.part(self.SlotsFolder, id, Vector3.new(7, 0.25, 7), pos + Vector3.new(0, 0.2, 0), Color3.fromRGB(157, 171, 169))
+    p.CFrame = CFrame.lookAt(p.Position, p.Position + self.Lanes[laneId].Dir)
+    p.CanCollide = false
+    p:SetAttribute("SlotId", id)
+    p:SetAttribute("SlotType", kind)
+    p:SetAttribute("LaneId", laneId)
+    table.insert(self.Slots, {Id = id, Kind = kind, LaneId = laneId, Pad = p, InitialLevel = initialLevel})
+    if kind == "PetStand" then U.label(p, "펫 배치대 · E로 배치", 2) end
+end
+return Map
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000034">
+        <Properties>
+          <string name="Name">PetService</string>
+          <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local Http=game:GetService("HttpService")
+local P=require(RS.Shared.Config.PetConfig)
+local G=require(RS.Shared.Config.GameConfig)
+local R=require(RS.Shared.Modules.PetRules)
+local U=require(RS.Shared.Modules.Utility)
+local S={}
+function S:Init(ctx) self.ctx,self.Rosters,self.Teams,self.Active,self.LastAction=ctx,{},{},{},{} end
+function S:Record(player,data,secured)
+    local stats=R.stats(data,P)
+    local rec={Data=data,Owner=player,HP=stats.HP,MaxHP=stats.HP,Secured=secured,Mode="Follow",NextAttack=0,LastCombat=-100}
+    self.Rosters[player][data.Uid]=rec;return rec
+end
+function S:AddPlayer(player)
+    self.Rosters[player],self.Teams[player]={},{}
+    local profile=self.ctx.Data:Get(player)
+    for _,data in pairs(profile.Pets) do self:Record(player,data,true) end
+    if G.ActiveStage&gt;=5 then self:SetTeam(player,profile.Party,true) end
+end
+function S:RemovePlayer(player)
+    for _,rec in pairs(self.Rosters[player] or {}) do self:Unspawn(rec) end
+    self.Rosters[player],self.Teams[player],self.LastAction[player]=nil,nil,nil
+end
+function S:Unspawn(rec)
+    if rec.Part then rec.Part:Destroy();rec.Part=nil end
+    self.Active[rec.Data.Uid]=nil;rec.Stand=nil
+end
+function S:Spawn(rec,index)
+    local root=U.aliveRoot(rec.Owner)
+    local pos=(root and root.Position or self.ctx.Map.Spawn.Position)+Vector3.new(index*3,0,5)
+    local part=U.part(self.ctx.Map.PetsFolder,rec.Data.Uid,Vector3.new(2,2,2),Vector3.new(pos.X,2,pos.Z))
+    part.Transparency,part.CanCollide,part.CanTouch=1,false,false
+    part:SetAttribute("SpeciesId",rec.Data.SpeciesId);part:SetAttribute("OwnerId",rec.Owner.UserId)
+    rec.Part,rec.Index=part,index;self.Active[rec.Data.Uid]=rec
+    rec.Label=U.label(part,"",4)
+end
+function S:SetTeam(player,ids,initial)
+    local roster=self.Rosters[player]; if not roster then return false end
+    ids=R.party(ids,roster,P.ActiveLimit); if not ids then return false end
+    local phase=self.ctx.Clock.Phase
+    if not initial then
+        if phase~="Day" and phase~="Waiting" then self.ctx.Notify(player,"편성은 낮과 출발 대기에 가능합니다.");return false end
+        for _,rec in pairs(roster) do if os.clock()-rec.LastCombat&lt;P.SwapCooldown then self.ctx.Notify(player,"전투가 끝난 뒤 6초 후 교체할 수 있습니다.");return false end end
+    end
+    local occupied=R.count(self.Active)-#(self.Teams[player] or {})
+    if occupied+#ids&gt;P.ServerLimit then return false end
+    for _,rec in pairs(roster) do self:Unspawn(rec) end
+    self.Teams[player]=ids
+    for index,uid in ipairs(ids) do self:Spawn(roster[uid],index) end
+    self.ctx.Data:Mutate(player,function(profile)
+        profile.Party={};for _,uid in ipairs(ids) do if profile.Pets[uid] then table.insert(profile.Party,uid) end end
+    end)
+    return true
+end
+function S:CanCapture(player)
+    local roster=self.Rosters[player]; if not roster then return false end
+    local pending=0;for _,rec in pairs(roster) do if not rec.Secured and not rec.PendingSave then pending=pending+1 end end
+    return pending&lt;P.PendingLimit and R.count(roster)&lt;P.CollectionLimit
+end
+function S:AddCapture(player,wild)
+    if not self:CanCapture(player) then return false end
+    local uid=Http:GenerateGUID(false)
+    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland"}
+    self:Record(player,data,false)
+    if #self.Teams[player]&lt;P.ActiveLimit then
+        -- A catch joins an open slot without dismissing/rehealing existing companions.
+        table.insert(self.Teams[player],uid);self:Spawn(self.Rosters[player][uid],#self.Teams[player])
+    end
+    self.ctx.Data:Mutate(player,function(profile) profile.Tutorial.Captured=true;profile.Dex[wild.SpeciesId]=profile.Dex[wild.SpeciesId] or {Seen=true} end)
+    self:Award(player,P.CaptureXP)
+    return true
+end
+function S:Award(player,amount)
+    if not self.ctx.Data:Ready(player) then return end
+    self.ctx.Data:Mutate(player,function()
+        for _,uid in ipairs(self.Teams[player] or {}) do
+            local rec=self.Rosters[player][uid];R.addXP(rec.Data,amount,P)
+            local stats=R.stats(rec.Data,P);rec.MaxHP=stats.HP
+        end
+    end)
+end
+function S:Saved(player,snapshot)
+    for uid,rec in pairs(self.Rosters[player] or {}) do
+        if rec.PendingSave and snapshot.Pets[uid] then
+            rec.PendingSave,rec.Secured=false,true
+            self.ctx.Notify(player,"영구 확정: "..P.Species[rec.Data.SpeciesId].Name..(self.ctx.Data.Memory and " (연습 모드)" or ""))
+            self.ctx.PetFX:FireClient(player,"Secured")
+        end
+    end
+end
+function S:NightSurvived(night,cleared)
+    for player in pairs(self.ctx.Run.Participants) do
+        local key=self.ctx.SessionId..":"..self.ctx.Run.RoundId..":"..night
+        local profile=self.ctx.Data:Get(player)
+        if profile and not profile.Receipts[key] then
+            local granted=self.ctx.Data:Mutate(player,function(data)
+                data.Receipts[key]=true
+                -- Bound receipt history. Same run has only three nightly receipts.
+                local keys={};for k in pairs(data.Receipts) do table.insert(keys,k) end
+                if #keys&gt;60 then for _,k in ipairs(keys) do if k~=key then data.Receipts[k]=nil;break end end end
+                for uid,rec in pairs(self.Rosters[player] or {}) do
+                    if rec.Registered and not rec.Secured and not rec.PendingSave then
+                        data.Pets[uid]=rec.Data;rec.PendingSave=true
+                        data.Dex[rec.Data.SpeciesId]={Seen=true,Caught=true}
+                    end
+                    rec.HP,rec.RecoverAt=rec.MaxHP,nil
+                end
+                data.Party={};for _,uid in ipairs(self.Teams[player] or {}) do if data.Pets[uid] then table.insert(data.Party,uid) end end
+                data.Coins=data.Coins+P.NightCoins+(cleared and P.ClearCoins or 0)
+                data.Stats.NightsSurvived=data.Stats.NightsSurvived+1
+                if cleared then data.Stats.Clears=data.Stats.Clears+1;data.ClearedRegions.Grassland=true;data.UnlockedRegions.Swamp=true end
+                data.Tutorial.Survived=true
+            end)
+            if granted then self:Award(player,P.NightXP);self.ctx.Data:Save(player) end
+        end
+    end
+end
+function S:Reset()
+    for player,roster in pairs(self.Rosters) do
+        local selected={}
+        for _,uid in ipairs(self.Teams[player]) do
+            local rec=roster[uid];if rec and (rec.Secured or rec.PendingSave) then table.insert(selected,uid) end
+        end
+        for uid,rec in pairs(roster) do
+            self:Unspawn(rec)
+            if not rec.Secured and not rec.PendingSave then roster[uid]=nil else rec.HP,rec.Mode,rec.Target,rec.RecoverAt=rec.MaxHP,"Follow",nil,nil end
+        end
+        self:SetTeam(player,selected,true)
+    end
+end
+function S:Command(player,command,target)
+    for _,uid in ipairs(self.Teams[player] or {}) do
+        local rec=self.Rosters[player][uid]
+        rec.Mode,rec.Target,rec.Stand=command,target,nil
+        if command=="Guard" or command=="Stay" then rec.Guard=rec.Part.Position end
+    end
+end
+function S:Action(player,action,value)
+    if G.ActiveStage&lt;5 or not self.ctx.Data:Ready(player) or not self.ctx.Run:IsParticipant(player) then return end
+    if type(action)~="string" or os.clock()-(self.LastAction[player] or -100)&lt;0.25 then return end
+    self.LastAction[player]=os.clock()
+    local roster,profile=self.Rosters[player],self.ctx.Data:Get(player)
+    if action=="Toggle" and type(value)=="string" and roster[value] then
+        local ids=R.copy(self.Teams[player]);local found=table.find(ids,value)
+        if found then table.remove(ids,found) else table.insert(ids,value) end
+        self:SetTeam(player,ids)
+    elseif action=="Favorite" and type(value)=="string" and roster[value] then
+        self.ctx.Data:Mutate(player,function() roster[value].Data.Favorite=not roster[value].Data.Favorite end)
+    elseif action=="Best" then
+        local choices={};for uid,rec in pairs(roster) do table.insert(choices,{Uid=uid,Score=R.stats(rec.Data,P).Damage/P.Species[rec.Data.SpeciesId].Interval}) end
+        table.sort(choices,function(a,b) return a.Score&gt;b.Score end)
+        local ids={};for i=1,math.min(P.ActiveLimit,#choices) do ids[i]=choices[i].Uid end
+        self:SetTeam(player,ids)
+    elseif (action=="SaveTeam" or action=="LoadTeam") and type(value)=="number" and value%1==0 and value&gt;=1 and value&lt;=3 then
+        local slot=tostring(value)
+        if action=="SaveTeam" then
+            self.ctx.Data:Mutate(player,function(data) data.Loadouts[slot]=R.copy(data.Party) end)
+            self.ctx.Notify(player,"팀 "..slot.." 저장 · 영구 펫만 포함됩니다.")
+        elseif profile.Loadouts[slot] then self:SetTeam(player,profile.Loadouts[slot]) end
+    elseif action=="Follow" or action=="Stay" or action=="Guard" then self:Command(player,action)
+    elseif action=="Focus" and type(value)=="string" then
+        local wild=self.ctx.Capture.Wild[value]
+        if wild and self.ctx.Clock.Phase=="Day" and U.near(player,wild.Part.Position,80) and self.ctx.Capture:CanFight(player,wild) then self:Command(player,"Focus",value) end
+    elseif action=="Register" and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) then
+        local n=0;for _,rec in pairs(roster) do if not rec.Secured and not rec.PendingSave then rec.Registered=true;n=n+1 end end
+        self.ctx.Notify(player,n.."마리 등록 · 다음 밤을 버티면 저장됩니다.")
+    elseif action=="Heal" and type(value)=="string" and roster[value] then
+        local rec=roster[value]
+        if rec.HP&gt;0 and rec.HP&lt;rec.MaxHP and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
+    end
+end
+function S:Damage(rec,amount)
+    if not rec.Part or rec.HP&lt;=0 then return end
+    rec.HP=math.max(0,rec.HP-amount);rec.LastCombat=os.clock()
+    if rec.HP==0 then rec.RecoverAt=os.clock()+P.DayRecovery;rec.Target=nil end
+end
+function S:Nearest(position,range)
+    local best,distance=nil,range
+    for _,rec in pairs(self.Active) do
+        local d=(rec.Part.Position-position).Magnitude
+        if rec.HP&gt;0 and self.ctx.Data:Ready(rec.Owner) and d&lt;distance then best,distance=rec,d end
+    end
+    return best
+end
+function S:Move(rec,goal,dt)
+    local delta=U.flat(goal-rec.Part.Position)
+    if delta.Magnitude&gt;1 then
+        local pos=rec.Part.Position+delta.Unit*math.min(delta.Magnitude,P.FollowSpeed*dt)
+        -- Companions float over prototype barriers; no per-pet pathfinding jobs.
+        rec.Part.CFrame=CFrame.lookAt(Vector3.new(pos.X,goal.Y,pos.Z),Vector3.new(pos.X,goal.Y,pos.Z)+delta.Unit)
+    end
+end
+function S:Tick(dt)
+    if G.ActiveStage&lt;5 then return end
+    local phase=self.ctx.Clock.Phase
+    for _,rec in pairs(self.Active) do
+        if self.ctx.Data:Ready(rec.Owner) then
+            local root=U.aliveRoot(rec.Owner)
+            local spec,stats=P.Species[rec.Data.SpeciesId],R.stats(rec.Data,P)
+            if rec.HP&lt;=0 and phase=="Day" and os.clock()&gt;=(rec.RecoverAt or math.huge) then rec.HP,rec.RecoverAt=rec.MaxHP,nil end
+            local target,isWild=nil,false
+            if rec.HP&gt;0 and rec.Mode~="Stay" then
+                if phase=="Day" and rec.Mode=="Focus" then
+                    local wild=self.ctx.Capture.Wild[rec.Target]
+                    if wild and wild.HP/wild.MaxHP&gt;P.CaptureHP and self.ctx.Capture:CanFight(rec.Owner,wild) then target,isWild=wild,true end
+                elseif phase=="Night" then target=self.ctx.Enemies:Nearest(rec.Part.Position,math.max(P.Aggro,stats.Range),true) end
+            end
+            if root and (rec.Part.Position-root.Position).Magnitude&gt;P.Leash and rec.Mode~="Guard" and rec.Mode~="Stay" then
+                rec.Part.Position=Vector3.new(root.Position.X+rec.Index*3,2,root.Position.Z+5);target=nil
+            end
+            if not root then
+                rec.Mode,rec.Target,rec.Stand="Follow",nil,nil
+                self:Move(rec,self.ctx.Map.Spawn.Position+Vector3.new(rec.Index*3,1,5),dt)
+            elseif rec.HP&gt;0 then
+                local range=stats.Range*(rec.Stand and P.StandRange or 1)
+                if target then
+                    local pos=target.Part.Position
+                    if (pos-rec.Part.Position).Magnitude&lt;=range then
+                        if os.clock()&gt;=rec.NextAttack then
+                            rec.NextAttack,rec.LastCombat=os.clock()+spec.Interval,os.clock()
+                            rec.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
+                            self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos)
+                            local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)
+                            if isWild then self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element),rec.Owner)
+                            else
+                                self.ctx.Enemies:Damage(target,damage)
+                                if spec.Splash then
+                                    local targets={};for _,enemy in pairs(self.ctx.Enemies.Units) do if enemy~=target and (enemy.Part.Position-pos).Magnitude&lt;spec.Splash then table.insert(targets,enemy) end end
+                                    for _,enemy in ipairs(targets) do self.ctx.Enemies:Damage(enemy,damage*0.45) end
+                                end
+                            end
+                        end
+                    elseif rec.Mode~="Guard" then self:Move(rec,Vector3.new(pos.X,2,pos.Z),dt) end
+                elseif rec.Mode=="Follow" or rec.Mode=="Focus" then
+                    local goal=root.Position+root.CFrame.RightVector*((rec.Index-2)*4)-root.CFrame.LookVector*5
+                    self:Move(rec,Vector3.new(goal.X,2,goal.Z),dt)
+                end
+            end
+            rec.Part:SetAttribute("Fainted",rec.HP&lt;=0)
+            rec.Label.Text=string.format("%s Lv%d  %d/%d",spec.Name,stats.Level,math.ceil(rec.HP),rec.MaxHP)
+        end
+    end
+end
+function S:AssignStand(player,slot)
+    local phase=self.ctx.Clock.Phase
+    if phase~="Day" and phase~="Night" and phase~="Waiting" then return end
+    if os.clock()-(self.LastAction[player] or -100)&lt;0.35 then return end
+    self.LastAction[player]=os.clock()
+    if not self.ctx.Data:Ready(player) or not U.near(player,slot.Pad.Position,G.InteractionRange) then return end
+    for _,other in pairs(self.Active) do if other.Stand==slot.Id then self.ctx.Notify(player,"이미 펫이 지키고 있습니다.");return end end
+    for _,uid in ipairs(self.Teams[player] or {}) do
+        local rec=self.Rosters[player][uid]
+        if rec.HP&gt;0 and not rec.Stand then
+            rec.Mode,rec.Stand,rec.Target="Guard",slot.Id,nil
+            rec.Part.Position=slot.Pad.Position+Vector3.new(0,3,0)
+            self.ctx.Notify(player,"배치 완료 · 공격력/사거리 보정");return
+        end
+    end
+end
+function S:Snapshot(player)
+    local list={}
+    for uid,rec in pairs(self.Rosters[player] or {}) do
+        list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
+            Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
+            Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode}
+    end
+    table.sort(list,function(a,b) if a.Active~=b.Active then return a.Active end;if a.Favorite~=b.Favorite then return a.Favorite end;return a.Uid&lt;b.Uid end)
+    return list
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000035">
+        <Properties>
+          <string name="Name">ResourceService</string>
+          <ProtectedString name="Source">local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local Rules = require(RS.Shared.Modules.Rules)
+local C = require(RS.Shared.Config.GameConfig)
+local R = require(RS.Shared.Config.ResourceConfig)
+local S = {}
+function S:Empty()
+    local result = {}
+    for _, kind in ipairs(R.Order) do result[kind] = 0 end
+    return result
+end
+function S:Init(ctx)
+    self.ctx, self.Bags, self.Bank, self.Drops = ctx, {}, self:Empty(), {}
+    self:Reset()
+end
+function S:AddPlayer(player) self.Bags[player] = self:Empty() end
+function S:RemovePlayer(player) self.Bags[player] = nil end
+function S:Reset()
+    self.Bank = self:Empty()
+    self.Drops = {}
+    self.ctx.Map.DropsFolder:ClearAllChildren()
+    for player in pairs(self.Bags) do self.Bags[player] = self:Empty() end
+    for _, node in ipairs(self.ctx.Map.Nodes) do
+        node.HP, node.RespawnAt = R.Types[node.Kind].HP, nil
+        self:ShowNode(node, true)
+    end
+end
+function S:ShowNode(node, visible)
+    node.Part.Transparency, node.Part.CanCollide = visible and 0 or 1, visible
+    node.Part.CanQuery, node.Label.Parent.Enabled = visible, visible
+    node.Part:SetAttribute("CurrentHealth", node.HP)
+    node.Label.Text = string.format("%s  %d", R.Labels[node.Kind], node.HP)
+end
+function S:Drop(kind, amount, position)
+    if amount &lt;= 0 or #self.Drops &gt;= C.DropLimit then return end
+    local p = U.part(self.ctx.Map.DropsFolder, kind, Vector3.new(1.4, 1.4, 1.4), Vector3.new(position.X, 1.1, position.Z), U.color(R.Types[kind].Color))
+    p.CanCollide, p.CanQuery, p.Material = false, false, Enum.Material.Neon
+    table.insert(self.Drops, {Part = p, Kind = kind, Amount = amount, Expires = os.clock() + C.DropLifetime})
+end
+function S:Harvest(player, node)
+    if node.HP &lt;= 0 or not U.near(player, node.Part.Position, C.SpearRange) then return end
+    node.HP = math.max(0, node.HP - C.HarvestDamage)
+    self:ShowNode(node, node.HP &gt; 0)
+    if node.HP == 0 then
+        node.RespawnAt = os.clock() + R.Types[node.Kind].Respawn
+        for n = 1, 2 do
+            local amount = n == 1 and math.ceil(R.Types[node.Kind].Yield / 2) or math.floor(R.Types[node.Kind].Yield / 2)
+            self:Drop(node.Kind, amount, node.Part.Position + Vector3.new(n * 2 - 3, 0, 2))
+        end
+    end
+end
+function S:OnDeath(player, position)
+    local bag = self.Bags[player]
+    if not bag then return end
+    for kind, amount in pairs(bag) do
+        local lost = math.floor(amount * C.DeathDropFraction)
+        bag[kind] = amount - lost
+        self:Drop(kind, lost, position)
+    end
+end
+function S:Tick()
+    if C.ActiveStage &lt; 2 then return end
+    local phase = self.ctx.Clock.Phase
+    if phase ~= "Day" and phase ~= "Night" then return end
+    local now = os.clock()
+    for _, node in ipairs(self.ctx.Map.Nodes) do
+        if node.RespawnAt and now &gt;= node.RespawnAt then
+            node.HP, node.RespawnAt = R.Types[node.Kind].HP, nil
+            self:ShowNode(node, true)
+        end
+    end
+    -- No yield between claim and removal: a drop cannot be paid to two players.
+    for i = #self.Drops, 1, -1 do
+        local drop = self.Drops[i]
+        for _, player in ipairs(Players:GetPlayers()) do
+            local bag = self.Bags[player]
+            if bag and U.near(player, drop.Part.Position, C.PickupRadius) then
+                local amount = Rules.pickupAmount(bag, drop.Amount, C.CarryCapacity)
+                bag[drop.Kind], drop.Amount = bag[drop.Kind] + amount, drop.Amount - amount
+                if drop.Amount == 0 then break end
+            end
+        end
+        if drop.Amount == 0 or now &gt;= drop.Expires then drop.Part:Destroy(); table.remove(self.Drops, i) end
+    end
+    for player, bag in pairs(self.Bags) do
+        if U.near(player, self.ctx.Map.Warehouse.Position, C.DepositRadius) then
+            for kind, amount in pairs(bag) do self.Bank[kind], bag[kind] = self.Bank[kind] + amount, 0 end
+        end
+    end
+end
+function S:Spend(cost) return Rules.spend(self.Bank, cost) end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000036">
+        <Properties>
+          <string name="Name">RunService</string>
+          <ProtectedString name="Source">local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local C = require(RS.Shared.Config.GameConfig)
+local S = {}
+function S:Init(ctx)
+    self.ctx, self.Participants, self.StartAt, self.Result, self.RoundId = ctx, {}, nil, nil, 0
+end
+function S:IsParticipant(player) return self.Participants[player] == true end
+function S:Count() local n = 0; for _ in pairs(self.Participants) do n = n + 1 end; return n end
+function S:Join(player)
+    if self.ctx.Clock.Phase ~= "Waiting" or self:Count() &gt;= C.MaxPlayers then
+        player:Kick("이 원정은 이미 시작했거나 인원이 찼습니다. 새 서버에서 시작해 주세요.")
+        return false
+    end
+    self.Participants[player] = true
+    if not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
+    return true
+end
+function S:Leave(player)
+    self.Participants[player] = nil
+    if self:Count() == 0 then
+        if self.ctx.Clock.Phase ~= "Waiting" then self:Reset() else self.StartAt = nil end
+    end
+end
+function S:Change(phase, night, seconds)
+    self.ctx.Clock:Begin(phase, night, seconds)
+    self.ctx.Defenses:RefreshAll()
+end
+function S:Start()
+    if self:Count() == 0 then return end
+    self.RoundId = self.RoundId + 1
+    self.LockedPlayerCount, self.Result, self.Warned = self:Count(), nil, false
+    self:Change("Day", 1, C.FirstDaySeconds)
+    self.ctx.Notify(nil, "원정 시작! 약한 펫 포획 → 우리 등록 → 펫과 함께 밤 방어")
+end
+function S:Finish(won, reason)
+    if self.ctx.Clock.Phase == "Result" or self.ctx.Clock.Phase == "Waiting" then return end
+    self.Result = {Won = won, Reason = reason, Nights = won and C.TargetNights or math.max(0, self.ctx.Clock.Night - 1)}
+    self:Change("Result", self.ctx.Clock.Night, C.ResultSeconds * self.ctx.Clock:Scale())
+    self.ctx.Enemies:Reset()
+    self.ctx.Waves:Reset()
+    self.ctx.Notify(nil, (won and "방어 성공! " or "원정 실패: ") .. reason)
+end
+function S:Reset()
+    self:Change("Waiting", 0, 0)
+    self.ctx.Enemies:Reset()
+    self.ctx.Waves:Reset()
+    self.ctx.Resources:Reset()
+    self.ctx.Defenses:Reset()
+    self.ctx.Core:Reset()
+    if self.ctx.Pets then self.ctx.Pets:Reset() end
+    if self.ctx.Capture then self.ctx.Capture:Reset() end
+    if self.ctx.Crafting then self.ctx.Crafting:Reset() end
+    self.Result, self.Warned = nil, false
+    self.StartAt = self:Count() &gt; 0 and workspace:GetServerTimeNow() + C.StartDelay or nil
+    for player in pairs(self.Participants) do
+        local root, human = U.aliveRoot(player)
+        if root then
+            human.Health = human.MaxHealth
+            player.Character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
+        end
+    end
+end
+function S:Tick()
+    local clock, phase = self.ctx.Clock, self.ctx.Clock.Phase
+    if phase == "Waiting" then
+        if self.StartAt and workspace:GetServerTimeNow() &gt;= self.StartAt then self:Start() end
+    elseif phase == "Day" then
+        if not self.Warned and clock:Remaining() &lt;= C.WarningSeconds / clock:Scale() then
+            self.Warned = true; self.ctx.Notify(nil, "곧 밤입니다! 기지로 돌아오세요")
+        end
+        if clock:Expired() then
+            self:Change("Night", clock.Night, C.NightSeconds)
+            if C.ActiveStage &gt;= 4 then self.ctx.Waves:Start(clock.Night, self.LockedPlayerCount) end
+            self.ctx.Notify(nil, "밤 " .. clock.Night .. " 시작 · 밤에는 수리만 가능합니다")
+        end
+    elseif phase == "Night" then
+        if clock:Expired() or self.ctx.Waves.BossDefeated then
+            if self.ctx.Pets then self.ctx.Pets:NightSurvived(clock.Night, clock.Night &gt;= C.TargetNights) end
+            self.ctx.Enemies:Reset()
+            self.ctx.Waves:Reset()
+            self:Change("Dawn", clock.Night, C.DawnSeconds * clock:Scale())
+            self.ctx.Notify(nil, "밤 생존! 다음 방어를 준비하세요")
+        end
+    elseif phase == "Dawn" and clock:Expired() then
+        if clock.Night &gt;= C.TargetNights then
+            self:Finish(true, C.ActiveStage &gt;= 4 and "초원 3밤 생존" or "단계 테스트 완료 (적 없음)")
+        else
+            self.Warned = false
+            self:Change("Day", clock.Night + 1, C.DaySeconds)
+        end
+    elseif phase == "Result" and clock:Expired() then self:Reset() end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000037">
+        <Properties>
+          <string name="Name">TutorialService</string>
+          <ProtectedString name="Source">local S={}
+function S:Init(ctx) self.ctx=ctx end
+function S:Objective(player)
+    local profile=self.ctx.Data:Get(player);if not profile then return "데이터 불러오는 중" end
+    if self.ctx.Clock.Phase=="Night" then return "펫을 길목에 배치하세요 · 쓰러진 펫은 새벽에 회복됩니다" end
+    if not profile.Tutorial.Captured then return "① 가까운 모슬링 → E 또는 야생 탭 → 약화 후 포획 (첫 모슬링은 성공 보장)" end
+    for _,rec in pairs(self.ctx.Pets.Rosters[player] or {}) do
+        if not rec.Secured and not rec.PendingSave then return rec.Registered and "③ 등록 완료! 밤을 버텨 펫을 영구 확정하세요" or "② 기지의 펫 우리에서 등록하세요 · 원정 실패 전에는 아직 내 펫이 아닙니다" end
+    end
+    if not profile.Tutorial.Survived then return "③ 펫과 시설로 첫날 밤을 버티세요" end
+    return "팀을 편성해 강한 펫에 도전하세요 · 포탑은 고정 방어, 펫은 이동 전력"
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000038">
+        <Properties>
+          <string name="Name">WaveService</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local Rules = require(RS.Shared.Modules.Rules)
+local W = require(RS.Shared.Config.WaveConfig)
+local C = require(RS.Shared.Config.GameConfig)
+local S = {}
+function S:Init(ctx) self.ctx = ctx; self:Reset() end
+function S:Reset() self.Queue, self.Index, self.BossDefeated, self.Spawned = {}, 1, false, 0 end
+function S:Start(night, players)
+    self:Reset()
+    self.Night = night
+    self.Queue = Rules.buildQueue(W.Waves[night], players, W.PerExtraPlayer)
+    self.Interval = math.min(W.SpawnInterval, self.ctx.Clock:Remaining() / (#self.Queue + 1))
+    self.NextSpawn = os.clock()
+end
+function S:Tick()
+    if C.ActiveStage &lt; 4 or self.ctx.Clock.Phase ~= "Night" then return end
+    if os.clock() &lt; (self.NextSpawn or math.huge) then return end
+    local entry = self.Queue[self.Index]
+    if not entry or self.ctx.Enemies:Count() &gt;= C.EnemyLimit then return end
+    local lane = ((self.Index + self.Night - 2) % #self.ctx.Map.Lanes) + 1
+    if self.ctx.Enemies:Spawn(entry.Kind, lane, self.Night, entry.Boss) then
+        self.Index, self.Spawned = self.Index + 1, self.Spawned + 1
+        self.NextSpawn = os.clock() + self.Interval
+    end
+end
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="RBX000039">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <float name="CameraMaxZoomDistance">80</float>
+      <float name="CharacterWalkSpeed">18</float>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="RBX000040">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="RBX000041">
+        <Properties>
+          <string name="Name">ClientMain</string>
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+local remotes = RS:WaitForChild("Remotes")
+for _, name in ipairs({"State", "AttackRequest", "Notice", "FX", "PetAction", "CraftAction", "CaptureAction", "PetFX"}) do remotes:WaitForChild(name) end
+require(script.Parent.Controllers.UIController):Init(remotes)
+require(script.Parent.Controllers.CombatController):Init(remotes)
+require(script.Parent.Controllers.PetController):Init(remotes)
+require(script.Parent.Controllers.PetAnimator):Init()
+require(script.Parent.Controllers.AudioController):Init(remotes)
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="RBX000042">
+        <Properties>
+          <string name="Name">Controllers</string>
+        </Properties>
+        <Item class="ModuleScript" referent="RBX000043">
+          <Properties>
+            <string name="Name">AudioController</string>
+            <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local Players=game:GetService("Players")
+local SoundService=game:GetService("SoundService")
+local Debris=game:GetService("Debris")
+local C=require(RS.Shared.Config.AudioConfig)
+local S={}
+function S:Play(key)
+    if Players.LocalPlayer:GetAttribute("MutePets") then return end
+    local id=C[key];if type(id)~="string" or id=="" then return end
+    local sound=Instance.new("Sound");sound.SoundId=id;sound.Volume=C.Volume;sound.Parent=SoundService
+    sound:Play();Debris:AddItem(sound,10)
+end
+function S:Init(remotes)
+    remotes.PetFX.OnClientEvent:Connect(function(kind) self:Play(kind) end)
+    remotes.State.OnClientEvent:Connect(function(data)
+        if data.Phase=="Night" and self.LastPhase~="Night" then self:Play("Night") end
+        self.LastPhase=data.Phase
+    end)
+end
+return S
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000044">
+          <Properties>
+            <string name="Name">CombatController</string>
+            <ProtectedString name="Source">local CAS = game:GetService("ContextActionService")
+local RS = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local C = require(RS.Shared.Config.GameConfig)
+local Controller = {}
+function Controller:Init(remotes)
+    local last = 0
+    CAS:BindAction("WildholdAttack", function(_, state)
+        if game:GetService("Players").LocalPlayer:GetAttribute("PetMenuOpen") then return Enum.ContextActionResult.Pass end
+        if state == Enum.UserInputState.Begin and os.clock() - last &gt;= C.SpearCooldown then
+            last = os.clock()
+            remotes.AttackRequest:FireServer()
+        end
+        return Enum.ContextActionResult.Sink
+    end, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
+    CAS:SetTitle("WildholdAttack", "공격\n채집")
+    CAS:SetPosition("WildholdAttack", UDim2.new(1, -90, 1, -175))
+    remotes.FX.OnClientEvent:Connect(function(kind, from, to)
+        local distance = (to - from).Magnitude
+        if distance &lt; 0.01 then return end
+        local p = Instance.new("Part")
+        p.Name, p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch = "LocalStrike", true, false, false, false
+        p.Material, p.Size = Enum.Material.Neon, Vector3.new(0.15, 0.15, distance)
+        p.Color = kind == "Arrow" and Color3.fromRGB(252, 216, 125) or Color3.fromRGB(206, 243, 229)
+        p.CFrame, p.Parent = CFrame.lookAt((from + to) / 2, to), workspace
+        Debris:AddItem(p, C.FXLifetime)
+    end)
+end
+return Controller
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000045">
+          <Properties>
+            <string name="Name">PetAnimator</string>
+            <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
+local Engine=game:GetService("RunService")
+local P=require(RS.Shared.Config.PetConfig)
+local S={}
+local function part(parent,name,size,color)
+    local p=Instance.new("Part");p.Name,p.Size,p.Color=name,size,color
+    p.Anchored,p.CanCollide,p.CanTouch,p.CanQuery=true,false,false,false
+    p.Material=Enum.Material.SmoothPlastic;p.Parent=parent;return p
+end
+function S:Init()
+    self.Visuals={}
+    local root=workspace:WaitForChild("WILDHOLD")
+    local function add(anchor)
+        if not anchor:IsA("BasePart") or self.Visuals[anchor] then return end
+        local species=anchor:GetAttribute("SpeciesId")
+        if not species or not P.Species[species] then return end
+        local spec=P.Species[species];local model=Instance.new("Model");model.Name="PetVisual";model.Parent=anchor
+        local scale=species=="Briarhorn" and 1.55 or 1
+        local body=part(model,"Body",Vector3.new(2.7,2.5,3)*scale,Color3.fromRGB(table.unpack(spec.Color)))
+        body.Shape=Enum.PartType.Ball
+        local pieces={{body,CFrame.new()}}
+        for _,side in ipairs({-1,1}) do
+            local eye=part(model,"Eye",Vector3.new(0.5,0.6,0.2)*scale,Color3.fromRGB(248,250,243))
+            local pupil=part(model,"Pupil",Vector3.new(0.23,0.33,0.15)*scale,Color3.fromRGB(25,44,43))
+            pieces[#pieces+1]={eye,CFrame.new(side*0.64*scale,0.3*scale,-1.28*scale)}
+            pieces[#pieces+1]={pupil,CFrame.new(side*0.64*scale,0.3*scale,-1.4*scale)}
+            local ear=part(model,"Ear",Vector3.new(0.65,1.1,0.7)*scale,body.Color)
+            pieces[#pieces+1]={ear,CFrame.new(side*0.85*scale,1.3*scale,0)*CFrame.Angles(0,0,side*0.3)}
+        end
+        if species=="Shellbub" then
+            local shell=part(model,"Shell",Vector3.new(2.6,1.3,2.5),Color3.fromRGB(75,132,152));shell.Shape=Enum.PartType.Ball
+            pieces[#pieces+1]={shell,CFrame.new(0,0.7,0.65)}
+        elseif species=="Briarhorn" then
+            local horn=part(model,"Horn",Vector3.new(0.6,1.8,0.6),Color3.fromRGB(244,226,163));pieces[#pieces+1]={horn,CFrame.new(0,1.9,-0.7)}
+        end
+        self.Visuals[anchor]={Model=model,Pieces=pieces,Pose=anchor.CFrame,Phase=math.random()*6.28}
+    end
+    for _,name in ipairs({"Pets","WildPets"}) do
+        local folder=root:WaitForChild(name)
+        folder.ChildAdded:Connect(function(anchor)
+            add(anchor)
+            if not self.Visuals[anchor] then
+                local connection;connection=anchor:GetAttributeChangedSignal("SpeciesId"):Connect(function() add(anchor);if self.Visuals[anchor] then connection:Disconnect() end end)
+            end
+        end)
+        for _,anchor in ipairs(folder:GetChildren()) do add(anchor) end
+    end
+    Engine.RenderStepped:Connect(function(dt)
+        for anchor,visual in pairs(self.Visuals) do
+            if not anchor.Parent then visual.Model:Destroy();self.Visuals[anchor]=nil
+            else
+                visual.Pose=visual.Pose:Lerp(anchor.CFrame,1-math.exp(-16*dt))
+                local t=workspace:GetServerTimeNow()
+                local faint=anchor:GetAttribute("Fainted")
+                local age=t-(anchor:GetAttribute("AttackAt") or -100)
+                local bounce=math.sin(t*5+visual.Phase)*0.12
+                local pose=visual.Pose*CFrame.new(0,bounce,-(age&gt;=0 and age&lt;0.2 and math.sin(age/0.2*math.pi)*0.7 or 0))
+                if faint then pose=pose*CFrame.Angles(0,0,math.pi/2) end
+                for _,piece in ipairs(visual.Pieces) do piece[1].CFrame=pose*piece[2];piece[1].Transparency=faint and 0.35 or 0 end
+            end
+        end
+    end)
+end
+return S
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000046">
+          <Properties>
+            <string name="Name">PetController</string>
+            <ProtectedString name="Source">local Players=game:GetService("Players")
+local RS=game:GetService("ReplicatedStorage")
+local P=require(RS.Shared.Config.PetConfig)
+local Recipes=require(RS.Shared.Config.RecipeConfig)
+local Controller={}
+local colors={Back=Color3.fromRGB(18,32,32),Card=Color3.fromRGB(38,57,53),Text=Color3.fromRGB(237,245,233),Accent=Color3.fromRGB(151,218,174)}
+local function create(kind,parent,props)
+    local node=Instance.new(kind);for key,value in pairs(props) do node[key]=value end;node.Parent=parent;return node
+end
+local function label(parent,text,pos,size)
+    return create("TextLabel",parent,{Text=text,Position=pos,Size=size,Font=Enum.Font.GothamMedium,TextSize=14,TextColor3=colors.Text,TextWrapped=true,BackgroundTransparency=1})
+end
+local function button(parent,text,pos,size,fn)
+    local node=create("TextButton",parent,{Text=text,Position=pos,Size=size,TextSize=14,Font=Enum.Font.GothamBold,TextColor3=colors.Text,BackgroundColor3=colors.Card,BorderSizePixel=0,AutoButtonColor=true})
+    create("UICorner",node,{CornerRadius=UDim.new(0,9)});node.Activated:Connect(fn);return node
+end
+function Controller:Init(remotes)
+    self.Remotes,self.Tab,self.Filter,self.Rows=remotes,"Pets","",{}
+    local player=Players.LocalPlayer
+    self.Gui=create("ScreenGui",player:WaitForChild("PlayerGui"),{Name="PetBook",ResetOnSpawn=false,DisplayOrder=25})
+    self.OpenButton=button(self.Gui,"펫 / 포획",UDim2.new(0.5,-70,1,-68),UDim2.fromOffset(140,50),function() self:Open("Pets") end)
+    self.Panel=create("Frame",self.Gui,{Name="Panel",Visible=false,AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromScale(0.96,0.92),BackgroundColor3=colors.Back,BorderSizePixel=0})
+    create("UISizeConstraint",self.Panel,{MaxSize=Vector2.new(700,700)})
+    create("UICorner",self.Panel,{CornerRadius=UDim.new(0,16)})
+    self.Status=label(self.Panel,"내 펫",UDim2.fromOffset(12,6),UDim2.new(1,-78,0,48))
+    button(self.Panel,"닫기",UDim2.new(1,-62,0,8),UDim2.fromOffset(54,44),function() self:Close() end)
+    for index,tab in ipairs({{"Pets","내 펫"},{"Wild","야생"},{"Orders","명령"},{"Craft","제작"},{"Dex","도감"}}) do
+        button(self.Panel,tab[2],UDim2.new((index-1)*0.2,4,0,60),UDim2.new(0.2,-8,0,44),function() self.Tab=tab[1];self:Render() end)
+    end
+    self.Search=create("TextBox",self.Panel,{PlaceholderText="이름 / 역할 / 속성 검색",Text="",ClearTextOnFocus=false,Position=UDim2.new(0,8,0,112),Size=UDim2.new(1,-100,0,44),BackgroundColor3=colors.Card,TextColor3=colors.Text,TextSize=14,Font=Enum.Font.GothamMedium})
+    self.Search:GetPropertyChangedSignal("Text"):Connect(function() self.Filter=string.lower(self.Search.Text);self:Render() end)
+    self.FavButton=button(self.Panel,"즐겨찾기",UDim2.new(1,-86,0,112),UDim2.fromOffset(78,44),function() self.Favorites=not self.Favorites;self:Render() end)
+    self.Scroll=create("ScrollingFrame",self.Panel,{Position=UDim2.fromOffset(8,164),Size=UDim2.new(1,-16,1,-220),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=5,CanvasSize=UDim2.fromOffset(0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y})
+    create("UIListLayout",self.Scroll,{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder})
+    self.Footer=label(self.Panel,"",UDim2.new(0,8,1,-50),UDim2.new(1,-16,0,44))
+    remotes.State.OnClientEvent:Connect(function(data)
+        self.Data=data;self.OpenButton.Visible=data.Stage&gt;=5
+        if not self.Capturing then
+            local short={Practice="연습 모드",Saved="저장 완료",Unsaved="저장 대기",Saving="저장 중",Retrying="저장 재시도"}
+            self.OpenButton.Text="펫 / 포획\n"..(short[data.SaveStatus] or "연결 중")
+        end
+        if self.Panel.Visible then self:Refresh() end
+    end)
+    remotes.PetFX.OnClientEvent:Connect(function(kind,name,seconds)
+        if kind=="OpenCraft" then self:Open("Craft")
+        elseif kind=="Shake" then
+            self:Close();self.Capturing=true;self.OpenButton.Text="포획 중…"
+            self:CaptureCard(name,seconds)
+            task.delay((seconds or 2.4)+0.5,function() self.Capturing=false;self.OpenButton.Text="펫 / 포획" end)
+        elseif kind=="Capture" then self:Open("Pets");self.Footer.Text="포획 성공! "..(name or "").." · 우리에 등록하세요" end
+    end)
+end
+function Controller:CaptureCard(name,seconds)
+    if self.CaptureOverlay then self.CaptureOverlay:Destroy() end
+    local overlay=create("Frame",self.Gui,{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.45),Size=UDim2.new(0.72,0,0,170),BackgroundColor3=colors.Back,BorderSizePixel=0})
+    create("UISizeConstraint",overlay,{MaxSize=Vector2.new(360,170)})
+    create("UICorner",overlay,{CornerRadius=UDim.new(0,18)})
+    label(overlay,name or "야생 펫",UDim2.fromOffset(8,8),UDim2.new(1,-16,0,35))
+    local icon=label(overlay,"◇",UDim2.new(0.5,-28,0,48),UDim2.fromOffset(56,56));icon.TextSize=46;icon.TextColor3=colors.Accent
+    local progress=label(overlay,"포획 중 ·",UDim2.new(0,8,1,-50),UDim2.new(1,-16,0,40))
+    self.CaptureOverlay=overlay
+    task.spawn(function()
+        local duration=seconds or 2.4
+        for i=1,3 do
+            if not overlay.Parent then return end
+            progress.Text="포획 중 "..string.rep("●",i)..string.rep("○",3-i)
+            local tween=game:GetService("TweenService"):Create(icon,TweenInfo.new(0.12,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,2,true),{Rotation=i%2==0 and -18 or 18})
+            tween:Play();task.wait(duration/3)
+        end
+        if overlay.Parent then overlay:Destroy() end
+    end)
+end
+function Controller:Open(tab)
+    self.Tab=tab or self.Tab;self.Panel.Visible=true
+    Players.LocalPlayer:SetAttribute("PetMenuOpen",true);self:Render()
+end
+function Controller:Close() self.Panel.Visible=false;Players.LocalPlayer:SetAttribute("PetMenuOpen",false) end
+function Controller:Send(action,value) self.Remotes.PetAction:FireServer(action,value) end
+function Controller:Row(height)
+    return create("Frame",self.Scroll,{Size=UDim2.new(1,-5,0,height or 120),BackgroundColor3=colors.Card,BorderSizePixel=0,LayoutOrder=#self.Rows+1})
+end
+function Controller:Render()
+    if not self.Scroll or not self.Data then return end
+    for _,child in ipairs(self.Scroll:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
+    self.Rows={}
+    local searching=self.Tab=="Pets"
+    self.Search.Visible,self.FavButton.Visible=searching,searching
+    self.Scroll.Position=UDim2.fromOffset(8,searching and 164 or 112)
+    self.Scroll.Size=UDim2.new(1,-16,1,searching and -220 or -168)
+    local d=self.Data
+    if self.Tab=="Pets" then
+        for _,pet in ipairs(d.Pets or {}) do
+            local spec=P.Species[pet.SpeciesId]
+            if (not self.Favorites or pet.Favorite) and string.find(string.lower(spec.Name..spec.Role..spec.Element),self.Filter,1,true) then
+                local row=self:Row(146)
+                local info=label(row,"",UDim2.fromOffset(8,4),UDim2.new(1,-16,0,86))
+                local toggle=button(row,pet.Active and "편성 해제" or "편성",UDim2.new(0,6,1,-50),UDim2.new(0.36,-8,0,44),function() self:Send("Toggle",pet.Uid) end)
+                button(row,pet.Favorite and "★ 해제" or "☆ 즐겨찾기",UDim2.new(0.36,2,1,-50),UDim2.new(0.34,-6,0,44),function() self:Send("Favorite",pet.Uid) end)
+                button(row,"간식 회복",UDim2.new(0.70,2,1,-50),UDim2.new(0.30,-8,0,44),function() self:Send("Heal",pet.Uid) end)
+                self.Rows[#self.Rows+1]={Key=pet.Uid,Info=info,Toggle=toggle}
+            end
+        end
+    elseif self.Tab=="Wild" then
+        for _,wild in ipairs(d.Wild or {}) do
+            local spec=P.Species[wild.SpeciesId]
+            local row=self:Row(146)
+            local info=label(row,"",UDim2.fromOffset(6,3),UDim2.new(1,-12,0,88))
+            button(row,"팀으로 약화",UDim2.new(0,6,1,-50),UDim2.new(0.34,-8,0,44),function() self:Send("Focus",wild.Id);self:Close() end)
+            button(row,"일반 덫",UDim2.new(0.34,2,1,-50),UDim2.new(0.30,-6,0,44),function() self.Remotes.CaptureAction:FireServer(wild.Id,"Trap",false) end)
+            button(row,"강화+먹이",UDim2.new(0.64,2,1,-50),UDim2.new(0.36,-8,0,44),function() self.Remotes.CaptureAction:FireServer(wild.Id,"BetterTrap",true) end)
+            self.Rows[#self.Rows+1]={Key=wild.Id,Info=info}
+        end
+    elseif self.Tab=="Orders" then
+        local actions={{"Follow","전원 따라와"},{"Stay","전원 대기"},{"Guard","현재 자리 방어"},{"Best","공격력 순 자동 편성"},{"Register","우리에서 일괄 등록"}}
+        for _,a in ipairs(actions) do
+            local row=self:Row(52);button(row,a[2],UDim2.fromOffset(4,4),UDim2.new(1,-8,0,44),function() self:Send(a[1]) end)
+            self.Rows[#self.Rows+1]={}
+        end
+        for i=1,3 do
+            local row=self:Row(52)
+            button(row,"팀 "..i.." 저장",UDim2.fromOffset(4,4),UDim2.new(0.5,-8,0,44),function() self:Send("SaveTeam",i) end)
+            button(row,"팀 "..i.." 불러오기",UDim2.new(0.5,4,0,4),UDim2.new(0.5,-8,0,44),function() self:Send("LoadTeam",i) end)
+            self.Rows[#self.Rows+1]={}
+        end
+        local row=self:Row(52);button(row,"효과음 켜기 / 끄기",UDim2.fromOffset(4,4),UDim2.new(1,-8,0,44),function() Players.LocalPlayer:SetAttribute("MutePets",not Players.LocalPlayer:GetAttribute("MutePets")) end)
+        self.Rows[#self.Rows+1]={}
+    elseif self.Tab=="Craft" then
+        for _,id in ipairs(Recipes.Order) do
+            local spec=Recipes.Recipes[id];local cost={}
+            for material,amount in pairs(spec.Cost) do cost[#cost+1]=material.." "..amount end
+            local row=self:Row(104);local info=label(row,"",UDim2.fromOffset(6,2),UDim2.new(1,-12,0,48))
+            button(row,"제작",UDim2.new(0,6,1,-50),UDim2.new(1,-12,0,44),function() self.Remotes.CraftAction:FireServer(id) end)
+            self.Rows[#self.Rows+1]={Key=id,Info=info,Cost=table.concat(cost," + ")}
+        end
+    elseif self.Tab=="Dex" then
+        for _,id in ipairs(P.Order) do
+            local spec=P.Species[id];local row=self:Row(100)
+            local entry=d.Dex[id];local state=entry and entry.Caught and "수집 완료" or (entry and entry.Seen and "발견 · 미확정" or "미수집")
+            label(row,spec.Name.." · "..spec.Element.." · "..spec.Role.."\n"..state.."\n기본 HP "..spec.HP.." / 공격 "..spec.Damage,UDim2.fromOffset(6,4),UDim2.new(1,-12,1,-8))
+            self.Rows[#self.Rows+1]={}
+        end
+    end
+    if #self.Rows==0 then local row=self:Row(90);label(row,"표시할 펫이 없습니다.\n야생 펫은 가까이 이동하면 보입니다.",UDim2.fromOffset(4,4),UDim2.new(1,-8,1,-8)) end
+    self.Structure=self:Signature();self:Refresh(true)
+end
+function Controller:Signature()
+    local pieces={self.Tab}
+    if self.Tab=="Pets" then
+        for _,pet in ipairs(self.Data.Pets or {}) do pieces[#pieces+1]=pet.Uid..tostring(pet.Active)..tostring(pet.Favorite)..pet.Status end
+    elseif self.Tab=="Wild" then
+        local ids={};for _,wild in ipairs(self.Data.Wild or {}) do ids[#ids+1]=wild.Id end;table.sort(ids)
+        for _,id in ipairs(ids) do pieces[#pieces+1]=id end
+    elseif self.Tab=="Dex" then for _,id in ipairs(P.Order) do local e=self.Data.Dex[id];pieces[#pieces+1]=id..tostring(e and e.Caught)..tostring(e and e.Seen) end end
+    return table.concat(pieces,"|")
+end
+function Controller:Refresh(skip)
+    if not skip and self.Structure~=self:Signature() then self:Render();return end
+    local d=self.Data;local equipped=0
+    for _,pet in ipairs(d.Pets or {}) do if pet.Active then equipped=equipped+1 end end
+    local status={Practice="연습 · 영구 저장 안 됨",Saved="저장 완료",Unsaved="저장 대기",Saving="저장 중",Retrying="저장 재시도",LockLost="연결 종료"}
+    self.Status.Text=string.format("펫 %d/3 · 코인 %d\n%s",equipped,d.Coins or 0,status[d.SaveStatus] or "연결 중")
+    for _,row in ipairs(self.Rows) do
+        if row.Info and self.Tab=="Pets" then
+            for _,pet in ipairs(d.Pets) do if pet.Uid==row.Key then
+                local spec=P.Species[pet.SpeciesId]
+                row.Info.Text=string.format("%s · %s / %s\nLv%d (초원 적용 %d) · HP %d/%d\n%s · %s",spec.Name,spec.Element,spec.Role,pet.Level,pet.EffectiveLevel,pet.HP,pet.MaxHP,pet.Status,pet.HP==0 and "쓰러짐" or pet.Mode)
+            end end
+        elseif row.Info and self.Tab=="Wild" then
+            for _,wild in ipairs(d.Wild) do if wild.Id==row.Key then
+                row.Info.Text=string.format("%s Lv%d · %dm · HP %d/%d\n%s\n일반 %.0f%% / 강화+먹이 %.0f%%",P.Species[wild.SpeciesId].Name,wild.Level,wild.Distance,wild.HP,wild.MaxHP,
+                    wild.Busy and "포획 진행 중" or (not wild.CanClaim and (wild.Owner.."의 포획 우선권") or (wild.Ready and "포획 가능 · 16m 이내 접근" or "HP 25% 이하로 약화하세요")),wild.Ready and wild.Chance*100 or 0,wild.Ready and wild.BetterChance*100 or 0)
+            end end
+        elseif row.Info and self.Tab=="Craft" then row.Info.Text=Recipes.Recipes[row.Key].Name.." · 보유 "..tostring((d.Items or {})[row.Key] or 0).."\n"..row.Cost end
+    end
+    local items=d.Items or {}
+    self.Footer.Text=string.format("덫 %d · 강화 %d · 먹이 %d · 간식 %d\n%s",items.Trap or 0,items.BetterTrap or 0,items.Bait or 0,items.Snack or 0,self.Tab=="Craft" and "낮 · 기지 제작대에서 제작" or "미확정 펫: 우리 등록 + 밤 생존 필요")
+end
+return Controller
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000047">
+          <Properties>
+            <string name="Name">UIController</string>
+            <ProtectedString name="Source">local Players = game:GetService("Players")
+local Engine = game:GetService("RunService")
+local RS = game:GetService("ReplicatedStorage")
+local C = require(RS.Shared.Config.GameConfig)
+local R = require(RS.Shared.Config.ResourceConfig)
+local UI = {}
+local ink, muted = Color3.fromRGB(238, 243, 238), Color3.fromRGB(174, 193, 184)
+local function frame(parent, name, size, position, anchor)
+    local p = Instance.new("Frame")
+    p.Name, p.Size, p.Position, p.AnchorPoint = name, size, position, anchor or Vector2.new()
+    p.BackgroundColor3, p.BackgroundTransparency, p.BorderSizePixel = Color3.fromRGB(21, 35, 34), 0.08, 0
+    p.Parent = parent
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius, corner.Parent = UDim.new(0, 12), p
+    return p
+end
+local function text(parent, size, position, value, fontSize, color)
+    local p = Instance.new("TextLabel")
+    p.Size, p.Position, p.Text = size, position, value
+    p.BackgroundTransparency, p.Font, p.TextSize = 1, Enum.Font.GothamMedium, fontSize or 16
+    p.TextColor3, p.TextWrapped, p.Parent = color or ink, true, parent
+    return p
+end
+function UI:Init(remotes)
+    local gui = Instance.new("ScreenGui")
+    gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "WildholdHUD", false, 10
+    gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local header = frame(gui, "Run", UDim2.new(0.92, 0, 0, 94), UDim2.new(0.5, 0, 0, 8), Vector2.new(0.5, 0))
+    local cap = Instance.new("UISizeConstraint")
+    cap.MaxSize, cap.Parent = Vector2.new(620, 94), header
+    self.Title = text(header, UDim2.new(1, -20, 0, 25), UDim2.fromOffset(10, 8), "WILDHOLD · 서버 연결 중", 18)
+    self.Core = text(header, UDim2.new(1, -20, 0, 22), UDim2.fromOffset(10, 36), "CORE", 14, muted)
+    local bar = frame(header, "CoreBar", UDim2.new(1, -28, 0, 8), UDim2.fromOffset(14, 67))
+    bar.BackgroundColor3 = Color3.fromRGB(61, 74, 73)
+    self.Bar = frame(bar, "Fill", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0))
+    self.Bar.BackgroundColor3 = Color3.fromRGB(126, 221, 176)
+    self.Objective = text(gui, UDim2.new(0.92, 0, 0, 44), UDim2.new(0.04, 0, 0, 109), "맵을 준비하고 있습니다", 16)
+    self.Toast = text(gui, UDim2.new(0.92, 0, 0, 45), UDim2.new(0.04, 0, 0, 155), "", 16, Color3.fromRGB(250, 214, 134))
+    local bag = frame(gui, "Resources", UDim2.new(0.72, 0, 0, 70), UDim2.new(0.5, 0, 1, -82), Vector2.new(0.5, 1))
+    local bcap = Instance.new("UISizeConstraint")
+    bcap.MaxSize, bcap.Parent = Vector2.new(620, 70), bag
+    self.Bag = text(bag, UDim2.new(1, -12, 0, 28), UDim2.fromOffset(6, 4), "", 12)
+    self.Bank = text(bag, UDim2.new(1, -12, 0, 28), UDim2.fromOffset(6, 34), "", 12, muted)
+    self.ResultFrame = frame(gui, "Result", UDim2.new(0.86, 0, 0, 210), UDim2.fromScale(0.5, 0.49), Vector2.new(0.5, 0.5))
+    local rcap = Instance.new("UISizeConstraint")
+    rcap.MaxSize, rcap.Parent = Vector2.new(470, 210), self.ResultFrame
+    self.ResultTitle = text(self.ResultFrame, UDim2.new(1, -32, 0, 42), UDim2.fromOffset(16, 20), "", 28)
+    self.ResultBody = text(self.ResultFrame, UDim2.new(1, -32, 0, 115), UDim2.fromOffset(16, 73), "", 16, muted)
+    self.ResultFrame.Visible = false
+    remotes.State.OnClientEvent:Connect(function(data) self.Data = data; self:Update() end)
+    remotes.Notice.OnClientEvent:Connect(function(message)
+        self.Toast.Text, self.ToastUntil = message, os.clock() + 4
+    end)
+    local elapsed = 0
+    Engine.RenderStepped:Connect(function(dt)
+        elapsed = elapsed + dt
+        if elapsed &gt;= 0.1 then
+            elapsed = 0
+            if self.Data then self:UpdateTimer() end
+            if self.ToastUntil and os.clock() &gt; self.ToastUntil then self.Toast.Text = "" end
+        end
+    end)
+end
+function UI:ResourceText(wallet)
+    local parts, total = {}, 0
+    for _, kind in ipairs(R.Order) do
+        local value = wallet and wallet[kind] or 0
+        total = total + value
+        table.insert(parts, R.Labels[kind] .. " " .. value)
+    end
+    return table.concat(parts, "  "), total
+end
+function UI:UpdateTimer()
+    local d = self.Data
+    local remaining = math.max(0, math.ceil(d.EndsAt - workspace:GetServerTimeNow()))
+    local clock = string.format("%02d:%02d", math.floor(remaining / 60), remaining % 60)
+    local phases = {Waiting = "출발 대기", Day = "낮", Night = "밤", Dawn = "새벽", Result = "결과"}
+    self.Title.Text = string.format("WILDHOLD  ·  %s %d/%d  ·  %s", phases[d.Phase] or d.Phase, d.Night, d.Target, clock)
+    if d.Phase == "Result" and d.Result then
+        self.ResultBody.Text = string.format("%s\n생존한 밤 %d · 함께한 인원 %d\n%d초 뒤 새 원정 준비\n이 빌드의 자원·시설은 판마다 초기화됩니다.", d.Result.Reason, d.Result.Nights, d.Players, remaining)
+    end
+end
+function UI:Update()
+    local d = self.Data
+    self.Core.Text = string.format("CORE  %d / %d    ·    적 %d    ·    등장 %d/%d", d.CoreHP, d.CoreMaxHP, d.Enemies, d.Spawned, d.Total)
+    self.Bar.Size = UDim2.fromScale(math.clamp(d.CoreHP / d.CoreMaxHP, 0, 1), 1)
+    local bag, total = self:ResourceText(d.Bag)
+    self.Bag.Text = string.format("소지 %d/%d  |  %s", total, C.CarryCapacity, bag)
+    self.Bank.Text = "공용  |  " .. self:ResourceText(d.Bank)
+    if d.Phase == "Waiting" then self.Objective.Text = "출발 대기 · " .. d.Players .. "명 · 시작 후에는 새로 합류할 수 없습니다"
+    elseif d.Phase == "Day" then
+        if d.Stage == 1 then self.Objective.Text = "1단계 · 맵과 낮/밤 전환을 확인하세요"
+        elseif total &gt;= C.CarryCapacity then self.Objective.Text = "가방이 가득 찼습니다! 기지 창고 근처로 이동하세요"
+        elseif d.Stage == 2 then self.Objective.Text = "채집 노드 근처에서 공격 → 드랍 밟기 → 창고 입금"
+        else self.Objective.Text = "창으로 채집 → 창고 자동 입금 → 빈 자리에 건설 · E / 수리 R" end
+    elseif d.Phase == "Night" then self.Objective.Text = "CORE를 지키세요! 공격: 클릭 / F / 터치 · 수리 비용 2배"
+    elseif d.Phase == "Dawn" then self.Objective.Text = "밤 생존! 다음 방어를 준비하세요"
+    else self.Objective.Text = "원정 종료 · 잠시 뒤 같은 팀으로 다시 시작합니다" end
+    self.ResultFrame.Visible = d.Result ~= nil
+    if d.Result then self.ResultTitle.Text = d.Result.Won and "방어 성공" or "원정 실패" end
+    if d.Objective and d.Phase ~= "Result" then self.Objective.Text = d.Objective end
+    self:UpdateTimer()
+end
+return UI
+</ProtectedString>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterGui" referent="RBX000048">
+    <Properties>
+      <string name="Name">StarterGui</string>
+    </Properties>
+  </Item>
+  <Item class="StarterPack" referent="RBX000049">
+    <Properties>
+      <string name="Name">StarterPack</string>
+    </Properties>
+  </Item>
+</roblox>

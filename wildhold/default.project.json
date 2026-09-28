@@ -1,0 +1,20 @@
+{
+  "name": "WILDHOLD",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" },
+      "PetModels": { "$className": "Folder" }
+    },
+    "ServerScriptService": {
+      "ServerMain": { "$path": "src/server/ServerMain.server.lua" },
+      "Services": { "$path": "src/server/Services" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "ClientMain": { "$path": "src/client/ClientMain.client.lua" },
+        "Controllers": { "$path": "src/client/Controllers" }
+      }
+    }
+  }
+}
