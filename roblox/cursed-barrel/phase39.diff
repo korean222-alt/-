@@ -1,0 +1,781 @@
+diff -ru a/ReplicatedStorage.CursedBarrel.Shared.GameConfig.1319.ModuleScript.lua b/ReplicatedStorage.CursedBarrel.Shared.GameConfig.1319.ModuleScript.lua
+--- a/ReplicatedStorage.CursedBarrel.Shared.GameConfig.1319.ModuleScript.lua	2026-09-28 02:34:47.423868035 +0000
++++ b/ReplicatedStorage.CursedBarrel.Shared.GameConfig.1319.ModuleScript.lua	2026-09-28 03:59:24.732511500 +0000
+@@ -295,8 +295,8 @@
+ --------------------------------------------------
+ GameConfig.Timing = {
+ 	StartingDuration = 1.6,
+-	ResultHold = 2.2,
+-	RoundEndDuration = 5,
++	ResultHold = 1.6, -- Phase 39 : 2.2 → 1.6 (안전한 자리를 뽑은 뒤 다음 차례까지. 기다리는 시간이 대부분이었다)
++	RoundEndDuration = 3.5, -- Phase 39 : 5 → 3.5 (판이 끝나고 다음 판 대기로 돌아가기까지)
+ 	ResetDuration = 0.6,
+ }
+ 
+@@ -407,7 +407,7 @@
+ 	MaxLatency = 0.25, -- 지연 보정 상한. 이보다 큰 차이는 조작으로 본다.
+ 	LatencySlack = 0.08, -- Phase 24 : 서버가 잰 그 사람의 지연(왕복의 절반)에 더해 주는 여유(휴대폰 전파 흔들림 · 화면 한 프레임). 보정은 (지연 + 여유)와 MaxLatency 중 작은 값까지만
+ 	Timeout = 2.2, -- 창이 열리고 이 시간이 지나면 서버가 실패로 확정한다
+-	Hold = 1.6, -- 결과를 보여주고 다음 턴으로 넘어가기까지
++	Hold = 1.2, -- 결과를 보여주고 다음 턴으로 넘어가기까지 · Phase 39 : 1.6 → 1.2
+ 	PerfectAccuracy = 0.72, -- 이 정확도 이상이면 "완벽한 잡기"
+ 
+ 	-- Phase 5 에서는 "잡으면 통을 다시 채우지 않는다" 였다.
+@@ -1103,19 +1103,19 @@
+ --   자리가 다 차면 FullCountdown 초 뒤 바로 시작. 연습 판은 예전처럼 바로 시작한다.
+ GameConfig.Lobby = {
+ 	HostStart = true,
+-	WaitForHost = 30,
+-	FullCountdown = 5,
++	WaitForHost = 12, -- Phase 39 : 30 → 12 (방장이 시작을 안 누르면 30초 동안 아무것도 못 했다)
++	FullCountdown = 3, -- Phase 39 : 5 → 3
+ 	HostCountdown = 3,
+ }
+ 
+ GameConfig.Bots = {
+ 	Enabled = true,
+-	FillDelay = 10, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다 (Phase 24 : 4초 → 10초. 사람이 모일 틈을 준다)
++	FillDelay = 3, -- 혼자 앉은 뒤 이만큼 기다려도 아무도 안 오면 AI 가 앉는다 (Phase 24 : 4초 → 10초 · Phase 39 : 10 → 3. 동접이 적어 사람을 기다리는 10초가 그냥 빈 시간이었다)
+ 	TargetSeated = 0, -- Phase 24 : 0 = 테이블 크기에 맞춘다 (좌석 수 - KeepFreeSeats). 숫자를 넣으면 그 인원까지만 (예전 3)
+ 	KeepFreeSeats = 0, -- Phase 24 : 0 = 꽉 채운다 (4인 → 사람 1 + AI 3). 사람이 "앉기"를 누르면 AI 가 비켜 준다
+ 	RewardScale = 0.6,
+-	ThinkMin = 1.1, -- 자기 차례에 고르기까지 걸리는 시간
+-	ThinkMax = 2.8,
++	ThinkMin = 0.7, -- 자기 차례에 고르기까지 걸리는 시간 · Phase 39 : 1.1 → 0.7
++	ThinkMax = 1.6, -- Phase 39 : 2.8 → 1.6 (AI 차례는 구경할 것이 없다)
+ 	-- 성격. skill 이 높을수록 해적을 잘 잡고, brave 가 높을수록 "한 번 더"를 자주 누른다.
+ 	Crew = {
+ 		{ name = "뼈다귀 잭", skill = 0.45, brave = 0.25, color = Color3.fromRGB(226, 222, 206) },
+@@ -1563,6 +1563,34 @@
+ 	SpectateRange = 26,
+ }
+ 
++--------------------------------------------------
++-- Phase 39 : 첫 방문 (필수 튜토리얼 대신 바로 진짜 판)
++--   · 처음 온 사람(판 수 0)은 자료를 읽고 캐릭터가 서면 곧바로 가장 가까운 작은 테이블에 앉힌다.
++--     사람이 기다리는 테이블이 있으면 그쪽을 먼저 (사람끼리가 더 재미있다). 없으면 빈 2인 테이블 + AI 한 명.
++--   · 처음 SimpleGames 판 동안은
++--       - 해적은 보통 · 쌍둥이만 나온다 (해골 유령 · 갈고리 · 욕심쟁이 · 분노는 그다음 판부터)
++--       - 운명 카드를 뽑지 않는다 (읽을 것을 줄인다)
++--       - 상점 · 퀘스트 · 방해 · 출석 · 룰렛 · 코드 버튼을 숨긴다 (항해 수첩 · 설정만)
++--       - 내 차례마다 "칼 버튼 아무거나" 안내를 띄운다
++--------------------------------------------------
++GameConfig.Onboarding = {
++	AutoSeat = true,
++	SeatAfter = 1.0, -- 캐릭터가 선 뒤 이만큼(초) 있다가 앉힌다 (스폰 직후 물리가 자리 잡을 틈)
++	RetryEvery = 2, -- 앉힐 테이블을 못 찾으면 이 간격으로 다시 찾는다
++	GiveUpAfter = 20, -- 이만큼 못 찾으면 그만둔다 (스스로 아무 테이블에나 앉으면 된다)
++	SimpleGames = 2,
++	SimpleKindStage = 2, -- 처음 판에는 이 라운드까지 풀린 종류만 (보통 = 1 · 쌍둥이 = 2)
++}
++
++-- Phase 39 : 처음 몇 판(Onboarding.SimpleGames)을 하는 중인가. player 는 Player (AI 는 false)
++function GameConfig.isBeginner(player)
++	if typeof(player) ~= "Instance" or not player:IsA("Player") then
++		return false -- AI 선원(표)이나 빈 값
++	end
++	local games = tonumber(player:GetAttribute(GameConfig.PlayerAttributes.Games)) or 0
++	return games < (tonumber(GameConfig.Onboarding.SimpleGames) or 0)
++end
++
+ GameConfig.Tutorial = {
+ 	Enabled = true,
+ 	WindowScale = 1.6, -- 연습 판에서 처음 온 사람의 잡기 창 배율
+@@ -1573,7 +1601,11 @@
+ 	--   · 놓치거나 먼저 눌러도 탈락하지 않고 같은 해적이 다시 나온다 (다만 아무것도 안 누르고 MaxIdleMisses 번 놓치면 끝낸다)
+ 	--   · 해적이 나오기 전에 무엇을 어떻게 누르는지 설명 카드를 IntroLead 초 동안 보여 준다.
+ 	--   · 모두 잡으면 AI 는 배에서 뛰어내리고(승리) Reward 코인을 준다.
+-	Mandatory = true,
++	-- ★ Phase 39 : 필수 튜토리얼을 없앤다. 평균 플레이 2.5분 = 대부분 튜토리얼을 하다가 진짜 판을 한 번도 못 해 보고 나갔다.
++	--   처음 온 사람은 OnboardingService 가 곧바로 진짜 판(AI 가 채워 주는 2인 테이블)에 앉힌다 (GameConfig.Onboarding).
++	--   해적 종류는 처음 만날 때 설명 카드(PirateKinds.FirstSightLead)와 신입 보호(Catch.RookieGames)가 가르친다.
++	--   「튜토리얼 다시 하기」(항해 수첩)는 원하는 사람만 하는 연습 판으로 남긴다.
++	Mandatory = false,
+ 	-- Phase 38.3 : 다섯 종류 → 셋 (보통 · 쌍둥이 · 해골 유령). "길고 어렵다"며 중간에 나가는 사람이 많았다.
+ 	--   갈고리 · 욕심쟁이는 실제 판에서 처음 만날 때 설명 카드가 뜨고 늦게 나온다 (FirstSightLead) · 신입 보호도 있다.
+ 	Kinds = { "normal", "twin", "skull" },
+@@ -1681,7 +1713,7 @@
+ --------------------------------------------------
+ GameConfig.FateCards = {
+ 	Enabled = true,
+-	RevealTime = 3.4, -- Phase 32.1 : 2.6 → 3.4 (타로 카드를 읽을 시간) -- 카드를 뒤집어 보여 주는 동안 다음 차례를 기다린다
++	RevealTime = 2.4, -- Phase 39 : 3.4 → 2.4 · Phase 32.1 : 2.6 → 3.4 (타로 카드를 읽을 시간) -- 카드를 뒤집어 보여 주는 동안 다음 차례를 기다린다
+ 	List = {
+ 		{ id = "gold", name = "황금 통", text = "현상금 2배 · 해적 +1", weight = 12, pot = 2, pirates = 1, color = Color3.fromRGB(255, 206, 80) },
+ 		{ id = "sleepy", name = "졸린 해적", text = "잡는 시간이 넉넉해요 (+30%)", weight = 12, window = 1.3, gentle = true, color = Color3.fromRGB(150, 200, 255) },
+diff -ru a/ReplicatedStorage.CursedBarrel.Shared.LocaleData.1330.ModuleScript.lua b/ReplicatedStorage.CursedBarrel.Shared.LocaleData.1330.ModuleScript.lua
+--- a/ReplicatedStorage.CursedBarrel.Shared.LocaleData.1330.ModuleScript.lua	2026-09-28 02:34:47.425281410 +0000
++++ b/ReplicatedStorage.CursedBarrel.Shared.LocaleData.1330.ModuleScript.lua	2026-09-28 04:04:05.888100249 +0000
+@@ -1101,4 +1101,7 @@
+  [ [=[잡는 시간 -5% · 현상금 1.5배]=] ] = [=[Catch time -5% · Bounty x1.5]=],
+  [ [=[고르는 시간 -%d%%]=] ] = [=[Pick time -%d%%]=],
+  [ [=[고르는 시간 -10%]=] ] = [=[Pick time -10%]=],
++ -- Phase 39 : 필수 튜토리얼 대신 바로 시작
++ [ [=[바로 시작!]=] ] = [=[Play now!]=],
++ [ [=[3. 처음 보는 해적은 잡는 법을 알려 줘요]=] ] = [=[3. New pirate types show you how to catch them]=],
+ }
+diff -ru a/ReplicatedStorage.CursedBarrel.Shared.ReleaseConfig.1337.ModuleScript.lua b/ReplicatedStorage.CursedBarrel.Shared.ReleaseConfig.1337.ModuleScript.lua
+--- a/ReplicatedStorage.CursedBarrel.Shared.ReleaseConfig.1337.ModuleScript.lua	2026-09-28 02:34:47.426237712 +0000
++++ b/ReplicatedStorage.CursedBarrel.Shared.ReleaseConfig.1337.ModuleScript.lua	2026-09-28 04:04:26.023742416 +0000
+@@ -1,6 +1,6 @@
+ -- Release configuration. IDs are deliberately zero until the owner creates assets.
+ local C = {}
+-C.Version = "38.3.0" -- Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
++C.Version = "39.0.0" -- Phase 39 : 필수 튜토리얼 없음 · 바로 진짜 판. Phase 32 : 분석 이벤트(CustomField02)에 실린다. 고치기 전 · 뒤를 나눠 볼 수 있다
+ 
+ --------------------------------------------------
+ -- Phase 17 : 출시에 필요한 ID 는 전부 이 파일에 적는다 (숫자만)
+diff -ru a/ServerScriptService.CursedBarrel.Main.1412.Script.lua b/ServerScriptService.CursedBarrel.Main.1412.Script.lua
+--- a/ServerScriptService.CursedBarrel.Main.1412.Script.lua	2026-09-28 02:34:47.431681165 +0000
++++ b/ServerScriptService.CursedBarrel.Main.1412.Script.lua	2026-09-28 04:04:26.028405708 +0000
+@@ -92,7 +92,7 @@
+ TournamentService:Start()
+ RewardService:Start()
+ RescueService:Start()
+-require(Services.OnboardingService):Start() -- Phase 32 : 필수 튜토리얼 (처음 온 사람을 연습 테이블에 앉힌다)
++require(Services.OnboardingService):Start() -- Phase 39 : 처음 온 사람을 곧바로 진짜 판(AI 가 채워 주는 작은 테이블)에 앉힌다
+ 
+ -- Phase 24 : 출시 전 점검 — ReleaseConfig 에 아직 0 으로 남은 ID 를 출력창에 모아 적는다.
+ do
+diff -ru a/ServerScriptService.CursedBarrel.Services.BotService.1400.ModuleScript.lua b/ServerScriptService.CursedBarrel.Services.BotService.1400.ModuleScript.lua
+--- a/ServerScriptService.CursedBarrel.Services.BotService.1400.ModuleScript.lua	2026-09-28 02:34:47.430187219 +0000
++++ b/ServerScriptService.CursedBarrel.Services.BotService.1400.ModuleScript.lua	2026-09-28 04:01:43.058353857 +0000
+@@ -545,6 +545,13 @@
+ 	return true, "연습 판에 앉았습니다. 곧 AI 선원이 옵니다"
+ end
+ 
++-- Phase 39 : 처음 온 사람을 빈 테이블에 바로 앉혔다 → AI 가 FillDelay 를 기다리지 않고 다음 판단(1초 안)에 앉는다
++function BotService:FillSoon(gameTable)
++	if gameTable and not gameTable.destroyed then
++		self._waitingSince[gameTable] = os.clock() - 1000
++	end
++end
++
+ -- 테스트 · 디버그용
+ BotService.Bot = Bot
+ 
+diff -ru a/ServerScriptService.CursedBarrel.Services.OnboardingService.1410.ModuleScript.lua b/ServerScriptService.CursedBarrel.Services.OnboardingService.1410.ModuleScript.lua
+--- a/ServerScriptService.CursedBarrel.Services.OnboardingService.1410.ModuleScript.lua	2026-09-28 02:34:47.431537127 +0000
++++ b/ServerScriptService.CursedBarrel.Services.OnboardingService.1410.ModuleScript.lua	2026-09-28 04:01:32.347045750 +0000
+@@ -1,13 +1,20 @@
+ --[[
+-	OnboardingService  (Phase 32)
+-	필수 튜토리얼 : 처음 온 사람을 AI 선원과 함께 연습 테이블에 앉힌다.
++	OnboardingService  (Phase 32 · Phase 39)
+ 
+-	· 자료를 다 읽고 캐릭터가 서 있으면, 빈 연습 테이블(BotService:SeatForPractice)에 앉힌다.
+-	· 튜토리얼 판(RoundService)에서는 해적 종류를 하나씩 모두 잡아 봐야 끝난다. 끝나면 TutorialDone.
+-	· 튜토리얼을 마치기 전에는 다른 테이블에 앉을 수 없다 (GameTable 이 되돌린다).
+-	· 중간에 일어나면 잠시 뒤 다시 앉힌다 (자리 비움이면 기다린다).
+-	· 빈 연습 테이블을 GiveUpAfter 초 동안 못 찾으면 필수를 풀어 준다 (TutorialFree). 신입 보호는 그대로 받는다.
+-	· 화면(TutorialController)은 player 의 TutorialActive · TutorialStep(테이블) 을 보고 안내를 그린다.
++	★ Phase 39 : 필수 튜토리얼을 없애고 "들어오면 바로 진짜 판"으로 바꾼다.
++	  평균 플레이 2.5분 · 1일 유지율 7% 였다. 대부분 환영 창(최대 15초) → 필수 튜토리얼(해적 세 종류)을 하다가
++	  진짜 판을 한 번도 못 해 보고 나갔다. 해적 종류는 처음 만날 때 설명 카드와 신입 보호가 이미 가르친다.
++
++	· 처음 온 사람(판 수 0)은 자료를 다 읽고 캐릭터가 서면 곧바로 테이블에 앉힌다 (GameConfig.Onboarding).
++	    1) 사람이 기다리는 작은 테이블(4인 이하)이 있으면 그쪽 (AI 가 앉은 자리는 AI 가 비켜 준다)
++	    2) 없으면 가장 가까운 빈 2인 테이블 → AI 한 명이 곧바로 앉고 3초 뒤 시작
++	· 스스로 먼저 앉았거나 GiveUpAfter 초 동안 자리를 못 찾으면 그만둔다 (억지로 다시 앉히지 않는다)
++	· 첫 테이블에 앉으면 TutorialDone 으로 적는다 (예전 안내 창 · 출석판 자동 열기가 이것을 기다린다)
++	· 「튜토리얼 다시 하기」(항해 수첩)는 BotService:SeatForPractice 그대로 · 원하는 사람만 한다.
++
++	분석
++	  온보딩 단계 : 1 Joined · 2 FirstSeated · 3 FirstPirate · 4 FirstCatch · 5 FirstGameFinished · 6 SecondGameFinished
++	  맞춤 이벤트 "FirstGameQuit" : 첫 판을 끝내기 전에 나갔다. 값 = 들어온 뒤 몇 초 · 필드1 = never_seated / seated
+ ]]
+ 
+ local Players = game:GetService("Players")
+@@ -19,53 +26,117 @@
+ 
+ local TableService = require(script.Parent.TableService)
+ local BotService = require(script.Parent.BotService)
++local ProfileService = require(script.Parent.ProfileService)
+ 
+-local TUTORIAL = GameConfig.Tutorial
++local ONBOARD = GameConfig.Onboarding or {}
+ local TABLE_ATTR = GameConfig.TableAttributes
++local PLAYER_ATTR = GameConfig.PlayerAttributes
+ 
+ local OnboardingService = {}
+ OnboardingService._started = false
+ OnboardingService._running = {} -- [Player] = true
+-OnboardingService._joinedAt = {} -- Phase 38.5 : [Player] = 들어온 시각 (os.clock)
++OnboardingService._joinedAt = {} -- [Player] = 들어온 시각 (os.clock)
++OnboardingService._seatedOnce = {} -- [Player] = true (첫 판 테이블에 한 번이라도 앉았다)
+ 
+--- Phase 38.5 : 튜토리얼을 마치기 전에 나간 사람이 어디에 있었나
+---   welcome  : 환영 창 (아직 앉기 전)
+---   finding  : 연습 테이블을 찾는 중 (어디에도 안 앉음)
+---   starting : 연습 테이블에 앉아 판이 시작되기를 기다리는 중
+---   playing  : 튜토리얼 판 진행 중 (step · kind 로 몇 번째 해적이었는지)
+-local function quitPhase(player)
+-	if player:GetAttribute("TutorialWelcome") == true then
+-		return "welcome", 0, ""
++-- 아직 한 판도 끝내지 않은 사람인가
++local function isNew(player)
++	return (tonumber(player:GetAttribute(PLAYER_ATTR.Games)) or 0) == 0
++end
++
++-- 이 테이블에 이 사람을 앉힐 자리 (빈 의자 → 없으면 AI 가 앉은 의자). 없으면 nil
++local function seatFor(gameTable)
++	local free = gameTable:GetFreeSeats()
++	if #free > 0 then
++		return free[1], nil
++	end
++	for _, seat in ipairs(gameTable:GetSeats()) do
++		local occupant = gameTable:GetPlayerOfSeat(seat)
++		if occupant and GameConfig.isBot(occupant) and seat.Occupant == nil then
++			return seat, occupant
++		end
+ 	end
++	return nil, nil
++end
++
++-- 앉힐 테이블 고르기 : 사람이 기다리는 작은 테이블 → 작은 테이블 → 가까운 테이블
++function OnboardingService:_pickTable(player, root)
++	local best, bestScore = nil, math.huge
+ 	for _, gameTable in ipairs(TableService:GetAllTables()) do
++		local config = gameTable.config or {}
+ 		local model = gameTable.model
+-		if model and model:GetAttribute(TABLE_ATTR.Tutorial) == player.UserId then
+-			local step = tonumber(model:GetAttribute("TutorialStep")) or 0
+-			if step <= 0 then
+-				return "starting", 0, ""
++		local tutorialId = model and model:GetAttribute(TABLE_ATTR.Tutorial) or 0
++		local blocked = gameTable._seatBlockReason and gameTable:_seatBlockReason(player)
++		if not gameTable.destroyed and model and not config.NoBots and not config.Tournament
++			and (tutorialId == nil or tutorialId == 0) and not blocked and gameTable:IsJoinable() then
++			local seats = #gameTable:GetSeats()
++			local humans = gameTable:GetHumanCount()
++			local seat = seatFor(gameTable)
++			-- 빈 테이블은 나 + AI 한 명 자리가 있어야 한다. 사람이 있는 테이블은 한 자리면 된다 (AI 가 비켜 준다)
++			local fits = seat ~= nil and (humans > 0 or #gameTable:GetFreeSeats() >= 2)
++			if fits then
++				local distance = (seat.Position - root.Position).Magnitude
++				local score = seats * 1000 + math.min(distance, 999)
++				if humans > 0 and seats <= 4 then
++					score -= 2500 -- 사람끼리가 더 재미있다
++				end
++				if score < bestScore then
++					best, bestScore = gameTable, score
++				end
+ 			end
+-			return "playing", step, tostring((TUTORIAL.Kinds or {})[step] or "")
+ 		end
+ 	end
+-	return "finding", 0, ""
++	return best
+ end
+ 
+--- 분석 이벤트 "TutorialQuit" : 값 = 들어온 뒤 몇 초 만에 나갔나 · 필드1 = 어디서 · 필드2 = 몇 단계 · 필드3 = 해적 종류
+-local function logQuit(player, seconds)
+-	local phase, step, kind = quitPhase(player)
+-	local analytics = game:GetService("AnalyticsService")
+-	local K = Enum.AnalyticsCustomFieldKeys
+-	pcall(analytics.LogCustomEvent, analytics, player, "TutorialQuit", seconds, {
+-		[K.CustomField01.Name] = phase,
+-		[K.CustomField02.Name] = tostring(step),
+-		[K.CustomField03.Name] = kind,
+-	})
+-	GameConfig.log(("%s : 튜토리얼 도중 나감 (%s · %d단계 %s · %d초)"):format(player.Name, phase, step, kind, seconds))
++-- 이 테이블에 앉힌다. 참가가 등록되면 true
++function OnboardingService:_seatAt(player, gameTable, humanoid)
++	local seat, bot = seatFor(gameTable)
++	if not seat then
++		return false
++	end
++	if bot then
++		gameTable:RemovePlayer(bot) -- RosterChanged → BotService 가 몸을 치운다
++		if gameTable:GetPlayerOfSeat(seat) or seat.Disabled then
++			return false
++		end
++	end
++	if player:GetAttribute("AFK") == true then
++		player:SetAttribute("AFK", false)
++	end
++	humanoid.RootPart.CFrame = seat.CFrame * CFrame.new(0, 3, 0)
++	seat:Sit(humanoid)
++	local deadline = os.clock() + 1.5
++	while os.clock() < deadline and not gameTable:HasPlayer(player) do
++		task.wait(0.1)
++	end
++	if not gameTable:HasPlayer(player) then
++		return false
++	end
++	-- 혼자 앉았으면 AI 가 FillDelay 를 기다리지 않고 곧바로 온다
++	if gameTable:GetHumanCount() == 1 then
++		BotService:FillSoon(gameTable)
++	end
++	GameConfig.log(("%s : 첫 방문 → %s 에 바로 앉힘"):format(player.Name, tostring(gameTable.tableId)))
++	return true
+ end
+ 
+-local function onTutorialTable(player)
+-	local gameTable = TableService:GetTableOfPlayer(player)
+-	return gameTable ~= nil and gameTable.model ~= nil and gameTable.model:GetAttribute(TABLE_ATTR.Tutorial) == player.UserId, gameTable
++-- 지금 한 번 앉혀 본다 (자동 · 안내 창의 「바로 시작!」). 성공하면 true, 실패하면 false 와 까닭
++function OnboardingService:SeatNow(player)
++	if TableService:GetTableOfPlayer(player) then
++		return false, "이미 테이블에 앉아 있습니다"
++	end
++	local humanoid = Utility.getHumanoid(player)
++	if not humanoid or not humanoid.RootPart or humanoid.Health <= 0 or humanoid.SeatPart then
++		return false, "캐릭터가 준비되면 다시 눌러 주세요"
++	end
++	local gameTable = self:_pickTable(player, humanoid.RootPart)
++	if not gameTable then
++		return false, "빈 테이블이 없습니다. 잠시 뒤 다시 눌러 주세요"
++	end
++	if not self:_seatAt(player, gameTable, humanoid) then
++		return false, "자리에 앉지 못했어요. 다시 눌러 주세요"
++	end
++	return true, nil
+ end
+ 
+ function OnboardingService:_run(player)
+@@ -77,56 +148,59 @@
+ 	while player.Parent == Players and player:GetAttribute("ProfileLoaded") ~= true do
+ 		task.wait(0.5)
+ 	end
+-	if player.Parent ~= Players or player:GetAttribute("TutorialDone") == true then
++	if player.Parent ~= Players or not isNew(player) then
+ 		self._running[player] = nil
+ 		return
+ 	end
+-	player:SetAttribute("TutorialActive", true)
+-	local lookingSince = os.clock()
+-	local retry = math.max(1, tonumber(TUTORIAL.SeatRetry) or 3)
+-	local giveUp = tonumber(TUTORIAL.GiveUpAfter) or 45
+-	-- Phase 32.1 : 들어오자마자 앉히지 않는다. 환영 창(TutorialController)에서 「튜토리얼 시작」을 누르거나
+-	--   WelcomeWait 초가 지나거나, 스스로 다른 테이블에 앉으려 하면(= 놀 준비가 됐다) 시작한다.
+-	player:SetAttribute("TutorialWelcome", true)
+-	local welcomeUntil = os.clock() + (tonumber(TUTORIAL.WelcomeWait) or 30)
+-	while player.Parent == Players and os.clock() < welcomeUntil and player:GetAttribute("TutorialGo") ~= true do
+-		local blocked = tostring(player:GetAttribute("SeatBlocked") or "")
+-		if blocked:sub(1, 8) == "tutorial" then
+-			break
++	local seatAfter = tonumber(ONBOARD.SeatAfter) or 1
++	local retry = math.max(0.5, tonumber(ONBOARD.RetryEvery) or 2)
++	local giveUpAt = os.clock() + (tonumber(ONBOARD.GiveUpAfter) or 20)
++	local standingSince = nil
++	local nextTry = 0
++	while player.Parent == Players and os.clock() < giveUpAt do
++		if TableService:GetTableOfPlayer(player) then
++			break -- 앉았다 (스스로 앉았거나 「바로 시작!」)
++		end
++		local humanoid = Utility.getHumanoid(player)
++		if humanoid and humanoid.RootPart and humanoid.Health > 0 and not humanoid.SeatPart and player:GetAttribute("AFK") ~= true then
++			standingSince = standingSince or os.clock()
++			if os.clock() - standingSince >= seatAfter and os.clock() >= nextTry then
++				nextTry = os.clock() + retry
++				local ok = self:SeatNow(player)
++				if ok then
++					break
++				end
++			end
++		else
++			standingSince = nil
+ 		end
+ 		task.wait(0.25)
+ 	end
+-	if player.Parent ~= Players then
+-		self._running[player] = nil
++	self._running[player] = nil
++end
++
++-- 첫 판 테이블에 앉았다 (자동이든 스스로든) → 첫 방문 흐름 2단계 · 예전 안내 창을 닫는다
++function OnboardingService:_onSeated(player)
++	if GameConfig.isBot(player) or player.Parent ~= Players or not isNew(player) then
+ 		return
+ 	end
+-	player:SetAttribute("TutorialWelcome", nil)
+-	lookingSince = os.clock()
+-	while player.Parent == Players and player:GetAttribute("TutorialDone") ~= true do
+-		local seatedTutorial, seatedTable = onTutorialTable(player)
+-		if seatedTutorial then
+-			lookingSince = os.clock()
+-		elseif not seatedTable and player:GetAttribute("AFK") ~= true then
+-			local humanoid = Utility.getHumanoid(player)
+-			if humanoid and humanoid.RootPart and humanoid.Health > 0 and not humanoid.SeatPart then
+-				local ok = BotService:SeatForPractice(player)
+-				if ok then
+-					lookingSince = os.clock()
+-				end
++	self._seatedOnce[player] = true
++	ProfileService:MarkTutorialDone(player)
++	ProfileService:Funnel(player, 2, "FirstSeated")
++end
++
++function OnboardingService:_watchTable(gameTable)
++	local connection = gameTable.RosterChanged:Connect(function(_, who, joined)
++		if joined then
++			local ok, err = pcall(self._onSeated, self, who)
++			if not ok then
++				warn("[CursedBarrel] 첫 방문 처리 오류: " .. tostring(err))
+ 			end
+ 		end
+-		if not seatedTutorial and os.clock() - lookingSince > giveUp then
+-			-- 빈 연습 테이블을 끝내 못 찾았다. 필수를 풀어 준다 (다른 사람들과 바로 놀 수 있게)
+-			player:SetAttribute("TutorialFree", true)
+-			GameConfig.log(("%s : 연습 테이블을 찾지 못해 튜토리얼 필수를 풉니다"):format(player.Name))
+-			break
+-		end
+-		task.wait(retry)
+-	end
+-	if player.Parent == Players then
+-		player:SetAttribute("TutorialActive", nil)
++	end)
++	if gameTable.cleaner then
++		gameTable.cleaner:add(connection)
+ 	end
+-	self._running[player] = nil
+ end
+ 
+ function OnboardingService:Start()
+@@ -134,16 +208,24 @@
+ 		return
+ 	end
+ 	self._started = true
+-	if not (TUTORIAL and TUTORIAL.Enabled and TUTORIAL.Mandatory) then
+-		return
++
++	TableService.TableAdded:Connect(function(gameTable)
++		self:_watchTable(gameTable)
++	end)
++	for _, gameTable in ipairs(TableService:GetAllTables()) do
++		self:_watchTable(gameTable)
+ 	end
++
+ 	local function begin(player)
+ 		self._joinedAt[player] = self._joinedAt[player] or os.clock()
++		if not ONBOARD.AutoSeat then
++			return
++		end
+ 		task.spawn(function()
+ 			local ok, err = pcall(self._run, self, player)
+ 			if not ok then
+ 				self._running[player] = nil
+-				warn("[CursedBarrel] 튜토리얼 안내 오류: " .. tostring(err))
++				warn("[CursedBarrel] 첫 방문 자리 안내 오류: " .. tostring(err))
+ 			end
+ 		end)
+ 	end
+@@ -154,14 +236,23 @@
+ 	Players.PlayerRemoving:Connect(function(player)
+ 		self._running[player] = nil
+ 		local joinedAt = self._joinedAt[player]
++		local seatedOnce = self._seatedOnce[player]
+ 		self._joinedAt[player] = nil
+-		-- Phase 38.5 : 튜토리얼을 마치기 전에 나갔다 → 어디서 나갔는지 남긴다 (Creator Dashboard 의 맞춤 이벤트)
+-		if joinedAt and player:GetAttribute("ProfileLoaded") == true and player:GetAttribute("TutorialDone") ~= true
+-			and player:GetAttribute("TutorialFree") ~= true then
+-			pcall(logQuit, player, math.floor(os.clock() - joinedAt))
++		self._seatedOnce[player] = nil
++		-- 첫 판을 끝내기 전에 나갔다 → 앉아 보기라도 했는지 남긴다 (Creator Dashboard 의 맞춤 이벤트)
++		if joinedAt and player:GetAttribute("ProfileLoaded") == true and isNew(player) then
++			local seconds = math.floor(os.clock() - joinedAt)
++			pcall(function()
++				local analytics = game:GetService("AnalyticsService")
++				local K = Enum.AnalyticsCustomFieldKeys
++				analytics:LogCustomEvent(player, "FirstGameQuit", seconds, {
++					[K.CustomField01.Name] = seatedOnce and "seated" or "never_seated",
++				})
++			end)
++			GameConfig.log(("%s : 첫 판을 끝내기 전에 나감 (%s · %d초)"):format(player.Name, seatedOnce and "앉음" or "못 앉음", seconds))
+ 		end
+ 	end)
+-	GameConfig.log("OnboardingService 시작 완료 (필수 튜토리얼)")
++	GameConfig.log("OnboardingService 시작 완료 (바로 진짜 판)")
+ end
+ 
+ return OnboardingService
+diff -ru a/ServerScriptService.CursedBarrel.Services.ProfileService.1394.ModuleScript.lua b/ServerScriptService.CursedBarrel.Services.ProfileService.1394.ModuleScript.lua
+--- a/ServerScriptService.CursedBarrel.Services.ProfileService.1394.ModuleScript.lua	2026-09-28 02:34:47.429630212 +0000
++++ b/ServerScriptService.CursedBarrel.Services.ProfileService.1394.ModuleScript.lua	2026-09-28 04:03:19.967897503 +0000
+@@ -781,6 +781,7 @@
+ 
+ -- Phase 32 : 첫 방문 흐름 (AnalyticsService 온보딩 단계). 한 사람에게 단계마다 한 번, 앞 단계보다 뒤일 때만 보낸다.
+ --   1 Joined · 2 TutorialStarted · 3 FirstPirate · 4 TutorialDone · 5 FirstGameFinished · 6 SecondGameFinished
++--   ★ Phase 39 (필수 튜토리얼 없음) : 1 Joined · 2 FirstSeated · 3 FirstPirate · 4 FirstCatch · 5 FirstGameFinished · 6 SecondGameFinished
+ --   Creator Hub → 분석 → 온보딩 에서 몇 %가 어느 단계에서 나가는지 본다.
+ function ProfileService:Funnel(player, step, name)
+ 	local profile = self._profiles[player]
+diff -ru a/ServerScriptService.CursedBarrel.Services.ReleaseService.1404.ModuleScript.lua b/ServerScriptService.CursedBarrel.Services.ReleaseService.1404.ModuleScript.lua
+--- a/ServerScriptService.CursedBarrel.Services.ReleaseService.1404.ModuleScript.lua	2026-09-28 02:34:47.430801195 +0000
++++ b/ServerScriptService.CursedBarrel.Services.ReleaseService.1404.ModuleScript.lua	2026-09-28 04:01:57.197714928 +0000
+@@ -12,6 +12,7 @@
+ local Tables=require(script.Parent.TableService)
+ local Rounds=require(script.Parent.RoundService)
+ local Bots=require(script.Parent.BotService)
++local Onboarding=require(script.Parent.OnboardingService) -- Phase 39 : 안내 창의 「바로 시작!」
+ local Service={parties={},invites={},badgePending={},badgeDone={},limits=Utility.RateLimiter.new(0.25),practiceLimits=Utility.RateLimiter.new(1),settingLimits=Utility.RateLimiter.new(0.2)}
+ local function remote(name)
+  local r=RS.CursedBarrel.Remotes:FindFirstChild(name)
+@@ -107,6 +108,14 @@
+  reply:FireClient(player,ok==true,why)
+  self:sync(player,why)
+ end
++-- Phase 39 : 안내 창의 「바로 시작!」 → 가장 알맞은 진짜 판 테이블에 바로 앉힌다 (답은 "연습 한 판"과 같은 PracticeResult 로)
++function Service:quickStart(player)
++ local reply=self.practiceResult
++ if not self.practiceLimits:check(player.UserId) then reply:FireClient(player,false,"잠시 후 다시 눌러 주세요 / Please try again in a moment");return end
++ if not Profiles:Get(player) then reply:FireClient(player,false,"자료를 불러오는 중이에요. 잠시 후 다시 눌러 주세요 / Loading your data, try again soon");return end
++ local ok,why=Onboarding:SeatNow(player)
++ reply:FireClient(player,ok==true,why)
++end
+ -- Phase 24 : 설정은 화면에서 모아 둔 마지막 값들을 한 번에 받는다 (연타한 음량이 요청 제한에 버려져 화면과 저장값이 어긋나던 문제).
+ --   다른 요청과 제한을 따로 세고, 처리한 뒤 확정된 값을 돌려보낸다(sync). 화면은 그 값으로 다시 그린다.
+ function Service:settingsBatch(player,batch)
+@@ -120,6 +129,7 @@
+ end
+ function Service:onRequest(player,action,a,b,c,d,e)
+  if action=="practice" then self:practice(player,a=="replay");return end
++ if action=="quickStart" then self:quickStart(player);return end
+  if action=="settings" then self:settingsBatch(player,a);return end
+  if action=="spectate" then
+   -- Phase 38.2 : 관전 중인 테이블 (서버가 알아야 관전자에게 해적 잡기 정보를 보낸다). 앉아 있으면 관전이 아니다.
+diff -ru a/ServerScriptService.CursedBarrel.Services.RoundService.1389.ModuleScript.lua b/ServerScriptService.CursedBarrel.Services.RoundService.1389.ModuleScript.lua
+--- a/ServerScriptService.CursedBarrel.Services.RoundService.1389.ModuleScript.lua	2026-09-28 02:34:47.428117961 +0000
++++ b/ServerScriptService.CursedBarrel.Services.RoundService.1389.ModuleScript.lua	2026-09-28 04:02:23.704081147 +0000
+@@ -707,7 +707,8 @@
+ 	local card = nil
+ 	if cards and cards.Enabled then
+ 		-- Phase 32.1 : 튜토리얼 판에는 카드가 없다 (해적 종류만 배운다 · 한꺼번에 읽을 것을 줄인다)
+-		if not self.tutorial then
++		-- Phase 39 : 처음 몇 판(Onboarding.SimpleGames)을 하는 사람이 앉은 판에도 카드가 없다
++		if not self.tutorial and not self:_hasBeginner() then
+ 			card = GameConfig.drawFateCard(stage, self.card and self.card.id, self.random)
+ 		end
+ 	end
+@@ -721,6 +722,16 @@
+ 	end
+ end
+ 
++-- Phase 39 : 이번 판 참가자 중 처음 몇 판을 하는 사람(GameConfig.isBeginner)이 있는가
++function Round:_hasBeginner()
++	for _, participant in ipairs(self.participants or {}) do
++		if GameConfig.isBeginner(participant) then
++			return true
++		end
++	end
++	return false
++end
++
+ -- "떠도는 해적" 카드 : 차례마다 해적이 아직 안 꽂은 빈 자리 안에서 자리를 옮긴다 (마릿수는 그대로 · 봉인된 자리는 건드리지 않는다)
+ function Round:_driftPirates()
+ 	local moving = {}
+@@ -817,10 +828,11 @@
+ 	self.rookieSaved = {}
+ 	self.angryCaught = {}
+ 	self.gameCounted = {}
+-	if self.tutorialPlayer and GameConfig.Tutorial.Mandatory and not GameConfig.isBot(self.tutorialPlayer) then
++	-- Phase 39 : 튜토리얼이 필수가 아니면 「튜토리얼 다시 하기」로 앉은 사람만 튜토리얼 판을 한다
++	if self.tutorialPlayer and not GameConfig.isBot(self.tutorialPlayer) then
+ 		local profile = ProfileService:Get(self.tutorialPlayer)
+ 		local replay = self.gameTable.model and self.gameTable.model:GetAttribute("TutorialReplay") == true
+-		if (profile and not profile.tutorialDone) or replay then
++		if (GameConfig.Tutorial.Mandatory and profile and not profile.tutorialDone) or replay then
+ 			-- ★ Phase 38.4 : 튜토리얼 판에서 떨어져 다시 앉혀지면 처음부터가 아니라 잡아 둔 데서 이어 간다.
+ 			--   (예전에는 자리에서 일어나거나 쫓겨날 때마다 보통 해적부터 다시 해서, 두세 번 반복하다 나갔다)
+ 			local total = #(GameConfig.Tutorial.Kinds or {})
+@@ -1651,6 +1663,11 @@
+ 		return (GameConfig.Tutorial.Kinds or {})[self.tutorial.step] or "normal"
+ 	end
+ 	local card = self.card
++	-- Phase 39 : 처음 몇 판은 보통 · 쌍둥이 해적만 (해골 유령 · 갈고리 · 욕심쟁이 · 분노는 익숙해진 뒤에)
++	if GameConfig.isBeginner(player) then
++		local simpleStage = tonumber(GameConfig.Onboarding.SimpleKindStage) or 2
++		return GameConfig.pickPirateKind(math.min(stage, simpleStage), nil, self.random)
++	end
+ 	if card and card.kind then
+ 		return card.kind
+ 	end
+@@ -1913,6 +1930,8 @@
+ 		})
+ 		if tutorial and self.tutorial.step == 1 and not retry then
+ 			ProfileService:Funnel(player, 3, "FirstPirate")
++		elseif (tonumber(player:GetAttribute(GameConfig.PlayerAttributes.Games)) or 0) == 0 then
++			ProfileService:Funnel(player, 3, "FirstPirate") -- Phase 39 : 첫 판에서 처음 만난 해적
+ 		end
+ 	end
+ 
+@@ -2213,6 +2232,10 @@
+ 	self.catchCount += 1
+ 	self:_set(TABLE_ATTR.CatchCount, self.catchCount)
+ 	self:_publishPirateCount()
++	-- Phase 39 : 첫 방문 흐름 4단계 (첫 판에서 해적을 처음 잡았다)
++	if not GameConfig.isBot(player) and (tonumber(player:GetAttribute(GameConfig.PlayerAttributes.Games)) or 0) == 0 then
++		ProfileService:Funnel(player, 4, "FirstCatch")
++	end
+ 	-- Phase 24.15 : 한 판에서 보상을 주는 잡기 수 상한 (자동 입력 · 끝없이 긴 판 방지)
+ 	if (self.catchesUsed[player] or 0) <= (tonumber(CATCH.RewardedPerRound) or math.huge) then
+ 		self:_earn(player, ECONOMY.CatchReward * self:_cardValue("catchCoins"), "catches", POT.PerCatch)
+diff -ru a/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller.1279.LocalScript.lua b/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller.1279.LocalScript.lua
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller.1279.LocalScript.lua	2026-09-28 02:34:47.420744718 +0000
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.Phase4Controller.1279.LocalScript.lua	2026-09-28 04:03:00.787297791 +0000
+@@ -520,21 +520,19 @@
+ 	-- Phase 38.3 : "바로 눌러서" → 무엇을 누르는지까지 (휴대폰 = 화면 탭 · PC = 클릭 / 스페이스)
+ 	tutorialLine((Input.TouchEnabled and not Input.KeyboardEnabled) and "2. 해적이 튀어나오면 화면을 탭해서 잡아요"
+ 		or "2. 해적이 튀어나오면 클릭(스페이스)해서 잡아요", 82, cream, 19)
+-	tutorialLine("3. 해적마다 잡는 법이 달라요. 튜토리얼에서 하나씩!", 112, teal, 19)
++	tutorialLine("3. 처음 보는 해적은 잡는 법을 알려 줘요", 112, teal, 19) -- Phase 39 : 필수 튜토리얼 없음
+ 	-- Phase 12 : AI 선원 둘과 연습 한 판 (처음 해적은 잡기 쉽다)
+ 	-- Phase 24 : 서버가 "앉혔다"고 답한 뒤에 안내를 닫는다. 실패하면 이유를 적고 버튼이 "다시 시도"로 바뀐다.
+ 	local practiceStatus = tutorialLine("", 150, Color3.fromRGB(255, 150, 130), 16)
+ 	practiceStatus.TextWrapped = true
+ 	local practiceBusy = false
+ 	local practiceSerial = 0
+-	button(tutorial, "튜토리얼 시작", UDim2.new(0.5, -90, 1, -58), UDim2.fromOffset(180, 46), function(b)
++	-- Phase 39 : 「튜토리얼 시작」 → 「바로 시작!」 (가장 알맞은 진짜 판 테이블에 바로 앉는다 · 서버 OnboardingService)
++	button(tutorial, "바로 시작!", UDim2.new(0.5, -90, 1, -58), UDim2.fromOffset(180, 46), function(b)
+ 		if practiceBusy then
+ 			return
+ 		end
+ 		local r = remotes:FindFirstChild("VoyageRequest")
+-		if r and player:GetAttribute("TutorialDone") ~= true then
+-			r:FireServer("tutorialGo") -- Phase 32.1 : 환영 창 대기를 끝낸다 (못 앉히면 서버가 곧 다시 찾는다)
+-		end
+ 		local reply = remotes:WaitForChild("PracticeResult", 5)
+ 		if not r or not reply then
+ 			practiceStatus.Text = "서버 준비 중이에요. 잠시 후 다시 눌러 주세요"
+@@ -558,7 +556,7 @@
+ 			practiceBusy = false
+ 			if ok then
+ 				practiceStatus.Text = ""
+-				b.Text = "튜토리얼 시작"
++				b.Text = "바로 시작!"
+ 				tutorial.Visible = false
+ 			else
+ 				practiceStatus.TextColor3 = Color3.fromRGB(255, 150, 130)
+@@ -566,7 +564,7 @@
+ 				b.Text = "다시 시도"
+ 			end
+ 		end)
+-		r:FireServer("practice")
++		r:FireServer("quickStart")
+ 		task.delay(8, function()
+ 			if answered or serial ~= practiceSerial then
+ 				return
+@@ -623,6 +621,21 @@
+ 	UIKit.register(tutorial)
+ 	player:GetAttributeChangedSignal("TutorialDone"):Connect(function() if player:GetAttribute("TutorialDone") then tutorial.Visible=false end end)
+ 	if player:GetAttribute("TutorialDone") then tutorial.Visible=false end
++	-- ★ Phase 39 : 처음 온 사람은 서버(OnboardingService)가 곧바로 진짜 판에 앉힌다. 안내 창을 먼저 띄우지 않는다.
++	--   들어오고 몇 초가 지나도 못 앉았을 때만(빈 테이블이 없거나 캐릭터가 늦게 섰다) 「바로 시작!」 창을 띄운다.
++	tutorial.Visible = false
++	task.spawn(function()
++		while gui.Parent and player:GetAttribute("ProfileLoaded") ~= true do
++			task.wait(0.5)
++		end
++		task.wait(6)
++		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
++		local sitting = humanoid ~= nil and humanoid.SeatPart ~= nil
++		if gui.Parent and not sitting and player:GetAttribute("TutorialDone") ~= true
++			and (tonumber(player:GetAttribute(config.PlayerAttributes.Games)) or 0) == 0 then
++			tutorial.Visible = true
++		end
++	end)
+ end
+ 
+ local function sound(kind, pitch, volume)
+@@ -765,7 +778,7 @@
+ 			sound("win", 1.5, 0.25)
+ 			blink(card.color or gold, 0.25)
+ 		end)
+-		task.delay(3.05, function()
++		task.delay(math.max(1.4, (tonumber(config.FateCards and config.FateCards.RevealTime) or 3.4) - 0.35), function() -- Phase 39 : 서버가 기다리는 시간(RevealTime)에 맞춘다
+ 			if token ~= fateToken then
+ 				return
+ 			end
+diff -ru a/StarterPlayer.StarterPlayerScripts.Controllers.RewardController.1289.LocalScript.lua b/StarterPlayer.StarterPlayerScripts.Controllers.RewardController.1289.LocalScript.lua
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.RewardController.1289.LocalScript.lua	2026-09-28 02:34:47.422642122 +0000
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.RewardController.1289.LocalScript.lua	2026-09-28 04:03:58.543744751 +0000
+@@ -664,6 +664,10 @@
+ 			if player:GetAttribute("TutorialDone") ~= true then
+ 				player:GetAttributeChangedSignal("TutorialDone"):Wait()
+ 			end
++			-- Phase 39 : 처음 몇 판(Onboarding.SimpleGames)이 끝날 때까지 기다린다 (첫 판 전에 창을 띄우지 않는다)
++			while gui.Parent and GameConfig.isBeginner(player) do
++				player:GetAttributeChangedSignal(GameConfig.PlayerAttributes.Games):Wait()
++			end
+ 			task.wait(3)
+ 			if not seated() and state.attendance.ready then
+ 				openAttendance()
+diff -ru a/StarterPlayer.StarterPlayerScripts.Controllers.ShopController.1281.LocalScript.lua b/StarterPlayer.StarterPlayerScripts.Controllers.ShopController.1281.LocalScript.lua
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.ShopController.1281.LocalScript.lua	2026-09-28 02:34:47.421400481 +0000
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.ShopController.1281.LocalScript.lua	2026-09-28 04:03:37.116406423 +0000
+@@ -1089,16 +1089,36 @@
+ 	-- 내 차례에는 칼 고르는 창이 화면 아래를 쓴다. 열려 있던 상점 창은 닫는다. (칼 고르는 창을 가리지 않게)
+ 	-- Phase 21 : 게임 중(카운트다운부터 결과까지 · 관전 포함)에는 상점 · 출석 · 룰렛 버튼과 코인을 숨긴다.
+ 	--   게임 중에 쓰는 😈 방해 버튼만 남긴다. 내 차례 · 해적이 튀어나오는 동안에는 버튼 줄 전체를 숨긴다
++	-- ★ Phase 39 : 처음 몇 판(Onboarding.SimpleGames) 동안은 상점 · 퀘스트 · 방해 · 출석 · 룰렛 · 코드 버튼을 숨긴다.
++	--   처음 온 사람의 화면에 버튼이 여덟 개나 떠서 무엇을 해야 할지 몰랐다. 항해 수첩 · 설정만 남긴다.
++	local BEGINNER_HIDDEN = {
++		ShopButton = true, QuestButton = true, SabotageButton = true,
++		AttendanceButton = true, RouletteButton = true, CodeButton = true,
++	}
+ 	task.spawn(function()
+ 		local wasMode = nil
++		local wasBeginner = nil
+ 		while gui.Parent do
+ 			local picker = playerGui:FindFirstChild("CursedBarrel_KnifePicker")
+ 			local _, inMatch = UIKit.matchTable()
+ 			local focus = localPlayer:GetAttribute("PirateFocus") == true
+ 			local mode = ((picker ~= nil and picker.Enabled) or focus) and "hidden" or (inMatch and "match" or "lobby")
+ 			local hud = playerGui:FindFirstChild("CursedBarrel_HUD")
+-			if mode ~= wasMode or (hud and hud:GetAttribute("RailMode") ~= mode) then
++			local beginner = GameConfig.isBeginner(localPlayer)
++			-- 버튼은 여러 스크립트가 서로 다른 때에 만든다. 처음 몇 판 동안은 늦게 생긴 버튼도 숨기도록 매번 다시 맞춘다
++			if hud and beginner and mode ~= "hidden" then
++				for _, railName in ipairs({ "Rail", "RightRail" }) do
++					local rail = hud:FindFirstChild(railName)
++					for _, b in ipairs(rail and rail:GetChildren() or {}) do
++						if b:IsA("GuiButton") and BEGINNER_HIDDEN[b.Name] and b.Visible then
++							b.Visible = false
++						end
++					end
++				end
++			end
++			if mode ~= wasMode or beginner ~= wasBeginner or (hud and hud:GetAttribute("RailMode") ~= mode) then
+ 				wasMode = mode
++				wasBeginner = beginner
+ 				if hud then
+ 					hud:SetAttribute("RailMode", mode)
+ 					hud.Enabled = mode ~= "hidden"
+@@ -1106,7 +1126,7 @@
+ 						local rail = hud:FindFirstChild(railName)
+ 						for _, b in ipairs(rail and rail:GetChildren() or {}) do
+ 							if b:IsA("GuiButton") then
+-								b.Visible = mode == "lobby" or b.Name == "SabotageButton"
++								b.Visible = (mode == "lobby" or b.Name == "SabotageButton") and not (beginner and BEGINNER_HIDDEN[b.Name])
+ 							end
+ 						end
+ 					end
+diff -ru a/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController.1291.LocalScript.lua b/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController.1291.LocalScript.lua
+--- a/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController.1291.LocalScript.lua	2026-09-28 02:34:47.422864630 +0000
++++ b/StarterPlayer.StarterPlayerScripts.Controllers.TutorialController.1291.LocalScript.lua	2026-09-28 04:03:10.614250956 +0000
+@@ -230,7 +230,8 @@
+ end
+ 
+ catchPrompt.OnClientEvent:Connect(function(model, data)
+-	if typeof(data) == "table" and data.mine and model == lastTable then
++	-- Phase 39 : 튜토리얼 판이 아니어도 처음 몇 판은 내 차례 안내를 띄우므로, 앉은 테이블의 잡기도 본다
++	if typeof(data) == "table" and data.mine and (model == lastTable or model == seatedTable()) then
+ 		catchHintUntil = os.clock() + 3.5
+ 	end
+ end)
+@@ -291,6 +292,13 @@
+ 		end
+ 		lastTable = nil
+ 	end
++	-- ★ Phase 39 : 필수 튜토리얼이 없어졌다. 처음 몇 판(Onboarding.SimpleGames)은 진짜 판에서도
++	--   내 차례마다 "칼 버튼 아무거나" 안내를 띄운다 (무엇을 누를지 몰라 가만히 있다가 시간이 다 가던 일을 막는다)
++	if not mine and seatedModel and config.isBeginner(player) and os.clock() >= catchHintUntil
++		and seatedModel:GetAttribute(TABLE_ATTR.State) == STATES.Playing
++		and seatedModel:GetAttribute(TABLE_ATTR.CurrentTurnUserId) == player.UserId then
++		text = "내 차례! 아래 칼 버튼 중 아무거나 하나 눌러요"
++	end
+ 	if not text and os.clock() < finishedUntil then
+ 		text = player:GetAttribute("TutorialDone") == true and "튜토리얼 끝! 이제 다른 선원들과 겨뤄 봐요" or "연습 끝!"
+ 	end
