@@ -38,6 +38,27 @@ end
 local RS = svc("ReplicatedStorage")
 local shared = folder(RS, "Shared")
 folder(RS, "PetModels")
+-- 숲 키트: Studio 에서 EnvModels.fbx 를 가져온 것과 같은 구조 (Model 안에 에셋 이름의 MeshPart).
+-- 일부러 작업 공간(workspace)에 둔다 → 코드가 ReplicatedStorage 로 옮기는지도 검사한다.
+local ENV_SIZES = loadsource(readfile(ROOT .. "/assets/env/sizes.lua"), "sizes")()
+do
+	local env = E.Instance.new("Model")
+	env.Name = "EnvModels"
+	local names = {}
+	for name in pairs(ENV_SIZES) do table.insert(names, name) end
+	table.sort(names)
+	local x = 0
+	for _, name in ipairs(names) do
+		local dims = ENV_SIZES[name]
+		local mp = E.Instance.new("MeshPart")
+		mp.Name = name
+		mp.Size = D.Vector3.new(dims[1], dims[2], dims[3])
+		mp.CFrame = D.CFrame.new(x, dims[2] / 2, 0)
+		mp.Parent = env
+		x = x + dims[1] + 2
+	end
+	env.Parent = workspace
+end
 local SSS = svc("ServerScriptService")
 local SPS = svc("StarterPlayer").StarterPlayerScripts
 for line in readfile(ROOT .. "/tests/.manifest"):gmatch("[^\n]+") do
@@ -155,6 +176,38 @@ local partCount = 0
 for _, d in ipairs(root:GetDescendants()) do if R.isA(d._class, "BasePart") then partCount = partCount + 1 end end
 check("맵 파트 수", partCount > 800 and partCount < 12000, partCount)
 check("지형 명령", #E.TerrainOps > 50, #E.TerrainOps)
+do
+	local used, kinds = 0, {}
+	for _, d in ipairs(root:GetDescendants()) do
+		local name = R.isA(d._class, "BasePart") and d:GetAttribute("EnvAsset")
+		if name then
+			used = used + 1
+			kinds[name] = true
+		end
+	end
+	local nkinds = 0
+	for _ in pairs(kinds) do nkinds = nkinds + 1 end
+	local missing = {}
+	for name in pairs(ENV_SIZES) do
+		if not kinds[name] then table.insert(missing, name) end
+	end
+	table.sort(missing)
+	check("숲 키트 메쉬 사용", used > 300 and #missing == 0, used .. "개 · " .. nkinds .. "종" .. (#missing > 0 and (" · 안 쓰임: " .. table.concat(missing, ", ")) or ""))
+	check("EnvModels → ReplicatedStorage 로 옮김", RS:FindFirstChild("EnvModels") ~= nil and workspace:FindFirstChild("EnvModels") == nil)
+	-- 에셋이 없을 때는 파트로 만든 대체 모델
+	local Props = serverRequire(shared.Visuals.Props)
+	local env = RS.EnvModels
+	env.Parent = nil
+	local tmp = folder(workspace, "_FallbackTest")
+	local pine = Props.tallPine(tmp, D.CFrame.new(0, 0, 0), D.Random.new(1), 1)
+	local plain = 0
+	for _, d in ipairs(pine:GetDescendants()) do
+		if R.isA(d._class, "BasePart") and not d:GetAttribute("EnvAsset") then plain = plain + 1 end
+	end
+	check("에셋 없을 때 파트 대체 모델", plain >= 5 and not Props.hasEnv(), plain)
+	tmp:Destroy()
+	env.Parent = RS
+end
 
 -- ===================================================================== 플레이어 입장
 local player = R.newInstance("Player")
@@ -343,8 +396,21 @@ local function exportScene()
 	-- 맵 미리보기용 장면 내보내기
 	local out = {}
 	for _, d in ipairs(workspace:GetDescendants()) do
-		-- MeshPart 는 테스트가 넣은 가짜 블렌더 펫(회색 상자)이라 미리보기에서 뺀다
-		if R.isA(d._class, "BasePart") and d._class ~= "Terrain" and d._class ~= "MeshPart" then
+		-- 숲 키트 메쉬는 이름·위치·크기만 내보내고 렌더러가 실제 블렌더 에셋으로 바꿔 넣는다.
+		-- 그 밖의 MeshPart 는 테스트가 넣은 가짜 블렌더 펫(회색 상자)이라 뺀다
+		local asset = d._class == "MeshPart" and d:GetAttribute("EnvAsset")
+		if asset then
+			local c = d._props.CFrame
+			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
+			local s = d._props.Size
+			table.insert(out, string.format("Asset %s %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f 0 0 0 0",
+				asset, x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22, s.X, s.Y, s.Z))
+		elseif d._class == "PointLight" and d.Parent and R.isA(d.Parent._class, "BasePart") then
+			local p = d.Parent._props.CFrame.Position
+			local col = d._props.Color or D.Color3.new(1, 1, 1)
+			table.insert(out, string.format("Light %.2f %.2f %.2f %.2f %.2f %.3f %.3f %.3f",
+				p.X, p.Y, p.Z, d._props.Range or 8, d._props.Brightness or 1, col.R, col.G, col.B))
+		elseif R.isA(d._class, "BasePart") and d._class ~= "Terrain" and d._class ~= "MeshPart" then
 			local t = d._props.Transparency or 0
 			if t < 0.95 then
 				local c = d._props.CFrame or D.CFrame.new()

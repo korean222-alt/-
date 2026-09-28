@@ -15,12 +15,12 @@ local function ensure(className, name, props)
 	return o
 end
 
--- 단계별 분위기 (생존 톤): 낮은 평범하게 밝은 숲, 밤은 짙은 안개 속 어둠. 낮과 밤의 대비가 긴장감을 만든다.
+-- 단계별 분위기 (생존 톤): 낮은 흐리고 서늘한 숲(잘 보이지만 평화롭지 않게), 밤은 짙은 안개 속 어둠.
 -- 밤에는 기지 불빛과 캐릭터가 든 등불만 안전하게 느껴지고, 괴물은 안개 속에서 빛나는 눈부터 보인다.
 local LOOKS = {
-	Day = {Clock = 13.2, Brightness = 2.3, Ambient = "#3d444a", Outdoor = "#868d86", Exposure = 0.05,
-		Atmo = {Density = 0.3, Offset = 0.18, Haze = 1.8, Glare = 0.2, Color = "#b3c1b6", Decay = "#77867a"},
-		Grade = {Brightness = 0.01, Contrast = 0.12, Saturation = -0.03, TintColor = "#f6f7ee"}, Bloom = 0.45},
+	Day = {Clock = 14.4, Brightness = 1.75, Ambient = "#343a3d", Outdoor = "#6b726e", Exposure = -0.02,
+		Atmo = {Density = 0.4, Offset = 0.14, Haze = 2.4, Glare = 0.1, Color = "#9aa49f", Decay = "#5b655e"},
+		Grade = {Brightness = -0.01, Contrast = 0.16, Saturation = -0.22, TintColor = "#eef1ee"}, Bloom = 0.35},
 	Dusk = {Clock = 17.8, Brightness = 1.4, Ambient = "#3a2c2c", Outdoor = "#8a5f52", Exposure = -0.05,
 		Atmo = {Density = 0.44, Offset = 0.12, Haze = 2.6, Glare = 0.8, Color = "#d9895a", Decay = "#5e2f33"},
 		Grade = {Brightness = -0.02, Contrast = 0.16, Saturation = -0.02, TintColor = "#ffd2b0"}, Bloom = 0.7},

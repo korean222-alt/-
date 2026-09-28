@@ -68,11 +68,11 @@ function Map:BuildTerrain()
 	pcall(function()
 		T.Decoration = true
 	end)
-	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥
-	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#51693c"))
-	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#425a33"))
-	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#6d5741"))
-	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#4a3b2c"))
+	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥 (올리브색 풀, 낙엽 흙, 진흙)
+	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#4a573a"))
+	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#3d4a2f"))
+	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#5a4a3a"))
+	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#3d3228"))
 	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#9c8f6e"))
 	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#77746c"))
 	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#62666b"))
@@ -96,6 +96,18 @@ function Map:BuildTerrain()
 		local a = rng:NextNumber() * math.pi * 2
 		local r = C.PlayRadius + 55 + rng:NextNumber() * 20
 		T:FillBall(Vector3.new(math.cos(a) * r, 10 + rng:NextNumber() * 12, math.sin(a) * r), 18 + rng:NextNumber() * 10, MAT.LeafyGrass)
+	end
+	-- 숲 바닥 얼룩: 풀밭이 한 가지 색으로 매끈하면 공원처럼 보인다 → 낙엽 흙·이끼·진흙 조각을 흩뿌린다
+	for _ = 1, 70 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = C.BaseRadius + 4 + rng:NextNumber() * (C.PlayRadius + 30 - C.BaseRadius)
+		local center = Vector3.new(math.cos(a) * r, -1.2, math.sin(a) * r)
+		local roll = rng:NextNumber()
+		local mat = roll < 0.45 and MAT.LeafyGrass or (roll < 0.85 and MAT.Ground or MAT.Mud)
+		for _ = 1, 3 do
+			local off = Vector3.new(B.jitter(rng, 6), 0, B.jitter(rng, 6))
+			T:FillCylinder(CFrame.new(center + off), 2.6, 4 + rng:NextNumber() * 7, mat)
+		end
 	end
 	-- 기지 바닥: 흙 광장 + Core 주변 돌바닥
 	T:FillCylinder(CFrame.new(0, -2, 0), 4, C.BaseRadius - 2, MAT.LeafyGrass)
@@ -187,8 +199,8 @@ function Map:BuildBase()
 	spawn.Anchored, spawn.Neutral, spawn.Duration, spawn.Transparency, spawn.CanCollide = true, true, 3, 1, false
 	spawn.Parent = base
 	self.Spawn = spawn
-	B.cyl(base, 0.3, 7, CFrame.new(spawn.Position.X, 0.15, spawn.Position.Z), "#d9c8a0", MAT.Slate, true)
-	B.cyl(base, 0.32, 5.4, CFrame.new(spawn.Position.X, 0.17, spawn.Position.Z), "#8ff5e8", MAT.Neon, true, {Transparency = 0.6})
+	B.cyl(base, 0.3, 7, CFrame.new(spawn.Position.X, 0.15, spawn.Position.Z), "#7d776c", MAT.Slate, true)
+	B.cyl(base, 0.32, 5.4, CFrame.new(spawn.Position.X, 0.17, spawn.Position.Z), "#8ff5e8", MAT.Neon, true, {Transparency = 0.8})
 
 	-- 말뚝 울타리 (길목 구멍 3개)
 	local palisade = B.model(base, "Palisade")
@@ -273,23 +285,23 @@ function Map:BuildLanes()
 				local center = lane.Dir * radius + lane.Side * s * (C.LaneWidth / 2 + 5)
 				local frame = CFrame.lookAt(center, center + lane.Side)
 				for k = -1, 1 do
-					B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#7a5230", MAT.Wood, true)
+					B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#5e4b3b", MAT.Wood, true)
 				end
 				for _, y in ipairs({1.2, 2.7}) do
-					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#8b5a2b", MAT.Wood)
+					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#54432f", MAT.Wood)
 				end
 				Props.rock(folder, frame * CFrame.new(0, 0, 6.5), self.Rng, 0.55)
 			end
 		end
 		-- 길 표지 돌 (길목 번호)
 		local marker = lane.Dir * 46 + lane.Side * (C.LaneWidth / 2 + 2.5)
-		local stone = B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#9aa1a6", MAT.Slate)
+		local stone = B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#6f7376", MAT.Slate)
 		local gui = Instance.new("SurfaceGui")
 		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(100, 160), 1
 		gui.Parent = stone
 		local text = Instance.new("TextLabel")
 		text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
-		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, tostring(lane.Id), Color3.fromHex("#4b3a5c")
+		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, tostring(lane.Id), Color3.fromHex("#2a2530")
 		text.Parent = gui
 	end
 end
@@ -367,8 +379,12 @@ end
 -- ============================================================= 숲, 소품, 연못, 알파의 숲
 function Map:BuildScenery()
 	local decor, rng = self.DecorFolder, self.Rng
-	-- 바깥 숲 벽: 키 큰 전나무 두 줄. 기지 밖 어디서 봐도 숲에 둘러싸인 느낌을 준다.
+	-- 바깥 숲 벽: 키 큰 가문비나무 세 줄. 기지 밖 어디서 봐도 빽빽한 숲에 갇힌 느낌을 준다.
+	-- 굴 앞 길목만 비우고 굴 뒤쪽은 다시 숲으로 막는다. 뒷줄은 가벼운 메쉬를 쓴다.
 	local function onLane(pos, width)
+		if pos.Magnitude > C.LaneRadius + 14 then
+			return false
+		end
 		for _, lane in ipairs(self.Lanes) do
 			if pos:Dot(lane.Dir) > 0 and math.abs(pos:Dot(lane.Side)) < width then
 				return true
@@ -376,53 +392,76 @@ function Map:BuildScenery()
 		end
 		return false
 	end
-	for row, spec in ipairs({{130, 4, 16}, {95, 26, 22}}) do
+	for row, spec in ipairs({{110, 2, 12}, {95, 17, 18}, {80, 36, 26}}) do
 		local count, inner, spread = table.unpack(spec)
 		for i = 1, count do
-			local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
+			local a = i / count * math.pi * 2 + B.jitter(rng, 0.025)
 			local r = C.PlayRadius + inner + rng:NextNumber() * spread
 			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
 			if not onLane(pos, 16) then
-				if row == 1 and rng:NextNumber() < 0.2 then
-					Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
-				else
-					Props.tallPine(decor, CFrame.new(pos), rng, 0.9 + rng:NextNumber() * 0.5)
-				end
+				Props.tallPine(decor, CFrame.new(pos), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, false, row > 1)
 			end
 		end
 	end
-	-- 안쪽 흩뿌림
-	local function scatter(n, radius, build)
+	-- 안쪽 흩뿌림 도우미 (길목·기지·자원 자리를 피한다)
+	local function scatter(n, radius, build, minR, maxR)
 		local placed, tries = 0, 0
+		minR, maxR = minR or C.BaseRadius + 8, maxR or C.PlayRadius
 		while placed < n and tries < n * 30 do
 			tries = tries + 1
 			local a = rng:NextNumber() * math.pi * 2
-			local r = C.BaseRadius + 8 + rng:NextNumber() * (C.PlayRadius - C.BaseRadius - 8)
+			local r = minR + rng:NextNumber() * (maxR - minR)
 			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
 			if self:Free(pos, radius) then
-				build(CFrame.new(pos))
+				build(CFrame.new(pos), pos)
 				self:Block(pos, radius)
 				placed = placed + 1
 			end
 		end
 	end
-	scatter(22, 4, function(at)
-		Props.tallPine(decor, at, rng, 0.6 + rng:NextNumber() * 0.35)
-	end)
-	scatter(8, 5, function(at)
-		Props.tree(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
-	end)
+	-- 숲 가장자리 덤불: 숲 벽과 풀밭 사이를 고사리·바위·쓰러진 나무로 자연스럽게 잇는다
+	scatter(40, 2.5, function(at)
+		Props.fern(decor, at, rng, 0.9 + rng:NextNumber() * 0.5)
+	end, C.PlayRadius - 18, C.PlayRadius + 3)
 	scatter(10, 4, function(at)
+		Props.rock(decor, at, rng, 0.7 + rng:NextNumber() * 0.7)
+	end, C.PlayRadius - 20, C.PlayRadius + 3)
+	-- 나무 무리: 가문비나무 3~6그루가 모여 선 작은 숲. 발밑엔 고사리, 그루터기, 쓰러진 통나무
+	scatter(16, 11, function(_, center)
+		for _ = 1, rng:NextInteger(3, 6) do
+			local a = rng:NextNumber() * math.pi * 2
+			local pos = center + Vector3.new(math.cos(a), 0, math.sin(a)) * (2 + rng:NextNumber() * 7)
+			Props.tallPine(decor, CFrame.new(pos), rng, 0.62 + rng:NextNumber() * 0.3, true)
+		end
+		for _ = 1, rng:NextInteger(2, 4) do
+			local a = rng:NextNumber() * math.pi * 2
+			Props.fern(decor, CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * (4 + rng:NextNumber() * 6)), rng, 0.8 + rng:NextNumber() * 0.4)
+		end
+		local roll = rng:NextNumber()
+		local a = rng:NextNumber() * math.pi * 2
+		local spot = CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * 8)
+		if roll < 0.4 then
+			Props.log(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+		elseif roll < 0.7 then
+			Props.stump(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+		else
+			Props.rock(decor, spot, rng, 0.6 + rng:NextNumber() * 0.5)
+		end
+	end)
+	scatter(12, 4, function(at)
 		Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5)
 	end)
 	scatter(10, 5, function(at)
 		Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
-	scatter(18, 3, function(at)
-		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.5)
-	end)
 	scatter(12, 3, function(at)
-		Props.bush(decor, at, rng, 0.6 + rng:NextNumber() * 0.4, false)
+		Props.stump(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
+	end)
+	scatter(18, 3, function(at)
+		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.6)
+	end)
+	scatter(60, 1.8, function(at)
+		Props.fern(decor, at, rng, 0.7 + rng:NextNumber() * 0.5)
 	end)
 	scatter(22, 1.5, function(at)
 		Props.mushrooms(decor, at, rng)

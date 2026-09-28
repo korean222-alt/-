@@ -314,7 +314,8 @@ RNG.__index = {
 	end,
 	NextInteger = function(r, a, b)
 		r.state = (r.state * 1103515245 + 12345) % 2147483648
-		return a + (r.state % (b - a + 1))
+		-- 하위 비트는 주기가 짧다(LCG) → 상위 비트로 고른다
+		return a + math.floor(r.state / 2147483648 * (b - a + 1))
 	end,
 }
 T.Random = {new = function(seed) return setmetatable({state = (seed or 1) % 2147483648}, RNG) end}

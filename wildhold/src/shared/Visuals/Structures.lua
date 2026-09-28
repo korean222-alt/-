@@ -6,9 +6,10 @@ local Props = require(script.Parent.Props)
 local S = {}
 local M = Enum.Material
 
-local WOOD, WOOD_D, WOOD_L = "#8b5a2b", "#6b4423", "#b98a57"
-local STONE, STONE_D, STONE_L = "#9aa1a6", "#737b82", "#b8bec2"
-local ROOF = "#c0583f"
+-- 생존 톤: 비바람에 바랜 회갈색 나무, 이끼 낀 돌, 어두운 널지붕
+local WOOD, WOOD_D, WOOD_L = "#6a5442", "#4d3d30", "#8c7a64"
+local STONE, STONE_D, STONE_L = "#83878a", "#62676b", "#9da1a2"
+local ROOF = "#4f4239"
 
 -- ===================================================================== Core
 function S.core(parent, at)
@@ -78,7 +79,7 @@ function S.storehouse(parent, at)
 	-- 박공 지붕
 	local roof = at * CFrame.new(0, 7.5, 0)
 	B.spike(m, 10.5, 13.5, 3.2, roof * CFrame.Angles(0, 0, 0), ROOF, M.WoodPlanks)
-	B.block(m, Vector3.new(13.6, 0.4, 0.6), roof * CFrame.new(0, 3.2, 0), "#8a3e2c", M.Wood)
+	B.block(m, Vector3.new(13.6, 0.4, 0.6), roof * CFrame.new(0, 3.2, 0), "#3e342c", M.Wood)
 	-- 짐: 상자, 통, 통나무, 돌
 	Props.crate(m, at * CFrame.new(-3.2, 0.8, 1.6), 2.6)
 	Props.crate(m, at * CFrame.new(-3.2, 3.4, 1.6), 2)
@@ -87,8 +88,8 @@ function S.storehouse(parent, at)
 	Props.crate(m, at * CFrame.new(-7.4, 0, -2.4) * CFrame.Angles(0, math.rad(20), 0), 2.2)
 	Props.barrel(m, at * CFrame.new(7.2, 0, -2.6))
 	-- 간판: 상자 아이콘
-	B.block(m, Vector3.new(5, 1.6, 0.3), at * CFrame.new(0, 6.6, -4.3), "#e8d2a8", M.WoodPlanks)
-	local sign = B.block(m, Vector3.new(1, 1, 0.1), at * CFrame.new(0, 6.6, -4.5), "#e8d2a8", M.SmoothPlastic, {Transparency = 1})
+	B.block(m, Vector3.new(5, 1.6, 0.3), at * CFrame.new(0, 6.6, -4.3), "#9c8c72", M.WoodPlanks)
+	local sign = B.block(m, Vector3.new(1, 1, 0.1), at * CFrame.new(0, 6.6, -4.5), "#9c8c72", M.SmoothPlastic, {Transparency = 1})
 	local gui = Instance.new("SurfaceGui")
 	gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(400, 130), 1
 	gui.Parent = sign
@@ -146,7 +147,7 @@ S.hoop = hoop
 -- 몬스터볼 류와 겹치지 않도록 둥근 바구니 형태를 쓴다. 밑면 중심이 at, 높이 약 3.2 * scale.
 function S.trapIcon(parent, at, scale)
 	scale = scale or 1
-	local staves, band = "#c79a52", "#8a5d36"
+	local staves, band = "#8a7152", "#5e4a38"
 	B.cyl(parent, 0.3 * scale, 3.2 * scale, at * CFrame.new(0, 0.15 * scale, 0), band, M.Wood, true)
 	for i = 0, 7 do
 		local a = CFrame.Angles(0, math.rad(i * 45), 0)
@@ -167,7 +168,7 @@ end
 function S.pen(parent, at)
 	local m = B.model(parent, "PetPen")
 	local w, d = 14, 10
-	B.block(m, Vector3.new(w, 0.3, d), at * CFrame.new(0, 0.15, 0), "#c8b27a", M.Sand)
+	B.block(m, Vector3.new(w, 0.3, d), at * CFrame.new(0, 0.15, 0), "#8e7d5e", M.Sand)
 	-- 울타리 (앞쪽 가운데는 입구)
 	local function fence(from, to)
 		local len = (to - from).Magnitude
@@ -192,8 +193,8 @@ function S.pen(parent, at)
 		end
 	end
 	-- 짚 침대, 물그릇, 먹이통, 발자국 깃발
-	B.ellipsoid(m, Vector3.new(5, 1, 3.6), at * CFrame.new(-3, 0.6, 2.2), "#e3c46a", M.Fabric)
-	B.ellipsoid(m, Vector3.new(4, 0.9, 3), at * CFrame.new(3.6, 0.55, 2.6), "#e8cf7e", M.Fabric)
+	B.ellipsoid(m, Vector3.new(5, 1, 3.6), at * CFrame.new(-3, 0.6, 2.2), "#a08c52", M.Fabric)
+	B.ellipsoid(m, Vector3.new(4, 0.9, 3), at * CFrame.new(3.6, 0.55, 2.6), "#a8935a", M.Fabric)
 	B.cyl(m, 0.6, 2.2, at * CFrame.new(4.4, 0.6, -2), "#8d949a", M.Slate, true)
 	B.cyl(m, 0.1, 1.8, at * CFrame.new(4.4, 0.92, -2), "#5ec8f0", M.Glass, true, {Transparency = 0.2})
 	B.block(m, Vector3.new(2.6, 0.8, 1.2), at * CFrame.new(-4.6, 0.7, -2.4), WOOD, M.WoodPlanks)
@@ -203,7 +204,7 @@ function S.pen(parent, at)
 	Props.banner(m, at * CFrame.new(-w / 2 - 0.2, 0, -d / 2 - 0.2), "#5bbf8a", 8)
 	Props.lantern(m, at * CFrame.new(2.5, 4.4, -d / 2 - 0.5))
 	-- 등록 표지판 (발바닥)
-	local post = B.block(m, Vector3.new(3.4, 2, 0.3), at * CFrame.new(-4.6, 2.6, -d / 2 - 0.6), "#f1dfb6", M.WoodPlanks)
+	local post = B.block(m, Vector3.new(3.4, 2, 0.3), at * CFrame.new(-4.6, 2.6, -d / 2 - 0.6), "#a39479", M.WoodPlanks)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(300, 180), 1
 	gui.Parent = post
@@ -237,7 +238,7 @@ function S.slotBase(parent, at, kind)
 	if kind ~= "PetStand" then
 		local stake = B.block(frame, Vector3.new(0.3, 2.6, 0.3), at * CFrame.new(hx - 0.6, 1.3, -hz + 0.6), WOOD, M.Wood)
 		-- 표지는 기지 안쪽(+Z)에서 보이도록 뒷면에 그린다
-		local sign = B.block(frame, Vector3.new(1.8, 1.4, 0.15), stake.CFrame * CFrame.new(0, 1.1, 0.2), "#f1dfb6", M.WoodPlanks)
+		local sign = B.block(frame, Vector3.new(1.8, 1.4, 0.15), stake.CFrame * CFrame.new(0, 1.1, 0.2), "#a39479", M.WoodPlanks)
 		local gui = Instance.new("SurfaceGui")
 		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Back, Vector2.new(120, 100), 1
 		gui.Parent = sign

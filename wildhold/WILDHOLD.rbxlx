@@ -994,7 +994,10 @@ return C
             <string name="Name">Props</string>
             <ProtectedString name="Source">-- 초원 소품: 나무, 바위, 덤불, 갈대, 폐허, 꽃, 횃불, 말뚝, 굴.
 -- 모든 함수는 (parent, 위치 CFrame, rng, scale) 를 받고 Model 을 돌려준다. 바닥 기준점 = 위치.
+-- 숲 키트(블렌더 메쉬, assets/env/EnvModels.fbx)가 ReplicatedStorage.EnvModels 에 있으면 나무·바위·통나무가
+-- 사실적인 메쉬로 바뀌고, 없으면 파트로 만든 대체 모델을 쓴다.
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local B = require(script.Parent.Build)
 
 local P = {}
@@ -1013,8 +1016,78 @@ local function yaw(rng)
 	return CFrame.Angles(0, rng:NextNumber() * math.pi * 2, 0)
 end
 
+-- ===================================================================== 숲 키트 메쉬
+-- Studio 에서 가져온 EnvModels 를 찾는다. 작업 공간에 그대로 두었으면 ReplicatedStorage 로 옮긴다
+-- (그대로 두면 모든 에셋이 기지 한가운데 줄지어 서 있게 된다).
+local function envRoot()
+	local root = ReplicatedStorage:FindFirstChild("EnvModels")
+	if not root then
+		root = workspace:FindFirstChild("EnvModels")
+		if root then
+			root.Parent = ReplicatedStorage
+		end
+	end
+	return root
+end
+
+-- 이름으로 에셋 파트를 찾는다. 가져오기 방식에 따라 Model 안에 MeshPart 가 한 겹 더 있을 수 있다.
+local function envPart(name)
+	local root = envRoot()
+	local found = root and root:FindFirstChild(name, true)
+	if found and not found:IsA("BasePart") then
+		found = found:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return found
+end
+
+function P.hasEnv()
+	return envPart("Spruce1") ~= nil
+end
+
+-- 메쉬 하나를 바닥(at)에 세운다. height = 목표 높이(stud), sink = 땅에 묻을 비율.
+-- 가져온 파트가 어떤 방향으로 회전돼 있어도 "월드 위쪽" 크기를 계산해서 맞춘다. 에셋이 없으면 nil.
+local function mesh(parent, modelName, variants, at, rng, height, sink, collide)
+	local have = {}
+	for _, name in ipairs(variants) do
+		if envPart(name) then
+			table.insert(have, name)
+		end
+	end
+	if #have == 0 then
+		return nil
+	end
+	local src = envPart(pick(rng, have))
+	local rot = src.CFrame - src.Position
+	local up = rot:VectorToObjectSpace(Vector3.yAxis)
+	local extent = math.abs(up.X) * src.Size.X + math.abs(up.Y) * src.Size.Y + math.abs(up.Z) * src.Size.Z
+	local k = height / math.max(extent, 0.01)
+	local m = B.model(parent, modelName)
+	local part = src:Clone()
+	part.Size = src.Size * k
+	part.CFrame = at * yaw(rng) * CFrame.new(0, height * (0.5 - (sink or 0)), 0) * rot
+	part.Anchored, part.CanCollide, part.CanTouch, part.CanQuery = true, collide == true, false, false
+	part.CastShadow = true
+	part:SetAttribute("EnvAsset", src.Name)
+	part.Parent = m
+	return m, part
+end
+
+-- 나무 줄기만 막는 보이지 않는 기둥 (메쉬 전체를 충돌시키면 가지 끝까지 벽이 된다)
+local function trunkCollider(m, at, height, width)
+	B.new("Part", m, {Name = "Trunk", Size = Vector3.new(width, height, width), CFrame = at * CFrame.new(0, height / 2, 0),
+		Transparency = 1, CanCollide = true, CanQuery = false, CastShadow = false})
+end
+
+local SPRUCES = {"Spruce1", "Spruce2", "Spruce3"}
+local FAR_SPRUCES = {"SpruceFar1", "SpruceFar2"}
+local ROCKS = {"Boulder1", "Boulder2", "RockSlab", "RockCrag"}
+
 function P.tree(parent, at, rng, scale, name)
 	scale = scale or 1
+	local found = mesh(parent, name or "Tree", SPRUCES, at, rng, (17 + rng:NextNumber() * 5) * scale, 0.02)
+	if found then
+		return found
+	end
 	local m = B.model(parent, name or "Tree")
 	local base = at * yaw(rng)
 	local h = (7 + rng:NextNumber() * 3) * scale
@@ -1045,6 +1118,10 @@ end
 
 function P.pine(parent, at, rng, scale)
 	scale = scale or 1
+	local found = mesh(parent, "Pine", SPRUCES, at, rng, (14 + rng:NextNumber() * 6) * scale, 0.02)
+	if found then
+		return found
+	end
 	local m = B.model(parent, "Pine")
 	local base = at * yaw(rng)
 	local h = (10 + rng:NextNumber() * 5) * scale
@@ -1058,9 +1135,18 @@ function P.pine(parent, at, rng, scale)
 	return B.decorate(m)
 end
 
--- 숲 경계용 키 큰 전나무 (파트 10개로 가볍게). 99 Nights 같은 빽빽하고 어두운 숲 벽을 만든다.
-function P.tallPine(parent, at, rng, scale)
+-- 숲 경계용 키 큰 전나무. 99 Nights 같은 빽빽하고 어두운 숲 벽을 만든다.
+-- collide = 줄기에 부딪힘, far = 뒷줄용 가벼운 메쉬 (멀리서만 보이는 나무)
+function P.tallPine(parent, at, rng, scale, collide, far)
 	scale = scale or 1
+	local height = (24 + rng:NextNumber() * 12) * scale
+	local found = mesh(parent, "TallPine", far and FAR_SPRUCES or SPRUCES, at, rng, height, 0.02)
+	if found then
+		if collide then
+			trunkCollider(found, at, height * 0.5, 1.6 * scale)
+		end
+		return found
+	end
 	local m = B.model(parent, "TallPine")
 	local base = at * yaw(rng)
 	local h = (20 + rng:NextNumber() * 10) * scale
@@ -1076,6 +1162,10 @@ end
 -- 말라 죽은 나무: 가지만 남은 회갈색 줄기
 function P.deadTree(parent, at, rng, scale)
 	scale = scale or 1
+	local found = mesh(parent, "DeadTree", {"DeadTree1", "DeadTree2"}, at, rng, (13 + rng:NextNumber() * 7) * scale, 0.01)
+	if found then
+		return found
+	end
 	local m = B.model(parent, "DeadTree")
 	local base = at * yaw(rng)
 	local h = (8 + rng:NextNumber() * 5) * scale
@@ -1093,6 +1183,10 @@ end
 -- 쓰러진 통나무 (이끼 조금)
 function P.log(parent, at, rng, scale)
 	scale = scale or 1
+	local found = mesh(parent, "FallenLog", {"Log1"}, at, rng, (1.8 + rng:NextNumber() * 0.5) * scale, 0.08, true)
+	if found then
+		return found
+	end
 	local m = B.model(parent, "FallenLog")
 	local base = at * yaw(rng)
 	local len = (7 + rng:NextNumber() * 4) * scale
@@ -1100,6 +1194,35 @@ function P.log(parent, at, rng, scale)
 	B.cyl(m, 0.3, 1.3 * scale, base * CFrame.new(len / 2, 0.7 * scale, 0), "#a88a62", M.Wood)
 	B.ellipsoid(m, Vector3.new(len * 0.5, 0.5, 1.4) * scale, base * CFrame.new(-len * 0.1, 1.45 * scale, 0), "#4a6b3a", M.SmoothPlastic)
 	return B.decorate(m)
+end
+
+-- 잘린 그루터기 (메쉬가 없으면 나무 원기둥)
+function P.stump(parent, at, rng, scale)
+	scale = scale or 1
+	local found = mesh(parent, "Stump", {"Stump1"}, at, rng, (1.9 + rng:NextNumber() * 0.6) * scale, 0.1, true)
+	if found then
+		return found
+	end
+	local m = B.model(parent, "Stump")
+	B.cyl(m, 1.6 * scale, 2.6 * scale, at * CFrame.new(0, 0.8 * scale, 0), "#4e3a2a", M.Wood, true)
+	B.cyl(m, 0.1, 2.3 * scale, at * CFrame.new(0, 1.62 * scale, 0), "#a88a62", M.Wood, true)
+	return B.decorate(m)
+end
+
+-- 숲 바닥 고사리 (메쉬가 없으면 풀잎 쐐기)
+function P.fern(parent, at, rng, scale)
+	scale = scale or 1
+	local found = mesh(parent, "Fern", {"Fern1"}, at, rng, (2.2 + rng:NextNumber() * 0.9) * scale, 0.04)
+	if found then
+		return found
+	end
+	local m = B.model(parent, "Fern")
+	for i = 1, 7 do
+		local a = CFrame.Angles(0, math.rad(i * 51 + rng:NextInteger(0, 20)), 0)
+		B.wedge(m, Vector3.new(0.15, 1.6 * scale, 1.1 * scale), at * a * CFrame.new(0, 0.7 * scale, -0.7 * scale) * CFrame.Angles(math.rad(-20), 0, 0),
+			"#3a5228", M.SmoothPlastic)
+	end
+	return B.decorate(m, false)
 end
 
 -- 밤에 은은하게 빛나는 버섯 무리 (어둠 속 길잡이)
@@ -1120,6 +1243,10 @@ end
 
 function P.rock(parent, at, rng, scale, name)
 	scale = scale or 1
+	local found = mesh(parent, name or "Rock", ROCKS, at, rng, (3.4 + rng:NextNumber() * 1.2) * scale, 0.1, true)
+	if found then
+		return found
+	end
 	local m = B.model(parent, name or "Rock")
 	local base = at * yaw(rng)
 	local col = Color3.fromHex(pick(rng, ROCK))
@@ -1140,9 +1267,15 @@ end
 
 function P.bush(parent, at, rng, scale, berries)
 	scale = scale or 1
+	if not berries then
+		local found = mesh(parent, "Bush", {"Fern1"}, at, rng, (2.6 + rng:NextNumber() * 0.8) * scale, 0.05)
+		if found then
+			return found
+		end
+	end
 	local m = B.model(parent, berries and "BerryBush" or "Bush")
 	local base = at * yaw(rng)
-	local col = Color3.fromHex(berries and "#3f8f4a" or pick(rng, LEAF))
+	local col = Color3.fromHex(berries and "#2f5230" or pick(rng, LEAF))
 	local blobs = {
 		{Vector3.new(4.2, 3.2, 4.2), Vector3.new(0, 1.5, 0)},
 		{Vector3.new(3.2, 2.6, 3.2), Vector3.new(1.8, 1.1, 0.8)},
@@ -1150,7 +1283,7 @@ function P.bush(parent, at, rng, scale, berries)
 		{Vector3.new(2.6, 2.2, 2.6), Vector3.new(-0.4, 1.0, 1.8)},
 	}
 	for i, blob in ipairs(blobs) do
-		B.ellipsoid(m, blob[1] * scale, base * CFrame.new(blob[2] * scale), col:Lerp(Color3.fromHex("#9bd26a"), (i - 1) * 0.06), M.SmoothPlastic)
+		B.ellipsoid(m, blob[1] * scale, base * CFrame.new(blob[2] * scale), col:Lerp(Color3.fromHex("#5b7a45"), (i - 1) * 0.07), M.Grass)
 	end
 	if berries then
 		for i = 1, 14 do
@@ -1158,7 +1291,7 @@ function P.bush(parent, at, rng, scale, berries)
 			local r = 1.6 + rng:NextNumber() * 0.6
 			local y = 0.8 + rng:NextNumber() * 2.2
 			local ball = B.ball(m, 0.55 * scale, base * CFrame.new(math.cos(a) * r * scale, y * scale, math.sin(a) * r * scale),
-				i % 3 == 0 and "#ff6b9a" or "#e2385b", M.SmoothPlastic)
+				i % 3 == 0 and "#c43b52" or "#9e2238", M.SmoothPlastic)
 			ball.Name = "Berry"
 		end
 	end
@@ -1223,7 +1356,7 @@ end
 
 function P.stake(parent, at, height, rng)
 	local m = parent
-	local col = Color3.fromHex("#8a5d36"):Lerp(Color3.fromHex("#6e4a2c"), rng:NextNumber())
+	local col = Color3.fromHex("#6a5644"):Lerp(Color3.fromHex("#4b3d31"), rng:NextNumber())
 	B.cyl(m, height, 1.7, at * CFrame.new(0, height / 2, 0), col, M.Wood, true)
 	B.spike(m, 1.7, 1.5, 1.4, at * CFrame.new(0, height, 0), col, M.Wood)
 end
@@ -1255,16 +1388,16 @@ end
 function P.crate(parent, at, size)
 	size = size or 2.6
 	local m = B.model(parent, "Crate")
-	B.block(m, Vector3.one * size, at * CFrame.new(0, size / 2, 0), "#b07b45", M.WoodPlanks)
+	B.block(m, Vector3.one * size, at * CFrame.new(0, size / 2, 0), "#7d6248", M.WoodPlanks)
 	for _, dir in ipairs({CFrame.new(), CFrame.Angles(0, math.rad(90), 0)}) do
-		B.block(m, Vector3.new(size + 0.1, 0.35, 0.35), at * CFrame.new(0, size / 2, 0) * dir * CFrame.new(0, 0, size / 2) * CFrame.Angles(0, 0, math.rad(45)), "#7a5230", M.Wood)
+		B.block(m, Vector3.new(size + 0.1, 0.35, 0.35), at * CFrame.new(0, size / 2, 0) * dir * CFrame.new(0, 0, size / 2) * CFrame.Angles(0, 0, math.rad(45)), "#54402f", M.Wood)
 	end
 	return B.decorate(m)
 end
 
 function P.barrel(parent, at)
 	local m = B.model(parent, "Barrel")
-	B.cyl(m, 3, 2.2, at * CFrame.new(0, 1.5, 0), "#9a6a3c", M.WoodPlanks, true)
+	B.cyl(m, 3, 2.2, at * CFrame.new(0, 1.5, 0), "#6f5640", M.WoodPlanks, true)
 	B.cyl(m, 0.25, 2.3, at * CFrame.new(0, 0.6, 0), "#4b4f55", M.Metal, true)
 	B.cyl(m, 0.25, 2.3, at * CFrame.new(0, 2.4, 0), "#4b4f55", M.Metal, true)
 	return B.decorate(m)
@@ -1273,13 +1406,16 @@ end
 function P.logPile(parent, at)
 	local m = B.model(parent, "Logs")
 	for i, off in ipairs({Vector3.new(-0.8, 0.7, 0), Vector3.new(0.8, 0.7, 0), Vector3.new(0, 1.9, 0)}) do
-		B.cyl(m, 4, 1.4, at * CFrame.new(off) * CFrame.Angles(0, math.rad(90 + i * 4), 0), "#8a5d36", M.Wood)
+		B.cyl(m, 4, 1.4, at * CFrame.new(off) * CFrame.Angles(0, math.rad(90 + i * 4), 0), "#5e4a38", M.Wood)
 	end
 	return B.decorate(m)
 end
 
 function P.banner(parent, at, col, height)
 	height = height or 8
+	-- 밝은 색 깃발은 캠핑장처럼 보인다 → 때 묻고 바랜 천 색으로 누른다 (색 구분은 살짝 남긴다)
+	col = Color3.fromHex(typeof(col) == "string" and col or "#3fa9a0")
+	col = col:Lerp(Color3.fromHex("#3b342d"), 0.6)
 	local m = B.model(parent, "Banner")
 	B.cyl(m, height, 0.4, at * CFrame.new(0, height / 2, 0), "#6e4a2c", M.Wood, true)
 	B.block(m, Vector3.new(2.2, 3.2, 0.12), at * CFrame.new(1.2, height - 1.8, 0), col or "#3fa9a0", M.Fabric)
@@ -1328,9 +1464,10 @@ local Props = require(script.Parent.Props)
 local S = {}
 local M = Enum.Material
 
-local WOOD, WOOD_D, WOOD_L = "#8b5a2b", "#6b4423", "#b98a57"
-local STONE, STONE_D, STONE_L = "#9aa1a6", "#737b82", "#b8bec2"
-local ROOF = "#c0583f"
+-- 생존 톤: 비바람에 바랜 회갈색 나무, 이끼 낀 돌, 어두운 널지붕
+local WOOD, WOOD_D, WOOD_L = "#6a5442", "#4d3d30", "#8c7a64"
+local STONE, STONE_D, STONE_L = "#83878a", "#62676b", "#9da1a2"
+local ROOF = "#4f4239"
 
 -- ===================================================================== Core
 function S.core(parent, at)
@@ -1400,7 +1537,7 @@ function S.storehouse(parent, at)
 	-- 박공 지붕
 	local roof = at * CFrame.new(0, 7.5, 0)
 	B.spike(m, 10.5, 13.5, 3.2, roof * CFrame.Angles(0, 0, 0), ROOF, M.WoodPlanks)
-	B.block(m, Vector3.new(13.6, 0.4, 0.6), roof * CFrame.new(0, 3.2, 0), "#8a3e2c", M.Wood)
+	B.block(m, Vector3.new(13.6, 0.4, 0.6), roof * CFrame.new(0, 3.2, 0), "#3e342c", M.Wood)
 	-- 짐: 상자, 통, 통나무, 돌
 	Props.crate(m, at * CFrame.new(-3.2, 0.8, 1.6), 2.6)
 	Props.crate(m, at * CFrame.new(-3.2, 3.4, 1.6), 2)
@@ -1409,8 +1546,8 @@ function S.storehouse(parent, at)
 	Props.crate(m, at * CFrame.new(-7.4, 0, -2.4) * CFrame.Angles(0, math.rad(20), 0), 2.2)
 	Props.barrel(m, at * CFrame.new(7.2, 0, -2.6))
 	-- 간판: 상자 아이콘
-	B.block(m, Vector3.new(5, 1.6, 0.3), at * CFrame.new(0, 6.6, -4.3), "#e8d2a8", M.WoodPlanks)
-	local sign = B.block(m, Vector3.new(1, 1, 0.1), at * CFrame.new(0, 6.6, -4.5), "#e8d2a8", M.SmoothPlastic, {Transparency = 1})
+	B.block(m, Vector3.new(5, 1.6, 0.3), at * CFrame.new(0, 6.6, -4.3), "#9c8c72", M.WoodPlanks)
+	local sign = B.block(m, Vector3.new(1, 1, 0.1), at * CFrame.new(0, 6.6, -4.5), "#9c8c72", M.SmoothPlastic, {Transparency = 1})
 	local gui = Instance.new("SurfaceGui")
 	gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(400, 130), 1
 	gui.Parent = sign
@@ -1468,7 +1605,7 @@ S.hoop = hoop
 -- 몬스터볼 류와 겹치지 않도록 둥근 바구니 형태를 쓴다. 밑면 중심이 at, 높이 약 3.2 * scale.
 function S.trapIcon(parent, at, scale)
 	scale = scale or 1
-	local staves, band = "#c79a52", "#8a5d36"
+	local staves, band = "#8a7152", "#5e4a38"
 	B.cyl(parent, 0.3 * scale, 3.2 * scale, at * CFrame.new(0, 0.15 * scale, 0), band, M.Wood, true)
 	for i = 0, 7 do
 		local a = CFrame.Angles(0, math.rad(i * 45), 0)
@@ -1489,7 +1626,7 @@ end
 function S.pen(parent, at)
 	local m = B.model(parent, "PetPen")
 	local w, d = 14, 10
-	B.block(m, Vector3.new(w, 0.3, d), at * CFrame.new(0, 0.15, 0), "#c8b27a", M.Sand)
+	B.block(m, Vector3.new(w, 0.3, d), at * CFrame.new(0, 0.15, 0), "#8e7d5e", M.Sand)
 	-- 울타리 (앞쪽 가운데는 입구)
 	local function fence(from, to)
 		local len = (to - from).Magnitude
@@ -1514,8 +1651,8 @@ function S.pen(parent, at)
 		end
 	end
 	-- 짚 침대, 물그릇, 먹이통, 발자국 깃발
-	B.ellipsoid(m, Vector3.new(5, 1, 3.6), at * CFrame.new(-3, 0.6, 2.2), "#e3c46a", M.Fabric)
-	B.ellipsoid(m, Vector3.new(4, 0.9, 3), at * CFrame.new(3.6, 0.55, 2.6), "#e8cf7e", M.Fabric)
+	B.ellipsoid(m, Vector3.new(5, 1, 3.6), at * CFrame.new(-3, 0.6, 2.2), "#a08c52", M.Fabric)
+	B.ellipsoid(m, Vector3.new(4, 0.9, 3), at * CFrame.new(3.6, 0.55, 2.6), "#a8935a", M.Fabric)
 	B.cyl(m, 0.6, 2.2, at * CFrame.new(4.4, 0.6, -2), "#8d949a", M.Slate, true)
 	B.cyl(m, 0.1, 1.8, at * CFrame.new(4.4, 0.92, -2), "#5ec8f0", M.Glass, true, {Transparency = 0.2})
 	B.block(m, Vector3.new(2.6, 0.8, 1.2), at * CFrame.new(-4.6, 0.7, -2.4), WOOD, M.WoodPlanks)
@@ -1525,7 +1662,7 @@ function S.pen(parent, at)
 	Props.banner(m, at * CFrame.new(-w / 2 - 0.2, 0, -d / 2 - 0.2), "#5bbf8a", 8)
 	Props.lantern(m, at * CFrame.new(2.5, 4.4, -d / 2 - 0.5))
 	-- 등록 표지판 (발바닥)
-	local post = B.block(m, Vector3.new(3.4, 2, 0.3), at * CFrame.new(-4.6, 2.6, -d / 2 - 0.6), "#f1dfb6", M.WoodPlanks)
+	local post = B.block(m, Vector3.new(3.4, 2, 0.3), at * CFrame.new(-4.6, 2.6, -d / 2 - 0.6), "#a39479", M.WoodPlanks)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(300, 180), 1
 	gui.Parent = post
@@ -1559,7 +1696,7 @@ function S.slotBase(parent, at, kind)
 	if kind ~= "PetStand" then
 		local stake = B.block(frame, Vector3.new(0.3, 2.6, 0.3), at * CFrame.new(hx - 0.6, 1.3, -hz + 0.6), WOOD, M.Wood)
 		-- 표지는 기지 안쪽(+Z)에서 보이도록 뒷면에 그린다
-		local sign = B.block(frame, Vector3.new(1.8, 1.4, 0.15), stake.CFrame * CFrame.new(0, 1.1, 0.2), "#f1dfb6", M.WoodPlanks)
+		local sign = B.block(frame, Vector3.new(1.8, 1.4, 0.15), stake.CFrame * CFrame.new(0, 1.1, 0.2), "#a39479", M.WoodPlanks)
 		local gui = Instance.new("SurfaceGui")
 		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Back, Vector2.new(120, 100), 1
 		gui.Parent = sign
@@ -2790,11 +2927,11 @@ function Map:BuildTerrain()
 	pcall(function()
 		T.Decoration = true
 	end)
-	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥
-	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#51693c"))
-	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#425a33"))
-	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#6d5741"))
-	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#4a3b2c"))
+	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥 (올리브색 풀, 낙엽 흙, 진흙)
+	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#4a573a"))
+	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#3d4a2f"))
+	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#5a4a3a"))
+	T:SetMaterialColor(MAT.Mud, Color3.fromHex("#3d3228"))
 	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#9c8f6e"))
 	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#77746c"))
 	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#62666b"))
@@ -2818,6 +2955,18 @@ function Map:BuildTerrain()
 		local a = rng:NextNumber() * math.pi * 2
 		local r = C.PlayRadius + 55 + rng:NextNumber() * 20
 		T:FillBall(Vector3.new(math.cos(a) * r, 10 + rng:NextNumber() * 12, math.sin(a) * r), 18 + rng:NextNumber() * 10, MAT.LeafyGrass)
+	end
+	-- 숲 바닥 얼룩: 풀밭이 한 가지 색으로 매끈하면 공원처럼 보인다 → 낙엽 흙·이끼·진흙 조각을 흩뿌린다
+	for _ = 1, 70 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = C.BaseRadius + 4 + rng:NextNumber() * (C.PlayRadius + 30 - C.BaseRadius)
+		local center = Vector3.new(math.cos(a) * r, -1.2, math.sin(a) * r)
+		local roll = rng:NextNumber()
+		local mat = roll &lt; 0.45 and MAT.LeafyGrass or (roll &lt; 0.85 and MAT.Ground or MAT.Mud)
+		for _ = 1, 3 do
+			local off = Vector3.new(B.jitter(rng, 6), 0, B.jitter(rng, 6))
+			T:FillCylinder(CFrame.new(center + off), 2.6, 4 + rng:NextNumber() * 7, mat)
+		end
 	end
 	-- 기지 바닥: 흙 광장 + Core 주변 돌바닥
 	T:FillCylinder(CFrame.new(0, -2, 0), 4, C.BaseRadius - 2, MAT.LeafyGrass)
@@ -2909,8 +3058,8 @@ function Map:BuildBase()
 	spawn.Anchored, spawn.Neutral, spawn.Duration, spawn.Transparency, spawn.CanCollide = true, true, 3, 1, false
 	spawn.Parent = base
 	self.Spawn = spawn
-	B.cyl(base, 0.3, 7, CFrame.new(spawn.Position.X, 0.15, spawn.Position.Z), "#d9c8a0", MAT.Slate, true)
-	B.cyl(base, 0.32, 5.4, CFrame.new(spawn.Position.X, 0.17, spawn.Position.Z), "#8ff5e8", MAT.Neon, true, {Transparency = 0.6})
+	B.cyl(base, 0.3, 7, CFrame.new(spawn.Position.X, 0.15, spawn.Position.Z), "#7d776c", MAT.Slate, true)
+	B.cyl(base, 0.32, 5.4, CFrame.new(spawn.Position.X, 0.17, spawn.Position.Z), "#8ff5e8", MAT.Neon, true, {Transparency = 0.8})
 
 	-- 말뚝 울타리 (길목 구멍 3개)
 	local palisade = B.model(base, "Palisade")
@@ -2995,23 +3144,23 @@ function Map:BuildLanes()
 				local center = lane.Dir * radius + lane.Side * s * (C.LaneWidth / 2 + 5)
 				local frame = CFrame.lookAt(center, center + lane.Side)
 				for k = -1, 1 do
-					B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#7a5230", MAT.Wood, true)
+					B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#5e4b3b", MAT.Wood, true)
 				end
 				for _, y in ipairs({1.2, 2.7}) do
-					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#8b5a2b", MAT.Wood)
+					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#54432f", MAT.Wood)
 				end
 				Props.rock(folder, frame * CFrame.new(0, 0, 6.5), self.Rng, 0.55)
 			end
 		end
 		-- 길 표지 돌 (길목 번호)
 		local marker = lane.Dir * 46 + lane.Side * (C.LaneWidth / 2 + 2.5)
-		local stone = B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#9aa1a6", MAT.Slate)
+		local stone = B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#6f7376", MAT.Slate)
 		local gui = Instance.new("SurfaceGui")
 		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(100, 160), 1
 		gui.Parent = stone
 		local text = Instance.new("TextLabel")
 		text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
-		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, tostring(lane.Id), Color3.fromHex("#4b3a5c")
+		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, tostring(lane.Id), Color3.fromHex("#2a2530")
 		text.Parent = gui
 	end
 end
@@ -3089,8 +3238,12 @@ end
 -- ============================================================= 숲, 소품, 연못, 알파의 숲
 function Map:BuildScenery()
 	local decor, rng = self.DecorFolder, self.Rng
-	-- 바깥 숲 벽: 키 큰 전나무 두 줄. 기지 밖 어디서 봐도 숲에 둘러싸인 느낌을 준다.
+	-- 바깥 숲 벽: 키 큰 가문비나무 세 줄. 기지 밖 어디서 봐도 빽빽한 숲에 갇힌 느낌을 준다.
+	-- 굴 앞 길목만 비우고 굴 뒤쪽은 다시 숲으로 막는다. 뒷줄은 가벼운 메쉬를 쓴다.
 	local function onLane(pos, width)
+		if pos.Magnitude &gt; C.LaneRadius + 14 then
+			return false
+		end
 		for _, lane in ipairs(self.Lanes) do
 			if pos:Dot(lane.Dir) &gt; 0 and math.abs(pos:Dot(lane.Side)) &lt; width then
 				return true
@@ -3098,53 +3251,76 @@ function Map:BuildScenery()
 		end
 		return false
 	end
-	for row, spec in ipairs({{130, 4, 16}, {95, 26, 22}}) do
+	for row, spec in ipairs({{110, 2, 12}, {95, 17, 18}, {80, 36, 26}}) do
 		local count, inner, spread = table.unpack(spec)
 		for i = 1, count do
-			local a = i / count * math.pi * 2 + B.jitter(rng, 0.02)
+			local a = i / count * math.pi * 2 + B.jitter(rng, 0.025)
 			local r = C.PlayRadius + inner + rng:NextNumber() * spread
 			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
 			if not onLane(pos, 16) then
-				if row == 1 and rng:NextNumber() &lt; 0.2 then
-					Props.tree(decor, CFrame.new(pos), rng, 1.1 + rng:NextNumber() * 0.4)
-				else
-					Props.tallPine(decor, CFrame.new(pos), rng, 0.9 + rng:NextNumber() * 0.5)
-				end
+				Props.tallPine(decor, CFrame.new(pos), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, false, row &gt; 1)
 			end
 		end
 	end
-	-- 안쪽 흩뿌림
-	local function scatter(n, radius, build)
+	-- 안쪽 흩뿌림 도우미 (길목·기지·자원 자리를 피한다)
+	local function scatter(n, radius, build, minR, maxR)
 		local placed, tries = 0, 0
+		minR, maxR = minR or C.BaseRadius + 8, maxR or C.PlayRadius
 		while placed &lt; n and tries &lt; n * 30 do
 			tries = tries + 1
 			local a = rng:NextNumber() * math.pi * 2
-			local r = C.BaseRadius + 8 + rng:NextNumber() * (C.PlayRadius - C.BaseRadius - 8)
+			local r = minR + rng:NextNumber() * (maxR - minR)
 			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
 			if self:Free(pos, radius) then
-				build(CFrame.new(pos))
+				build(CFrame.new(pos), pos)
 				self:Block(pos, radius)
 				placed = placed + 1
 			end
 		end
 	end
-	scatter(22, 4, function(at)
-		Props.tallPine(decor, at, rng, 0.6 + rng:NextNumber() * 0.35)
-	end)
-	scatter(8, 5, function(at)
-		Props.tree(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
-	end)
+	-- 숲 가장자리 덤불: 숲 벽과 풀밭 사이를 고사리·바위·쓰러진 나무로 자연스럽게 잇는다
+	scatter(40, 2.5, function(at)
+		Props.fern(decor, at, rng, 0.9 + rng:NextNumber() * 0.5)
+	end, C.PlayRadius - 18, C.PlayRadius + 3)
 	scatter(10, 4, function(at)
+		Props.rock(decor, at, rng, 0.7 + rng:NextNumber() * 0.7)
+	end, C.PlayRadius - 20, C.PlayRadius + 3)
+	-- 나무 무리: 가문비나무 3~6그루가 모여 선 작은 숲. 발밑엔 고사리, 그루터기, 쓰러진 통나무
+	scatter(16, 11, function(_, center)
+		for _ = 1, rng:NextInteger(3, 6) do
+			local a = rng:NextNumber() * math.pi * 2
+			local pos = center + Vector3.new(math.cos(a), 0, math.sin(a)) * (2 + rng:NextNumber() * 7)
+			Props.tallPine(decor, CFrame.new(pos), rng, 0.62 + rng:NextNumber() * 0.3, true)
+		end
+		for _ = 1, rng:NextInteger(2, 4) do
+			local a = rng:NextNumber() * math.pi * 2
+			Props.fern(decor, CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * (4 + rng:NextNumber() * 6)), rng, 0.8 + rng:NextNumber() * 0.4)
+		end
+		local roll = rng:NextNumber()
+		local a = rng:NextNumber() * math.pi * 2
+		local spot = CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * 8)
+		if roll &lt; 0.4 then
+			Props.log(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+		elseif roll &lt; 0.7 then
+			Props.stump(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+		else
+			Props.rock(decor, spot, rng, 0.6 + rng:NextNumber() * 0.5)
+		end
+	end)
+	scatter(12, 4, function(at)
 		Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5)
 	end)
 	scatter(10, 5, function(at)
 		Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
 	end)
-	scatter(18, 3, function(at)
-		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.5)
-	end)
 	scatter(12, 3, function(at)
-		Props.bush(decor, at, rng, 0.6 + rng:NextNumber() * 0.4, false)
+		Props.stump(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
+	end)
+	scatter(18, 3, function(at)
+		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.6)
+	end)
+	scatter(60, 1.8, function(at)
+		Props.fern(decor, at, rng, 0.7 + rng:NextNumber() * 0.5)
 	end)
 	scatter(22, 1.5, function(at)
 		Props.mushrooms(decor, at, rng)
@@ -4453,12 +4629,12 @@ local function ensure(className, name, props)
 	return o
 end
 
--- 단계별 분위기 (생존 톤): 낮은 평범하게 밝은 숲, 밤은 짙은 안개 속 어둠. 낮과 밤의 대비가 긴장감을 만든다.
+-- 단계별 분위기 (생존 톤): 낮은 흐리고 서늘한 숲(잘 보이지만 평화롭지 않게), 밤은 짙은 안개 속 어둠.
 -- 밤에는 기지 불빛과 캐릭터가 든 등불만 안전하게 느껴지고, 괴물은 안개 속에서 빛나는 눈부터 보인다.
 local LOOKS = {
-	Day = {Clock = 13.2, Brightness = 2.3, Ambient = "#3d444a", Outdoor = "#868d86", Exposure = 0.05,
-		Atmo = {Density = 0.3, Offset = 0.18, Haze = 1.8, Glare = 0.2, Color = "#b3c1b6", Decay = "#77867a"},
-		Grade = {Brightness = 0.01, Contrast = 0.12, Saturation = -0.03, TintColor = "#f6f7ee"}, Bloom = 0.45},
+	Day = {Clock = 14.4, Brightness = 1.75, Ambient = "#343a3d", Outdoor = "#6b726e", Exposure = -0.02,
+		Atmo = {Density = 0.4, Offset = 0.14, Haze = 2.4, Glare = 0.1, Color = "#9aa49f", Decay = "#5b655e"},
+		Grade = {Brightness = -0.01, Contrast = 0.16, Saturation = -0.22, TintColor = "#eef1ee"}, Bloom = 0.35},
 	Dusk = {Clock = 17.8, Brightness = 1.4, Ambient = "#3a2c2c", Outdoor = "#8a5f52", Exposure = -0.05,
 		Atmo = {Density = 0.44, Offset = 0.12, Haze = 2.6, Glare = 0.8, Color = "#d9895a", Decay = "#5e2f33"},
 		Grade = {Brightness = -0.02, Contrast = 0.16, Saturation = -0.02, TintColor = "#ffd2b0"}, Bloom = 0.7},
