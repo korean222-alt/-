@@ -26,13 +26,9 @@ scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("World")
 scene.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.55, 0.60, 0.60, 1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.7
-# 흐린 숲 안개 (Roblox Atmosphere 를 흉내)
-_vol = world.node_tree.nodes.new("ShaderNodeVolumePrincipled")
-_vol.inputs["Density"].default_value = 0.0035
-_vol.inputs["Color"].default_value = (0.66, 0.71, 0.68, 1)
-world.node_tree.links.new(_vol.outputs["Volume"], world.node_tree.nodes["World Output"].inputs["Volume"])
+# 낮 하늘. (월드 볼륨 안개는 CPU 렌더가 10분을 넘겨서 뺐다. 밤 안개는 Studio 에서 확인)
+world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.62, 0.70, 0.74, 1)
+world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.8
 
 
 def material(name, color=None, emissive=False, alpha=1.0):
