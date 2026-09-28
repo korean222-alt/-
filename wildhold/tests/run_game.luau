@@ -343,7 +343,8 @@ local function exportScene()
 	-- 맵 미리보기용 장면 내보내기
 	local out = {}
 	for _, d in ipairs(workspace:GetDescendants()) do
-		if R.isA(d._class, "BasePart") and d._class ~= "Terrain" then
+		-- MeshPart 는 테스트가 넣은 가짜 블렌더 펫(회색 상자)이라 미리보기에서 뺀다
+		if R.isA(d._class, "BasePart") and d._class ~= "Terrain" and d._class ~= "MeshPart" then
 			local t = d._props.Transparency or 0
 			if t < 0.95 then
 				local c = d._props.CFrame or D.CFrame.new()
