@@ -18,16 +18,18 @@ function S:Spawn(kind, laneId, night, boss)
     if self:Count() >= C.EnemyLimit then return false end
     self.NextId = self.NextId + 1
     local spec, lane = E[kind], self.ctx.Map.Lanes[laneId]
+    -- 서버는 보이지 않는 기준 파트만 움직인다. 괴물 모양과 애니메이션은 클라이언트가 그린다.
     local p = U.part(self.ctx.Map.EnemiesFolder, kind .. self.NextId, Vector3.new(spec.Size, spec.Size, spec.Size), lane.Points[1], U.color(spec.Color))
-    p.CanCollide = false
+    p.CanCollide, p.CanTouch, p.Transparency = false, false, 1
     local unit = {Id = self.NextId, Kind = kind, Part = p, Spec = spec, LaneId = laneId,
         HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight)),
         Damage = spec.Damage * (1 + (night - 1) * W.DamagePerNight),
         Waypoint = 2, NextAttack = 0, NextPath = 0, Boss = boss, Dead = false}
     unit.MaxHP = unit.HP
     p.Position = Vector3.new(p.Position.X, spec.Size / 2 + 0.2, p.Position.Z)
-    unit.Label = U.label(p, kind .. " " .. unit.HP, spec.Size / 2 + 2)
     p:SetAttribute("EnemyId", unit.Id)
+    p:SetAttribute("Kind", kind)
+    p:SetAttribute("Boss", boss == true)
     p:SetAttribute("CurrentHealth", unit.HP)
     p:SetAttribute("MaxHealth", unit.MaxHP)
     self.Units[unit.Id] = unit
@@ -37,8 +39,9 @@ function S:Damage(unit, amount)
     if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return end
     unit.HP = math.max(0, unit.HP - amount)
     unit.Part:SetAttribute("CurrentHealth", unit.HP)
-    unit.Label.Text = unit.Kind .. " " .. math.ceil(unit.HP)
+    unit.Part:SetAttribute("HitAt", workspace:GetServerTimeNow())
     if unit.HP <= 0 then
+        self.ctx.FX:FireAllClients("EnemyDie", unit.Part.Position, unit.Kind)
         unit.Dead = true
         self.Units[unit.Id] = nil
         local position = unit.Part.Position
@@ -56,12 +59,7 @@ function S:ClearShot(origin, destination, ignored)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Include
     -- Only actual defense obstacles block combat rays; characters and FX never do.
-    local obstacles = {}
-    for _, part in ipairs(self.ctx.Map.DefensesFolder:GetChildren()) do
-        local slot = self.ctx.Defenses.Slots[part.Name]
-        if part ~= ignored and (part.CanCollide or (slot and slot.Kind == "Gate")) then table.insert(obstacles, part) end
-    end
-    params.FilterDescendantsInstances = obstacles
+    params.FilterDescendantsInstances = self.ctx.Defenses:Obstacles(ignored)
     return workspace:Raycast(origin, destination - origin, params) == nil
 end
 function S:Nearest(position, range, lineOfSight, ignored)
@@ -112,8 +110,12 @@ end
 function S:TryAttack(unit, position, radius, fn)
     if U.flat(unit.Part.Position - position).Magnitude > radius then return false end
     unit.Part:SetAttribute("State", "Attack")
+    local here = unit.Part.Position
+    local look = Vector3.new(position.X, here.Y, position.Z)
+    if (look - here).Magnitude > 0.1 then unit.Part.CFrame = CFrame.lookAt(here, look) end
     if os.clock() >= unit.NextAttack then
         unit.NextAttack = os.clock() + unit.Spec.Interval
+        unit.Part:SetAttribute("AttackAt", workspace:GetServerTimeNow())
         local multiplier = 1
         for _, other in pairs(self.Units) do
             if other.Kind == "Howler" and other ~= unit and (other.Part.Position - unit.Part.Position).Magnitude <= other.Spec.AuraRange then multiplier = other.Spec.AuraMultiplier; break end

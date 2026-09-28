@@ -13,11 +13,14 @@ return {
         Shellbub = {Name = "셸버브", Element = "Tide", Role = "탱커", HP = 240, Damage = 9, Range = 5, Interval = 1.3, Taunt = 18, Capture = 0.48, Color = {116,186,229}},
         Briarhorn = {Name = "브라이어혼 α", Element = "Leaf", Role = "알파", HP = 420, Damage = 26, Range = 7, Interval = 1.5, Splash = 8, Capture = 0.25, Color = {192,158,226}},
     },
+    -- 야생 스폰: {종, 레벨, x, z}. 모슬링 초원(남쪽) → 엠버펍 바위지대(북동) → 셸버브 연못(북서) → 알파의 숲(남쪽 끝)
     Spawns = {
-        {"Mossling",1,24,30},{"Mossling",1,34,28},{"Mossling",2,-35,42},
-        {"Mossling",2,48,50},{"Mossling",3,-50,65},
-        {"Emberpup",3,75,40},{"Emberpup",4,90,60},
-        {"Shellbub",3,-68,45},{"Shellbub",4,-85,65},
-        {"Briarhorn",6,0,115},
+        {"Mossling",1,6,56},{"Mossling",1,-12,60},{"Mossling",2,26,70},
+        {"Mossling",2,-36,74},{"Mossling",3,8,82},
+        {"Emberpup",3,60,-40},{"Emberpup",4,84,-58},
+        {"Shellbub",3,-66,-40},{"Shellbub",4,-92,-62},
+        {"Briarhorn",6,0,118},
     },
+    -- 종별 게임 속 키(stud). 블렌더 모델과 대체 모델 모두 이 높이로 맞춘다.
+    Heights = {Mossling = 2.9, Emberpup = 3.3, Shellbub = 2.2, Briarhorn = 7.8},
 }

@@ -4,7 +4,17 @@ local U = require(RS.Shared.Modules.Utility)
 local Rules = require(RS.Shared.Modules.Rules)
 local C = require(RS.Shared.Config.GameConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
+local B = require(RS.Shared.Visuals.Build)
 local S = {}
+
+-- 떨어진 자원 모양 (밟으면 획득). 클라이언트가 둥실둥실 돌린다.
+local DROP_LOOK = {
+	Wood = function(parent, at) return B.cyl(parent, 1.6, 0.8, at, "#8a5d36", Enum.Material.Wood) end,
+	Stone = function(parent, at) return B.block(parent, Vector3.new(1.1, 0.9, 1.0), at * CFrame.Angles(0.4, 0.6, 0.2), "#a3aab0", Enum.Material.Slate) end,
+	Fiber = function(parent, at) return B.ellipsoid(parent, Vector3.new(0.6, 1.5, 0.6), at * CFrame.Angles(0, 0, 0.5), "#8cbf5a", Enum.Material.SmoothPlastic) end,
+	Scrap = function(parent, at) return B.cyl(parent, 0.35, 1.3, at * CFrame.Angles(0, 0, math.rad(90)), "#b0763e", Enum.Material.CorrodedMetal) end,
+	Berry = function(parent, at) return B.ball(parent, 0.9, at, "#e2385b", Enum.Material.SmoothPlastic) end,
+}
 function S:Empty()
     local result = {}
     for _, kind in ipairs(R.Order) do result[kind] = 0 end
@@ -26,27 +36,40 @@ function S:Reset()
         self:ShowNode(node, true)
     end
 end
+-- 다 캔 노드는 모델을 치우고 작은 그루터기/잔해만 남긴다. 시간이 지나면 다시 자란다.
 function S:ShowNode(node, visible)
-    node.Part.Transparency, node.Part.CanCollide = visible and 0 or 1, visible
-    node.Part.CanQuery, node.Label.Parent.Enabled = visible, visible
+    local wasVisible = node.Model.Parent ~= nil
+    node.Model.Parent = visible and self.ctx.Map.NodesFolder or nil
+    node.Part.CanQuery = visible
     node.Part:SetAttribute("CurrentHealth", node.HP)
-    node.Label.Text = string.format("%s  %d", R.Labels[node.Kind], node.HP)
+    if not node.Stump then
+        local color = node.Kind == "Wood" and "#7a5230" or (node.Kind == "Berry" and "#3f8f4a" or "#8d949a")
+        node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, node.Kind == "Wood" and 1.6 or 2.2, node.Home * CFrame.new(0, 0.4, 0), color,
+            node.Kind == "Wood" and Enum.Material.Wood or Enum.Material.Slate, true)
+        node.Stump.Name = "Depleted"
+    end
+    node.Stump.Transparency = visible and 1 or 0
+    if visible and not wasVisible then self.ctx.FX:FireAllClients("Regrow", node.Home.Position, node.Kind) end
 end
 function S:Drop(kind, amount, position)
     if amount <= 0 or #self.Drops >= C.DropLimit then return end
-    local p = U.part(self.ctx.Map.DropsFolder, kind, Vector3.new(1.4, 1.4, 1.4), Vector3.new(position.X, 1.1, position.Z), U.color(R.Types[kind].Color))
-    p.CanCollide, p.CanQuery, p.Material = false, false, Enum.Material.Neon
+    local p = DROP_LOOK[kind](self.ctx.Map.DropsFolder, CFrame.new(position.X, 1.1, position.Z))
+    p.Name = kind
+    p:SetAttribute("Amount", amount)
     table.insert(self.Drops, {Part = p, Kind = kind, Amount = amount, Expires = os.clock() + C.DropLifetime})
 end
 function S:Harvest(player, node)
     if node.HP <= 0 or not U.near(player, node.Part.Position, C.SpearRange) then return end
     node.HP = math.max(0, node.HP - C.HarvestDamage)
-    self:ShowNode(node, node.HP > 0)
+    node.Part:SetAttribute("CurrentHealth", node.HP)
+    node.Part:SetAttribute("HitAt", workspace:GetServerTimeNow())
+    if node.HP == 0 then self:ShowNode(node, false) end
     if node.HP == 0 then
         node.RespawnAt = os.clock() + R.Types[node.Kind].Respawn
         for n = 1, 2 do
             local amount = n == 1 and math.ceil(R.Types[node.Kind].Yield / 2) or math.floor(R.Types[node.Kind].Yield / 2)
-            self:Drop(node.Kind, amount, node.Part.Position + Vector3.new(n * 2 - 3, 0, 2))
+            local spread = CFrame.Angles(0, math.random() * math.pi * 2, 0) * CFrame.new(0, 0, 3.5)
+            self:Drop(node.Kind, amount, node.Part.Position + spread.Position)
         end
     end
 end

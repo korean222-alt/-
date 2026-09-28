@@ -1,0 +1,11 @@
+# Blender 자동 백업
+*.blend1
+# 테스트 하네스 임시 파일
+tests/.manifest
+tests/.scene_*.txt
+tests/renders/
+# 확인용 추가 렌더 (build_pets.py 가 매번 다시 만든다)
+blender/renders/*_side.png
+blender/renders/*_pose.png
+blender/renders/lineup.png
+__pycache__/

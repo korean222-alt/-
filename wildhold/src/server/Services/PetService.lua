@@ -5,6 +5,12 @@ local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local S={}
+-- 값이 바뀔 때만 속성을 복제한다 (0.2초마다 같은 값을 보내지 않도록)
+local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
+local function face(part,target)
+    local pos=part.Position;local flat=Vector3.new(target.X,pos.Y,target.Z)
+    if (flat-pos).Magnitude>0.1 then part.CFrame=CFrame.lookAt(pos,flat) end
+end
 function S:Init(ctx) self.ctx,self.Rosters,self.Teams,self.Active,self.LastAction=ctx,{},{},{},{} end
 function S:Record(player,data,secured)
     local stats=R.stats(data,P)
@@ -31,8 +37,8 @@ function S:Spawn(rec,index)
     local part=U.part(self.ctx.Map.PetsFolder,rec.Data.Uid,Vector3.new(2,2,2),Vector3.new(pos.X,2,pos.Z))
     part.Transparency,part.CanCollide,part.CanTouch=1,false,false
     part:SetAttribute("SpeciesId",rec.Data.SpeciesId);part:SetAttribute("OwnerId",rec.Owner.UserId)
+    part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid)
     rec.Part,rec.Index=part,index;self.Active[rec.Data.Uid]=rec
-    rec.Label=U.label(part,"",4)
 end
 function S:SetTeam(player,ids,initial)
     local roster=self.Rosters[player]; if not roster then return false end
@@ -218,8 +224,9 @@ function S:Tick(dt)
                     if (pos-rec.Part.Position).Magnitude<=range then
                         if os.clock()>=rec.NextAttack then
                             rec.NextAttack,rec.LastCombat=os.clock()+spec.Interval,os.clock()
+                            face(rec.Part,pos)
                             rec.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
-                            self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos)
+                            self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId)
                             local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)
                             if isWild then self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element),rec.Owner)
                             else
@@ -236,8 +243,10 @@ function S:Tick(dt)
                     self:Move(rec,Vector3.new(goal.X,2,goal.Z),dt)
                 end
             end
-            rec.Part:SetAttribute("Fainted",rec.HP<=0)
-            rec.Label.Text=string.format("%s Lv%d  %d/%d",spec.Name,stats.Level,math.ceil(rec.HP),rec.MaxHP)
+            attr(rec.Part,"Fainted",rec.HP<=0)
+            attr(rec.Part,"Level",stats.Level);attr(rec.Part,"HP",math.ceil(rec.HP));attr(rec.Part,"MaxHP",rec.MaxHP)
+            attr(rec.Part,"Mode",rec.Mode);attr(rec.Part,"Standing",rec.Stand~=nil)
+            attr(rec.Part,"Status",rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "등록됨" or "미등록")))
         end
     end
 end

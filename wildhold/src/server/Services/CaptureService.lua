@@ -5,6 +5,7 @@ local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local S={}
+local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
 function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
 function S:Reset()
     self.Wild,self.Attempts={},{}
@@ -16,11 +17,16 @@ function S:Reset()
         local pos=Vector3.new(spawn[3],2,spawn[4])
         local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
         part.CanCollide,part.CanTouch,part.Transparency=false,false,1
+        part.CFrame=CFrame.new(pos)*CFrame.Angles(0,math.random()*math.pi*2,0)
         part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
+        part:SetAttribute("Level",data.Level);part:SetAttribute("MaxHP",stats.HP);part:SetAttribute("HP",stats.HP)
         local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
             Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={}}
-        wild.Label=U.label(part,"",5);self.Wild[uid]=wild
-        local prompt=U.prompt(part,"Hunt","펫으로 약화 / 포획",Enum.KeyCode.E)
+        self.Wild[uid]=wild
+        local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
+        prompt.ObjectText=P.Species[data.SpeciesId].Name.." Lv"..data.Level
+        prompt.MaxActivationDistance=P.CaptureRange
+        wild.Prompt=prompt
         prompt.Triggered:Connect(function(player)
             if wild.HP/wild.MaxHP>P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
             else self:Attempt(player,uid,"Trap",false) end
@@ -71,6 +77,7 @@ function S:Attempt(player,uid,trap,bait)
     wild.Busy=player
     self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trap=="BetterTrap",bait)}
     self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
+    self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trap=="BetterTrap",wild.Id)
 end
 function S:Finish(player,attempt)
     local wild=attempt.Wild
@@ -80,11 +87,13 @@ function S:Finish(player,attempt)
         if player.Parent then self.ctx.Notify(player,"포획 중단 · 사거리나 생존 상태를 확인하세요. 사용한 덫은 소모됩니다.") end;return
     end
     if math.random()<attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
+        self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,true,wild.SpeciesId,wild.Id)
         self.Wild[wild.Id]=nil;wild.Part:Destroy()
         for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
         self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
         self.ctx.PetFX:FireClient(player,"Capture",P.Species[wild.SpeciesId].Name)
     else
+        self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,false,wild.SpeciesId,wild.Id)
         wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
         self.ctx.Notify(player,"빠져나왔습니다! 다음 시도의 성공 확률이 올랐습니다.")
         self.ctx.PetFX:FireClient(player,"Fail")
@@ -112,9 +121,12 @@ function S:Tick(dt)
             if target and (target.Position-wild.Home).Magnitude<32 then
                 local delta=U.flat(target.Position-wild.Part.Position)
                 if delta.Magnitude>6 then
-                    wild.Part.Position=wild.Part.Position+delta.Unit*math.min(delta.Magnitude,10*dt)
+                    local nextPos=wild.Part.Position+delta.Unit*math.min(delta.Magnitude,10*dt)
+                    wild.Part.CFrame=CFrame.lookAt(nextPos,nextPos+delta.Unit)
                 elseif os.clock()>=wild.NextAttack then
                     wild.NextAttack=os.clock()+1.4;wild.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
+                    local here=wild.Part.Position
+                    wild.Part.CFrame=CFrame.lookAt(here,Vector3.new(target.Position.X,here.Y,target.Position.Z))
                     if pet then self.ctx.Pets:Damage(pet,wild.Damage*R.element(spec.Element,P.Species[pet.Data.SpeciesId].Element))
                     elseif human then human:TakeDamage(wild.Damage) end
                 end
@@ -122,8 +134,12 @@ function S:Tick(dt)
                 wild.Owner,wild.ExhaustUntil,wild.Contributors=nil,nil,{};wild.HP=wild.MaxHP;wild.Part.Position=wild.Home
             end
         end
-        wild.Part:SetAttribute("Exhausted",wild.ExhaustUntil~=nil)
-        wild.Label.Text=string.format("%s Lv%d · %d/%d%s",spec.Name,wild.Level,math.ceil(wild.HP),wild.MaxHP,wild.ExhaustUntil and " · 포획 가능" or "")
+        attr(wild.Part,"Exhausted",wild.ExhaustUntil~=nil)
+        attr(wild.Part,"HP",math.ceil(wild.HP));attr(wild.Part,"Busy",wild.Busy~=nil)
+        attr(wild.Part,"Hunter",wild.Owner and wild.Owner.DisplayName or "")
+        local ready=wild.HP/wild.MaxHP<=P.CaptureHP
+        wild.Prompt.ActionText=wild.Busy and "포획 중…" or (ready and "덫 던지기 (포획)" or "펫들과 사냥 시작")
+        wild.Prompt.Enabled=self.ctx.Clock.Phase=="Day" and not wild.Busy
     end
 end
 function S:Snapshot(player)

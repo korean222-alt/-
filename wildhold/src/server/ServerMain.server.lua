@@ -27,7 +27,9 @@ ctx.Map.CraftPrompt.Triggered:Connect(function(player)
 end)
 for _,slot in ipairs(ctx.Map.Slots) do
     if slot.Kind=="PetStand" then
-        U.prompt(slot.Pad,"PlacePet","펫 배치").Triggered:Connect(function(player)
+        local prompt=U.prompt(slot.Pad,"PlacePet","펫 올려두기 (공격·사거리 강화)",Enum.KeyCode.E,Vector3.new(0,3,0))
+        prompt.ObjectText="펫 배치대"
+        prompt.Triggered:Connect(function(player)
             if C.ActiveStage>=5 then ctx.Pets:AssignStand(player,slot) end
         end)
     end

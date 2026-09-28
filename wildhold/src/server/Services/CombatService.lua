@@ -11,13 +11,32 @@ function S:Equip(player, character)
     local backpack = player:WaitForChild("Backpack", 10)
     if not human or not backpack or not character.Parent then return end
     character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
+    for _, old in ipairs(backpack:GetChildren()) do if old:GetAttribute("WildholdSpear") then old:Destroy() end end
     local tool = Instance.new("Tool")
-    tool.Name, tool.CanBeDropped, tool.RequiresHandle = "Spear", false, true
+    tool.Name, tool.CanBeDropped, tool.RequiresHandle = "창", false, true
+    tool.ToolTip = "공격 · 채집"
     tool:SetAttribute("WildholdSpear", true)
+    -- 손잡이(Handle) + 창날 + 천 감개. 창끝이 앞(-Z)으로 향하도록 GripForward 를 맞춘다.
     local handle = Instance.new("Part")
-    handle.Name, handle.Size = "Handle", Vector3.new(0.3, 5, 0.3)
-    handle.Color, handle.CanCollide, handle.Massless = Color3.fromRGB(187, 157, 104), false, true
-    handle.Parent, tool.Parent = tool, backpack
+    handle.Name, handle.Size = "Handle", Vector3.new(0.32, 0.32, 5.6)
+    handle.Color, handle.Material, handle.CanCollide, handle.Massless = Color3.fromRGB(150, 104, 62), Enum.Material.Wood, false, true
+    handle.Parent = tool
+    local function piece(size, offset, color, material, shape)
+        local p = Instance.new("Part")
+        p.Size, p.Color, p.Material, p.CanCollide, p.Massless = size, color, material, false, true
+        if shape then p.Shape = shape end
+        p.CFrame = handle.CFrame * offset
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0, weld.Part1, weld.Parent = handle, p, p
+        p.Parent = tool
+        return p
+    end
+    piece(Vector3.new(0.12, 0.62, 1.3), CFrame.new(0, 0, -3.25), Color3.fromRGB(214, 226, 232), Enum.Material.Metal)
+    piece(Vector3.new(0.12, 0.62, 0.62), CFrame.new(0, 0, -3.95) * CFrame.Angles(math.rad(45), 0, 0), Color3.fromRGB(214, 226, 232), Enum.Material.Metal)
+    piece(Vector3.new(0.42, 0.42, 0.7), CFrame.new(0, 0, -2.4), Color3.fromRGB(64, 170, 150), Enum.Material.Fabric)
+    piece(Vector3.new(0.42, 0.42, 0.5), CFrame.new(0, 0, 0.6), Color3.fromRGB(120, 78, 44), Enum.Material.Fabric)
+    tool.Grip = CFrame.new(0, 0, 0.9) * CFrame.Angles(0, 0, 0)
+    tool.Parent = backpack
     human:EquipTool(tool)
     human.Died:Connect(function()
         local root = character:FindFirstChild("HumanoidRootPart")
@@ -35,6 +54,10 @@ function S:Attack(player)
     local now = os.clock()
     if now - (self.LastAttack[player] or -math.huge) < C.SpearCooldown then return end
     self.LastAttack[player] = now
+    -- 기본 Animate 스크립트가 "toolanim" 값을 보고 찌르기 동작을 재생한다
+    local anim = Instance.new("StringValue")
+    anim.Name, anim.Value, anim.Parent = "toolanim", "Lunge", tool
+    game:GetService("Debris"):AddItem(anim, 0.3)
     -- Client sends intent only. Server chooses a nearby valid target and damage.
     local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
     if enemy then

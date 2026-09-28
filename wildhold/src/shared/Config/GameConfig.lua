@@ -21,7 +21,7 @@ return {
     SpearCooldown = 0.55,
     HarvestDamage = 25,
     PickupRadius = 5,
-    DepositRadius = 9,
+    DepositRadius = 11,
     CarryCapacity = 60,
     DeathDropFraction = 0.3,
     RespawnSeconds = 4,
