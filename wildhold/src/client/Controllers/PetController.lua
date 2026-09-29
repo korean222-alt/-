@@ -8,6 +8,8 @@ local P = require(RS.Shared.Config.PetConfig)
 local Recipes = require(RS.Shared.Config.RecipeConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
 local I = require(RS.Shared.Config.ItemConfig)
+local PR = require(RS.Shared.Modules.PetRules)
+local Shop = require(RS.Shared.Config.ShopConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local Controller = {}
@@ -89,8 +91,10 @@ function Controller:Init(remotes)
 	self.Status = label(self.Panel, "내 펫", UDim2.fromOffset(16, 8), UDim2.new(1, -90, 0, 44), {Font = TITLE, TextSize = 18})
 	button(self.Panel, "✕", UDim2.new(1, -56, 0, 8), UDim2.fromOffset(46, 42), function() self:Close() end, Color3.fromHex("#5b2f3a"))
 	self.TabButtons = {}
-	for index, tab in ipairs({{"Pets", "내 펫"}, {"Wild", "야생"}, {"Orders", "명령"}, {"Craft", "제작"}, {"Dex", "도감"}}) do
-		self.TabButtons[tab[1]] = button(self.Panel, tab[2], UDim2.new((index - 1) * 0.2, 6, 0, 58), UDim2.new(0.2, -8, 0, 42), function()
+	local tabs = {{"Pets", "내 펫"}, {"Wild", "야생"}, {"Orders", "명령"}, {"Craft", "제작"}, {"Dex", "도감"}, {"Shop", "🪙 보급"}}
+	for index, tab in ipairs(tabs) do
+		local w = 1 / #tabs
+		self.TabButtons[tab[1]] = button(self.Panel, tab[2], UDim2.new((index - 1) * w, 6, 0, 58), UDim2.new(w, -8, 0, 42), function()
 			self.Tab = tab[1]
 			self:Render()
 		end)
@@ -278,6 +282,23 @@ function Controller:Render()
 			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
 			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
+	elseif self.Tab == "Shop" then
+		local intro = self:Row(56)
+		label(intro, string.format("🪙 %d 코인 · 밤을 버티면 코인, 새 종을 처음 확정하면 +%d\n해금한 보급은 다음 원정부터 매번 받아요", d.Coins or 0, Shop.DexReward),
+			UDim2.fromOffset(12, 4), UDim2.new(1, -24, 1, -8), {TextColor3 = COL.Muted})
+		self.Rows[#self.Rows + 1] = {}
+		for _, id in ipairs(Shop.Order) do
+			local perk = Shop.Perks[id]
+			local owned = d.Perks and d.Perks[id]
+			local row = self:Row(100)
+			label(row, perk.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+			label(row, string.format("%s\n%s", perk.Name, owned and "✅ 해금 완료" or ("🪙 " .. perk.Cost)), UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+			if not owned then
+				button(row, "🪙 해금하기", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("Perk:" .. id) end,
+					(d.Coins or 0) >= perk.Cost and Color3.fromHex("#8a6a2a") or COL.Card2)
+			end
+			self.Rows[#self.Rows + 1] = {}
+		end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local spec = P.Species[id]
@@ -287,7 +308,9 @@ function Controller:Render()
 			self:Face(row, id, 86, not (entry and entry.Seen))
 			local state = caught and "✅ 수집 완료" or (entry and entry.Seen and "👀 발견 · 아직 미확정" or "❔ 미발견")
 			local element = ELEMENT[spec.Element]
-			label(row, string.format("%s\n%s · %s\n%s\n기본 HP %d · 공격 %d", (entry and entry.Seen) and spec.Name or "???", element[1], spec.Role, state, spec.HP, spec.Damage),
+			local seen = entry and entry.Seen
+			local grows = spec.Adult and ("  →  🌟 " .. spec.Adult.Name .. " (Lv" .. P.EvolveLevel .. ")") or ""
+			label(row, string.format("%s%s\n%s · %s\n%s\n기본 HP %d · 공격 %d", seen and spec.Name or "???", seen and grows or "", element[1], spec.Role, state, spec.HP, spec.Damage),
 				UDim2.fromOffset(104, 6), UDim2.new(1, -112, 1, -12))
 			self.Rows[#self.Rows + 1] = {}
 		end
@@ -312,6 +335,9 @@ function Controller:Signature()
 		for _, id in ipairs(ids) do pieces[#pieces + 1] = id end
 	elseif self.Tab == "Craft" then
 		pieces[#pieces + 1] = tostring(self.Data.Bench) .. tostring(self.Station)
+	elseif self.Tab == "Shop" then
+		pieces[#pieces + 1] = tostring(self.Data.Coins)
+		for _, id in ipairs(Shop.Order) do pieces[#pieces + 1] = tostring(self.Data.Perks and self.Data.Perks[id]) end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local e = self.Data.Dex[id]
@@ -335,7 +361,8 @@ function Controller:Refresh(skip)
 					local spec = P.Species[pet.SpeciesId]
 					local element = ELEMENT[spec.Element]
 					local statusIcon = {["영구"] = "💾 영구", ["저장 중"] = "⏳ 저장 중", ["밤 생존 대기"] = "🏠 등록 · 밤 생존 대기", ["미등록"] = "⚠ 미등록 (우리에 등록!)"}
-					row.Info.Text = string.format("%s%s  Lv%d\n%s · %s · 초원 적용 Lv%d\nHP %d/%d  ·  %s\n%s", pet.Favorite and "★ " or "", spec.Name, pet.Level,
+					local growth = pet.Stage == 2 and "🌟 성체" or (spec.Adult and ("🐣 새끼 · Lv" .. P.EvolveLevel .. " 진화") or "")
+					row.Info.Text = string.format("%s%s  Lv%d  %s\n%s · %s · 초원 적용 Lv%d\nHP %d/%d  ·  %s\n%s", pet.Favorite and "★ " or "", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, growth,
 						element[1], spec.Role, pet.EffectiveLevel, pet.HP, pet.MaxHP, pet.HP == 0 and "💤 기절" or ({Follow = "따라가는 중", Stay = "대기", Guard = "방어 중", Focus = "사냥 중"})[pet.Mode] or pet.Mode,
 						statusIcon[pet.Status] or pet.Status)
 				end
@@ -346,7 +373,7 @@ function Controller:Refresh(skip)
 					local spec = P.Species[wild.SpeciesId]
 					local state = wild.Busy and "🧺 포획 진행 중" or (not wild.CanClaim and ("🏹 " .. wild.Owner .. "의 포획 우선권")
 						or (wild.Ready and "✨ 포획 가능! 16m 안에서 덫" or "HP 25% 이하로 약화하세요"))
-					row.Info.Text = string.format("%s Lv%d  ·  %dm\n%s · %s  ·  HP %d/%d\n%s\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%", spec.Name, wild.Level, wild.Distance,
+					row.Info.Text = string.format("%s Lv%d  ·  %dm\n%s · %s  ·  HP %d/%d\n%s\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%", PR.name(wild.SpeciesId, wild.Stage, P), wild.Level, wild.Distance,
 						ELEMENT[spec.Element][1], spec.Role, wild.HP, wild.MaxHP, state, wild.Ready and wild.Chance * 100 or 0, wild.Ready and wild.BetterChance * 100 or 0)
 				end
 			end

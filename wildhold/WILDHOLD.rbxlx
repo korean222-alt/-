@@ -6,6 +6,10 @@
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="FilteringEnabled">true</bool>
+      <bool name="StreamingEnabled">true</bool>
+      <int name="StreamingMinRadius">128</int>
+      <int name="StreamingTargetRadius">512</int>
+      <token name="StreamOutBehavior">2</token>
     </Properties>
   </Item>
   <Item class="Lighting" referent="RBX000002">
@@ -60,7 +64,7 @@ return {
             <ProtectedString name="Source">return {
     StudioMemory = true, -- Studio practice only. Live servers ALWAYS use DataStore.
     StoreName = "WILDHOLD_Pets_v1", StudioStoreName = "WILDHOLD_Pets_TEST_v1",
-    Version = 2, LeaseSeconds = 120, LeaseSafety = 15, SaveInterval = 30,
+    Version = 3, LeaseSeconds = 120, LeaseSafety = 15, SaveInterval = 30,
     RetrySeconds = 2, Retries = 3, ShutdownSeconds = 25,
 }
 </ProtectedString>
@@ -115,7 +119,7 @@ return {
     NightSeconds = 180,
     WarningSeconds = 75, -- 맵이 넓어서 멀리 나간 사람이 돌아올 시간
     StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
-    StartDelay = 15,
+    StartDelay = 4, -- 들어와서 원정 시작까지 (30초 안에 놀기 시작)
     ResultSeconds = 20,
     DawnSeconds = 4,
     TickSeconds = 0.2,
@@ -216,17 +220,21 @@ return {
         <Item class="ModuleScript" referent="RBX000012">
           <Properties>
             <string name="Name">MapConfig</string>
-            <ProtectedString name="Source">-- 초원 맵 배치. 좌표는 stud, 기지 중심(Core) = (0, 0).
--- 길목 방향: 1 = 북(-Z), 2 = 남동, 3 = 남서. 진입로 사이 부채꼴에 자원·야생 펫이 있다.
+            <ProtectedString name="Source">-- 원정 맵 배치. 좌표는 stud, 기지 중심(Core) = (0, 0). 놀 수 있는 곳은 지름 약 1500 (99 Nights 급).
+-- 방향 각도: 0 = 북(-Z), 120 = 남동, 240 = 남서 (dir = (sin a, 0, -cos a)).
+-- 기지 주변은 초원, 그 바깥은 길목 방향마다 다른 지역: 북 = 잿빛 바위 협곡(불), 남동 = 고목의 숲(알파), 남서 = 안개 늪(물).
+-- 멀리 갈수록 야생 펫 레벨과 귀한 재료(고철·수정)가 늘어난다. 밤 괴물은 초원 끝의 굴 3곳에서 기지로 온다.
 return {
-	GroundSize = 420,
-	PlayRadius = 150, -- 이 바깥은 언덕과 숲 (경계)
+	GroundSize = 1720,
+	PlayRadius = 750, -- 이 바깥은 숲 벽과 언덕 (경계)
+	MeadowRadius = 250, -- 여기까지 초원
 	BaseRadius = 40, -- 기지 말뚝 울타리 반지름
 	GapWidth = 13, -- 울타리의 길목 구멍 폭
-	LaneRadius = 134, -- 괴물 굴(스폰) 위치
+	LaneRadius = 210, -- 괴물 굴(스폰) 위치
 	LaneWidth = 12,
-	WaypointRadii = {134, 100, 78, 57, 40, 24, 8},
+	WaypointRadii = {210, 170, 134, 100, 78, 57, 40, 24, 8},
 	LaneAngles = {0, 120, 240},
+	TrailLength = 690, -- 굴 너머 각 지역으로 이어지는 흙길 (길 잃지 않게)
 	Spawn = {0, 0.5, 15},
 	Warehouse = {21, 0, -12},
 	Workbench = {-21, 0, -12},
@@ -241,18 +249,36 @@ return {
 		{"SpikeTrap", 1, 67, 0, 0}, {"SpikeTrap", 2, 67, 0, 0}, {"SpikeTrap", 3, 67, 0, 0}, {"SpikeTrap", 1, 90, 0, 0},
 		{"PetStand", 1, 31, -11, 0}, {"PetStand", 2, 31, -11, 0}, {"PetStand", 3, 24, 0, 0}, {"PetStand", 1, 12, 10, 0},
 	},
-	-- 채집 노드: 종류별 좌표 (x, z)
-	Nodes = {
-		Wood = {{50, -58}, {38, -76}, {64, -80}, {-22, 96}, {26, 102}},
-		Stone = {{92, -18}, {104, -40}, {78, -34}, {-52, -92}, {-30, -104}},
-		Fiber = {{22, 52}, {-26, 50}, {-58, 64}, {-60, -64}, {-104, -26}},
-		Scrap = {{112, 28}, {-110, 8}, {-34, -124}, {60, 104}},
-		Berry = {{-14, 70}, {40, 66}, {-72, -30}, {-40, -56}, {70, -54}},
+	-- 지역. Angle 이 있는 지역은 그 방향 ±60° 부채꼴, MeadowRadius 바깥.
+	Zones = {
+		Meadow = {Name = "초원", Icon = "🌿", Danger = 1},
+		Crags = {Name = "잿빛 바위 협곡", Icon = "🌋", Danger = 2, Angle = 0},
+		Ancient = {Name = "고목의 숲", Icon = "🌲", Danger = 3, Angle = 120},
+		Swamp = {Name = "안개 늪", Icon = "💧", Danger = 2, Angle = 240},
 	},
-	-- 연못 (셸버브 서식지)
+	ZoneOrder = {"Meadow", "Crags", "Ancient", "Swamp"},
+	-- 지역별 채집 노드 개수 (위치는 맵을 만들 때 고정 시드로 흩뿌린다)
+	Nodes = {
+		Meadow = {Wood = 16, Stone = 10, Fiber = 16, Berry = 18, Mushroom = 6, Scrap = 4},
+		Crags = {Stone = 26, Scrap = 14, Crystal = 9, Wood = 6, Fiber = 4, Berry = 5, Mushroom = 3},
+		Ancient = {Wood = 32, Mushroom = 16, Berry = 10, Fiber = 8, Stone = 6, Crystal = 3, Scrap = 3},
+		Swamp = {Fiber = 22, Mushroom = 16, Berry = 8, Wood = 10, Scrap = 8, Crystal = 3, Stone = 4},
+	},
+	-- 튜토리얼용: 기지 남쪽 문 앞 약한 야생 모슬링 (항상 같은 자리)
+	StarterWild = {{"Mossling", 1, 6, 56}, {"Mossling", 1, -12, 60}, {"Mossling", 2, 26, 70}},
+	-- 지역별 야생 펫: {종, 마리 수, 최저 레벨, 최고 레벨}. 멀수록 높은 레벨
+	Wild = {
+		Meadow = {{"Mossling", 6, 1, 3}, {"Emberpup", 2, 2, 3}, {"Shellbub", 2, 2, 3}},
+		Crags = {{"Emberpup", 7, 3, 8}, {"Ashlizard", 5, 4, 9}},
+		Ancient = {{"Mossling", 4, 4, 8}, {"Mossdeer", 6, 4, 9}},
+		Swamp = {{"Shellbub", 7, 3, 8}, {"Bogtoad", 5, 4, 9}},
+	},
+	WildRespawn = 90, -- 잡힌 야생 펫 자리에 새로 나타나는 시간(초)
+	-- 알파의 숲 (브라이어혼 α): 고목의 숲 깊은 곳
+	Grove = {Angle = 120, Radius = 560, Size = 26, Level = 8},
+	-- 기지 근처 연못 (초원의 셸버브)
 	Pond = {-84, -50, 15},
-	-- 알파의 숲 (브라이어혼)
-	Grove = {0, 118, 22},
+	SwampPonds = 9,
 }
 </ProtectedString>
           </Properties>
@@ -263,28 +289,28 @@ return {
             <ProtectedString name="Source">return {
     ActiveLimit = 3, ServerLimit = 18, CollectionLimit = 100, PendingLimit = 8,
     MaxLevel = 40, RegionCap = 10, Growth = 0.07, SwapCooldown = 6,
+    -- 성장형: 새끼(Stage 1) → 성체(Stage 2). EvolveLevel 이 되면 진화해서 커지고 강해진다 (야생도 이 레벨 이상이면 성체).
+    -- 성체 모델: ReplicatedStorage.PetModels/&lt;종&gt;_Adult 가 있으면 그것, 없으면 새끼 모델을 Scale 배로 키워서 쓴다.
+    EvolveLevel = 6,
     FollowSpeed = 18, Leash = 70, Aggro = 24, DayRecovery = 30,
     StandDamage = 1.2, StandRange = 1.25, CaptureHP = 0.25,
     CaptureRange = 16, CaptureSeconds = 2.4, ExhaustSeconds = 40,
     FirstCaptureGuaranteed = true, FailBonus = 0.07, ChanceCap = 0.95,
     NightXP = 35, CaptureXP = 12, KillXP = 3, NightCoins = 30, ClearCoins = 60,
-    Order = {"Mossling", "Emberpup", "Shellbub", "Briarhorn"},
+    Order = {"Mossling", "Emberpup", "Shellbub", "Mossdeer", "Ashlizard", "Bogtoad", "Briarhorn"},
     Species = {
-        Mossling = {Name = "모슬링", Element = "Leaf", Role = "근접", HP = 110, Damage = 13, Range = 5, Interval = 0.8, Capture = 0.65, Color = {131,207,133}},
-        Emberpup = {Name = "엠버펍", Element = "Ember", Role = "원거리", HP = 85, Damage = 18, Range = 25, Interval = 1.4, Splash = 7, Capture = 0.48, Color = {246,151,103}},
-        Shellbub = {Name = "셸버브", Element = "Tide", Role = "탱커", HP = 240, Damage = 9, Range = 5, Interval = 1.3, Taunt = 18, Capture = 0.48, Color = {116,186,229}},
-        Briarhorn = {Name = "브라이어혼 α", Element = "Leaf", Role = "알파", HP = 420, Damage = 26, Range = 7, Interval = 1.5, Splash = 8, Capture = 0.25, Color = {192,158,226}},
+        Mossling = {Name = "모슬링", Element = "Leaf", Role = "근접", HP = 110, Damage = 13, Range = 5, Interval = 0.8, Capture = 0.65, Color = {131,207,133}, Adult = {Name = "모스팽", HP = 1.6, Damage = 1.45, Scale = 1.5}},
+        Emberpup = {Name = "엠버펍", Element = "Ember", Role = "원거리", HP = 85, Damage = 18, Range = 25, Interval = 1.4, Splash = 7, Capture = 0.48, Color = {246,151,103}, Adult = {Name = "신더팽", HP = 1.55, Damage = 1.5, Scale = 1.45}},
+        Shellbub = {Name = "셸버브", Element = "Tide", Role = "탱커", HP = 240, Damage = 9, Range = 5, Interval = 1.3, Taunt = 18, Capture = 0.48, Color = {116,186,229}, Adult = {Name = "타이드가드", HP = 1.7, Damage = 1.35, Scale = 1.5}},
+        -- 지역 펫 (블렌더/Meshy 모델이 없으면 파트 대체 모델)
+        Mossdeer = {Name = "이끼사슴", Element = "Leaf", Role = "돌격", HP = 130, Damage = 20, Range = 6, Interval = 0.9, Capture = 0.4, Color = {122,90,62}, Adult = {Name = "고목사슴왕", HP = 1.55, Damage = 1.5, Scale = 1.35}},
+        Ashlizard = {Name = "애쉬리자드", Element = "Ember", Role = "범위", HP = 150, Damage = 16, Range = 8, Interval = 1.3, Splash = 9, Capture = 0.4, Color = {74,74,80}, Adult = {Name = "용암드레이크", HP = 1.6, Damage = 1.45, Scale = 1.5}},
+        Bogtoad = {Name = "보그토드", Element = "Tide", Role = "원거리", HP = 125, Damage = 14, Range = 22, Interval = 1.2, Capture = 0.45, Color = {63,106,90}, Adult = {Name = "늪군주", HP = 1.6, Damage = 1.45, Scale = 1.45}},
+        Briarhorn = {Name = "브라이어혼 α", Element = "Leaf", Role = "알파", HP = 420, Damage = 26, Range = 7, Interval = 1.5, Splash = 8, Capture = 0.25, Color = {192,158,226}, Adult = {Name = "쏜로드 α", HP = 1.5, Damage = 1.4, Scale = 1.25}},
     },
-    -- 야생 스폰: {종, 레벨, x, z}. 모슬링 초원(남쪽) → 엠버펍 바위지대(북동) → 셸버브 연못(북서) → 알파의 숲(남쪽 끝)
-    Spawns = {
-        {"Mossling",1,6,56},{"Mossling",1,-12,60},{"Mossling",2,26,70},
-        {"Mossling",2,-36,74},{"Mossling",3,8,82},
-        {"Emberpup",3,60,-40},{"Emberpup",4,84,-58},
-        {"Shellbub",3,-66,-40},{"Shellbub",4,-92,-62},
-        {"Briarhorn",6,0,118},
-    },
+    -- 야생 스폰 자리는 MapConfig (StarterWild, Wild, Grove)
     -- 종별 게임 속 키(stud). 블렌더 모델과 대체 모델 모두 이 높이로 맞춘다.
-    Heights = {Mossling = 2.9, Emberpup = 3.3, Shellbub = 2.2, Briarhorn = 7.8},
+    Heights = {Mossling = 2.9, Emberpup = 3.3, Shellbub = 2.2, Briarhorn = 7.8, Mossdeer = 4.2, Ashlizard = 1.9, Bogtoad = 2.1},
 }
 </ProtectedString>
           </Properties>
@@ -354,27 +380,50 @@ return {
         </Item>
         <Item class="ModuleScript" referent="RBX000016">
           <Properties>
+            <string name="Name">ShopConfig</string>
+            <ProtectedString name="Source">-- 코인 쓰는 곳 (영구). 밤을 버티면 받는 코인으로 "다음 원정부터 더 좋게 시작" 하는 보급을 해금한다.
+-- 혼자 해도 판을 거듭할수록 편해지는 이유가 된다. 전투력을 돈으로 사는 구조가 아니다 (코인은 게임 안에서만 번다).
+return {
+	Order = {"StartTraps", "StartFood", "StartTorch", "StartStoneAxe", "StartBag"},
+	Perks = {
+		StartTraps = {Name = "덫 +3 개로 시작", Icon = "🧺", Cost = 80, Give = {Trap = 3}},
+		StartFood = {Name = "간식·먹이 +2 개로 시작", Icon = "🍪", Cost = 80, Give = {Snack = 2, Bait = 2}},
+		StartTorch = {Name = "횃불을 들고 시작", Icon = "🔥", Cost = 100, Give = {Torch = 1}},
+		StartStoneAxe = {Name = "돌 도끼로 시작", Icon = "🪓", Cost = 160, Give = {StoneAxe = 1}},
+		StartBag = {Name = "섬유 가방으로 시작", Icon = "🎒", Cost = 200, Give = {FiberBag = 1}},
+	},
+	DexReward = 25, -- 새 종을 처음 영구 확정하면 받는 코인 (도감 보상)
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000017">
+          <Properties>
             <string name="Name">WaveConfig</string>
-            <ProtectedString name="Source">return {
+            <ProtectedString name="Source">-- 밤 웨이브 (초원 원정 5밤). 밤 5 에 보스 The Howler.
+return {
     PerExtraPlayer = 0.35,
     HealthPerNight = 0.10,
     DamagePerNight = 0.06,
     SpawnInterval = 2,
+    SoloHealth = 0.8, -- 혼자 할 때 괴물 체력 배율 (혼자서도 버틸 수 있게)
     Waves = {
         {{Kind = "Crawler", Count = 8}},
         {{Kind = "Crawler", Count = 12}, {Kind = "Runner", Count = 4}, {Kind = "Brute", Count = 1}},
-        {{Kind = "Howler", Count = 1, Boss = true}, {Kind = "Crawler", Count = 10}, {Kind = "Runner", Count = 4}},
+        {{Kind = "Crawler", Count = 14}, {Kind = "Runner", Count = 6}, {Kind = "Brute", Count = 2}},
+        {{Kind = "Crawler", Count = 16}, {Kind = "Runner", Count = 8}, {Kind = "Brute", Count = 3}},
+        {{Kind = "Howler", Count = 1, Boss = true}, {Kind = "Crawler", Count = 14}, {Kind = "Runner", Count = 6}, {Kind = "Brute", Count = 2}},
     },
 }
 </ProtectedString>
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="RBX000017">
+      <Item class="Folder" referent="RBX000018">
         <Properties>
           <string name="Name">Modules</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000018">
+        <Item class="ModuleScript" referent="RBX000019">
           <Properties>
             <string name="Name">Inventory</string>
             <ProtectedString name="Source">-- 소지품 규칙 (서버·클라이언트 공용, Roblox 의존 없음).
@@ -436,7 +485,7 @@ return I
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000019">
+        <Item class="ModuleScript" referent="RBX000020">
           <Properties>
             <string name="Name">PetRules</string>
             <ProtectedString name="Source">local P = {}
@@ -450,11 +499,27 @@ function P.element(a,b)
     if beats[a]==b then return 1.5 elseif beats[b]==a then return 0.75 end
     return 1
 end
+-- 성장 단계: 1 = 새끼, 2 = 성체
+function P.stage(pet)
+    return pet.Stage==2 and 2 or 1
+end
+function P.name(speciesId,stage,config)
+    local spec=config.Species[speciesId]
+    return (stage==2 and spec.Adult) and spec.Adult.Name or spec.Name
+end
 function P.stats(pet,config)
     local spec=config.Species[pet.SpeciesId]
     local level=math.min(pet.Level,config.RegionCap)
     local scale=1+(level-1)*config.Growth
-    return {HP=math.floor(spec.HP*scale),Damage=spec.Damage*scale,Range=spec.Range,Level=level}
+    local adult=P.stage(pet)==2 and spec.Adult
+    local hp,damage=spec.HP*scale*(adult and adult.HP or 1),spec.Damage*scale*(adult and adult.Damage or 1)
+    return {HP=math.floor(hp),Damage=damage,Range=spec.Range,Level=level}
+end
+-- 레벨이 EvolveLevel 이상이고 성체가 있는 종이면 성체로. 진화했으면 true
+function P.evolve(pet,config)
+    local spec=config.Species[pet.SpeciesId]
+    if P.stage(pet)==1 and spec.Adult and pet.Level&gt;=config.EvolveLevel then pet.Stage=2;return true end
+    return false
 end
 -- trap: 덫 배율(숫자) 또는 true = 강화 덫(1.35)
 function P.chance(base,hp,maxHP,trap,bait,failures,config)
@@ -469,6 +534,7 @@ function P.addXP(pet,amount,config)
         pet.Exp=pet.Exp-pet.Level*40; pet.Level=pet.Level+1
     end
     if pet.Level&gt;=config.MaxLevel then pet.Exp=0 end
+    return P.evolve(pet,config)
 end
 function P.party(ids,pets,limit)
     if type(ids)~="table" or #ids&gt;limit then return nil end
@@ -486,7 +552,7 @@ return P
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000020">
+        <Item class="ModuleScript" referent="RBX000021">
           <Properties>
             <string name="Name">Rules</string>
             <ProtectedString name="Source">-- Pure rules: no Roblox dependencies; executable in tests and Luau.
@@ -545,7 +611,7 @@ return Rules
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000021">
+        <Item class="ModuleScript" referent="RBX000022">
           <Properties>
             <string name="Name">Utility</string>
             <ProtectedString name="Source">local U = {}
@@ -600,12 +666,61 @@ return U
 </ProtectedString>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="RBX000023">
+          <Properties>
+            <string name="Name">Zones</string>
+            <ProtectedString name="Source">-- 위치 → 지역 (MapConfig.Zones). 서버(맵 생성·야생 레벨)와 클라이언트(지역 이름 표시)가 같이 쓴다.
+local Z = {}
+
+-- 북(-Z) = 0°, 시계 방향. MapConfig 의 dir = (sin a, 0, -cos a) 와 같은 기준
+function Z.angle(pos)
+	return math.deg(math.atan2(pos.X, -pos.Z)) % 360
+end
+
+local function gap(a, b)
+	return math.abs((a - b + 180) % 360 - 180)
+end
+
+function Z.id(pos, config)
+	local r = math.sqrt(pos.X * pos.X + pos.Z * pos.Z)
+	if r &lt; config.MeadowRadius then
+		return "Meadow"
+	end
+	local a, best, bestGap = Z.angle(pos), "Meadow", math.huge
+	for id, zone in pairs(config.Zones) do
+		if zone.Angle and gap(a, zone.Angle) &lt; bestGap then
+			best, bestGap = id, gap(a, zone.Angle)
+		end
+	end
+	return best
+end
+
+-- 지역 부채꼴 안의 한 점 (t: 0~1 반지름 비율, s: -1~1 각도 비율)
+function Z.point(id, t, s, config, margin)
+	local zone = config.Zones[id]
+	margin = margin or 0
+	local minR, maxR = config.MeadowRadius + margin, config.PlayRadius - margin
+	local r = minR + (maxR - minR) * t
+	local a = math.rad(zone.Angle + s * (58 - margin * 0.02))
+	return Vector3.new(math.sin(a) * r, 0, -math.cos(a) * r)
+end
+
+-- 기지에서 멀수록 1 에 가까워진다 (0 = 초원 끝)
+function Z.depth(pos, config)
+	local r = math.sqrt(pos.X * pos.X + pos.Z * pos.Z)
+	return math.clamp((r - config.MeadowRadius) / (config.PlayRadius - config.MeadowRadius), 0, 1)
+end
+
+return Z
+</ProtectedString>
+          </Properties>
+        </Item>
       </Item>
-      <Item class="Folder" referent="RBX000022">
+      <Item class="Folder" referent="RBX000024">
         <Properties>
           <string name="Name">Visuals</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000023">
+        <Item class="ModuleScript" referent="RBX000025">
           <Properties>
             <string name="Name">Build</string>
             <ProtectedString name="Source">-- 파트 조립 도우미. 맵·시설·크리처 모델이 모두 이 함수들로 만들어진다.
@@ -751,7 +866,7 @@ return B
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000024">
+        <Item class="ModuleScript" referent="RBX000026">
           <Properties>
             <string name="Name">Creatures</string>
             <ProtectedString name="Source">-- 파트로 만든 크리처 (펫 대체 모델 + 밤의 괴물).
@@ -1135,6 +1250,105 @@ function C.Howler()
 	return finish(r, 7.4)
 end
 
+-- 잿빛 바위 협곡의 불 도마뱀: 낮고 긴 몸, 등에 빛나는 불씨 비늘, 긴 꼬리
+function C.Ashlizard()
+	local r = newRig("Ashlizard")
+	local D, DK, EMB = "#4a4a50", "#2e2e33", "#ff7a2a"
+	group(r, "Body", Vector3.new(0, 0.7, 0.2))
+	E(r, "Body", Vector3.new(1.3, 0.8, 2.3), Vector3.new(0, 0.72, 0.25), D)
+	E(r, "Body", Vector3.new(1.0, 0.35, 2.0), Vector3.new(0, 0.42, 0.25), "#6b6258")
+	for i = 0, 4 do
+		local z = -0.55 + i * 0.42
+		Wedge(r, "Body", Vector3.new(0.12, 0.45 - i * 0.04, 0.42), Vector3.new(0, 1.2 - i * 0.03, z), EMB, 0, 0, 0, M.Neon)
+	end
+	group(r, "Head", Vector3.new(0, 0.85, -0.9), "Body")
+	E(r, "Head", Vector3.new(1.0, 0.7, 1.3), Vector3.new(0, 0.9, -1.45), D)
+	E(r, "Head", Vector3.new(0.8, 0.28, 0.9), Vector3.new(0, 0.66, -1.7), DK)
+	eyes(r, "Head", 0.3, 1.08, -1.72, 0.26, "#ffb02e", 30)
+	for _, s in ipairs({-1, 1}) do
+		local ear = s &lt; 0 and "EarL" or "EarR"
+		group(r, ear, Vector3.new(s * 0.3, 1.2, -1.2), "Head")
+		Wedge(r, ear, Vector3.new(0.12, 0.45, 0.5), Vector3.new(s * 0.32, 1.38, -1.1), DK, -25, 0, -s * 20)
+		for i, name in ipairs({s &lt; 0 and "LegFL" or "LegFR", s &lt; 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.5 or 0.95
+			group(r, name, Vector3.new(s * 0.6, 0.6, z), "Body")
+			E(r, name, Vector3.new(0.4, 0.62, 0.4), Vector3.new(s * 0.78, 0.35, z), D, 0, 0, s * 25)
+			E(r, name, Vector3.new(0.45, 0.16, 0.55), Vector3.new(s * 0.9, 0.08, z - 0.08), DK)
+		end
+	end
+	group(r, "Tail1", Vector3.new(0, 0.75, 1.35), "Body")
+	E(r, "Tail1", Vector3.new(0.6, 0.5, 1.3), Vector3.new(0, 0.62, 1.9), D, 8, 0, 0)
+	group(r, "Tail2", Vector3.new(0, 0.5, 2.5), "Tail1")
+	E(r, "Tail2", Vector3.new(0.38, 0.32, 1.2), Vector3.new(0, 0.42, 3.0), D, 10, 0, 0)
+	E(r, "Tail2", Vector3.new(0.3, 0.3, 0.3), Vector3.new(0, 0.46, 3.62), EMB, 0, 0, 0, M.Neon)
+	r.Points.Flame = Vector3.new(0, 0.5, 3.62)
+	r.Points.Mouth = Vector3.new(0, 0.8, -2.1)
+	return finish(r, 1.7)
+end
+
+-- 안개 늪의 두꺼비: 넓고 낮은 몸, 큰 입, 등의 혹
+function C.Bogtoad()
+	local r = newRig("Bogtoad")
+	local G, BEL, WART = "#3f6a5a", "#c9d6a0", "#2c4d42"
+	group(r, "Body", Vector3.new(0, 0.8, 0.1))
+	E(r, "Body", Vector3.new(2.0, 1.3, 1.9), Vector3.new(0, 0.85, 0.2), G)
+	E(r, "Body", Vector3.new(1.6, 0.8, 1.2), Vector3.new(0, 0.5, -0.2), BEL)
+	for _, p in ipairs({Vector3.new(0.5, 1.45, 0.3), Vector3.new(-0.45, 1.5, 0.1), Vector3.new(0.1, 1.55, 0.6), Vector3.new(-0.3, 1.4, 0.75), Vector3.new(0.6, 1.3, 0.8)}) do
+		Ball(r, "Body", 0.34, p, WART)
+	end
+	group(r, "Head", Vector3.new(0, 1.1, -0.6), "Body")
+	E(r, "Head", Vector3.new(1.8, 1.0, 1.2), Vector3.new(0, 1.15, -0.85), G)
+	E(r, "Head", Vector3.new(1.6, 0.18, 0.9), Vector3.new(0, 0.82, -1.05), "#7a3a3a")
+	for _, s in ipairs({-1, 1}) do
+		Ball(r, "Head", 0.62, Vector3.new(s * 0.55, 1.7, -0.8), G)
+	end
+	eyes(r, "Head", 0.55, 1.75, -1.05, 0.34, "#e0c040", 10)
+	for _, s in ipairs({-1, 1}) do
+		for i, name in ipairs({s &lt; 0 and "LegFL" or "LegFR", s &lt; 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.55 or 0.75
+			group(r, name, Vector3.new(s * 0.8, 0.5, z), "Body")
+			E(r, name, Vector3.new(0.55, 0.6, 0.7), Vector3.new(s * 1.05, 0.3, z), G, 0, 0, s * 30)
+			E(r, name, Vector3.new(0.75, 0.14, 0.75), Vector3.new(s * 1.2, 0.07, z - 0.1), BEL)
+		end
+	end
+	r.Points.Mouth = Vector3.new(0, 1.0, -1.5)
+	return finish(r, 2.0)
+end
+
+-- 고목의 숲 사슴: 긴 다리, 이끼 갈기, 나뭇가지 뿔 (EarL/EarR 로 움직인다)
+function C.Mossdeer()
+	local r = newRig("Mossdeer")
+	local BR, DK, MOSS = "#7a5a3e", "#4e3a28", "#5f8a45"
+	group(r, "Body", Vector3.new(0, 1.9, 0.2))
+	E(r, "Body", Vector3.new(1.2, 1.1, 2.3), Vector3.new(0, 1.95, 0.25), BR)
+	E(r, "Body", Vector3.new(1.0, 0.6, 1.8), Vector3.new(0, 2.4, 0.25), MOSS)
+	group(r, "Neck", Vector3.new(0, 2.3, -0.8), "Body")
+	E(r, "Neck", Vector3.new(0.6, 1.3, 0.6), Vector3.new(0, 2.8, -1.05), BR, 25, 0, 0)
+	E(r, "Neck", Vector3.new(0.5, 1.1, 0.35), Vector3.new(0, 2.9, -0.88), MOSS, 25, 0, 0)
+	group(r, "Head", Vector3.new(0, 3.3, -1.35), "Neck")
+	E(r, "Head", Vector3.new(0.7, 0.7, 1.2), Vector3.new(0, 3.45, -1.75), BR)
+	E(r, "Head", Vector3.new(0.4, 0.36, 0.5), Vector3.new(0, 3.3, -2.3), DK)
+	eyes(r, "Head", 0.28, 3.6, -1.95, 0.24, "#9adf6a", 40)
+	for _, s in ipairs({-1, 1}) do
+		local ear = s &lt; 0 and "EarL" or "EarR"
+		group(r, ear, Vector3.new(s * 0.2, 3.8, -1.6), "Head")
+		Cyl(r, ear, 1.2, 0.14, Vector3.new(s * 0.45, 4.3, -1.55), DK, 0, 0, 90 - s * 30)
+		Cyl(r, ear, 0.6, 0.1, Vector3.new(s * 0.75, 4.75, -1.7), DK, 0, 0, 90 - s * 10)
+		Cyl(r, ear, 0.5, 0.1, Vector3.new(s * 0.4, 4.8, -1.5), DK, 0, 0, 90 + s * 20)
+		Ball(r, ear, 0.3, Vector3.new(s * 0.8, 5.05, -1.7), MOSS)
+		for i, name in ipairs({s &lt; 0 and "LegFL" or "LegFR", s &lt; 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.6 or 1.05
+			group(r, name, Vector3.new(s * 0.38, 1.6, z), "Body")
+			E(r, name, Vector3.new(0.3, 1.7, 0.3), Vector3.new(s * 0.38, 0.85, z), BR)
+			E(r, name, Vector3.new(0.26, 0.2, 0.34), Vector3.new(s * 0.38, 0.08, z - 0.04), DK)
+		end
+	end
+	group(r, "Tail", Vector3.new(0, 2.2, 1.4), "Body")
+	E(r, "Tail", Vector3.new(0.3, 0.45, 0.3), Vector3.new(0, 2.3, 1.5), "#e8dcc0")
+	r.Points.Mouth = Vector3.new(0, 3.3, -2.5)
+	return finish(r, 4.2)
+end
+
 -- 이름 → 빌더
 function C.build(kind)
 	local fn = C[kind]
@@ -1148,7 +1362,7 @@ return C
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000025">
+        <Item class="ModuleScript" referent="RBX000027">
           <Properties>
             <string name="Name">Props</string>
             <ProtectedString name="Source">-- 초원 소품: 나무, 바위, 덤불, 갈대, 폐허, 꽃, 횃불, 말뚝, 굴.
@@ -1646,7 +1860,7 @@ return P
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000026">
+        <Item class="ModuleScript" referent="RBX000028">
           <Properties>
             <string name="Name">Structures</string>
             <ProtectedString name="Source">-- 기지 건물과 방어 시설 모델. 모두 "바닥 중심" CFrame 을 받고, -Z 가 바깥(적이 오는 쪽)이다.
@@ -2076,7 +2290,7 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000027">
+        <Item class="ModuleScript" referent="RBX000029">
           <Properties>
             <string name="Name">ToolLook</string>
             <ProtectedString name="Source">-- 손에 드는 도구 모양 (Roblox Tool). 서버가 만들어 플레이어 Backpack 에 넣는다.
@@ -2188,7 +2402,7 @@ return T
         </Item>
       </Item>
     </Item>
-    <Item class="Folder" referent="RBX000028">
+    <Item class="Folder" referent="RBX000030">
       <Properties>
         <string name="Name">PetModels</string>
       </Properties>
@@ -10580,11 +10794,11 @@ OWMzNzQ1ODE3]]></BinaryString>
 			</Item>
 		</Item>
   </Item>
-  <Item class="ServerScriptService" referent="RBX000029">
+  <Item class="ServerScriptService" referent="RBX000031">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="RBX000030">
+    <Item class="Script" referent="RBX000032">
       <Properties>
         <string name="Name">ServerMain</string>
         <ProtectedString name="Source">local Players=game:GetService("Players")
@@ -10670,6 +10884,8 @@ Engine.Heartbeat:Connect(function(dt)
         for player in pairs(ctx.Run.Participants) do
             local session=ctx.Data.Sessions[player]
             if session and player.Parent then
+                local goalAt,goalName
+                if C.ActiveStage&gt;=8 then goalAt,goalName=ctx.Tutorial:Target(player) end
                 remotes.State:FireClient(player,{
                     Phase=clock.Phase,Night=clock.Night,Target=C.TargetNights,EndsAt=clock.Phase=="Waiting" and (ctx.Run.StartAt or 0) or clock.EndsAt,
                     CoreHP=ctx.Core.HP,CoreMaxHP=C.CoreHP,Bag=ctx.Resources.Bags[player],Bank=ctx.Resources.Bank,
@@ -10677,8 +10893,8 @@ Engine.Heartbeat:Connect(function(dt)
                     Result=ctx.Run.Result,Stage=C.ActiveStage,Players=ctx.Run:Count(),TimeScale=clock:Scale(),
                     Pets=ctx.Pets:Snapshot(player),Wild=ctx.Capture:Snapshot(player),Items=ctx.Crafting.Items[player],
                     Hunger=ctx.Survival:Get(player),Capacity=ctx.Crafting:Capacity(player),Bench=ctx.Crafting.BenchLevel,
-                    Coins=session.Profile.Coins,Dex=session.Profile.Dex,SaveStatus=session.Status,Practice=ctx.Data.Memory,
-                    Objective=C.ActiveStage&gt;=8 and ctx.Tutorial:Objective(player) or nil,
+                    Coins=session.Profile.Coins,Dex=session.Profile.Dex,Perks=session.Profile.Perks,SaveStatus=session.Status,Practice=ctx.Data.Memory,
+                    Objective=C.ActiveStage&gt;=8 and ctx.Tutorial:Objective(player) or nil,GoalAt=goalAt,GoalName=goalName,
                 })
             end
         end
@@ -10688,11 +10904,11 @@ print("WILDHOLD stages 1–8 prototype ready. Studio uses practice data by defau
 </ProtectedString>
       </Properties>
     </Item>
-    <Item class="Folder" referent="RBX000031">
+    <Item class="Folder" referent="RBX000033">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="RBX000032">
+      <Item class="ModuleScript" referent="RBX000034">
         <Properties>
           <string name="Name">CaptureService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -10702,34 +10918,44 @@ local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local I=require(RS.Shared.Config.ItemConfig)
+local M=require(RS.Shared.Config.MapConfig)
 local S={}
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
-function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
+function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last,self.Respawns=ctx,{},{},{},{};self:Reset() end
 function S:Reset()
-    self.Wild,self.Attempts={},{}
+    self.Wild,self.Attempts,self.Respawns={},{},{}
     self.ctx.Map.WildFolder:ClearAllChildren()
     if G.ActiveStage&lt;6 then return end
-    for _,spawn in ipairs(P.Spawns) do
-        local uid=Http:GenerateGUID(false)
-        local data={SpeciesId=spawn[1],Level=spawn[2]};local stats=R.stats(data,P)
-        local pos=Vector3.new(spawn[3],2,spawn[4])
-        local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
-        part.CanCollide,part.CanTouch,part.Transparency=false,false,1
-        part.CFrame=CFrame.new(pos)*CFrame.Angles(0,math.random()*math.pi*2,0)
-        part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
-        part:SetAttribute("Level",data.Level);part:SetAttribute("MaxHP",stats.HP);part:SetAttribute("HP",stats.HP)
-        local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
-            Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={}}
-        self.Wild[uid]=wild
-        local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
-        prompt.ObjectText=P.Species[data.SpeciesId].Name.." Lv"..data.Level
-        prompt.MaxActivationDistance=P.CaptureRange
-        wild.Prompt=prompt
-        prompt.Triggered:Connect(function(player)
-            if wild.HP/wild.MaxHP&gt;P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
-            else self:Attempt(player,uid,"Trap",false) end
-        end)
-    end
+    for index in ipairs(self.ctx.Map.WildSpawns) do self:SpawnWild(index) end
+end
+-- 맵의 야생 펫 자리(MapService.WildSpawns)에 한 마리를 둔다. 잡히면 WildRespawn 초 뒤 같은 자리에 새로 나타난다.
+function S:SpawnWild(index)
+    local spawn=self.ctx.Map.WildSpawns[index]
+    local uid=Http:GenerateGUID(false)
+    local data={SpeciesId=spawn.SpeciesId,Level=math.random(spawn.MinLevel,spawn.MaxLevel)};R.evolve(data,P)
+    local stats=R.stats(data,P)
+    local pos=spawn.Pos+Vector3.new(0,2,0)
+    local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
+    part.CanCollide,part.CanTouch,part.Transparency=false,false,1
+    part.CFrame=CFrame.new(pos)*CFrame.Angles(0,math.random()*math.pi*2,0)
+    part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
+    part:SetAttribute("Level",data.Level);part:SetAttribute("MaxHP",stats.HP);part:SetAttribute("HP",stats.HP);part:SetAttribute("Stage",R.stage(data))
+    local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Stage=R.stage(data),Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
+        Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={},SpawnIndex=index}
+    self.Wild[uid]=wild
+    local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
+    prompt.ObjectText=R.name(data.SpeciesId,R.stage(data),P).." Lv"..data.Level
+    prompt.MaxActivationDistance=P.CaptureRange
+    wild.Prompt=prompt
+    prompt.Triggered:Connect(function(player)
+        if wild.HP/wild.MaxHP&gt;P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
+        else
+            local items=self.ctx.Crafting.Items[player] or {}
+            local trap=(items.CrystalTrap or 0)&gt;0 and "CrystalTrap" or ((items.BetterTrap or 0)&gt;0 and "BetterTrap" or "Trap")
+            self:Attempt(player,uid,trap,trap~="Trap" and (items.Bait or 0)&gt;0)
+        end
+    end)
+    return wild
 end
 function S:CanFight(player,wild)
     return not wild.Owner or wild.Owner==player or not wild.Owner.Parent or os.clock()&gt;(wild.ClaimUntil or 0)
@@ -10794,7 +11020,7 @@ function S:Attempt(player,uid,trap,bait)
     self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
     wild.Busy=player
     self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trapSpec.Catch or 1,bait)}
-    self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
+    self.ctx.PetFX:FireClient(player,"Shake",R.name(wild.SpeciesId,wild.Stage,P),P.CaptureSeconds)
     self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trapSpec.Better==true,wild.Id)
 end
 function S:Finish(player,attempt)
@@ -10807,9 +11033,10 @@ function S:Finish(player,attempt)
     if math.random()&lt;attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,true,wild.SpeciesId,wild.Id)
         self.Wild[wild.Id]=nil;wild.Part:Destroy()
+        if wild.SpawnIndex then self.Respawns[wild.SpawnIndex]=os.clock()+M.WildRespawn end
         for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
         self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
-        self.ctx.PetFX:FireClient(player,"Capture",P.Species[wild.SpeciesId].Name)
+        self.ctx.PetFX:FireClient(player,"Capture",R.name(wild.SpeciesId,wild.Stage,P))
     else
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,false,wild.SpeciesId,wild.Id)
         wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
@@ -10826,6 +11053,11 @@ end
 function S:Tick(dt)
     if G.ActiveStage&lt;6 then return end
     for player,attempt in pairs(self.Attempts) do if os.clock()&gt;=attempt.EndsAt then self:Finish(player,attempt) end end
+    if self.ctx.Clock.Phase=="Day" then
+        for index,at in pairs(self.Respawns) do
+            if os.clock()&gt;=at then self.Respawns[index]=nil;self:SpawnWild(index) end
+        end
+    end
     for _,wild in pairs(self.Wild) do
         local spec=P.Species[wild.SpeciesId]
         if wild.ExhaustUntil and not wild.Busy and os.clock()&gt;wild.ExhaustUntil then
@@ -10865,7 +11097,7 @@ function S:Snapshot(player)
     for uid,wild in pairs(self.Wild) do
         local distance=(root.Position-wild.Part.Position).Magnitude
         if distance&lt;90 then
-            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
+            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Stage=wild.Stage,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
                 Distance=math.floor(distance),Chance=self:Chance(player,wild,1,false),BetterChance=self:Chance(player,wild,I.Items.BetterTrap.Catch,true),
                 Ready=wild.HP/wild.MaxHP&lt;=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()&gt;(wild.ClaimUntil or 0)}
         end
@@ -10876,7 +11108,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000033">
+      <Item class="ModuleScript" referent="RBX000035">
         <Properties>
           <string name="Name">CombatService</string>
           <ProtectedString name="Source">-- 공격 버튼 하나로 "손에 든 것" 을 쓴다. 클라이언트는 의도만 보내고, 대상·피해·결과는 서버가 정한다.
@@ -10970,7 +11202,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000034">
+      <Item class="ModuleScript" referent="RBX000036">
         <Properties>
           <string name="Name">CoreService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -10993,7 +11225,7 @@ return Core
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000035">
+      <Item class="ModuleScript" referent="RBX000037">
         <Properties>
           <string name="Name">CraftingService</string>
           <ProtectedString name="Source">-- 판 단위 소지품(도구·덫·먹이·음식·가방)과 제작.
@@ -11008,6 +11240,7 @@ local R = require(RS.Shared.Modules.PetRules)
 local U = require(RS.Shared.Modules.Utility)
 local Inv = require(RS.Shared.Modules.Inventory)
 local ToolLook = require(RS.Shared.Visuals.ToolLook)
+local Shop = require(RS.Shared.Config.ShopConfig)
 local S = {}
 
 function S:Init(ctx)
@@ -11015,8 +11248,38 @@ function S:Init(ctx)
 	self.BenchLevel = 1
 end
 function S:AddPlayer(player)
-	self.Items[player] = R.copy(I.Starter)
+	local items = R.copy(I.Starter)
+	-- 코인으로 해금한 시작 보급
+	local profile = self.ctx.Data and self.ctx.Data:Get(player)
+	for id, owned in pairs(profile and profile.Perks or {}) do
+		local perk = Shop.Perks[id]
+		if owned and perk then
+			for item, n in pairs(perk.Give) do items[item] = (items[item] or 0) + n end
+		end
+	end
+	self.Items[player] = items
 	self.AutoEquip[player] = true
+end
+
+-- 보급 해금: 코인을 쓰고 영구 저장. 이번 원정에도 바로 받는다.
+function S:BuyPerk(player, id)
+	local perk = Shop.Perks[id]
+	local profile = self.ctx.Data:Get(player)
+	if not perk or not profile or not self.Items[player] then return end
+	if os.clock() - (self.Last[player] or -100) &lt; 0.4 then return end
+	self.Last[player] = os.clock()
+	if profile.Perks[id] then self.ctx.Notify(player, "이미 해금했습니다."); return end
+	if profile.Coins &lt; perk.Cost then self.ctx.Notify(player, "코인이 부족합니다 · 밤을 버티면 코인을 받아요"); return end
+	local ok = self.ctx.Data:Mutate(player, function(data)
+		if data.Perks[id] or data.Coins &lt; perk.Cost then return end
+		data.Coins = data.Coins - perk.Cost
+		data.Perks[id] = true
+	end)
+	if ok and profile.Perks[id] then
+		for item, n in pairs(perk.Give) do self.Items[player][item] = (self.Items[player][item] or 0) + n end
+		self.ctx.Notify(player, perk.Icon .. " 해금! " .. perk.Name .. " (이번 원정에도 지급)")
+		self:Sync(player)
+	end
 end
 function S:RemovePlayer(player)
 	self.Items[player], self.Last[player], self.AutoEquip[player] = nil, nil, nil
@@ -11117,6 +11380,7 @@ end
 function S:Craft(player, id)
 	if G.ActiveStage &lt; 6 or type(id) ~= "string" or not self.ctx.Data:Ready(player) then return end
 	if id == "BenchUpgrade" then return self:UpgradeBench(player) end
+	if string.sub(id, 1, 5) == "Perk:" then return self:BuyPerk(player, string.sub(id, 6)) end
 	local recipe = C.Recipes[id]
 	local spec = I.Items[id]
 	if not recipe or not spec then return end
@@ -11180,7 +11444,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000036">
+      <Item class="ModuleScript" referent="RBX000038">
         <Properties>
           <string name="Name">DataService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -11200,7 +11464,7 @@ function S:NewProfile()
     local uid=Http:GenerateGUID(false)
     return {Version=C.Version,Coins=0,Pets={[uid]={Uid=uid,SpeciesId="Mossling",Level=1,Exp=0,Favorite=true,CaughtAt=os.time(),CaughtRegion="Grassland"}},
         Party={uid},Loadouts={},Dex={Mossling={Seen=true,Caught=true}},UnlockedRegions={Grassland=true},ClearedRegions={},
-        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={}}
+        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={},Perks={}}
 end
 function S:Validate(data)
     if type(data)~="table" or type(data.Version)~="number" or data.Version&lt;1 or data.Version&gt;C.Version then return nil end
@@ -11210,14 +11474,16 @@ function S:Validate(data)
     if R.count(data.Pets)&gt;P.CollectionLimit then return nil end
     for uid,pet in pairs(data.Pets) do
         if type(uid)~="string" or type(pet)~="table" or pet.Uid~=uid or not P.Species[pet.SpeciesId]
-            or not integer(pet.Level) or pet.Level&lt;1 or pet.Level&gt;P.MaxLevel or not integer(pet.Exp) then return nil end
+            or not integer(pet.Level) or pet.Level&lt;1 or pet.Level&gt;P.MaxLevel or not integer(pet.Exp)
+            or (pet.Stage~=nil and pet.Stage~=1 and pet.Stage~=2) then return nil end
     end
     local output=R.copy(data)
     -- Version 1 migration preserves every pet and only normalizes selected slots.
+    -- Version 3: pets may carry Stage (nil = 새끼). Older saves need no change.
     local selected,seen={},{}
     for _,uid in ipairs(output.Party) do if output.Pets[uid] and not seen[uid] and #selected&lt;P.ActiveLimit then selected[#selected+1]=uid;seen[uid]=true end end
     output.Party=selected
-    for _,key in ipairs({"Loadouts","Tutorial","Receipts"}) do
+    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks"}) do
         if output[key]~=nil and type(output[key])~="table" then return nil end
         output[key]=output[key] or {}
     end
@@ -11318,7 +11584,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000037">
+      <Item class="ModuleScript" referent="RBX000039">
         <Properties>
           <string name="Name">DayNightService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -11345,7 +11611,7 @@ return D
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000038">
+      <Item class="ModuleScript" referent="RBX000040">
         <Properties>
           <string name="Name">DefenseService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -11557,7 +11823,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000039">
+      <Item class="ModuleScript" referent="RBX000041">
         <Properties>
           <string name="Name">EnemyService</string>
           <ProtectedString name="Source">local Players = game:GetService("Players")
@@ -11584,7 +11850,7 @@ function S:Spawn(kind, laneId, night, boss)
     local p = U.part(self.ctx.Map.EnemiesFolder, kind .. self.NextId, Vector3.new(spec.Size, spec.Size, spec.Size), lane.Points[1], U.color(spec.Color))
     p.CanCollide, p.CanTouch, p.Transparency = false, false, 1
     local unit = {Id = self.NextId, Kind = kind, Part = p, Spec = spec, LaneId = laneId,
-        HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight)),
+        HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight) * (self.ctx.Waves.HealthScale or 1)),
         Damage = spec.Damage * (1 + (night - 1) * W.DamagePerNight),
         Waypoint = 2, NextAttack = 0, NextPath = 0, Boss = boss, Dead = false}
     unit.MaxHP = unit.HP
@@ -11746,16 +12012,17 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000040">
+      <Item class="ModuleScript" referent="RBX000042">
         <Properties>
           <string name="Name">MapService</string>
-          <ProtectedString name="Source">-- 초원 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 펫 우리) + 3 길목 + 자원 노드 + 숲/연못/알파의 숲.
--- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
+          <ProtectedString name="Source">-- 원정 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 모닥불, 펫 우리) + 3 길목 + 지역(초원·바위 협곡·고목의 숲·안개 늪)
+-- + 자원 노드 + 야생 펫 자리 + 숲. 놀 수 있는 곳은 지름 약 1500 (MapConfig).
+-- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, WildSpawns, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
+local Zones = require(RS.Shared.Modules.Zones)
 local C = require(RS.Shared.Config.MapConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
-local P = require(RS.Shared.Config.PetConfig)
 local G = require(RS.Shared.Config.GameConfig)
 local B = require(RS.Shared.Visuals.Build)
 local Props = require(RS.Shared.Visuals.Props)
@@ -11763,6 +12030,7 @@ local S = require(RS.Shared.Visuals.Structures)
 
 local Map = {}
 local MAT = Enum.Material
+local CELL = 32 -- 자리 겹침 검사용 격자 크기
 
 local function flat(x, z)
 	return Vector3.new(x, 0, z)
@@ -11786,7 +12054,7 @@ function Map:Build()
 	self.PetsFolder = U.folder(self.Root, "Pets")
 	self.WildFolder = U.folder(self.Root, "WildPets")
 	self.Base = U.folder(self.Root, "Base")
-	self.Lanes, self.Slots, self.Nodes, self.Blocked = {}, {}, {}, {}
+	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid = {}, {}, {}, {}, {}
 	self.Rng = Random.new(20260928)
 
 	for i, angle in ipairs(C.LaneAngles) do
@@ -11805,21 +12073,56 @@ function Map:Build()
 
 	self:BuildTerrain()
 	self:BuildBase()
+	-- 맵이 넓어서 클라이언트는 가까운 곳만 받는다 (StreamingEnabled). 기지 건물은 항상 받게 한다.
+	for _, model in ipairs(self.Base:GetChildren()) do
+		if model:IsA("Model") then
+			pcall(function() model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent end)
+		end
+	end
 	self:BuildLanes()
 	self:BuildSlots()
 	self:BuildNodes()
+	self:BuildWild()
 	self:BuildScenery()
 	return self
 end
 
 -- ============================================================= 지형
+-- 부채꼴/초원 안의 무작위 점. zone = "Meadow" 이면 기지 둘레 고리, 아니면 그 지역 부채꼴
+function Map:RandomPoint(zone, margin)
+	local rng = self.Rng
+	margin = margin or 0
+	if zone == "Meadow" then
+		local a = rng:NextNumber() * math.pi * 2
+		local minR, maxR = C.BaseRadius + 10 + margin, C.MeadowRadius - margin
+		local r = math.sqrt(minR * minR + rng:NextNumber() * (maxR * maxR - minR * minR))
+		return Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+	end
+	-- 면적이 고르게 퍼지도록 반지름은 제곱근 분포
+	local minR, maxR = C.MeadowRadius, C.PlayRadius - 12
+	local t = (math.sqrt(minR * minR + rng:NextNumber() * (maxR * maxR - minR * minR)) - minR) / (maxR - minR)
+	return Zones.point(zone, t, rng:NextNumber() * 2 - 1, C, margin)
+end
+
+function Map:Paint(zone, count, materials, minSize, maxSize)
+	local T, rng = workspace.Terrain, self.Rng
+	for _ = 1, count do
+		local center = self:RandomPoint(zone) + Vector3.new(0, -1.2, 0)
+		local mat = materials[rng:NextInteger(1, #materials)]
+		for _ = 1, 3 do
+			local off = Vector3.new(B.jitter(rng, maxSize * 0.6), 0, B.jitter(rng, maxSize * 0.6))
+			T:FillCylinder(CFrame.new(center + off), 2.6, minSize + rng:NextNumber() * (maxSize - minSize), mat)
+		end
+	end
+end
+
 function Map:BuildTerrain()
 	local T = workspace.Terrain
 	T:Clear()
 	pcall(function()
 		T.Decoration = true
 	end)
-	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥 (올리브색 풀, 낙엽 흙, 진흙)
+	-- 생존 톤: 채도를 낮춘 짙은 숲 바닥 (올리브색 풀, 낙엽 흙, 진흙), 협곡은 잿빛 바위, 늪은 검은 진흙
 	T:SetMaterialColor(MAT.Grass, Color3.fromHex("#4a573a"))
 	T:SetMaterialColor(MAT.LeafyGrass, Color3.fromHex("#3d4a2f"))
 	T:SetMaterialColor(MAT.Ground, Color3.fromHex("#5a4a3a"))
@@ -11827,6 +12130,8 @@ function Map:BuildTerrain()
 	T:SetMaterialColor(MAT.Sand, Color3.fromHex("#9c8f6e"))
 	T:SetMaterialColor(MAT.Cobblestone, Color3.fromHex("#77746c"))
 	T:SetMaterialColor(MAT.Rock, Color3.fromHex("#62666b"))
+	T:SetMaterialColor(MAT.Slate, Color3.fromHex("#55585c"))
+	T:SetMaterialColor(MAT.Basalt, Color3.fromHex("#3a3a3e"))
 	T.WaterColor = Color3.fromHex("#2c4f5c")
 	T.WaterTransparency = 0.45
 	T.WaterReflectance = 0.35
@@ -11837,78 +12142,136 @@ function Map:BuildTerrain()
 	T:FillBlock(CFrame.new(0, -6, 0), Vector3.new(size, 12, size), MAT.Grass)
 	local rng = self.Rng
 	-- 테두리 언덕과 바위 절벽: 맵 끝을 자연스럽게 가린다
-	for i = 1, 84 do
-		local a = i / 84 * math.pi * 2 + B.jitter(rng, 0.03)
+	local ring = math.floor(2 * math.pi * C.PlayRadius / 11)
+	for i = 1, ring do
+		local a = i / ring * math.pi * 2 + B.jitter(rng, 0.006)
 		local r = C.PlayRadius + 26 + rng:NextNumber() * 34
-		local radius = 16 + rng:NextNumber() * 16
-		T:FillBall(Vector3.new(math.cos(a) * r, -4 + rng:NextNumber() * 8, math.sin(a) * r), radius, rng:NextNumber() &lt; 0.25 and MAT.Rock or MAT.Grass)
+		T:FillBall(Vector3.new(math.cos(a) * r, -4 + rng:NextNumber() * 8, math.sin(a) * r), 16 + rng:NextNumber() * 16,
+			rng:NextNumber() &lt; 0.25 and MAT.Rock or MAT.Grass)
 	end
-	for _ = 1, 28 do
+	for _ = 1, math.floor(ring / 3) do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = C.PlayRadius + 55 + rng:NextNumber() * 20
 		T:FillBall(Vector3.new(math.cos(a) * r, 10 + rng:NextNumber() * 12, math.sin(a) * r), 18 + rng:NextNumber() * 10, MAT.LeafyGrass)
 	end
-	-- 숲 바닥 얼룩: 풀밭이 한 가지 색으로 매끈하면 공원처럼 보인다 → 낙엽 흙·이끼·진흙 조각을 흩뿌린다
-	for _ = 1, 70 do
-		local a = rng:NextNumber() * math.pi * 2
-		local r = C.BaseRadius + 4 + rng:NextNumber() * (C.PlayRadius + 30 - C.BaseRadius)
-		local center = Vector3.new(math.cos(a) * r, -1.2, math.sin(a) * r)
-		local roll = rng:NextNumber()
-		local mat = roll &lt; 0.45 and MAT.LeafyGrass or (roll &lt; 0.85 and MAT.Ground or MAT.Mud)
-		for _ = 1, 3 do
-			local off = Vector3.new(B.jitter(rng, 6), 0, B.jitter(rng, 6))
-			T:FillCylinder(CFrame.new(center + off), 2.6, 4 + rng:NextNumber() * 7, mat)
+	-- 숲 바닥 얼룩: 풀밭이 한 가지 색으로 매끈하면 공원처럼 보인다 → 지역마다 다른 흙·이끼·바위 조각을 흩뿌린다
+	self:Paint("Meadow", 170, {MAT.LeafyGrass, MAT.LeafyGrass, MAT.Ground, MAT.Ground, MAT.Mud}, 4, 11)
+	self:Paint("Ancient", 190, {MAT.LeafyGrass, MAT.LeafyGrass, MAT.Ground, MAT.Mud}, 6, 16)
+	self:Paint("Crags", 210, {MAT.Rock, MAT.Slate, MAT.Basalt, MAT.Ground, MAT.Rock}, 8, 20)
+	self:Paint("Swamp", 210, {MAT.Mud, MAT.Mud, MAT.LeafyGrass, MAT.Ground}, 8, 20)
+	-- 협곡: 반쯤 묻힌 큰 바위 언덕 (길을 막는 장애물 겸 경치)
+	for _ = 1, 46 do
+		local pos = self:RandomPoint("Crags", 20)
+		local radius = 9 + rng:NextNumber() * 13
+		if self:Free(pos, radius + 6) then
+			T:FillBall(pos + Vector3.new(0, -radius * 0.45, 0), radius, rng:NextNumber() &lt; 0.5 and MAT.Rock or MAT.Basalt)
+			self:Block(pos, radius + 2)
 		end
 	end
 	-- 기지 바닥: 흙 광장 + Core 주변 돌바닥
 	T:FillCylinder(CFrame.new(0, -2, 0), 4, C.BaseRadius - 2, MAT.LeafyGrass)
 	T:FillCylinder(CFrame.new(0, -2, 0), 4, 13, MAT.Cobblestone)
-	-- 길목: 괴물 굴에서 Core 까지 흙길
+	-- 길목: 괴물 굴에서 Core 까지 흙길. 굴 너머로는 각 지역 깊은 곳까지 좁은 오솔길
 	for _, lane in ipairs(self.Lanes) do
 		local from, to = 6, C.LaneRadius + 8
 		local mid = lane.Dir * ((from + to) / 2)
 		T:FillBlock(CFrame.lookAt(mid + Vector3.new(0, -2, 0), mid + lane.Dir + Vector3.new(0, -2, 0)), Vector3.new(C.LaneWidth, 4, to - from), MAT.Ground)
-		for n = 1, 10 do
-			local t = from + (to - from) * n / 11
+		for n = 1, 14 do
+			local t = from + (to - from) * n / 15
 			local side = (n % 2 == 0 and 1 or -1) * (C.LaneWidth / 2 + 1)
 			T:FillBall(lane.Dir * t + lane.Side * side + Vector3.new(0, -2.5, 0), 3, MAT.Mud)
+		end
+		local step = 12
+		for t = C.LaneRadius + 20, C.TrailLength, step do
+			local pos = self:TrailPoint(lane, t)
+			T:FillCylinder(CFrame.new(pos + Vector3.new(0, -2, 0)), 4, 4.5, math.floor(t / step) % 3 == 0 and MAT.Mud or MAT.Ground)
 		end
 	end
 	-- 건물 아래 흙 바닥
 	for _, spot in ipairs({C.Warehouse, C.Workbench, C.Cage}) do
 		T:FillCylinder(CFrame.new(spot[1], -2, spot[3]), 4, 9, MAT.Ground)
 	end
-	-- 연못 (모래 둘레 → 파기 → 물)
-	local px, pz, pr = table.unpack(C.Pond)
-	T:FillCylinder(CFrame.new(px, -2, pz), 4, pr + 5, MAT.Sand)
-	T:FillCylinder(CFrame.new(px, -5, pz), 10, pr, MAT.Air)
-	T:FillCylinder(CFrame.new(px, -6, pz), 8, pr, MAT.Water)
-	T:FillBlock(CFrame.new(px, -11, pz), Vector3.new(pr * 2 + 2, 2, pr * 2 + 2), MAT.Sand)
+	-- 연못: 기지 근처 1개 + 늪 여러 개 (모래·진흙 둘레 → 파기 → 물)
+	self.Ponds = {{flat(C.Pond[1], C.Pond[2]), C.Pond[3]}}
+	for _ = 1, C.SwampPonds do
+		for _ = 1, 20 do
+			local pos = self:RandomPoint("Swamp", 30)
+			local radius = 10 + rng:NextNumber() * 12
+			if self:Free(pos, radius + 8) then
+				table.insert(self.Ponds, {pos, radius})
+				self:Block(pos, radius + 6)
+				break
+			end
+		end
+	end
+	for i, pond in ipairs(self.Ponds) do
+		local pos, pr = pond[1], pond[2]
+		T:FillCylinder(CFrame.new(pos.X, -2, pos.Z), 4, pr + 5, i == 1 and MAT.Sand or MAT.Mud)
+		T:FillCylinder(CFrame.new(pos.X, -5, pos.Z), 10, pr, MAT.Air)
+		T:FillCylinder(CFrame.new(pos.X, -6, pos.Z), 8, pr, MAT.Water)
+		T:FillBlock(CFrame.new(pos.X, -11, pos.Z), Vector3.new(pr * 2 + 2, 2, pr * 2 + 2), MAT.Mud)
+	end
+	self:Block(self.Ponds[1][1], self.Ponds[1][2] + 6)
 	-- 알파의 숲 바닥
-	local gx, gz, gr = table.unpack(C.Grove)
-	T:FillCylinder(CFrame.new(gx, -2, gz), 4, gr, MAT.LeafyGrass)
-	self:Block(flat(px, pz), pr + 6)
-	self:Block(flat(gx, gz), 9)
+	local grove = self:GrovePosition()
+	T:FillCylinder(CFrame.new(grove.X, -2, grove.Z), 4, C.Grove.Size, MAT.LeafyGrass)
+	self:Block(grove, 9)
 end
 
+function Map:GrovePosition()
+	local a = math.rad(C.Grove.Angle)
+	return Vector3.new(math.sin(a), 0, -math.cos(a)) * C.Grove.Radius
+end
+
+-- 오솔길: 굴 너머로 살짝 굽이치며 지역 깊은 곳까지
+function Map:TrailPoint(lane, t)
+	local wobble = math.sin(t / 60 + lane.Id * 1.3) * 18
+	return lane.Dir * t + lane.Side * wobble
+end
+
+-- 자리 겹침 검사: 격자 칸마다 막힌 원 목록을 둔다 (자리 수천 개에서도 빠르게)
 function Map:Block(pos, radius)
-	table.insert(self.Blocked, {pos, radius})
+	local entry = {pos, radius}
+	for cx = math.floor((pos.X - radius) / CELL), math.floor((pos.X + radius) / CELL) do
+		for cz = math.floor((pos.Z - radius) / CELL), math.floor((pos.Z + radius) / CELL) do
+			local key = cx * 4096 + cz
+			local list = self.Grid[key]
+			if not list then
+				list = {}
+				self.Grid[key] = list
+			end
+			table.insert(list, entry)
+		end
+	end
 end
 
 function Map:Free(pos, radius)
-	local r = pos.Magnitude
+	local r = math.sqrt(pos.X * pos.X + pos.Z * pos.Z)
 	if r &lt; C.BaseRadius + 7 or r &gt; C.PlayRadius + 4 then
 		return false
 	end
 	for _, lane in ipairs(self.Lanes) do
 		local t = pos:Dot(lane.Dir)
-		if t &gt; 0 and math.abs(pos:Dot(lane.Side)) &lt; C.LaneWidth / 2 + 5 + radius then
+		if t &gt; 0 and t &lt; C.LaneRadius + 16 and math.abs(pos:Dot(lane.Side)) &lt; C.LaneWidth / 2 + 5 + radius then
 			return false
 		end
+		if t &gt;= C.LaneRadius + 16 and t &lt; C.TrailLength + 10 then
+			if (self:TrailPoint(lane, t) - flat(pos.X, pos.Z)).Magnitude &lt; 7 + radius then
+				return false
+			end
+		end
 	end
-	for _, b in ipairs(self.Blocked) do
-		if (b[1] - pos).Magnitude &lt; b[2] + radius then
-			return false
+	local seen = {}
+	for cx = math.floor((pos.X - radius) / CELL), math.floor((pos.X + radius) / CELL) do
+		for cz = math.floor((pos.Z - radius) / CELL), math.floor((pos.Z + radius) / CELL) do
+			for _, b in ipairs(self.Grid[cx * 4096 + cz] or {}) do
+				if not seen[b] then
+					seen[b] = true
+					if (b[1] - pos).Magnitude &lt; b[2] + radius then
+						return false
+					end
+				end
+			end
 		end
 	end
 	return true
@@ -12114,66 +12477,91 @@ local NODE_BUILDERS = {
 	end,
 }
 
+function Map:AddNode(kind, pos)
+	local spec = R.Types[kind]
+	local n = #self.Nodes + 1
+	local model, size = NODE_BUILDERS[kind](self.NodesFolder, CFrame.new(pos), self.Rng)
+	model.Name = kind .. n
+	local hit = B.hitbox(model, size, CFrame.new(pos + Vector3.new(0, size.Y / 2, 0)), true)
+	hit.Name = kind .. n
+	hit:SetAttribute("ResourceType", kind)
+	hit:SetAttribute("MaxHealth", spec.HP)
+	hit:SetAttribute("CurrentHealth", spec.HP)
+	hit:SetAttribute("RespawnTime", spec.Respawn)
+	hit:SetAttribute("Zone", Zones.id(pos, C))
+	model.PrimaryPart = hit
+	table.insert(self.Nodes, {Part = hit, Model = model, Kind = kind, Home = CFrame.new(pos)})
+	self:Block(pos, 7)
+end
+
 function Map:BuildNodes()
-	local rng = self.Rng
-	for _, kind in ipairs(R.Order) do
-		local spec = R.Types[kind]
-		for n, xz in ipairs(C.Nodes[kind] or {}) do
-			local pos = flat(xz[1], xz[2])
-			local model, size = NODE_BUILDERS[kind](self.NodesFolder, CFrame.new(pos), rng)
-			model.Name = kind .. n
-			local hit = B.hitbox(model, size, CFrame.new(pos + Vector3.new(0, size.Y / 2, 0)), true)
-			hit.Name = kind .. n
-			hit:SetAttribute("ResourceType", kind)
-			hit:SetAttribute("MaxHealth", spec.HP)
-			hit:SetAttribute("CurrentHealth", spec.HP)
-			hit:SetAttribute("RespawnTime", spec.Respawn)
-			model.PrimaryPart = hit
-			table.insert(self.Nodes, {Part = hit, Model = model, Kind = kind, Home = CFrame.new(pos)})
-			self:Block(pos, 7)
+	for _, zone in ipairs(C.ZoneOrder) do
+		for _, kind in ipairs(R.Order) do
+			local want = (C.Nodes[zone] or {})[kind] or 0
+			local placed, tries = 0, 0
+			while placed &lt; want and tries &lt; want * 40 do
+				tries = tries + 1
+				local pos = self:RandomPoint(zone, 8)
+				if self:Free(pos, 7) then
+					self:AddNode(kind, pos)
+					placed = placed + 1
+				end
+			end
 		end
 	end
-	for _, spawn in ipairs(P.Spawns) do
-		self:Block(flat(spawn[3], spawn[4]), 8)
+end
+
+-- ============================================================= 야생 펫 자리
+-- 서버 CaptureService 가 이 자리에 야생 펫을 두고, 잡히면 같은 자리에 새로 나타나게 한다.
+function Map:BuildWild()
+	local rng = self.Rng
+	for _, spec in ipairs(C.StarterWild) do
+		local pos = flat(spec[3], spec[4])
+		table.insert(self.WildSpawns, {SpeciesId = spec[1], MinLevel = spec[2], MaxLevel = spec[2], Pos = pos, Zone = "Meadow"})
+		self:Block(pos, 8)
 	end
+	for _, zone in ipairs(C.ZoneOrder) do
+		for _, entry in ipairs(C.Wild[zone] or {}) do
+			local species, count, minLevel, maxLevel = table.unpack(entry)
+			local placed, tries = 0, 0
+			while placed &lt; count and tries &lt; count * 60 do
+				tries = tries + 1
+				local pos = self:RandomPoint(zone, 16)
+				-- 초원의 엠버펍·셸버브는 기지에서 조금 떨어진 곳 (첫 모슬링보다 한 단계 위)
+				if (zone ~= "Meadow" or species == "Mossling" or pos.Magnitude &gt; 120) and self:Free(pos, 10) then
+					-- 멀리 갈수록 높은 레벨
+					local depth = zone == "Meadow" and (pos.Magnitude / C.MeadowRadius) or Zones.depth(pos, C)
+					local level = math.clamp(math.floor(minLevel + (maxLevel - minLevel) * depth + rng:NextNumber() * 0.99), minLevel, maxLevel)
+					table.insert(self.WildSpawns, {SpeciesId = species, MinLevel = level, MaxLevel = level, Pos = pos, Zone = zone})
+					self:Block(pos, 10)
+					placed = placed + 1
+				end
+			end
+		end
+	end
+	-- 알파의 숲 한가운데 브라이어혼 α
+	table.insert(self.WildSpawns, {SpeciesId = "Briarhorn", MinLevel = C.Grove.Level, MaxLevel = C.Grove.Level, Pos = self:GrovePosition(), Zone = "Ancient"})
 end
 
 -- ============================================================= 숲, 소품, 연못, 알파의 숲
 function Map:BuildScenery()
 	local decor, rng = self.DecorFolder, self.Rng
-	-- 바깥 숲 벽: 키 큰 가문비나무 세 줄. 기지 밖 어디서 봐도 빽빽한 숲에 갇힌 느낌을 준다.
-	-- 굴 앞 길목만 비우고 굴 뒤쪽은 다시 숲으로 막는다. 뒷줄은 가벼운 메쉬를 쓴다.
-	local function onLane(pos, width)
-		if pos.Magnitude &gt; C.LaneRadius + 14 then
-			return false
-		end
-		for _, lane in ipairs(self.Lanes) do
-			if pos:Dot(lane.Dir) &gt; 0 and math.abs(pos:Dot(lane.Side)) &lt; width then
-				return true
-			end
-		end
-		return false
-	end
-	for row, spec in ipairs({{110, 2, 12}, {95, 17, 18}, {80, 36, 26}}) do
-		local count, inner, spread = table.unpack(spec)
+	-- 바깥 숲 벽: 키 큰 가문비나무 세 줄. 어디서 봐도 빽빽한 숲에 갇힌 느낌을 준다. 뒷줄은 가벼운 메쉬를 쓴다.
+	for row, spec in ipairs({{2, 12, 11}, {17, 18, 13}, {36, 26, 16}}) do
+		local inner, spread, spacing = table.unpack(spec)
+		local count = math.floor(2 * math.pi * (C.PlayRadius + inner) / spacing)
 		for i = 1, count do
-			local a = i / count * math.pi * 2 + B.jitter(rng, 0.025)
+			local a = i / count * math.pi * 2 + B.jitter(rng, 0.004)
 			local r = C.PlayRadius + inner + rng:NextNumber() * spread
-			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
-			if not onLane(pos, 16) then
-				Props.tallPine(decor, CFrame.new(pos), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, false, row &gt; 1)
-			end
+			Props.tallPine(decor, CFrame.new(math.cos(a) * r, 0, math.sin(a) * r), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, false, row &gt; 1)
 		end
 	end
-	-- 안쪽 흩뿌림 도우미 (길목·기지·자원 자리를 피한다)
-	local function scatter(n, radius, build, minR, maxR)
+	-- 흩뿌림 도우미: 지역 안에서 길목·기지·자원·다른 소품을 피해 놓는다
+	local function scatter(zone, n, radius, build)
 		local placed, tries = 0, 0
-		minR, maxR = minR or C.BaseRadius + 8, maxR or C.PlayRadius
-		while placed &lt; n and tries &lt; n * 30 do
+		while placed &lt; n and tries &lt; n * 25 do
 			tries = tries + 1
-			local a = rng:NextNumber() * math.pi * 2
-			local r = minR + rng:NextNumber() * (maxR - minR)
-			local pos = Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+			local pos = self:RandomPoint(zone)
 			if self:Free(pos, radius) then
 				build(CFrame.new(pos), pos)
 				self:Block(pos, radius)
@@ -12181,101 +12569,120 @@ function Map:BuildScenery()
 			end
 		end
 	end
-	-- 숲 가장자리 덤불: 숲 벽과 풀밭 사이를 고사리·바위·쓰러진 나무로 자연스럽게 잇는다
-	scatter(40, 2.5, function(at)
-		Props.fern(decor, at, rng, 0.9 + rng:NextNumber() * 0.5)
-	end, C.PlayRadius - 18, C.PlayRadius + 3)
-	scatter(10, 4, function(at)
-		Props.rock(decor, at, rng, 0.7 + rng:NextNumber() * 0.7)
-	end, C.PlayRadius - 20, C.PlayRadius + 3)
-	-- 나무 무리: 가문비나무 3~6그루가 모여 선 작은 숲. 발밑엔 고사리, 그루터기, 쓰러진 통나무
-	scatter(16, 11, function(_, center)
-		for _ = 1, rng:NextInteger(3, 6) do
+	-- 나무 무리: 가문비나무 여러 그루가 모여 선 숲. 발밑엔 고사리, 그루터기, 쓰러진 통나무
+	local function grove(zone, n, minTrees, maxTrees, scaleMin, scaleSpan)
+		scatter(zone, n, 11, function(_, center)
+			for _ = 1, rng:NextInteger(minTrees, maxTrees) do
+				local a = rng:NextNumber() * math.pi * 2
+				local pos = center + Vector3.new(math.cos(a), 0, math.sin(a)) * (2 + rng:NextNumber() * 7)
+				Props.tallPine(decor, CFrame.new(pos), rng, scaleMin + rng:NextNumber() * scaleSpan, true)
+			end
+			for _ = 1, rng:NextInteger(2, 4) do
+				local a = rng:NextNumber() * math.pi * 2
+				Props.fern(decor, CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * (4 + rng:NextNumber() * 6)), rng, 0.8 + rng:NextNumber() * 0.4)
+			end
+			local roll = rng:NextNumber()
 			local a = rng:NextNumber() * math.pi * 2
-			local pos = center + Vector3.new(math.cos(a), 0, math.sin(a)) * (2 + rng:NextNumber() * 7)
-			Props.tallPine(decor, CFrame.new(pos), rng, 0.62 + rng:NextNumber() * 0.3, true)
-		end
-		for _ = 1, rng:NextInteger(2, 4) do
-			local a = rng:NextNumber() * math.pi * 2
-			Props.fern(decor, CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * (4 + rng:NextNumber() * 6)), rng, 0.8 + rng:NextNumber() * 0.4)
-		end
-		local roll = rng:NextNumber()
-		local a = rng:NextNumber() * math.pi * 2
-		local spot = CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * 8)
-		if roll &lt; 0.4 then
-			Props.log(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
-		elseif roll &lt; 0.7 then
-			Props.stump(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
-		else
-			Props.rock(decor, spot, rng, 0.6 + rng:NextNumber() * 0.5)
-		end
-	end)
-	scatter(12, 4, function(at)
-		Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5)
-	end)
-	scatter(10, 5, function(at)
-		Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
-	end)
-	scatter(12, 3, function(at)
-		Props.stump(decor, at, rng, 0.8 + rng:NextNumber() * 0.4)
-	end)
-	scatter(18, 3, function(at)
-		Props.rock(decor, at, rng, 0.4 + rng:NextNumber() * 0.6)
-	end)
-	scatter(60, 1.8, function(at)
-		Props.fern(decor, at, rng, 0.7 + rng:NextNumber() * 0.5)
-	end)
-	scatter(22, 1.5, function(at)
-		Props.mushrooms(decor, at, rng)
-	end)
+			local spot = CFrame.new(center + Vector3.new(math.cos(a), 0, math.sin(a)) * 8)
+			if roll &lt; 0.4 then
+				Props.log(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+			elseif roll &lt; 0.7 then
+				Props.stump(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
+			else
+				Props.rock(decor, spot, rng, 0.6 + rng:NextNumber() * 0.5)
+			end
+		end)
+	end
+	local function props(zone, counts)
+		scatter(zone, counts.Dead or 0, 4, function(at) Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5) end)
+		scatter(zone, counts.Log or 0, 5, function(at) Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4) end)
+		scatter(zone, counts.Stump or 0, 3, function(at) Props.stump(decor, at, rng, 0.8 + rng:NextNumber() * 0.4) end)
+		scatter(zone, counts.Rock or 0, 3, function(at) Props.rock(decor, at, rng, (counts.RockScale or 0.4) + rng:NextNumber() * 0.7) end)
+		scatter(zone, counts.Fern or 0, 1.8, function(at) Props.fern(decor, at, rng, 0.7 + rng:NextNumber() * 0.5) end)
+		scatter(zone, counts.Glow or 0, 1.5, function(at) Props.mushrooms(decor, at, rng) end)
+		scatter(zone, counts.Reeds or 0, 2, function(at) Props.reeds(decor, at, rng, 0.7 + rng:NextNumber() * 0.4) end)
+	end
+	-- 초원: 탁 트인 풀밭에 작은 나무 무리
+	grove("Meadow", 30, 3, 6, 0.62, 0.3)
+	props("Meadow", {Dead = 16, Log = 14, Stump = 18, Rock = 28, Fern = 110, Glow = 26})
+	-- 고목의 숲: 가장 빽빽하고 어두운 숲, 발밑에 빛나는 버섯
+	grove("Ancient", 110, 4, 7, 0.8, 0.35)
+	props("Ancient", {Dead = 15, Log = 40, Stump = 40, Rock = 30, Fern = 240, Glow = 60})
+	-- 잿빛 바위 협곡: 나무가 드물고 바위와 죽은 나무
+	grove("Crags", 20, 2, 4, 0.6, 0.3)
+	props("Crags", {Dead = 45, Log = 10, Stump = 16, Rock = 150, RockScale = 0.6, Fern = 30})
+	-- 안개 늪: 앙상한 나무, 갈대, 쓰러진 나무, 빛나는 버섯
+	grove("Swamp", 40, 2, 4, 0.55, 0.25)
+	props("Swamp", {Dead = 70, Log = 45, Stump = 35, Rock = 22, Fern = 70, Glow = 50, Reeds = 110})
 
 	-- 연못 가장자리: 갈대, 바위, 수련 잎
-	local px, pz, pr = table.unpack(C.Pond)
-	for i = 1, 9 do
-		local a = i / 9 * math.pi * 2 + B.jitter(rng, 0.2)
-		local pos = Vector3.new(px + math.cos(a) * (pr + 2.5), 0, pz + math.sin(a) * (pr + 2.5))
-		if i % 3 == 0 then
-			Props.rock(decor, CFrame.new(pos), rng, 0.45)
-		else
-			Props.reeds(decor, CFrame.new(pos), rng, 0.7)
+	for n, pond in ipairs(self.Ponds) do
+		local center, pr = pond[1], pond[2]
+		local px, pz = center.X, center.Z
+		for i = 1, 9 do
+			local a = i / 9 * math.pi * 2 + B.jitter(rng, 0.2)
+			local pos = Vector3.new(px + math.cos(a) * (pr + 2.5), 0, pz + math.sin(a) * (pr + 2.5))
+			if i % 3 == 0 then
+				Props.rock(decor, CFrame.new(pos), rng, 0.45)
+			else
+				Props.reeds(decor, CFrame.new(pos), rng, 0.7)
+			end
 		end
-	end
-	for i = 1, 6 do
-		local a = rng:NextNumber() * math.pi * 2
-		local r = rng:NextNumber() * (pr - 3)
-		local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#3f6a3c", MAT.SmoothPlastic, true)
-		pad.Name = "LilyPad"
-		if i % 2 == 0 then
-			B.ball(decor, 0.5, pad.Position + Vector3.new(0.3, 0.2, 0), "#8fb8ff", MAT.Neon)
+		for i = 1, n == 1 and 6 or 3 do
+			local a = rng:NextNumber() * math.pi * 2
+			local r = rng:NextNumber() * (pr - 3)
+			local pad = B.cyl(decor, 0.15, 2.4 + rng:NextNumber(), CFrame.new(px + math.cos(a) * r, -1.95, pz + math.sin(a) * r), "#3f6a3c", MAT.SmoothPlastic, true)
+			pad.Name = "LilyPad"
+			if i % 2 == 0 then
+				B.ball(decor, 0.5, pad.Position + Vector3.new(0.3, 0.2, 0), "#8fb8ff", MAT.Neon)
+			end
 		end
 	end
 
-	-- 알파의 숲: 오래된 거대 나무 + 꽃 + 선돌
-	local gx, gz, gr = table.unpack(C.Grove)
-	local grove = B.model(decor, "AlphaGrove")
-	Props.tree(grove, CFrame.new(gx, 0, gz + 14), rng, 2.1, "AncientTree")
+	-- 알파의 숲: 오래된 거대 나무 + 선돌 + 빛나는 버섯
+	local center = self:GrovePosition()
+	local gx, gz, gr = center.X, center.Z, C.Grove.Size
+	local groveModel = B.model(decor, "AlphaGrove")
+	local toward = -center.Unit * 14
+	Props.tree(groveModel, CFrame.new(gx - toward.X, 0, gz - toward.Z), rng, 2.1, "AncientTree")
 	for i = 1, 7 do
 		local a = math.rad(i * (360 / 7) + 10)
 		local pos = Vector3.new(gx + math.cos(a) * (gr - 3), 0, gz + math.sin(a) * (gr - 3))
-		if (pos - Vector3.new(gx, 0, gz + 14)).Magnitude &gt; 7 then
-			local stone = B.block(grove, Vector3.new(2, 5 + rng:NextNumber() * 2, 1.4), CFrame.lookAt(pos, Vector3.new(gx, 0, gz)) + Vector3.new(0, 2.6, 0), "#a3a8ad", MAT.Slate)
-			B.block(grove, Vector3.new(0.3, 2, 0.1), stone.CFrame * CFrame.new(0, 0.5, -0.72), "#b6ff8a", MAT.Neon)
+		if (pos - Vector3.new(gx - toward.X, 0, gz - toward.Z)).Magnitude &gt; 7 then
+			local stone = B.block(groveModel, Vector3.new(2, 5 + rng:NextNumber() * 2, 1.4), CFrame.lookAt(pos, Vector3.new(gx, 0, gz)) + Vector3.new(0, 2.6, 0), "#a3a8ad", MAT.Slate)
+			B.block(groveModel, Vector3.new(0.3, 2, 0.1), stone.CFrame * CFrame.new(0, 0.5, -0.72), "#b6ff8a", MAT.Neon)
 		end
 	end
 	for _ = 1, 10 do
 		local a = rng:NextNumber() * math.pi * 2
 		local r = 4 + rng:NextNumber() * (gr - 6)
-		Props.mushrooms(grove, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
+		Props.mushrooms(groveModel, CFrame.new(gx + math.cos(a) * r, 0, gz + math.sin(a) * r), rng)
 	end
-	B.light(B.block(grove, Vector3.new(1, 1, 1), CFrame.new(gx, 6, gz), "#ffffff", MAT.SmoothPlastic, {Transparency = 1}), "PointLight",
+	B.light(B.block(groveModel, Vector3.new(1, 1, 1), CFrame.new(gx, 6, gz), "#ffffff", MAT.SmoothPlastic, {Transparency = 1}), "PointLight",
 		{Range = 26, Brightness = 1.2, Color = Color3.fromHex("#c9ff9a"), Shadows = false})
+	-- 오솔길 표지: 굴 너머 각 지역 입구에 이정표 (지역 이름)
+	for _, lane in ipairs(self.Lanes) do
+		local zoneId = Zones.id(lane.Dir * (C.MeadowRadius + 30), C)
+		local zone = C.Zones[zoneId]
+		local at = self:TrailPoint(lane, C.MeadowRadius + 24) + lane.Side * 9
+		local post = B.block(decor, Vector3.new(0.6, 5, 0.6), CFrame.new(at + Vector3.new(0, 2.5, 0)), "#5e4b3b", MAT.Wood)
+		local sign = B.block(decor, Vector3.new(5.2, 1.6, 0.3), CFrame.lookAt(at + Vector3.new(0, 4.4, 0), at + Vector3.new(0, 4.4, 0) - lane.Dir), "#6b5236", MAT.WoodPlanks)
+		post.Name = "ZoneSign"
+		local gui = Instance.new("SurfaceGui")
+		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Back, Vector2.new(260, 80), 1
+		gui.Parent = sign
+		local text = Instance.new("TextLabel")
+		text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
+		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, zone.Icon .. " " .. zone.Name, Color3.fromHex("#f2e6cf")
+		text.Parent = gui
+	end
 end
 
 return Map
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000041">
+      <Item class="ModuleScript" referent="RBX000043">
         <Properties>
           <string name="Name">PetService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -12284,6 +12691,7 @@ local P=require(RS.Shared.Config.PetConfig)
 local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
+local Shop=require(RS.Shared.Config.ShopConfig)
 local S={}
 -- 값이 바뀔 때만 속성을 복제한다 (0.2초마다 같은 값을 보내지 않도록)
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
@@ -12317,7 +12725,7 @@ function S:Spawn(rec,index)
     local part=U.part(self.ctx.Map.PetsFolder,rec.Data.Uid,Vector3.new(2,2,2),Vector3.new(pos.X,2,pos.Z))
     part.Transparency,part.CanCollide,part.CanTouch=1,false,false
     part:SetAttribute("SpeciesId",rec.Data.SpeciesId);part:SetAttribute("OwnerId",rec.Owner.UserId)
-    part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid)
+    part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid);part:SetAttribute("Stage",R.stage(rec.Data))
     rec.Part,rec.Index=part,index;self.Active[rec.Data.Uid]=rec
 end
 function S:SetTeam(player,ids,initial)
@@ -12346,7 +12754,7 @@ end
 function S:AddCapture(player,wild)
     if not self:CanCapture(player) then return false end
     local uid=Http:GenerateGUID(false)
-    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland"}
+    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland",Stage=wild.Stage}
     self:Record(player,data,false)
     if #self.Teams[player]&lt;P.ActiveLimit then
         -- A catch joins an open slot without dismissing/rehealing existing companions.
@@ -12358,18 +12766,28 @@ function S:AddCapture(player,wild)
 end
 function S:Award(player,amount)
     if not self.ctx.Data:Ready(player) then return end
+    local evolved={}
     self.ctx.Data:Mutate(player,function()
         for _,uid in ipairs(self.Teams[player] or {}) do
-            local rec=self.Rosters[player][uid];R.addXP(rec.Data,amount,P)
+            local rec=self.Rosters[player][uid]
+            if R.addXP(rec.Data,amount,P) then table.insert(evolved,rec) end
             local stats=R.stats(rec.Data,P);rec.MaxHP=stats.HP
         end
     end)
+    -- 진화: 커지고 강해진 모습으로 바뀌고 체력이 가득 찬다
+    for _,rec in ipairs(evolved) do
+        rec.HP=rec.MaxHP
+        if rec.Part then rec.Part:SetAttribute("Stage",2);self.ctx.FX:FireAllClients("Evolve",rec.Part.Position,rec.Data.SpeciesId) end
+        local name=R.name(rec.Data.SpeciesId,2,P)
+        self.ctx.Notify(player,"✨ "..P.Species[rec.Data.SpeciesId].Name.." 이(가) "..name.." (으)로 진화했습니다!")
+        self.ctx.PetFX:FireClient(player,"Evolve",name)
+    end
 end
 function S:Saved(player,snapshot)
     for uid,rec in pairs(self.Rosters[player] or {}) do
         if rec.PendingSave and snapshot.Pets[uid] then
             rec.PendingSave,rec.Secured=false,true
-            self.ctx.Notify(player,"영구 확정: "..P.Species[rec.Data.SpeciesId].Name..(self.ctx.Data.Memory and " (연습 모드)" or ""))
+            self.ctx.Notify(player,"영구 확정: "..R.name(rec.Data.SpeciesId,R.stage(rec.Data),P)..(self.ctx.Data.Memory and " (연습 모드)" or ""))
             self.ctx.PetFX:FireClient(player,"Secured")
         end
     end
@@ -12379,6 +12797,7 @@ function S:NightSurvived(night,cleared)
         local key=self.ctx.SessionId..":"..self.ctx.Run.RoundId..":"..night
         local profile=self.ctx.Data:Get(player)
         if profile and not profile.Receipts[key] then
+            local newSpecies={}
             local granted=self.ctx.Data:Mutate(player,function(data)
                 data.Receipts[key]=true
                 -- Bound receipt history. Same run has only three nightly receipts.
@@ -12387,6 +12806,9 @@ function S:NightSurvived(night,cleared)
                 for uid,rec in pairs(self.Rosters[player] or {}) do
                     if rec.Registered and not rec.Secured and not rec.PendingSave then
                         data.Pets[uid]=rec.Data;rec.PendingSave=true
+                        -- 도감 보상: 새 종을 처음 영구 확정하면 코인
+                        local entry=data.Dex[rec.Data.SpeciesId]
+                        if not (entry and entry.Caught) then data.Coins=data.Coins+Shop.DexReward;table.insert(newSpecies,rec.Data.SpeciesId) end
                         data.Dex[rec.Data.SpeciesId]={Seen=true,Caught=true}
                     end
                     rec.HP,rec.RecoverAt=rec.MaxHP,nil
@@ -12397,7 +12819,10 @@ function S:NightSurvived(night,cleared)
                 if cleared then data.Stats.Clears=data.Stats.Clears+1;data.ClearedRegions.Grassland=true;data.UnlockedRegions.Swamp=true end
                 data.Tutorial.Survived=true
             end)
-            if granted then self:Award(player,P.NightXP);self.ctx.Data:Save(player) end
+            if granted then
+                self:Award(player,P.NightXP);self.ctx.Data:Save(player)
+                for _,id in ipairs(newSpecies) do self.ctx.Notify(player,"📖 도감 새 종! "..P.Species[id].Name.." · 🪙 +"..Shop.DexReward) end
+            end
         end
     end
 end
@@ -12562,7 +12987,7 @@ end
 function S:Snapshot(player)
     local list={}
     for uid,rec in pairs(self.Rosters[player] or {}) do
-        list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
+        list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Stage=R.stage(rec.Data),Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
             Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode}
     end
@@ -12573,7 +12998,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000042">
+      <Item class="ModuleScript" referent="RBX000044">
         <Properties>
           <string name="Name">ResourceService</string>
           <ProtectedString name="Source">local Players = game:GetService("Players")
@@ -12725,11 +13150,10 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000043">
+      <Item class="ModuleScript" referent="RBX000045">
         <Properties>
           <string name="Name">RunService</string>
-          <ProtectedString name="Source">local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
+          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
 local S = {}
@@ -12738,13 +13162,18 @@ function S:Init(ctx)
 end
 function S:IsParticipant(player) return self.Participants[player] == true end
 function S:Count() local n = 0; for _ in pairs(self.Participants) do n = n + 1 end; return n end
+-- 들어오면 바로 논다: 원정 중간에 들어와도 기본 소지품·펫과 함께 합류한다 (공개 서버에서 튕기지 않게).
+-- 혼자 들어온 첫 사람은 StartDelay(몇 초) 뒤 바로 출발한다.
 function S:Join(player)
-    if self.ctx.Clock.Phase ~= "Waiting" or self:Count() &gt;= C.MaxPlayers then
-        player:Kick("이 원정은 이미 시작했거나 인원이 찼습니다. 새 서버에서 시작해 주세요.")
+    if self:Count() &gt;= C.MaxPlayers then
+        player:Kick("이 서버는 인원이 가득 찼습니다. 다시 들어오면 다른 서버로 연결됩니다.")
         return false
     end
     self.Participants[player] = true
-    if not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
+    if self.ctx.Clock.Phase == "Waiting" and not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
+    if self.ctx.Clock.Phase == "Day" or self.ctx.Clock.Phase == "Night" then
+        task.defer(function() if player.Parent then self.ctx.Notify(player, "진행 중인 원정에 합류했습니다! 목표 카드를 따라가세요") end end)
+    end
     return true
 end
 function S:Leave(player)
@@ -12803,6 +13232,8 @@ function S:Tick()
         end
         if clock:Expired() then
             self:Change("Night", clock.Night, C.NightSeconds)
+            -- 중간에 들어온 사람도 세도록 밤마다 지금 인원으로 웨이브 크기를 정한다
+            self.LockedPlayerCount = math.max(1, self:Count())
             if C.ActiveStage &gt;= 4 then self.ctx.Waves:Start(clock.Night, self.LockedPlayerCount) end
             self.ctx.Notify(nil, "밤 " .. clock.Night .. " 시작 · 밤에는 수리만 가능합니다")
         end
@@ -12827,7 +13258,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000044">
+      <Item class="ModuleScript" referent="RBX000046">
         <Properties>
           <string name="Name">SurvivalService</string>
           <ProtectedString name="Source">-- 배고픔 (가볍게). 낮·밤 동안 천천히 줄고, 음식을 들고 공격 버튼을 누르면 먹는다.
@@ -12909,26 +13340,65 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000045">
+      <Item class="ModuleScript" referent="RBX000047">
         <Properties>
           <string name="Name">TutorialService</string>
-          <ProtectedString name="Source">local S={}
+          <ProtectedString name="Source">-- 첫 판 안내: 목표 카드 문장 + 지금 가야 할 곳(목표 표시). 처음 30초 안에 "뭘 해야 하는지" 보이게 한다.
+local RS=game:GetService("ReplicatedStorage")
+local U=require(RS.Shared.Modules.Utility)
+local G=require(RS.Shared.Config.GameConfig)
+local S={}
 function S:Init(ctx) self.ctx=ctx end
 function S:Objective(player)
     local profile=self.ctx.Data:Get(player);if not profile then return "데이터 불러오는 중" end
     if self.ctx.Clock.Phase=="Night" then return "🌙 펫을 배치대에 올리고 길목을 지키세요 · 쓰러진 펫은 새벽에 회복" end
-    if not profile.Tutorial.Captured then return "① 기지 문 밖 초원에서 '야생 모슬링' 이름표를 찾아 [E] 사냥 → HP 25% 이하가 되면 [E] 덫 던지기 (첫 포획은 성공 보장)" end
+    if not profile.Tutorial.Captured then return "① 노란 표시를 따라 문 밖 '야생 모슬링'에게 가서 [E] 사냥 → HP가 25% 아래로 떨어지면 [E] 로 덫 던지기 (첫 포획은 성공 보장)" end
     for _,rec in pairs(self.ctx.Pets.Rosters[player] or {}) do
-        if not rec.Secured and not rec.PendingSave then return rec.Registered and "③ 등록 완료! 밤을 버티면 영구 확정 · 그동안 나무·돌을 모아 창고에 넣고 벽을 지으세요" or "② 기지 안 🐾 펫 우리에서 [E] 등록하세요 · 등록 전에는 아직 내 펫이 아닙니다" end
+        if not rec.Secured and not rec.PendingSave then return rec.Registered and "③ 등록 완료! 밤을 버티면 영구 확정 · 그동안 🪓도끼로 나무, 돌을 모아 창고에 넣고 벽을 지으세요" or "② 기지 안 🐾 펫 우리에서 [E] 등록하세요 · 등록 전에는 아직 내 펫이 아닙니다" end
     end
-    if not profile.Tutorial.Survived then return "③ 창으로 나무·돌 채집 → 공용 창고 → 빈 자리에서 [E] 건설 · 첫날 밤을 버티세요" end
-    return "바위지대의 엠버펍·연못의 셸버브를 잡아 팀을 꾸리고, 큰 고목이 있는 알파의 숲에 도전하세요"
+    if not profile.Tutorial.Survived then return "③ 🪓도끼로 나무·돌 채집 → 공용 창고 → 제작대에서 돌 도구·횃불 → 빈 자리에 [E] 건설 · 첫날 밤을 버티세요" end
+    return "멀리 갈수록 강한 펫과 귀한 재료 · 🌋북쪽 협곡(엠버펍·수정) 💧남서 늪(셸버브) 🌲남동 고목의 숲 깊은 곳(브라이어혼 α) · 제작대 Lv2·3으로 고철·수정 도구"
+end
+-- 지금 가야 할 곳 (없으면 nil). 반환: 위치, 이름
+function S:Target(player)
+    local profile=self.ctx.Data:Get(player)
+    local root=U.aliveRoot(player)
+    if not profile or not root then return nil end
+    local clock=self.ctx.Clock
+    local home=self.ctx.Map.Core.Position
+    local far=(root.Position-home).Magnitude&gt;70
+    if clock.Phase=="Night" then return far and home or nil,"기지" end
+    if clock.Phase~="Day" then return nil end
+    if far and clock:Remaining()&lt;=G.WarningSeconds/clock:Scale() then return home,"기지로 돌아가기" end
+    if not profile.Tutorial.Captured then
+        local best,distance=nil,math.huge
+        for _,wild in pairs(self.ctx.Capture.Wild) do
+            local d=(wild.Part.Position-root.Position).Magnitude
+            if wild.SpeciesId=="Mossling" and wild.Stage==1 and d&lt;distance then best,distance=wild,d end
+        end
+        return best and best.Part.Position,"야생 모슬링"
+    end
+    for _,rec in pairs(self.ctx.Pets.Rosters[player] or {}) do
+        if not rec.Secured and not rec.PendingSave and not rec.Registered then return self.ctx.Map.Cage.Position,"펫 우리" end
+    end
+    if not profile.Tutorial.Survived then
+        local bag=self.ctx.Resources.Bags[player] or {}
+        local total=0;for _,n in pairs(bag) do total=total+n end
+        if total&gt;=20 then return self.ctx.Map.Warehouse.Position,"공용 창고" end
+        local best,distance=nil,math.huge
+        for _,node in ipairs(self.ctx.Map.Nodes) do
+            local d=(node.Part.Position-root.Position).Magnitude
+            if node.Kind=="Wood" and node.HP&gt;0 and d&lt;distance then best,distance=node,d end
+        end
+        return best and best.Part.Position,"나무 (도끼)"
+    end
+    return nil
 end
 return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000046">
+      <Item class="ModuleScript" referent="RBX000048">
         <Properties>
           <string name="Name">WaveService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -12941,6 +13411,7 @@ function S:Reset() self.Queue, self.Index, self.BossDefeated, self.Spawned = {},
 function S:Start(night, players)
     self:Reset()
     self.Night = night
+    self.HealthScale = players &lt;= 1 and W.SoloHealth or 1
     self.Queue = Rules.buildQueue(W.Waves[night], players, W.PerExtraPlayer)
     self.Interval = math.min(W.SpawnInterval, self.ctx.Clock:Remaining() / (#self.Queue + 1))
     self.NextSpawn = os.clock()
@@ -12962,17 +13433,17 @@ return S
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="RBX000047">
+  <Item class="StarterPlayer" referent="RBX000049">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">80</float>
       <float name="CharacterWalkSpeed">18</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="RBX000048">
+    <Item class="StarterPlayerScripts" referent="RBX000050">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="RBX000049">
+      <Item class="LocalScript" referent="RBX000051">
         <Properties>
           <string name="Name">ClientMain</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -13005,11 +13476,11 @@ start("AudioController", remotes)
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="Folder" referent="RBX000050">
+      <Item class="Folder" referent="RBX000052">
         <Properties>
           <string name="Name">Controllers</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000051">
+        <Item class="ModuleScript" referent="RBX000053">
           <Properties>
             <string name="Name">Anim</string>
             <ProtectedString name="Source">-- 절차적 애니메이션: 상태(대기/걷기/공격/기절/탈진)와 시간으로 뼈 포즈를 계산한다.
@@ -13028,6 +13499,9 @@ local STYLE = {
 	Emberpup = {Hop = 0.08, Stride = 38, Wag = 28, Bounce = 1.0},
 	Shellbub = {Hop = 0.0, Stride = 26, Wag = 14, Bounce = 0.7, Waddle = 7},
 	Briarhorn = {Hop = 0.0, Stride = 30, Wag = 12, Bounce = 0.6},
+	Mossdeer = {Hop = 0.05, Stride = 36, Wag = 10, Bounce = 0.6},
+	Ashlizard = {Hop = 0.0, Stride = 40, Wag = 30, Bounce = 0.5, Waddle = 9},
+	Bogtoad = {Hop = 0.3, Stride = 20, Wag = 0, Bounce = 1.4, Waddle = 4},
 	Crawler = {Hop = 0.0, Stride = 30, Wag = 0, Bounce = 0.5, Skitter = true},
 	Runner = {Hop = 0.1, Stride = 42, Wag = 20, Bounce = 0.8},
 	Brute = {Hop = 0.0, Stride = 22, Wag = 0, Bounce = 0.6, Stomp = true},
@@ -13134,7 +13608,7 @@ return Anim
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000052">
+        <Item class="ModuleScript" referent="RBX000054">
           <Properties>
             <string name="Name">AudioController</string>
             <ProtectedString name="Source">-- 효과음. AudioConfig 에 직접 올린 사운드 ID 가 있으면 그것을, 없으면 Roblox 기본 내장 사운드를 쓴다.
@@ -13208,7 +13682,7 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000053">
+        <Item class="ModuleScript" referent="RBX000055">
           <Properties>
             <string name="Name">CombatController</string>
             <ProtectedString name="Source">-- 공격/채집 입력. 클라이언트는 "공격하고 싶다"는 의도만 보낸다. 대상과 피해는 서버가 정한다.
@@ -13242,7 +13716,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000054">
+        <Item class="ModuleScript" referent="RBX000056">
           <Properties>
             <string name="Name">CreatureController</string>
             <ProtectedString name="Source">-- 펫·야생 펫·밤의 괴물을 화면에 그린다.
@@ -13258,6 +13732,7 @@ local Rig = require(script.Parent.Rig)
 local Anim = require(script.Parent.Anim)
 local Creatures = require(RS.Shared.Visuals.Creatures)
 local P = require(RS.Shared.Config.PetConfig)
+local PR = require(RS.Shared.Modules.PetRules)
 
 local CC = {}
 local player = Players.LocalPlayer
@@ -13325,14 +13800,16 @@ function CC:Watch(anchor, category)
 	end
 end
 
-function CC:BuildRig(kind, category)
+function CC:BuildRig(kind, category, stage)
 	if category == "Enemy" then
 		local built = Creatures.build(kind) or Creatures.Crawler()
 		return Rig.fromParts(built, 1)
 	end
-	local height = P.Heights[kind] or 3
+	-- 성체: &lt;종&gt;_Adult 모델이 있으면 그것, 없으면 새끼 모델을 크게
+	local adult = stage == 2 and P.Species[kind] and P.Species[kind].Adult
+	local height = (P.Heights[kind] or 3) * (adult and adult.Scale or 1)
 	local models = RS:FindFirstChild("PetModels")
-	local template = models and models:FindFirstChild(kind)
+	local template = models and ((adult and models:FindFirstChild(kind .. "_Adult")) or models:FindFirstChild(kind))
 	if template and template:IsA("Model") then
 		local ok, result = pcall(Rig.fromMesh, template:Clone(), height)
 		if ok then
@@ -13347,10 +13824,11 @@ end
 function CC:Add(anchor, category)
 	if self.Visuals[anchor] or not anchor.Parent then return end
 	local kind = category == "Enemy" and anchor:GetAttribute("Kind") or anchor:GetAttribute("SpeciesId")
-	local rig = self:BuildRig(kind, category)
+	local stage = anchor:GetAttribute("Stage") or 1
+	local rig = self:BuildRig(kind, category, stage)
 	rig.Model.Name = kind
 	rig.Model.Parent = self.Folder
-	local v = {Anchor = anchor, Category = category, Kind = kind, Rig = rig, Pos = anchor.Position, Phase = math.random() * 10,
+	local v = {Anchor = anchor, Category = category, Kind = kind, Stage = stage, Rig = rig, Pos = anchor.Position, Phase = math.random() * 10,
 		Speed = 0, NextRay = 0, Ground = anchor.Position.Y - anchor.Size.Y / 2, Frame = 0}
 	v.GroundTarget = v.Ground
 	local look = anchor.CFrame.LookVector
@@ -13375,6 +13853,13 @@ function CC:Add(anchor, category)
 	for _, key in ipairs({"Exhausted", "Busy", "Hunter", "Level", "MaxHP", "Status", "Fainted"}) do
 		table.insert(v.Conns, anchor:GetAttributeChangedSignal(key):Connect(function() self:RefreshTag(v) end))
 	end
+	-- 진화하면 모델을 새로 만든다
+	table.insert(v.Conns, anchor:GetAttributeChangedSignal("Stage"):Connect(function()
+		if self.Visuals[anchor] == v then
+			self:Remove(v)
+			self:Add(anchor, category)
+		end
+	end))
 	self.Visuals[anchor] = v
 	self:RefreshTag(v)
 	-- 등장 연출: 살짝 커지며 나타난다
@@ -13465,7 +13950,7 @@ function CC:RefreshTag(v)
 	if v.Category == "Pet" then
 		local status = a:GetAttribute("Status")
 		local temp = status ~= "영구"
-		v.NameLabel.Text = string.format("%s Lv%d%s", spec.Name, level, a:GetAttribute("Fainted") and " 💤" or "")
+		v.NameLabel.Text = string.format("%s Lv%d%s", PR.name(v.Kind, v.Stage, P), level, a:GetAttribute("Fainted") and " 💤" or "")
 		v.NameLabel.TextColor3 = v.Own and (temp and Color3.fromHex("#ffe58a") or Color3.fromHex("#b7f5c8")) or Color3.fromHex("#e8eef5")
 		if not v.Own then
 			v.NameLabel.Text = (a:GetAttribute("OwnerName") or "") .. "의 " .. v.NameLabel.Text
@@ -13474,7 +13959,7 @@ function CC:RefreshTag(v)
 		return
 	end
 	-- 야생
-	v.NameLabel.Text = string.format("야생 %s Lv%d", spec.Name, level)
+	v.NameLabel.Text = string.format("야생 %s Lv%d", PR.name(v.Kind, v.Stage, P), level)
 	v.NameLabel.TextColor3 = ELEMENT_COLOR[spec.Element] or Color3.new(1, 1, 1)
 	local hint = v.Gui:FindFirstChild("Hint")
 	local hunter = a:GetAttribute("Hunter") or ""
@@ -13639,7 +14124,7 @@ return CC
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000055">
+        <Item class="ModuleScript" referent="RBX000057">
           <Properties>
             <string name="Name">EnvironmentController</string>
             <ProtectedString name="Source">-- 하늘·조명·안개를 낮 → 노을 → 밤 → 새벽으로 부드럽게 바꾸고, 기지 소품(수정, 횃불, 떨어진 자원)을 살아 움직이게 한다.
@@ -13847,7 +14332,7 @@ return Env
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000056">
+        <Item class="ModuleScript" referent="RBX000058">
           <Properties>
             <string name="Name">FXController</string>
             <ProtectedString name="Source">-- 전투·채집·건설·포획 효과. 서버 FX 리모트를 받아 로컬에서만 그린다 (서버 부하 없음).
@@ -14138,6 +14623,11 @@ function FX:OnSpikes(pos)
 		Spread = Vector2.new(40, 40)})
 end
 
+function FX:OnEvolve(pos)
+	self:Burst(pos + Vector3.new(0, 2, 0), 40, {Color = ColorSequence.new(Color3.fromHex("#fff3a8"), Color3.fromHex("#8ff5e8")), Size = NumberSequence.new(0.9, 0),
+		Speed = NumberRange.new(6, 16), Acceleration = Vector3.new(0, 8, 0), LightEmission = 1, Lifetime = NumberRange.new(0.6, 1.2)})
+end
+
 function FX:OnEat(pos, id)
 	local col = ({Berry = "#ff6b9a", RoastMushroom = "#e0a060", Stew = "#d98a4a", Snack = "#ffd27a"})[id] or "#ffe9a8"
 	self:Burst(pos + Vector3.new(0, 1.5, 0), 10, {Color = ColorSequence.new(Color3.fromHex(col), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.4, 0),
@@ -14159,7 +14649,7 @@ return FX
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000057">
+        <Item class="ModuleScript" referent="RBX000059">
           <Properties>
             <string name="Name">HotbarController</string>
             <ProtectedString name="Source">-- 화면 아래 핫바 (마인크래프트처럼). 손에 든 것을 보여주고 1~9 키·마우스 휠·터치로 바꾼다.
@@ -14388,7 +14878,7 @@ return H
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000058">
+        <Item class="ModuleScript" referent="RBX000060">
           <Properties>
             <string name="Name">PetController</string>
             <ProtectedString name="Source">-- 펫 패널 (내 펫 / 야생 / 명령 / 제작 / 도감) + 빠른 명령 버튼 + 포획 카드.
@@ -14401,6 +14891,8 @@ local P = require(RS.Shared.Config.PetConfig)
 local Recipes = require(RS.Shared.Config.RecipeConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
 local I = require(RS.Shared.Config.ItemConfig)
+local PR = require(RS.Shared.Modules.PetRules)
+local Shop = require(RS.Shared.Config.ShopConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local Controller = {}
@@ -14482,8 +14974,10 @@ function Controller:Init(remotes)
 	self.Status = label(self.Panel, "내 펫", UDim2.fromOffset(16, 8), UDim2.new(1, -90, 0, 44), {Font = TITLE, TextSize = 18})
 	button(self.Panel, "✕", UDim2.new(1, -56, 0, 8), UDim2.fromOffset(46, 42), function() self:Close() end, Color3.fromHex("#5b2f3a"))
 	self.TabButtons = {}
-	for index, tab in ipairs({{"Pets", "내 펫"}, {"Wild", "야생"}, {"Orders", "명령"}, {"Craft", "제작"}, {"Dex", "도감"}}) do
-		self.TabButtons[tab[1]] = button(self.Panel, tab[2], UDim2.new((index - 1) * 0.2, 6, 0, 58), UDim2.new(0.2, -8, 0, 42), function()
+	local tabs = {{"Pets", "내 펫"}, {"Wild", "야생"}, {"Orders", "명령"}, {"Craft", "제작"}, {"Dex", "도감"}, {"Shop", "🪙 보급"}}
+	for index, tab in ipairs(tabs) do
+		local w = 1 / #tabs
+		self.TabButtons[tab[1]] = button(self.Panel, tab[2], UDim2.new((index - 1) * w, 6, 0, 58), UDim2.new(w, -8, 0, 42), function()
 			self.Tab = tab[1]
 			self:Render()
 		end)
@@ -14671,6 +15165,23 @@ function Controller:Render()
 			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
 			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
+	elseif self.Tab == "Shop" then
+		local intro = self:Row(56)
+		label(intro, string.format("🪙 %d 코인 · 밤을 버티면 코인, 새 종을 처음 확정하면 +%d\n해금한 보급은 다음 원정부터 매번 받아요", d.Coins or 0, Shop.DexReward),
+			UDim2.fromOffset(12, 4), UDim2.new(1, -24, 1, -8), {TextColor3 = COL.Muted})
+		self.Rows[#self.Rows + 1] = {}
+		for _, id in ipairs(Shop.Order) do
+			local perk = Shop.Perks[id]
+			local owned = d.Perks and d.Perks[id]
+			local row = self:Row(100)
+			label(row, perk.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+			label(row, string.format("%s\n%s", perk.Name, owned and "✅ 해금 완료" or ("🪙 " .. perk.Cost)), UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+			if not owned then
+				button(row, "🪙 해금하기", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("Perk:" .. id) end,
+					(d.Coins or 0) &gt;= perk.Cost and Color3.fromHex("#8a6a2a") or COL.Card2)
+			end
+			self.Rows[#self.Rows + 1] = {}
+		end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local spec = P.Species[id]
@@ -14680,7 +15191,9 @@ function Controller:Render()
 			self:Face(row, id, 86, not (entry and entry.Seen))
 			local state = caught and "✅ 수집 완료" or (entry and entry.Seen and "👀 발견 · 아직 미확정" or "❔ 미발견")
 			local element = ELEMENT[spec.Element]
-			label(row, string.format("%s\n%s · %s\n%s\n기본 HP %d · 공격 %d", (entry and entry.Seen) and spec.Name or "???", element[1], spec.Role, state, spec.HP, spec.Damage),
+			local seen = entry and entry.Seen
+			local grows = spec.Adult and ("  →  🌟 " .. spec.Adult.Name .. " (Lv" .. P.EvolveLevel .. ")") or ""
+			label(row, string.format("%s%s\n%s · %s\n%s\n기본 HP %d · 공격 %d", seen and spec.Name or "???", seen and grows or "", element[1], spec.Role, state, spec.HP, spec.Damage),
 				UDim2.fromOffset(104, 6), UDim2.new(1, -112, 1, -12))
 			self.Rows[#self.Rows + 1] = {}
 		end
@@ -14705,6 +15218,9 @@ function Controller:Signature()
 		for _, id in ipairs(ids) do pieces[#pieces + 1] = id end
 	elseif self.Tab == "Craft" then
 		pieces[#pieces + 1] = tostring(self.Data.Bench) .. tostring(self.Station)
+	elseif self.Tab == "Shop" then
+		pieces[#pieces + 1] = tostring(self.Data.Coins)
+		for _, id in ipairs(Shop.Order) do pieces[#pieces + 1] = tostring(self.Data.Perks and self.Data.Perks[id]) end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local e = self.Data.Dex[id]
@@ -14728,7 +15244,8 @@ function Controller:Refresh(skip)
 					local spec = P.Species[pet.SpeciesId]
 					local element = ELEMENT[spec.Element]
 					local statusIcon = {["영구"] = "💾 영구", ["저장 중"] = "⏳ 저장 중", ["밤 생존 대기"] = "🏠 등록 · 밤 생존 대기", ["미등록"] = "⚠ 미등록 (우리에 등록!)"}
-					row.Info.Text = string.format("%s%s  Lv%d\n%s · %s · 초원 적용 Lv%d\nHP %d/%d  ·  %s\n%s", pet.Favorite and "★ " or "", spec.Name, pet.Level,
+					local growth = pet.Stage == 2 and "🌟 성체" or (spec.Adult and ("🐣 새끼 · Lv" .. P.EvolveLevel .. " 진화") or "")
+					row.Info.Text = string.format("%s%s  Lv%d  %s\n%s · %s · 초원 적용 Lv%d\nHP %d/%d  ·  %s\n%s", pet.Favorite and "★ " or "", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, growth,
 						element[1], spec.Role, pet.EffectiveLevel, pet.HP, pet.MaxHP, pet.HP == 0 and "💤 기절" or ({Follow = "따라가는 중", Stay = "대기", Guard = "방어 중", Focus = "사냥 중"})[pet.Mode] or pet.Mode,
 						statusIcon[pet.Status] or pet.Status)
 				end
@@ -14739,7 +15256,7 @@ function Controller:Refresh(skip)
 					local spec = P.Species[wild.SpeciesId]
 					local state = wild.Busy and "🧺 포획 진행 중" or (not wild.CanClaim and ("🏹 " .. wild.Owner .. "의 포획 우선권")
 						or (wild.Ready and "✨ 포획 가능! 16m 안에서 덫" or "HP 25% 이하로 약화하세요"))
-					row.Info.Text = string.format("%s Lv%d  ·  %dm\n%s · %s  ·  HP %d/%d\n%s\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%", spec.Name, wild.Level, wild.Distance,
+					row.Info.Text = string.format("%s Lv%d  ·  %dm\n%s · %s  ·  HP %d/%d\n%s\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%", PR.name(wild.SpeciesId, wild.Stage, P), wild.Level, wild.Distance,
 						ELEMENT[spec.Element][1], spec.Role, wild.HP, wild.MaxHP, state, wild.Ready and wild.Chance * 100 or 0, wild.Ready and wild.BetterChance * 100 or 0)
 				end
 			end
@@ -14764,7 +15281,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000059">
+        <Item class="ModuleScript" referent="RBX000061">
           <Properties>
             <string name="Name">Portrait</string>
             <ProtectedString name="Source">-- 펫 얼굴 사진 (ViewportFrame). 팀 카드, 펫 목록, 도감에서 쓴다.
@@ -14816,7 +15333,7 @@ return Portrait
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000060">
+        <Item class="ModuleScript" referent="RBX000062">
           <Properties>
             <string name="Name">Rig</string>
             <ProtectedString name="Source">-- 크리처 리그 두 종류를 같은 방식으로 움직인다.
@@ -14960,7 +15477,7 @@ return Rig
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000061">
+        <Item class="ModuleScript" referent="RBX000063">
           <Properties>
             <string name="Name">UIController</string>
             <ProtectedString name="Source">-- 메인 HUD (모바일 우선).
@@ -14976,6 +15493,9 @@ local RS = game:GetService("ReplicatedStorage")
 local C = require(RS.Shared.Config.GameConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
 local P = require(RS.Shared.Config.PetConfig)
+local M = require(RS.Shared.Config.MapConfig)
+local Zones = require(RS.Shared.Modules.Zones)
+local PR = require(RS.Shared.Modules.PetRules)
 local Portrait = require(script.Parent.Portrait)
 
 local UI = {}
@@ -15062,7 +15582,24 @@ function UI:Init(remotes)
 	round(self.CoreFill, 6)
 	self.CoreText = text(coreBox, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 0), Size = UDim2.fromOffset(66, 30), Text = "1000",
 		TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right})
-	self.EnemyChip = panel(gui, {Name = "Enemies", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 92), Size = UDim2.fromOffset(150, 26), Visible = false})
+	-- 지역 이름 + 기지까지 거리·방향 (넓은 맵에서 길을 잃지 않게)
+	self.Compass = panel(gui, {Name = "Compass", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 92), Size = UDim2.fromOffset(250, 26)})
+	self.ZoneText = text(self.Compass, {Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -110, 1, 0), Text = "🌿 초원", TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left})
+	self.HomeText = text(self.Compass, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -30, 0, 0), Size = UDim2.fromOffset(80, 26), Text = "🏠 0m",
+		TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right})
+	self.HomeArrow = text(self.Compass, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Size = UDim2.fromOffset(20, 20), Text = "⬆",
+		TextSize = 16, TextColor3 = Color3.fromHex("#7be0b6"), Font = TITLE})
+	-- 목표 표시: 지금 가야 할 곳 위에 떠 있는 노란 화살표 (첫 판 안내)
+	self.GoalPart = new("Part", workspace, {Name = "WildholdGoal", Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false,
+		Transparency = 1, Size = Vector3.new(0.2, 0.2, 0.2)})
+	self.GoalGui = new("BillboardGui", self.GoalPart, {Size = UDim2.fromOffset(160, 64), AlwaysOnTop = true, LightInfluence = 0, Enabled = false,
+		StudsOffsetWorldSpace = Vector3.new(0, 1, 0)})
+	self.GoalLabel = text(self.GoalGui, {Size = UDim2.new(1, 0, 0, 22), Text = "", TextSize = 16, Font = TITLE, TextColor3 = Color3.fromHex("#ffe066"),
+		TextStrokeTransparency = 0.2})
+	self.GoalArrow = text(self.GoalGui, {Position = UDim2.fromOffset(0, 20), Size = UDim2.new(1, 0, 0, 40), Text = "⬇", TextSize = 36, Font = TITLE,
+		TextColor3 = Color3.fromHex("#ffe066"), TextStrokeTransparency = 0.2})
+	self.EnemyChip = panel(gui, {Name = "Enemies", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 122), Size = UDim2.fromOffset(150, 26), Visible = false})
 	self.EnemyText = text(self.EnemyChip, {Size = UDim2.fromScale(1, 1), Text = "", TextSize = 14, TextColor3 = Color3.fromHex("#ffb3b3")})
 
 	-- 왼쪽 위: 목표 카드
@@ -15143,6 +15680,8 @@ function UI:Init(remotes)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, name)
 		if kind == "Capture" then
 			self:ShowBanner("🎉 포획 성공!", (name or "") .. " 이(가) 동료가 되었어요 · 펫 우리에 등록하세요", Color3.fromHex("#b6ff8a"))
+		elseif kind == "Evolve" then
+			self:ShowBanner("✨ 진화!", (name or "") .. " (으)로 성장했어요 · 더 크고 강해졌습니다", Color3.fromHex("#ffe066"))
 		elseif kind == "Secured" then
 			self:ShowBanner("💾 영구 확정!", "이제 원정이 끝나도 내 펫이에요", Color3.fromHex("#8ff5e8"))
 		end
@@ -15153,6 +15692,7 @@ function UI:Init(remotes)
 		if acc &gt;= 0.1 and self.Data then
 			acc = 0
 			self:UpdateTimer()
+			self:UpdateCompass()
 		end
 	end)
 end
@@ -15187,7 +15727,6 @@ function UI:UpdateTeam(pets)
 	for i, card in ipairs(self.Cards) do
 		local pet = active[i]
 		if pet then
-			local spec = P.Species[pet.SpeciesId]
 			if card.Species ~= pet.SpeciesId then
 				card.Species = pet.SpeciesId
 				for _, child in ipairs(card.Face:GetChildren()) do
@@ -15195,7 +15734,7 @@ function UI:UpdateTeam(pets)
 				end
 				Portrait.make(card.Face, pet.SpeciesId, {Size = UDim2.fromScale(1.25, 1.25), Position = UDim2.fromScale(-0.125, -0.2)})
 			end
-			card.Name.Text = string.format("%s  Lv%d", spec.Name, pet.Level)
+			card.Name.Text = string.format("%s  Lv%d", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level)
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio &gt; 0.5 and Color3.fromHex("#7be08a") or (ratio &gt; 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
@@ -15220,12 +15759,49 @@ function UI:UpdateTeam(pets)
 	end
 end
 
+-- ===================================================================== 지역 · 기지 방향
+function UI:UpdateCompass()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local camera = workspace.CurrentCamera
+	if not root or not camera then return end
+	local pos = root.Position
+	local zoneId = Zones.id(pos, M)
+	local zone = M.Zones[zoneId]
+	self.ZoneText.Text = zone.Icon .. " " .. zone.Name .. string.rep("★", zone.Danger)
+	-- 목표가 있으면 화살표가 목표를, 없으면 기지를 가리킨다
+	local goal = self.Data and self.Data.GoalAt
+	local toHome = goal and Vector3.new(goal.X - pos.X, 0, goal.Z - pos.Z) or Vector3.new(-pos.X, 0, -pos.Z)
+	local distance = toHome.Magnitude
+	self.HomeText.Text = string.format(goal and "🎯 %dm" or "🏠 %dm", math.floor(distance))
+	self.HomeArrow.TextColor3 = goal and Color3.fromHex("#ffe066") or Color3.fromHex("#7be0b6")
+	self.GoalGui.Enabled = goal ~= nil and distance &gt; 6
+	if goal then
+		self.GoalPart.CFrame = CFrame.new(goal + Vector3.new(0, 5 + math.sin(os.clock() * 4) * 0.6, 0))
+		self.GoalLabel.Text = string.format("%s · %dm", self.Data.GoalName or "목표", math.floor(distance))
+	end
+	-- 화살표: 카메라가 보는 방향 기준으로 기지 쪽
+	local look = camera.CFrame.LookVector
+	local heading = math.atan2(look.X, -look.Z)
+	local bearing = math.atan2(toHome.X, -toHome.Z)
+	self.HomeArrow.Rotation = math.deg(bearing - heading)
+	self.HomeArrow.Visible = distance &gt; 30
+	-- 새 지역에 들어서면 한 번 알려준다
+	if self.Zone ~= zoneId then
+		if self.Zone ~= nil then
+			self:ShowBanner(zone.Icon .. " " .. zone.Name, zoneId == "Meadow" and "기지 근처 초원 · 비교적 안전" or ("위험도 " .. string.rep("★", zone.Danger) .. " · 더 강한 야생 펫과 귀한 재료"),
+				Color3.fromHex("#e9f2d0"))
+		end
+		self.Zone = zoneId
+	end
+end
+
 -- ===================================================================== 알림/배너
 function UI:Notify(message)
 	self.ToastText.Text = message
 	self.ToastToken = (self.ToastToken or 0) + 1
 	local token = self.ToastToken
-	TweenService:Create(self.Toast, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, 0, 0, 126)}):Play()
+	TweenService:Create(self.Toast, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, 0, 0, 156)}):Play()
 	task.delay(3.6, function()
 		if self.ToastToken == token then
 			TweenService:Create(self.Toast, TweenInfo.new(0.25), {Position = UDim2.new(0.5, 0, 0, -80)}):Play()
@@ -15358,7 +15934,7 @@ return UI
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000062">
+        <Item class="ModuleScript" referent="RBX000064">
           <Properties>
             <string name="Name">WorldUI</string>
             <ProtectedString name="Source">-- 월드에 떠 있는 정보: Core 체력, 가까운 자원 노드 이름·체력, 부서지는 시설 체력.
@@ -15489,12 +16065,12 @@ return W
       </Item>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000063">
+  <Item class="StarterGui" referent="RBX000065">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPack" referent="RBX000064">
+  <Item class="StarterPack" referent="RBX000066">
     <Properties>
       <string name="Name">StarterPack</string>
     </Properties>

@@ -379,6 +379,105 @@ function C.Howler()
 	return finish(r, 7.4)
 end
 
+-- 잿빛 바위 협곡의 불 도마뱀: 낮고 긴 몸, 등에 빛나는 불씨 비늘, 긴 꼬리
+function C.Ashlizard()
+	local r = newRig("Ashlizard")
+	local D, DK, EMB = "#4a4a50", "#2e2e33", "#ff7a2a"
+	group(r, "Body", Vector3.new(0, 0.7, 0.2))
+	E(r, "Body", Vector3.new(1.3, 0.8, 2.3), Vector3.new(0, 0.72, 0.25), D)
+	E(r, "Body", Vector3.new(1.0, 0.35, 2.0), Vector3.new(0, 0.42, 0.25), "#6b6258")
+	for i = 0, 4 do
+		local z = -0.55 + i * 0.42
+		Wedge(r, "Body", Vector3.new(0.12, 0.45 - i * 0.04, 0.42), Vector3.new(0, 1.2 - i * 0.03, z), EMB, 0, 0, 0, M.Neon)
+	end
+	group(r, "Head", Vector3.new(0, 0.85, -0.9), "Body")
+	E(r, "Head", Vector3.new(1.0, 0.7, 1.3), Vector3.new(0, 0.9, -1.45), D)
+	E(r, "Head", Vector3.new(0.8, 0.28, 0.9), Vector3.new(0, 0.66, -1.7), DK)
+	eyes(r, "Head", 0.3, 1.08, -1.72, 0.26, "#ffb02e", 30)
+	for _, s in ipairs({-1, 1}) do
+		local ear = s < 0 and "EarL" or "EarR"
+		group(r, ear, Vector3.new(s * 0.3, 1.2, -1.2), "Head")
+		Wedge(r, ear, Vector3.new(0.12, 0.45, 0.5), Vector3.new(s * 0.32, 1.38, -1.1), DK, -25, 0, -s * 20)
+		for i, name in ipairs({s < 0 and "LegFL" or "LegFR", s < 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.5 or 0.95
+			group(r, name, Vector3.new(s * 0.6, 0.6, z), "Body")
+			E(r, name, Vector3.new(0.4, 0.62, 0.4), Vector3.new(s * 0.78, 0.35, z), D, 0, 0, s * 25)
+			E(r, name, Vector3.new(0.45, 0.16, 0.55), Vector3.new(s * 0.9, 0.08, z - 0.08), DK)
+		end
+	end
+	group(r, "Tail1", Vector3.new(0, 0.75, 1.35), "Body")
+	E(r, "Tail1", Vector3.new(0.6, 0.5, 1.3), Vector3.new(0, 0.62, 1.9), D, 8, 0, 0)
+	group(r, "Tail2", Vector3.new(0, 0.5, 2.5), "Tail1")
+	E(r, "Tail2", Vector3.new(0.38, 0.32, 1.2), Vector3.new(0, 0.42, 3.0), D, 10, 0, 0)
+	E(r, "Tail2", Vector3.new(0.3, 0.3, 0.3), Vector3.new(0, 0.46, 3.62), EMB, 0, 0, 0, M.Neon)
+	r.Points.Flame = Vector3.new(0, 0.5, 3.62)
+	r.Points.Mouth = Vector3.new(0, 0.8, -2.1)
+	return finish(r, 1.7)
+end
+
+-- 안개 늪의 두꺼비: 넓고 낮은 몸, 큰 입, 등의 혹
+function C.Bogtoad()
+	local r = newRig("Bogtoad")
+	local G, BEL, WART = "#3f6a5a", "#c9d6a0", "#2c4d42"
+	group(r, "Body", Vector3.new(0, 0.8, 0.1))
+	E(r, "Body", Vector3.new(2.0, 1.3, 1.9), Vector3.new(0, 0.85, 0.2), G)
+	E(r, "Body", Vector3.new(1.6, 0.8, 1.2), Vector3.new(0, 0.5, -0.2), BEL)
+	for _, p in ipairs({Vector3.new(0.5, 1.45, 0.3), Vector3.new(-0.45, 1.5, 0.1), Vector3.new(0.1, 1.55, 0.6), Vector3.new(-0.3, 1.4, 0.75), Vector3.new(0.6, 1.3, 0.8)}) do
+		Ball(r, "Body", 0.34, p, WART)
+	end
+	group(r, "Head", Vector3.new(0, 1.1, -0.6), "Body")
+	E(r, "Head", Vector3.new(1.8, 1.0, 1.2), Vector3.new(0, 1.15, -0.85), G)
+	E(r, "Head", Vector3.new(1.6, 0.18, 0.9), Vector3.new(0, 0.82, -1.05), "#7a3a3a")
+	for _, s in ipairs({-1, 1}) do
+		Ball(r, "Head", 0.62, Vector3.new(s * 0.55, 1.7, -0.8), G)
+	end
+	eyes(r, "Head", 0.55, 1.75, -1.05, 0.34, "#e0c040", 10)
+	for _, s in ipairs({-1, 1}) do
+		for i, name in ipairs({s < 0 and "LegFL" or "LegFR", s < 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.55 or 0.75
+			group(r, name, Vector3.new(s * 0.8, 0.5, z), "Body")
+			E(r, name, Vector3.new(0.55, 0.6, 0.7), Vector3.new(s * 1.05, 0.3, z), G, 0, 0, s * 30)
+			E(r, name, Vector3.new(0.75, 0.14, 0.75), Vector3.new(s * 1.2, 0.07, z - 0.1), BEL)
+		end
+	end
+	r.Points.Mouth = Vector3.new(0, 1.0, -1.5)
+	return finish(r, 2.0)
+end
+
+-- 고목의 숲 사슴: 긴 다리, 이끼 갈기, 나뭇가지 뿔 (EarL/EarR 로 움직인다)
+function C.Mossdeer()
+	local r = newRig("Mossdeer")
+	local BR, DK, MOSS = "#7a5a3e", "#4e3a28", "#5f8a45"
+	group(r, "Body", Vector3.new(0, 1.9, 0.2))
+	E(r, "Body", Vector3.new(1.2, 1.1, 2.3), Vector3.new(0, 1.95, 0.25), BR)
+	E(r, "Body", Vector3.new(1.0, 0.6, 1.8), Vector3.new(0, 2.4, 0.25), MOSS)
+	group(r, "Neck", Vector3.new(0, 2.3, -0.8), "Body")
+	E(r, "Neck", Vector3.new(0.6, 1.3, 0.6), Vector3.new(0, 2.8, -1.05), BR, 25, 0, 0)
+	E(r, "Neck", Vector3.new(0.5, 1.1, 0.35), Vector3.new(0, 2.9, -0.88), MOSS, 25, 0, 0)
+	group(r, "Head", Vector3.new(0, 3.3, -1.35), "Neck")
+	E(r, "Head", Vector3.new(0.7, 0.7, 1.2), Vector3.new(0, 3.45, -1.75), BR)
+	E(r, "Head", Vector3.new(0.4, 0.36, 0.5), Vector3.new(0, 3.3, -2.3), DK)
+	eyes(r, "Head", 0.28, 3.6, -1.95, 0.24, "#9adf6a", 40)
+	for _, s in ipairs({-1, 1}) do
+		local ear = s < 0 and "EarL" or "EarR"
+		group(r, ear, Vector3.new(s * 0.2, 3.8, -1.6), "Head")
+		Cyl(r, ear, 1.2, 0.14, Vector3.new(s * 0.45, 4.3, -1.55), DK, 0, 0, 90 - s * 30)
+		Cyl(r, ear, 0.6, 0.1, Vector3.new(s * 0.75, 4.75, -1.7), DK, 0, 0, 90 - s * 10)
+		Cyl(r, ear, 0.5, 0.1, Vector3.new(s * 0.4, 4.8, -1.5), DK, 0, 0, 90 + s * 20)
+		Ball(r, ear, 0.3, Vector3.new(s * 0.8, 5.05, -1.7), MOSS)
+		for i, name in ipairs({s < 0 and "LegFL" or "LegFR", s < 0 and "LegBL" or "LegBR"}) do
+			local z = i == 1 and -0.6 or 1.05
+			group(r, name, Vector3.new(s * 0.38, 1.6, z), "Body")
+			E(r, name, Vector3.new(0.3, 1.7, 0.3), Vector3.new(s * 0.38, 0.85, z), BR)
+			E(r, name, Vector3.new(0.26, 0.2, 0.34), Vector3.new(s * 0.38, 0.08, z - 0.04), DK)
+		end
+	end
+	group(r, "Tail", Vector3.new(0, 2.2, 1.4), "Body")
+	E(r, "Tail", Vector3.new(0.3, 0.45, 0.3), Vector3.new(0, 2.3, 1.5), "#e8dcc0")
+	r.Points.Mouth = Vector3.new(0, 3.3, -2.5)
+	return finish(r, 4.2)
+end
+
 -- 이름 → 빌더
 function C.build(kind)
 	local fn = C[kind]

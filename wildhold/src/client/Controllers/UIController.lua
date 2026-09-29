@@ -11,6 +11,9 @@ local RS = game:GetService("ReplicatedStorage")
 local C = require(RS.Shared.Config.GameConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
 local P = require(RS.Shared.Config.PetConfig)
+local M = require(RS.Shared.Config.MapConfig)
+local Zones = require(RS.Shared.Modules.Zones)
+local PR = require(RS.Shared.Modules.PetRules)
 local Portrait = require(script.Parent.Portrait)
 
 local UI = {}
@@ -97,7 +100,24 @@ function UI:Init(remotes)
 	round(self.CoreFill, 6)
 	self.CoreText = text(coreBox, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 0), Size = UDim2.fromOffset(66, 30), Text = "1000",
 		TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right})
-	self.EnemyChip = panel(gui, {Name = "Enemies", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 92), Size = UDim2.fromOffset(150, 26), Visible = false})
+	-- 지역 이름 + 기지까지 거리·방향 (넓은 맵에서 길을 잃지 않게)
+	self.Compass = panel(gui, {Name = "Compass", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 92), Size = UDim2.fromOffset(250, 26)})
+	self.ZoneText = text(self.Compass, {Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -110, 1, 0), Text = "🌿 초원", TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left})
+	self.HomeText = text(self.Compass, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -30, 0, 0), Size = UDim2.fromOffset(80, 26), Text = "🏠 0m",
+		TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right})
+	self.HomeArrow = text(self.Compass, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Size = UDim2.fromOffset(20, 20), Text = "⬆",
+		TextSize = 16, TextColor3 = Color3.fromHex("#7be0b6"), Font = TITLE})
+	-- 목표 표시: 지금 가야 할 곳 위에 떠 있는 노란 화살표 (첫 판 안내)
+	self.GoalPart = new("Part", workspace, {Name = "WildholdGoal", Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false,
+		Transparency = 1, Size = Vector3.new(0.2, 0.2, 0.2)})
+	self.GoalGui = new("BillboardGui", self.GoalPart, {Size = UDim2.fromOffset(160, 64), AlwaysOnTop = true, LightInfluence = 0, Enabled = false,
+		StudsOffsetWorldSpace = Vector3.new(0, 1, 0)})
+	self.GoalLabel = text(self.GoalGui, {Size = UDim2.new(1, 0, 0, 22), Text = "", TextSize = 16, Font = TITLE, TextColor3 = Color3.fromHex("#ffe066"),
+		TextStrokeTransparency = 0.2})
+	self.GoalArrow = text(self.GoalGui, {Position = UDim2.fromOffset(0, 20), Size = UDim2.new(1, 0, 0, 40), Text = "⬇", TextSize = 36, Font = TITLE,
+		TextColor3 = Color3.fromHex("#ffe066"), TextStrokeTransparency = 0.2})
+	self.EnemyChip = panel(gui, {Name = "Enemies", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 122), Size = UDim2.fromOffset(150, 26), Visible = false})
 	self.EnemyText = text(self.EnemyChip, {Size = UDim2.fromScale(1, 1), Text = "", TextSize = 14, TextColor3 = Color3.fromHex("#ffb3b3")})
 
 	-- 왼쪽 위: 목표 카드
@@ -178,6 +198,8 @@ function UI:Init(remotes)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, name)
 		if kind == "Capture" then
 			self:ShowBanner("🎉 포획 성공!", (name or "") .. " 이(가) 동료가 되었어요 · 펫 우리에 등록하세요", Color3.fromHex("#b6ff8a"))
+		elseif kind == "Evolve" then
+			self:ShowBanner("✨ 진화!", (name or "") .. " (으)로 성장했어요 · 더 크고 강해졌습니다", Color3.fromHex("#ffe066"))
 		elseif kind == "Secured" then
 			self:ShowBanner("💾 영구 확정!", "이제 원정이 끝나도 내 펫이에요", Color3.fromHex("#8ff5e8"))
 		end
@@ -188,6 +210,7 @@ function UI:Init(remotes)
 		if acc >= 0.1 and self.Data then
 			acc = 0
 			self:UpdateTimer()
+			self:UpdateCompass()
 		end
 	end)
 end
@@ -222,7 +245,6 @@ function UI:UpdateTeam(pets)
 	for i, card in ipairs(self.Cards) do
 		local pet = active[i]
 		if pet then
-			local spec = P.Species[pet.SpeciesId]
 			if card.Species ~= pet.SpeciesId then
 				card.Species = pet.SpeciesId
 				for _, child in ipairs(card.Face:GetChildren()) do
@@ -230,7 +252,7 @@ function UI:UpdateTeam(pets)
 				end
 				Portrait.make(card.Face, pet.SpeciesId, {Size = UDim2.fromScale(1.25, 1.25), Position = UDim2.fromScale(-0.125, -0.2)})
 			end
-			card.Name.Text = string.format("%s  Lv%d", spec.Name, pet.Level)
+			card.Name.Text = string.format("%s  Lv%d", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level)
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio > 0.5 and Color3.fromHex("#7be08a") or (ratio > 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
@@ -255,12 +277,49 @@ function UI:UpdateTeam(pets)
 	end
 end
 
+-- ===================================================================== 지역 · 기지 방향
+function UI:UpdateCompass()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local camera = workspace.CurrentCamera
+	if not root or not camera then return end
+	local pos = root.Position
+	local zoneId = Zones.id(pos, M)
+	local zone = M.Zones[zoneId]
+	self.ZoneText.Text = zone.Icon .. " " .. zone.Name .. string.rep("★", zone.Danger)
+	-- 목표가 있으면 화살표가 목표를, 없으면 기지를 가리킨다
+	local goal = self.Data and self.Data.GoalAt
+	local toHome = goal and Vector3.new(goal.X - pos.X, 0, goal.Z - pos.Z) or Vector3.new(-pos.X, 0, -pos.Z)
+	local distance = toHome.Magnitude
+	self.HomeText.Text = string.format(goal and "🎯 %dm" or "🏠 %dm", math.floor(distance))
+	self.HomeArrow.TextColor3 = goal and Color3.fromHex("#ffe066") or Color3.fromHex("#7be0b6")
+	self.GoalGui.Enabled = goal ~= nil and distance > 6
+	if goal then
+		self.GoalPart.CFrame = CFrame.new(goal + Vector3.new(0, 5 + math.sin(os.clock() * 4) * 0.6, 0))
+		self.GoalLabel.Text = string.format("%s · %dm", self.Data.GoalName or "목표", math.floor(distance))
+	end
+	-- 화살표: 카메라가 보는 방향 기준으로 기지 쪽
+	local look = camera.CFrame.LookVector
+	local heading = math.atan2(look.X, -look.Z)
+	local bearing = math.atan2(toHome.X, -toHome.Z)
+	self.HomeArrow.Rotation = math.deg(bearing - heading)
+	self.HomeArrow.Visible = distance > 30
+	-- 새 지역에 들어서면 한 번 알려준다
+	if self.Zone ~= zoneId then
+		if self.Zone ~= nil then
+			self:ShowBanner(zone.Icon .. " " .. zone.Name, zoneId == "Meadow" and "기지 근처 초원 · 비교적 안전" or ("위험도 " .. string.rep("★", zone.Danger) .. " · 더 강한 야생 펫과 귀한 재료"),
+				Color3.fromHex("#e9f2d0"))
+		end
+		self.Zone = zoneId
+	end
+end
+
 -- ===================================================================== 알림/배너
 function UI:Notify(message)
 	self.ToastText.Text = message
 	self.ToastToken = (self.ToastToken or 0) + 1
 	local token = self.ToastToken
-	TweenService:Create(self.Toast, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, 0, 0, 126)}):Play()
+	TweenService:Create(self.Toast, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, 0, 0, 156)}):Play()
 	task.delay(3.6, function()
 		if self.ToastToken == token then
 			TweenService:Create(self.Toast, TweenInfo.new(0.25), {Position = UDim2.new(0.5, 0, 0, -80)}):Play()

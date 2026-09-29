@@ -8,6 +8,7 @@ function S:Reset() self.Queue, self.Index, self.BossDefeated, self.Spawned = {},
 function S:Start(night, players)
     self:Reset()
     self.Night = night
+    self.HealthScale = players <= 1 and W.SoloHealth or 1
     self.Queue = Rules.buildQueue(W.Waves[night], players, W.PerExtraPlayer)
     self.Interval = math.min(W.SpawnInterval, self.ctx.Clock:Remaining() / (#self.Queue + 1))
     self.NextSpawn = os.clock()

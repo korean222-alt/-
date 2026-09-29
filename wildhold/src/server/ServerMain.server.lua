@@ -81,6 +81,8 @@ Engine.Heartbeat:Connect(function(dt)
         for player in pairs(ctx.Run.Participants) do
             local session=ctx.Data.Sessions[player]
             if session and player.Parent then
+                local goalAt,goalName
+                if C.ActiveStage>=8 then goalAt,goalName=ctx.Tutorial:Target(player) end
                 remotes.State:FireClient(player,{
                     Phase=clock.Phase,Night=clock.Night,Target=C.TargetNights,EndsAt=clock.Phase=="Waiting" and (ctx.Run.StartAt or 0) or clock.EndsAt,
                     CoreHP=ctx.Core.HP,CoreMaxHP=C.CoreHP,Bag=ctx.Resources.Bags[player],Bank=ctx.Resources.Bank,
@@ -88,8 +90,8 @@ Engine.Heartbeat:Connect(function(dt)
                     Result=ctx.Run.Result,Stage=C.ActiveStage,Players=ctx.Run:Count(),TimeScale=clock:Scale(),
                     Pets=ctx.Pets:Snapshot(player),Wild=ctx.Capture:Snapshot(player),Items=ctx.Crafting.Items[player],
                     Hunger=ctx.Survival:Get(player),Capacity=ctx.Crafting:Capacity(player),Bench=ctx.Crafting.BenchLevel,
-                    Coins=session.Profile.Coins,Dex=session.Profile.Dex,SaveStatus=session.Status,Practice=ctx.Data.Memory,
-                    Objective=C.ActiveStage>=8 and ctx.Tutorial:Objective(player) or nil,
+                    Coins=session.Profile.Coins,Dex=session.Profile.Dex,Perks=session.Profile.Perks,SaveStatus=session.Status,Practice=ctx.Data.Memory,
+                    Objective=C.ActiveStage>=8 and ctx.Tutorial:Objective(player) or nil,GoalAt=goalAt,GoalName=goalName,
                 })
             end
         end

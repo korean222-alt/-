@@ -7,7 +7,7 @@ return {
     NightSeconds = 180,
     WarningSeconds = 75, -- 맵이 넓어서 멀리 나간 사람이 돌아올 시간
     StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
-    StartDelay = 15,
+    StartDelay = 4, -- 들어와서 원정 시작까지 (30초 안에 놀기 시작)
     ResultSeconds = 20,
     DawnSeconds = 4,
     TickSeconds = 0.2,

@@ -201,7 +201,7 @@ local root = workspace:FindFirstChild("WILDHOLD")
 check("맵 생성", root ~= nil)
 local partCount = 0
 for _, d in ipairs(root:GetDescendants()) do if R.isA(d._class, "BasePart") then partCount = partCount + 1 end end
-check("맵 파트 수", partCount > 800 and partCount < 12000, partCount)
+check("맵 파트 수", partCount > 800 and partCount < 20000, partCount) -- 지름 1500 맵 (클라이언트는 스트리밍으로 가까운 곳만)
 check("지형 명령", #E.TerrainOps > 50, #E.TerrainOps)
 do
 	local used, kinds = 0, {}
@@ -325,6 +325,7 @@ check("펫 키 맞춤 (2.9 stud)", math.abs(meshPart.Size.Y - 2.9) < 0.05, strin
 print("▶ 출발 대기 → 낮")
 if not step(15.5) then fail("출발 대기") end
 check("낮 시작", latest and latest.Phase == "Day", latest and latest.Phase)
+check("목표 표시 (첫 판: 야생 모슬링)", latest.GoalAt ~= nil and latest.GoalName == "야생 모슬링", latest.GoalName)
 local function teleport(x, z)
 	hrp.CFrame = D.CFrame.new(x, 3, z)
 end
@@ -444,7 +445,7 @@ local function exportScene()
 			local s = d._props.Size
 			table.insert(out, string.format("Asset %s %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f 0 0 0 0",
 				asset, x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22, s.X, s.Y, s.Z))
-		elseif d._class == "PointLight" and d.Parent and R.isA(d.Parent._class, "BasePart") then
+		elseif d._class == "PointLight" and d.Parent and R.isA(d.Parent._class, "BasePart") and d.Parent._props.CFrame then
 			local p = d.Parent._props.CFrame.Position
 			local col = d._props.Color or D.Color3.new(1, 1, 1)
 			table.insert(out, string.format("Light %.2f %.2f %.2f %.2f %.2f %.3f %.3f %.3f",
@@ -545,7 +546,7 @@ check("밤 생존 → 영구 확정", secured == 2, secured)
 check("2일차 낮", latest.Phase == "Day" and latest.Night == 2, latest.Phase .. " " .. latest.Night)
 
 -- ===================================================================== 끝까지 (3밤)
-print("▶ 3밤까지 진행")
+print("▶ 끝까지 진행 (5밤 또는 Core 파괴)")
 local result
 for _ = 1, 1200 do
 	if not step(0.5) then fail("원정 진행") end
@@ -553,6 +554,39 @@ for _ = 1, 1200 do
 end
 check("원정 결과", result ~= nil, result and (tostring(result.Won) .. " · " .. result.Reason))
 if not step(3) then fail("결과 화면") end
+
+-- ===================================================================== 규칙: 성장·새 펫·지역
+do
+	local P = serverRequire(shared.Config.PetConfig)
+	local PR = serverRequire(shared.Modules.PetRules)
+	local pet = {SpeciesId = "Mossling", Level = P.EvolveLevel - 1, Exp = 0}
+	local baby = PR.stats(pet, P).HP
+	PR.addXP(pet, (P.EvolveLevel - 1) * 40, P)
+	check("레벨 오르면 성체로 진화", pet.Level == P.EvolveLevel and pet.Stage == 2 and PR.stats(pet, P).HP > baby * 1.4,
+		string.format("Lv%d Stage%s %s", pet.Level, tostring(pet.Stage), PR.name(pet.SpeciesId, 2, P)))
+	local Creatures = serverRequire(shared.Visuals.Creatures)
+	local missing = {}
+	for _, id in ipairs(P.Order) do
+		if not Creatures.build(id) or not P.Heights[id] then table.insert(missing, id) end
+	end
+	check("모든 펫 종 모델·키", #missing == 0, table.concat(missing, ", "))
+	local zones, adults = {}, 0
+	for _, wild in ipairs(root.WildPets:GetChildren()) do
+		if wild:GetAttribute("Stage") == 2 then adults = adults + 1 end
+	end
+	local M = serverRequire(shared.Config.MapConfig)
+	local Z = serverRequire(shared.Modules.Zones)
+	for _, model in ipairs(root.ResourceNodes:GetChildren()) do
+		local hit = model:IsA("Model") and model.PrimaryPart
+		if hit then zones[Z.id(hit.Position, M)] = true end
+	end
+	check("지역 4곳에 자원", zones.Meadow and zones.Crags and zones.Ancient and zones.Swamp, nil)
+	check("야생 펫 (성체 포함)", #root.WildPets:GetChildren() > 40 and adults > 0, #root.WildPets:GetChildren() .. "마리 · 성체 " .. adults)
+	-- 코인 보급: 코인이 모자라면 해금되지 않는다
+	RS.Remotes.CraftAction:FireServer("Perk:StartBag")
+	if not step(0.6) then fail("보급 해금 시도") end
+	check("보급 해금은 코인 필요", not (latest.Perks and latest.Perks.StartBag) and string.find(notices[#notices] or "", "코인") ~= nil, notices[#notices])
+end
 
 -- ===================================================================== 결과
 print(string.format("\n가상 시간 %.0f초 · 프레임 %d · 경고 %d · 킥 %d", R.Now, frame, #R.Warnings, #R.Kicks))

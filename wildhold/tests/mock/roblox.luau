@@ -272,6 +272,12 @@ local function setParent(inst, parent)
 		old._signals.ChildRemoved:Fire(inst)
 	end
 	inst._props.Parent = parent
+	-- 광선 검사의 후보 목록 캐시: 바뀐 가지(조상들)만 무효화한다
+	R.TreeVersion = (R.TreeVersion or 0) + 1
+	local node = old
+	while node do rawset(node, "_ver", R.TreeVersion); node = node._props.Parent end
+	node = parent
+	while node do rawset(node, "_ver", R.TreeVersion); node = node._props.Parent end
 	if parent then
 		table.insert(parent._children, inst)
 		parent._signals.ChildAdded:Fire(inst)

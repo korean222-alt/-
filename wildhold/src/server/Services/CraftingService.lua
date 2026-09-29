@@ -10,6 +10,7 @@ local R = require(RS.Shared.Modules.PetRules)
 local U = require(RS.Shared.Modules.Utility)
 local Inv = require(RS.Shared.Modules.Inventory)
 local ToolLook = require(RS.Shared.Visuals.ToolLook)
+local Shop = require(RS.Shared.Config.ShopConfig)
 local S = {}
 
 function S:Init(ctx)
@@ -17,8 +18,38 @@ function S:Init(ctx)
 	self.BenchLevel = 1
 end
 function S:AddPlayer(player)
-	self.Items[player] = R.copy(I.Starter)
+	local items = R.copy(I.Starter)
+	-- 코인으로 해금한 시작 보급
+	local profile = self.ctx.Data and self.ctx.Data:Get(player)
+	for id, owned in pairs(profile and profile.Perks or {}) do
+		local perk = Shop.Perks[id]
+		if owned and perk then
+			for item, n in pairs(perk.Give) do items[item] = (items[item] or 0) + n end
+		end
+	end
+	self.Items[player] = items
 	self.AutoEquip[player] = true
+end
+
+-- 보급 해금: 코인을 쓰고 영구 저장. 이번 원정에도 바로 받는다.
+function S:BuyPerk(player, id)
+	local perk = Shop.Perks[id]
+	local profile = self.ctx.Data:Get(player)
+	if not perk or not profile or not self.Items[player] then return end
+	if os.clock() - (self.Last[player] or -100) < 0.4 then return end
+	self.Last[player] = os.clock()
+	if profile.Perks[id] then self.ctx.Notify(player, "이미 해금했습니다."); return end
+	if profile.Coins < perk.Cost then self.ctx.Notify(player, "코인이 부족합니다 · 밤을 버티면 코인을 받아요"); return end
+	local ok = self.ctx.Data:Mutate(player, function(data)
+		if data.Perks[id] or data.Coins < perk.Cost then return end
+		data.Coins = data.Coins - perk.Cost
+		data.Perks[id] = true
+	end)
+	if ok and profile.Perks[id] then
+		for item, n in pairs(perk.Give) do self.Items[player][item] = (self.Items[player][item] or 0) + n end
+		self.ctx.Notify(player, perk.Icon .. " 해금! " .. perk.Name .. " (이번 원정에도 지급)")
+		self:Sync(player)
+	end
 end
 function S:RemovePlayer(player)
 	self.Items[player], self.Last[player], self.AutoEquip[player] = nil, nil, nil
@@ -119,6 +150,7 @@ end
 function S:Craft(player, id)
 	if G.ActiveStage < 6 or type(id) ~= "string" or not self.ctx.Data:Ready(player) then return end
 	if id == "BenchUpgrade" then return self:UpgradeBench(player) end
+	if string.sub(id, 1, 5) == "Perk:" then return self:BuyPerk(player, string.sub(id, 6)) end
 	local recipe = C.Recipes[id]
 	local spec = I.Items[id]
 	if not recipe or not spec then return end

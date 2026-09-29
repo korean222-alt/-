@@ -119,7 +119,10 @@ def main() -> None:
         '<roblox version="4">',
         "  <External>null</External>",
         "  <External>nil</External>",
-        item("Workspace", "Workspace", FilteringEnabled=("bool", True)),
+        # 맵이 넓어서(지름 약 1500) 클라이언트는 가까운 곳만 받는다. 기지 건물은 서버가 Persistent 로 둔다.
+        # StreamOutBehavior 2 = Opportunistic (멀어진 곳은 틈날 때 내린다)
+        item("Workspace", "Workspace", FilteringEnabled=("bool", True), StreamingEnabled=("bool", True),
+             StreamingMinRadius=("int", 128), StreamingTargetRadius=("int", 512), StreamOutBehavior=("token", 2)),
         # Technology 는 스크립트로 바꿀 수 없어서 place 파일에 직접 넣는다. 4 = Future
         item("Lighting", "Lighting",
              Technology=("token", 4), ClockTime=("float", 14), Brightness=("float", 2.4),

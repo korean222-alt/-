@@ -22,7 +22,7 @@ function S:Spawn(kind, laneId, night, boss)
     local p = U.part(self.ctx.Map.EnemiesFolder, kind .. self.NextId, Vector3.new(spec.Size, spec.Size, spec.Size), lane.Points[1], U.color(spec.Color))
     p.CanCollide, p.CanTouch, p.Transparency = false, false, 1
     local unit = {Id = self.NextId, Kind = kind, Part = p, Spec = spec, LaneId = laneId,
-        HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight)),
+        HP = math.floor(spec.HP * (1 + (night - 1) * W.HealthPerNight) * (self.ctx.Waves.HealthScale or 1)),
         Damage = spec.Damage * (1 + (night - 1) * W.DamagePerNight),
         Waypoint = 2, NextAttack = 0, NextPath = 0, Boss = boss, Dead = false}
     unit.MaxHP = unit.HP

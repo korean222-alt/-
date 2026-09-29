@@ -46,16 +46,42 @@ local function rayBox(origin, dir, part)
 	return tmin
 end
 
+-- 인스턴스 아래 BasePart 목록 캐시 (트리가 바뀌면 R.TreeVersion 이 올라가 다시 모은다). 큰 맵에서 광선마다 전체를 훑지 않게.
+local partCache = setmetatable({}, {__mode = "k"})
+local function partsUnder(inst)
+	local entry = partCache[inst]
+	local version = rawget(inst, "_ver") or 0
+	if entry and entry.Version == version then return entry.List end
+	local list = {}
+	if R.isA(inst._class, "BasePart") then table.insert(list, inst) end
+	for _, d in ipairs(methods.GetDescendants(inst)) do
+		if R.isA(d._class, "BasePart") then table.insert(list, d) end
+	end
+	partCache[inst] = {Version = version, List = list}
+	return list
+end
+
 function E.raycast(origin, dir, params)
 	local filter = params and rawget(params, "FilterDescendantsInstances") or {}
 	local include = params and rawget(params, "FilterType") and rawget(rawget(params, "FilterType"), "Name") == "Include"
 	local candidates = {}
 	local terrainAllowed = not include
+	-- 광선 구간의 상자 (파트 중심이 이 상자에서 파트 크기보다 멀면 건너뛴다)
+	local ox, oy, oz, dx, dy, dz = origin.X, origin.Y, origin.Z, dir.X, dir.Y, dir.Z
+	local minX, maxX = math.min(ox, ox + dx), math.max(ox, ox + dx)
+	local minY, maxY = math.min(oy, oy + dy), math.max(oy, oy + dy)
+	local minZ, maxZ = math.min(oz, oz + dz), math.max(oz, oz + dz)
+	local function near(part)
+		local cf, size = part._props.CFrame, part._props.Size
+		if not cf or not size then return true end
+		local r = (size.X + size.Y + size.Z) * 0.5
+		local x, y, z = cf[1], cf[2], cf[3]
+		return x + r >= minX and x - r <= maxX and y + r >= minY and y - r <= maxY and z + r >= minZ and z - r <= maxZ
+	end
 	local function addTree(inst)
 		if R.isA(inst._class, "Terrain") then terrainAllowed = true return end
-		if R.isA(inst._class, "BasePart") then table.insert(candidates, inst) end
-		for _, d in ipairs(methods.GetDescendants(inst)) do
-			if R.isA(d._class, "BasePart") then table.insert(candidates, d) end
+		for _, part in ipairs(partsUnder(inst)) do
+			if near(part) then table.insert(candidates, part) end
 		end
 	end
 	if include then
@@ -66,8 +92,8 @@ function E.raycast(origin, dir, params)
 			excluded[inst] = true
 			for _, d in ipairs(methods.GetDescendants(inst)) do excluded[d] = true end
 		end
-		for _, d in ipairs(methods.GetDescendants(E.workspace)) do
-			if R.isA(d._class, "BasePart") and not excluded[d] and d._class ~= "Terrain" then table.insert(candidates, d) end
+		for _, d in ipairs(partsUnder(E.workspace)) do
+			if not excluded[d] and d._class ~= "Terrain" and near(d) then table.insert(candidates, d) end
 		end
 	end
 	local best, bestPart

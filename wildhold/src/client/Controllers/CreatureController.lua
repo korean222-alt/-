@@ -11,6 +11,7 @@ local Rig = require(script.Parent.Rig)
 local Anim = require(script.Parent.Anim)
 local Creatures = require(RS.Shared.Visuals.Creatures)
 local P = require(RS.Shared.Config.PetConfig)
+local PR = require(RS.Shared.Modules.PetRules)
 
 local CC = {}
 local player = Players.LocalPlayer
@@ -78,14 +79,16 @@ function CC:Watch(anchor, category)
 	end
 end
 
-function CC:BuildRig(kind, category)
+function CC:BuildRig(kind, category, stage)
 	if category == "Enemy" then
 		local built = Creatures.build(kind) or Creatures.Crawler()
 		return Rig.fromParts(built, 1)
 	end
-	local height = P.Heights[kind] or 3
+	-- 성체: <종>_Adult 모델이 있으면 그것, 없으면 새끼 모델을 크게
+	local adult = stage == 2 and P.Species[kind] and P.Species[kind].Adult
+	local height = (P.Heights[kind] or 3) * (adult and adult.Scale or 1)
 	local models = RS:FindFirstChild("PetModels")
-	local template = models and models:FindFirstChild(kind)
+	local template = models and ((adult and models:FindFirstChild(kind .. "_Adult")) or models:FindFirstChild(kind))
 	if template and template:IsA("Model") then
 		local ok, result = pcall(Rig.fromMesh, template:Clone(), height)
 		if ok then
@@ -100,10 +103,11 @@ end
 function CC:Add(anchor, category)
 	if self.Visuals[anchor] or not anchor.Parent then return end
 	local kind = category == "Enemy" and anchor:GetAttribute("Kind") or anchor:GetAttribute("SpeciesId")
-	local rig = self:BuildRig(kind, category)
+	local stage = anchor:GetAttribute("Stage") or 1
+	local rig = self:BuildRig(kind, category, stage)
 	rig.Model.Name = kind
 	rig.Model.Parent = self.Folder
-	local v = {Anchor = anchor, Category = category, Kind = kind, Rig = rig, Pos = anchor.Position, Phase = math.random() * 10,
+	local v = {Anchor = anchor, Category = category, Kind = kind, Stage = stage, Rig = rig, Pos = anchor.Position, Phase = math.random() * 10,
 		Speed = 0, NextRay = 0, Ground = anchor.Position.Y - anchor.Size.Y / 2, Frame = 0}
 	v.GroundTarget = v.Ground
 	local look = anchor.CFrame.LookVector
@@ -128,6 +132,13 @@ function CC:Add(anchor, category)
 	for _, key in ipairs({"Exhausted", "Busy", "Hunter", "Level", "MaxHP", "Status", "Fainted"}) do
 		table.insert(v.Conns, anchor:GetAttributeChangedSignal(key):Connect(function() self:RefreshTag(v) end))
 	end
+	-- 진화하면 모델을 새로 만든다
+	table.insert(v.Conns, anchor:GetAttributeChangedSignal("Stage"):Connect(function()
+		if self.Visuals[anchor] == v then
+			self:Remove(v)
+			self:Add(anchor, category)
+		end
+	end))
 	self.Visuals[anchor] = v
 	self:RefreshTag(v)
 	-- 등장 연출: 살짝 커지며 나타난다
@@ -218,7 +229,7 @@ function CC:RefreshTag(v)
 	if v.Category == "Pet" then
 		local status = a:GetAttribute("Status")
 		local temp = status ~= "영구"
-		v.NameLabel.Text = string.format("%s Lv%d%s", spec.Name, level, a:GetAttribute("Fainted") and " 💤" or "")
+		v.NameLabel.Text = string.format("%s Lv%d%s", PR.name(v.Kind, v.Stage, P), level, a:GetAttribute("Fainted") and " 💤" or "")
 		v.NameLabel.TextColor3 = v.Own and (temp and Color3.fromHex("#ffe58a") or Color3.fromHex("#b7f5c8")) or Color3.fromHex("#e8eef5")
 		if not v.Own then
 			v.NameLabel.Text = (a:GetAttribute("OwnerName") or "") .. "의 " .. v.NameLabel.Text
@@ -227,7 +238,7 @@ function CC:RefreshTag(v)
 		return
 	end
 	-- 야생
-	v.NameLabel.Text = string.format("야생 %s Lv%d", spec.Name, level)
+	v.NameLabel.Text = string.format("야생 %s Lv%d", PR.name(v.Kind, v.Stage, P), level)
 	v.NameLabel.TextColor3 = ELEMENT_COLOR[spec.Element] or Color3.new(1, 1, 1)
 	local hint = v.Gui:FindFirstChild("Hint")
 	local hunter = a:GetAttribute("Hunter") or ""

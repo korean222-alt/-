@@ -15,7 +15,7 @@ function S:NewProfile()
     local uid=Http:GenerateGUID(false)
     return {Version=C.Version,Coins=0,Pets={[uid]={Uid=uid,SpeciesId="Mossling",Level=1,Exp=0,Favorite=true,CaughtAt=os.time(),CaughtRegion="Grassland"}},
         Party={uid},Loadouts={},Dex={Mossling={Seen=true,Caught=true}},UnlockedRegions={Grassland=true},ClearedRegions={},
-        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={}}
+        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={},Perks={}}
 end
 function S:Validate(data)
     if type(data)~="table" or type(data.Version)~="number" or data.Version<1 or data.Version>C.Version then return nil end
@@ -25,14 +25,16 @@ function S:Validate(data)
     if R.count(data.Pets)>P.CollectionLimit then return nil end
     for uid,pet in pairs(data.Pets) do
         if type(uid)~="string" or type(pet)~="table" or pet.Uid~=uid or not P.Species[pet.SpeciesId]
-            or not integer(pet.Level) or pet.Level<1 or pet.Level>P.MaxLevel or not integer(pet.Exp) then return nil end
+            or not integer(pet.Level) or pet.Level<1 or pet.Level>P.MaxLevel or not integer(pet.Exp)
+            or (pet.Stage~=nil and pet.Stage~=1 and pet.Stage~=2) then return nil end
     end
     local output=R.copy(data)
     -- Version 1 migration preserves every pet and only normalizes selected slots.
+    -- Version 3: pets may carry Stage (nil = 새끼). Older saves need no change.
     local selected,seen={},{}
     for _,uid in ipairs(output.Party) do if output.Pets[uid] and not seen[uid] and #selected<P.ActiveLimit then selected[#selected+1]=uid;seen[uid]=true end end
     output.Party=selected
-    for _,key in ipairs({"Loadouts","Tutorial","Receipts"}) do
+    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks"}) do
         if output[key]~=nil and type(output[key])~="table" then return nil end
         output[key]=output[key] or {}
     end

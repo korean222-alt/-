@@ -1,14 +1,18 @@
--- 초원 맵 배치. 좌표는 stud, 기지 중심(Core) = (0, 0).
--- 길목 방향: 1 = 북(-Z), 2 = 남동, 3 = 남서. 진입로 사이 부채꼴에 자원·야생 펫이 있다.
+-- 원정 맵 배치. 좌표는 stud, 기지 중심(Core) = (0, 0). 놀 수 있는 곳은 지름 약 1500 (99 Nights 급).
+-- 방향 각도: 0 = 북(-Z), 120 = 남동, 240 = 남서 (dir = (sin a, 0, -cos a)).
+-- 기지 주변은 초원, 그 바깥은 길목 방향마다 다른 지역: 북 = 잿빛 바위 협곡(불), 남동 = 고목의 숲(알파), 남서 = 안개 늪(물).
+-- 멀리 갈수록 야생 펫 레벨과 귀한 재료(고철·수정)가 늘어난다. 밤 괴물은 초원 끝의 굴 3곳에서 기지로 온다.
 return {
-	GroundSize = 420,
-	PlayRadius = 150, -- 이 바깥은 언덕과 숲 (경계)
+	GroundSize = 1720,
+	PlayRadius = 750, -- 이 바깥은 숲 벽과 언덕 (경계)
+	MeadowRadius = 250, -- 여기까지 초원
 	BaseRadius = 40, -- 기지 말뚝 울타리 반지름
 	GapWidth = 13, -- 울타리의 길목 구멍 폭
-	LaneRadius = 134, -- 괴물 굴(스폰) 위치
+	LaneRadius = 210, -- 괴물 굴(스폰) 위치
 	LaneWidth = 12,
-	WaypointRadii = {134, 100, 78, 57, 40, 24, 8},
+	WaypointRadii = {210, 170, 134, 100, 78, 57, 40, 24, 8},
 	LaneAngles = {0, 120, 240},
+	TrailLength = 690, -- 굴 너머 각 지역으로 이어지는 흙길 (길 잃지 않게)
 	Spawn = {0, 0.5, 15},
 	Warehouse = {21, 0, -12},
 	Workbench = {-21, 0, -12},
@@ -23,16 +27,34 @@ return {
 		{"SpikeTrap", 1, 67, 0, 0}, {"SpikeTrap", 2, 67, 0, 0}, {"SpikeTrap", 3, 67, 0, 0}, {"SpikeTrap", 1, 90, 0, 0},
 		{"PetStand", 1, 31, -11, 0}, {"PetStand", 2, 31, -11, 0}, {"PetStand", 3, 24, 0, 0}, {"PetStand", 1, 12, 10, 0},
 	},
-	-- 채집 노드: 종류별 좌표 (x, z)
-	Nodes = {
-		Wood = {{50, -58}, {38, -76}, {64, -80}, {-22, 96}, {26, 102}},
-		Stone = {{92, -18}, {104, -40}, {78, -34}, {-52, -92}, {-30, -104}},
-		Fiber = {{22, 52}, {-26, 50}, {-58, 64}, {-60, -64}, {-104, -26}},
-		Scrap = {{112, 28}, {-110, 8}, {-34, -124}, {60, 104}},
-		Berry = {{-14, 70}, {40, 66}, {-72, -30}, {-40, -56}, {70, -54}},
+	-- 지역. Angle 이 있는 지역은 그 방향 ±60° 부채꼴, MeadowRadius 바깥.
+	Zones = {
+		Meadow = {Name = "초원", Icon = "🌿", Danger = 1},
+		Crags = {Name = "잿빛 바위 협곡", Icon = "🌋", Danger = 2, Angle = 0},
+		Ancient = {Name = "고목의 숲", Icon = "🌲", Danger = 3, Angle = 120},
+		Swamp = {Name = "안개 늪", Icon = "💧", Danger = 2, Angle = 240},
 	},
-	-- 연못 (셸버브 서식지)
+	ZoneOrder = {"Meadow", "Crags", "Ancient", "Swamp"},
+	-- 지역별 채집 노드 개수 (위치는 맵을 만들 때 고정 시드로 흩뿌린다)
+	Nodes = {
+		Meadow = {Wood = 16, Stone = 10, Fiber = 16, Berry = 18, Mushroom = 6, Scrap = 4},
+		Crags = {Stone = 26, Scrap = 14, Crystal = 9, Wood = 6, Fiber = 4, Berry = 5, Mushroom = 3},
+		Ancient = {Wood = 32, Mushroom = 16, Berry = 10, Fiber = 8, Stone = 6, Crystal = 3, Scrap = 3},
+		Swamp = {Fiber = 22, Mushroom = 16, Berry = 8, Wood = 10, Scrap = 8, Crystal = 3, Stone = 4},
+	},
+	-- 튜토리얼용: 기지 남쪽 문 앞 약한 야생 모슬링 (항상 같은 자리)
+	StarterWild = {{"Mossling", 1, 6, 56}, {"Mossling", 1, -12, 60}, {"Mossling", 2, 26, 70}},
+	-- 지역별 야생 펫: {종, 마리 수, 최저 레벨, 최고 레벨}. 멀수록 높은 레벨
+	Wild = {
+		Meadow = {{"Mossling", 6, 1, 3}, {"Emberpup", 2, 2, 3}, {"Shellbub", 2, 2, 3}},
+		Crags = {{"Emberpup", 7, 3, 8}, {"Ashlizard", 5, 4, 9}},
+		Ancient = {{"Mossling", 4, 4, 8}, {"Mossdeer", 6, 4, 9}},
+		Swamp = {{"Shellbub", 7, 3, 8}, {"Bogtoad", 5, 4, 9}},
+	},
+	WildRespawn = 90, -- 잡힌 야생 펫 자리에 새로 나타나는 시간(초)
+	-- 알파의 숲 (브라이어혼 α): 고목의 숲 깊은 곳
+	Grove = {Angle = 120, Radius = 560, Size = 26, Level = 8},
+	-- 기지 근처 연못 (초원의 셸버브)
 	Pond = {-84, -50, 15},
-	-- 알파의 숲 (브라이어혼)
-	Grove = {0, 118, 22},
+	SwampPonds = 9,
 }

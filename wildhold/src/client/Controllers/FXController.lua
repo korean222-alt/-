@@ -286,6 +286,11 @@ function FX:OnSpikes(pos)
 		Spread = Vector2.new(40, 40)})
 end
 
+function FX:OnEvolve(pos)
+	self:Burst(pos + Vector3.new(0, 2, 0), 40, {Color = ColorSequence.new(Color3.fromHex("#fff3a8"), Color3.fromHex("#8ff5e8")), Size = NumberSequence.new(0.9, 0),
+		Speed = NumberRange.new(6, 16), Acceleration = Vector3.new(0, 8, 0), LightEmission = 1, Lifetime = NumberRange.new(0.6, 1.2)})
+end
+
 function FX:OnEat(pos, id)
 	local col = ({Berry = "#ff6b9a", RoastMushroom = "#e0a060", Stew = "#d98a4a", Snack = "#ffd27a"})[id] or "#ffe9a8"
 	self:Burst(pos + Vector3.new(0, 1.5, 0), 10, {Color = ColorSequence.new(Color3.fromHex(col), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.4, 0),

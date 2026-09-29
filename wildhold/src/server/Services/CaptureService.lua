@@ -5,34 +5,44 @@ local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local I=require(RS.Shared.Config.ItemConfig)
+local M=require(RS.Shared.Config.MapConfig)
 local S={}
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
-function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
+function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last,self.Respawns=ctx,{},{},{},{};self:Reset() end
 function S:Reset()
-    self.Wild,self.Attempts={},{}
+    self.Wild,self.Attempts,self.Respawns={},{},{}
     self.ctx.Map.WildFolder:ClearAllChildren()
     if G.ActiveStage<6 then return end
-    for _,spawn in ipairs(P.Spawns) do
-        local uid=Http:GenerateGUID(false)
-        local data={SpeciesId=spawn[1],Level=spawn[2]};local stats=R.stats(data,P)
-        local pos=Vector3.new(spawn[3],2,spawn[4])
-        local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
-        part.CanCollide,part.CanTouch,part.Transparency=false,false,1
-        part.CFrame=CFrame.new(pos)*CFrame.Angles(0,math.random()*math.pi*2,0)
-        part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
-        part:SetAttribute("Level",data.Level);part:SetAttribute("MaxHP",stats.HP);part:SetAttribute("HP",stats.HP)
-        local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
-            Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={}}
-        self.Wild[uid]=wild
-        local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
-        prompt.ObjectText=P.Species[data.SpeciesId].Name.." Lv"..data.Level
-        prompt.MaxActivationDistance=P.CaptureRange
-        wild.Prompt=prompt
-        prompt.Triggered:Connect(function(player)
-            if wild.HP/wild.MaxHP>P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
-            else self:Attempt(player,uid,"Trap",false) end
-        end)
-    end
+    for index in ipairs(self.ctx.Map.WildSpawns) do self:SpawnWild(index) end
+end
+-- 맵의 야생 펫 자리(MapService.WildSpawns)에 한 마리를 둔다. 잡히면 WildRespawn 초 뒤 같은 자리에 새로 나타난다.
+function S:SpawnWild(index)
+    local spawn=self.ctx.Map.WildSpawns[index]
+    local uid=Http:GenerateGUID(false)
+    local data={SpeciesId=spawn.SpeciesId,Level=math.random(spawn.MinLevel,spawn.MaxLevel)};R.evolve(data,P)
+    local stats=R.stats(data,P)
+    local pos=spawn.Pos+Vector3.new(0,2,0)
+    local part=U.part(self.ctx.Map.WildFolder,uid,Vector3.new(3,3,3),pos)
+    part.CanCollide,part.CanTouch,part.Transparency=false,false,1
+    part.CFrame=CFrame.new(pos)*CFrame.Angles(0,math.random()*math.pi*2,0)
+    part:SetAttribute("SpeciesId",data.SpeciesId);part:SetAttribute("WildId",uid)
+    part:SetAttribute("Level",data.Level);part:SetAttribute("MaxHP",stats.HP);part:SetAttribute("HP",stats.HP);part:SetAttribute("Stage",R.stage(data))
+    local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Stage=R.stage(data),Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
+        Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={},SpawnIndex=index}
+    self.Wild[uid]=wild
+    local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
+    prompt.ObjectText=R.name(data.SpeciesId,R.stage(data),P).." Lv"..data.Level
+    prompt.MaxActivationDistance=P.CaptureRange
+    wild.Prompt=prompt
+    prompt.Triggered:Connect(function(player)
+        if wild.HP/wild.MaxHP>P.CaptureHP then self.ctx.Pets:Action(player,"Focus",uid)
+        else
+            local items=self.ctx.Crafting.Items[player] or {}
+            local trap=(items.CrystalTrap or 0)>0 and "CrystalTrap" or ((items.BetterTrap or 0)>0 and "BetterTrap" or "Trap")
+            self:Attempt(player,uid,trap,trap~="Trap" and (items.Bait or 0)>0)
+        end
+    end)
+    return wild
 end
 function S:CanFight(player,wild)
     return not wild.Owner or wild.Owner==player or not wild.Owner.Parent or os.clock()>(wild.ClaimUntil or 0)
@@ -97,7 +107,7 @@ function S:Attempt(player,uid,trap,bait)
     self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
     wild.Busy=player
     self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trapSpec.Catch or 1,bait)}
-    self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
+    self.ctx.PetFX:FireClient(player,"Shake",R.name(wild.SpeciesId,wild.Stage,P),P.CaptureSeconds)
     self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trapSpec.Better==true,wild.Id)
 end
 function S:Finish(player,attempt)
@@ -110,9 +120,10 @@ function S:Finish(player,attempt)
     if math.random()<attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,true,wild.SpeciesId,wild.Id)
         self.Wild[wild.Id]=nil;wild.Part:Destroy()
+        if wild.SpawnIndex then self.Respawns[wild.SpawnIndex]=os.clock()+M.WildRespawn end
         for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
         self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
-        self.ctx.PetFX:FireClient(player,"Capture",P.Species[wild.SpeciesId].Name)
+        self.ctx.PetFX:FireClient(player,"Capture",R.name(wild.SpeciesId,wild.Stage,P))
     else
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,false,wild.SpeciesId,wild.Id)
         wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
@@ -129,6 +140,11 @@ end
 function S:Tick(dt)
     if G.ActiveStage<6 then return end
     for player,attempt in pairs(self.Attempts) do if os.clock()>=attempt.EndsAt then self:Finish(player,attempt) end end
+    if self.ctx.Clock.Phase=="Day" then
+        for index,at in pairs(self.Respawns) do
+            if os.clock()>=at then self.Respawns[index]=nil;self:SpawnWild(index) end
+        end
+    end
     for _,wild in pairs(self.Wild) do
         local spec=P.Species[wild.SpeciesId]
         if wild.ExhaustUntil and not wild.Busy and os.clock()>wild.ExhaustUntil then
@@ -168,7 +184,7 @@ function S:Snapshot(player)
     for uid,wild in pairs(self.Wild) do
         local distance=(root.Position-wild.Part.Position).Magnitude
         if distance<90 then
-            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
+            list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Stage=wild.Stage,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
                 Distance=math.floor(distance),Chance=self:Chance(player,wild,1,false),BetterChance=self:Chance(player,wild,I.Items.BetterTrap.Catch,true),
                 Ready=wild.HP/wild.MaxHP<=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()>(wild.ClaimUntil or 0)}
         end

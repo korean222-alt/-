@@ -4,6 +4,7 @@ local P=require(RS.Shared.Config.PetConfig)
 local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
+local Shop=require(RS.Shared.Config.ShopConfig)
 local S={}
 -- 값이 바뀔 때만 속성을 복제한다 (0.2초마다 같은 값을 보내지 않도록)
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
@@ -37,7 +38,7 @@ function S:Spawn(rec,index)
     local part=U.part(self.ctx.Map.PetsFolder,rec.Data.Uid,Vector3.new(2,2,2),Vector3.new(pos.X,2,pos.Z))
     part.Transparency,part.CanCollide,part.CanTouch=1,false,false
     part:SetAttribute("SpeciesId",rec.Data.SpeciesId);part:SetAttribute("OwnerId",rec.Owner.UserId)
-    part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid)
+    part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid);part:SetAttribute("Stage",R.stage(rec.Data))
     rec.Part,rec.Index=part,index;self.Active[rec.Data.Uid]=rec
 end
 function S:SetTeam(player,ids,initial)
@@ -66,7 +67,7 @@ end
 function S:AddCapture(player,wild)
     if not self:CanCapture(player) then return false end
     local uid=Http:GenerateGUID(false)
-    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland"}
+    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland",Stage=wild.Stage}
     self:Record(player,data,false)
     if #self.Teams[player]<P.ActiveLimit then
         -- A catch joins an open slot without dismissing/rehealing existing companions.
@@ -78,18 +79,28 @@ function S:AddCapture(player,wild)
 end
 function S:Award(player,amount)
     if not self.ctx.Data:Ready(player) then return end
+    local evolved={}
     self.ctx.Data:Mutate(player,function()
         for _,uid in ipairs(self.Teams[player] or {}) do
-            local rec=self.Rosters[player][uid];R.addXP(rec.Data,amount,P)
+            local rec=self.Rosters[player][uid]
+            if R.addXP(rec.Data,amount,P) then table.insert(evolved,rec) end
             local stats=R.stats(rec.Data,P);rec.MaxHP=stats.HP
         end
     end)
+    -- 진화: 커지고 강해진 모습으로 바뀌고 체력이 가득 찬다
+    for _,rec in ipairs(evolved) do
+        rec.HP=rec.MaxHP
+        if rec.Part then rec.Part:SetAttribute("Stage",2);self.ctx.FX:FireAllClients("Evolve",rec.Part.Position,rec.Data.SpeciesId) end
+        local name=R.name(rec.Data.SpeciesId,2,P)
+        self.ctx.Notify(player,"✨ "..P.Species[rec.Data.SpeciesId].Name.." 이(가) "..name.." (으)로 진화했습니다!")
+        self.ctx.PetFX:FireClient(player,"Evolve",name)
+    end
 end
 function S:Saved(player,snapshot)
     for uid,rec in pairs(self.Rosters[player] or {}) do
         if rec.PendingSave and snapshot.Pets[uid] then
             rec.PendingSave,rec.Secured=false,true
-            self.ctx.Notify(player,"영구 확정: "..P.Species[rec.Data.SpeciesId].Name..(self.ctx.Data.Memory and " (연습 모드)" or ""))
+            self.ctx.Notify(player,"영구 확정: "..R.name(rec.Data.SpeciesId,R.stage(rec.Data),P)..(self.ctx.Data.Memory and " (연습 모드)" or ""))
             self.ctx.PetFX:FireClient(player,"Secured")
         end
     end
@@ -99,6 +110,7 @@ function S:NightSurvived(night,cleared)
         local key=self.ctx.SessionId..":"..self.ctx.Run.RoundId..":"..night
         local profile=self.ctx.Data:Get(player)
         if profile and not profile.Receipts[key] then
+            local newSpecies={}
             local granted=self.ctx.Data:Mutate(player,function(data)
                 data.Receipts[key]=true
                 -- Bound receipt history. Same run has only three nightly receipts.
@@ -107,6 +119,9 @@ function S:NightSurvived(night,cleared)
                 for uid,rec in pairs(self.Rosters[player] or {}) do
                     if rec.Registered and not rec.Secured and not rec.PendingSave then
                         data.Pets[uid]=rec.Data;rec.PendingSave=true
+                        -- 도감 보상: 새 종을 처음 영구 확정하면 코인
+                        local entry=data.Dex[rec.Data.SpeciesId]
+                        if not (entry and entry.Caught) then data.Coins=data.Coins+Shop.DexReward;table.insert(newSpecies,rec.Data.SpeciesId) end
                         data.Dex[rec.Data.SpeciesId]={Seen=true,Caught=true}
                     end
                     rec.HP,rec.RecoverAt=rec.MaxHP,nil
@@ -117,7 +132,10 @@ function S:NightSurvived(night,cleared)
                 if cleared then data.Stats.Clears=data.Stats.Clears+1;data.ClearedRegions.Grassland=true;data.UnlockedRegions.Swamp=true end
                 data.Tutorial.Survived=true
             end)
-            if granted then self:Award(player,P.NightXP);self.ctx.Data:Save(player) end
+            if granted then
+                self:Award(player,P.NightXP);self.ctx.Data:Save(player)
+                for _,id in ipairs(newSpecies) do self.ctx.Notify(player,"📖 도감 새 종! "..P.Species[id].Name.." · 🪙 +"..Shop.DexReward) end
+            end
         end
     end
 end
@@ -282,7 +300,7 @@ end
 function S:Snapshot(player)
     local list={}
     for uid,rec in pairs(self.Rosters[player] or {}) do
-        list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
+        list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Stage=R.stage(rec.Data),Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
             Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode}
     end

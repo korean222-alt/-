@@ -1,4 +1,3 @@
-local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
@@ -8,13 +7,18 @@ function S:Init(ctx)
 end
 function S:IsParticipant(player) return self.Participants[player] == true end
 function S:Count() local n = 0; for _ in pairs(self.Participants) do n = n + 1 end; return n end
+-- 들어오면 바로 논다: 원정 중간에 들어와도 기본 소지품·펫과 함께 합류한다 (공개 서버에서 튕기지 않게).
+-- 혼자 들어온 첫 사람은 StartDelay(몇 초) 뒤 바로 출발한다.
 function S:Join(player)
-    if self.ctx.Clock.Phase ~= "Waiting" or self:Count() >= C.MaxPlayers then
-        player:Kick("이 원정은 이미 시작했거나 인원이 찼습니다. 새 서버에서 시작해 주세요.")
+    if self:Count() >= C.MaxPlayers then
+        player:Kick("이 서버는 인원이 가득 찼습니다. 다시 들어오면 다른 서버로 연결됩니다.")
         return false
     end
     self.Participants[player] = true
-    if not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
+    if self.ctx.Clock.Phase == "Waiting" and not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
+    if self.ctx.Clock.Phase == "Day" or self.ctx.Clock.Phase == "Night" then
+        task.defer(function() if player.Parent then self.ctx.Notify(player, "진행 중인 원정에 합류했습니다! 목표 카드를 따라가세요") end end)
+    end
     return true
 end
 function S:Leave(player)
@@ -73,6 +77,8 @@ function S:Tick()
         end
         if clock:Expired() then
             self:Change("Night", clock.Night, C.NightSeconds)
+            -- 중간에 들어온 사람도 세도록 밤마다 지금 인원으로 웨이브 크기를 정한다
+            self.LockedPlayerCount = math.max(1, self:Count())
             if C.ActiveStage >= 4 then self.ctx.Waves:Start(clock.Night, self.LockedPlayerCount) end
             self.ctx.Notify(nil, "밤 " .. clock.Night .. " 시작 · 밤에는 수리만 가능합니다")
         end
