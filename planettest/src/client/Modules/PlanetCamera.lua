@@ -1,7 +1,8 @@
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("ReplicatedStorage")
-local C = require(RS.Shared.Config)
-local P = require(RS.Shared.PlanetMath)
+local shared = RS:WaitForChild("Shared")
+local C = require(shared:WaitForChild("Config"))
+local P = require(shared:WaitForChild("PlanetMath"))
 local Camera = {}
 Camera.__index = Camera
 function Camera.new(character)

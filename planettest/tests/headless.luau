@@ -111,7 +111,8 @@ local function scenario(imported)
     local characters={}
     for i=1,2 do
         local player=R.newInstance("Player"); player.Parent=E.players; player.Name="Player"..i
-        rawset(player,"_custom",{HasAppearanceLoaded=function() return true end})
+        local appearanceMissing=imported and i==2
+        rawset(player,"_custom",{HasAppearanceLoaded=function() return not appearanceMissing end})
         local char=E.Instance.new("Model",workspace); char.Name=player.Name
         local hrp=E.Instance.new("Part",char); hrp.Name="HumanoidRootPart"; hrp.Size=V.new(2,2,1); hrp.CFrame=CF.new()
         rawset(hrp,"_custom",{SetNetworkOwner=function(_,owner) assert(owner==player); rawset(hrp,"_owner",owner) end})
@@ -121,6 +122,10 @@ local function scenario(imported)
         char.PrimaryPart=hrp
         player.Character=char
         E.players.PlayerAdded:Fire(player)
+        if appearanceMissing then
+            assert(not char:GetAttribute("PlanetPrepared"))
+            R.runUntil(R.Now+C.AppearanceWaitSeconds+0.3)
+        end
         noErrors()
         assert(char:GetAttribute("PlanetPrepared") and hrp.Anchored)
         local expected=if i==1 then 1 else -1

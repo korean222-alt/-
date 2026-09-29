@@ -29,8 +29,8 @@ for path in sources:
     files[path.relative_to(ROOT / 'src').as_posix()] = path.read_text(encoding='utf-8')
 prefix = 'local FILES = {\n' + '\n'.join(f'[{json.dumps(k)}]={json.dumps(v, ensure_ascii=False)},' for k,v in files.items()) + '\n}\n'
 prefix += 'local function source(name) return assert(loadstring(FILES[name], name)) end\n'
-test = prefix + (ROOT / 'tests/headless.luau').read_text(encoding='utf-8')
 with tempfile.TemporaryDirectory(prefix='planettest-') as temp:
-    bundle = Path(temp) / 'headless.luau'
-    bundle.write_text(test, encoding='utf-8')
-    subprocess.run([args.luau, str(bundle)], check=True)
+    for name in ('headless.luau', 'replication.luau'):
+        bundle = Path(temp) / name
+        bundle.write_text(prefix + (ROOT / 'tests' / name).read_text(encoding='utf-8'), encoding='utf-8')
+        subprocess.run([args.luau, str(bundle)], check=True)

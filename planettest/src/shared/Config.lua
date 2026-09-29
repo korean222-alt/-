@@ -1,6 +1,6 @@
 -- 숫자는 이곳에서만 바꿉니다. Studio: Stop → 수정 → Play.
 return {
-    Radius = 220,                 -- 속도 16이면 한 바퀴 약 86초
+    Radius = 160,                 -- 속도 16이면 한 바퀴 약 63초; 곡률을 더 뚜렷하게
     CenterX = 0, CenterY = 0, CenterZ = 0,
     Gravity = 90,
     WalkSpeed = 16,
@@ -15,6 +15,7 @@ return {
     OrientationResponse = 45,
     TurnResponse = 14,
     SpawnClearance = 3,
+    AppearanceWaitSeconds = 5,    -- 외형 로딩이 실패해도 캐릭터를 영구 고정하지 않음
     OppositeSpawns = true,       -- 2번째 플레이어는 행성 반대편에서 시작
     RespawnDistance = 160,       -- 표면에서 너무 멀어지면 재시작
     Embed = 0.4,

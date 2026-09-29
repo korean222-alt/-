@@ -122,7 +122,11 @@ local function setupCharacter(player,character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     local humanoid = character:WaitForChild("Humanoid")
     hrp.Anchored = true -- 클라이언트 준비 전에는 추락하지 않습니다.
-    if not player:HasAppearanceLoaded() then player.CharacterAppearanceLoaded:Wait() end
+    local waited = 0
+    while not player:HasAppearanceLoaded() and waited<C.AppearanceWaitSeconds do
+        if player.Character~=character or not character.Parent then return end
+        waited+=task.wait(0.1)
+    end
     if player.Character~=character or not character.Parent then return end
     humanoid.AutoRotate,humanoid.EvaluateStateMachine = false,false
     humanoid.WalkSpeed,humanoid.UseJumpPower,humanoid.JumpPower = C.WalkSpeed,true,C.JumpSpeed

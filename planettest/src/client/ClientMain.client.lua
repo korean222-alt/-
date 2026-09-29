@@ -1,7 +1,9 @@
 local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
 local Lighting=game:GetService("Lighting")
-local Controller=require(script.Parent.Modules.GravityController)
+-- PlayerScripts의 형제 폴더는 이 LocalScript보다 늦게 복제될 수 있습니다.
+local modules=script.Parent:WaitForChild("Modules")
+local Controller=require(modules:WaitForChild("GravityController"))
 local player=Players.LocalPlayer
 local active,generation=nil,0
 local function cleanup()

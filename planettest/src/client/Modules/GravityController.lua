@@ -5,10 +5,11 @@
 local RunService=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
 local RS=game:GetService("ReplicatedStorage")
-local C=require(RS.Shared.Config)
-local P=require(RS.Shared.PlanetMath)
-local PlanetCamera=require(script.Parent.PlanetCamera)
-local Animation=require(script.Parent.AvatarAnimation)
+local shared=RS:WaitForChild("Shared")
+local C=require(shared:WaitForChild("Config"))
+local P=require(shared:WaitForChild("PlanetMath"))
+local PlanetCamera=require(script.Parent:WaitForChild("PlanetCamera"))
+local Animation=require(script.Parent:WaitForChild("AvatarAnimation"))
 local Controller={}
 Controller.__index=Controller
 function Controller.new(player,character,isCurrent)

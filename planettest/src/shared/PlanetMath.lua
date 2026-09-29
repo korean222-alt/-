@@ -1,4 +1,4 @@
-local C = require(script.Parent.Config)
+local C = require(script.Parent:WaitForChild("Config"))
 local P = {}
 P.Center = Vector3.new(C.CenterX,C.CenterY,C.CenterZ)
 local Y, X, Z = Vector3.new(0,1,0),Vector3.new(1,0,0),Vector3.new(0,0,1)

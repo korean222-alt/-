@@ -32,7 +32,7 @@
           <string name="Name">Config</string>
           <ProtectedString name="Source">-- 숫자는 이곳에서만 바꿉니다. Studio: Stop → 수정 → Play.
 return {
-    Radius = 220,                 -- 속도 16이면 한 바퀴 약 86초
+    Radius = 160,                 -- 속도 16이면 한 바퀴 약 63초; 곡률을 더 뚜렷하게
     CenterX = 0, CenterY = 0, CenterZ = 0,
     Gravity = 90,
     WalkSpeed = 16,
@@ -47,6 +47,7 @@ return {
     OrientationResponse = 45,
     TurnResponse = 14,
     SpawnClearance = 3,
+    AppearanceWaitSeconds = 5,    -- 외형 로딩이 실패해도 캐릭터를 영구 고정하지 않음
     OppositeSpawns = true,       -- 2번째 플레이어는 행성 반대편에서 시작
     RespawnDistance = 160,       -- 표면에서 너무 멀어지면 재시작
     Embed = 0.4,
@@ -121,7 +122,7 @@ return L
       <Item class="ModuleScript" referent="RBX000007">
         <Properties>
           <string name="Name">PlanetMath</string>
-          <ProtectedString name="Source">local C = require(script.Parent.Config)
+          <ProtectedString name="Source">local C = require(script.Parent:WaitForChild("Config"))
 local P = {}
 P.Center = Vector3.new(C.CenterX,C.CenterY,C.CenterZ)
 local Y, X, Z = Vector3.new(0,1,0),Vector3.new(1,0,0),Vector3.new(0,0,1)
@@ -362,7 +363,11 @@ local function setupCharacter(player,character)
     local hrp = character:WaitForChild("HumanoidRootPart")
     local humanoid = character:WaitForChild("Humanoid")
     hrp.Anchored = true -- 클라이언트 준비 전에는 추락하지 않습니다.
-    if not player:HasAppearanceLoaded() then player.CharacterAppearanceLoaded:Wait() end
+    local waited = 0
+    while not player:HasAppearanceLoaded() and waited&lt;C.AppearanceWaitSeconds do
+        if player.Character~=character or not character.Parent then return end
+        waited+=task.wait(0.1)
+    end
     if player.Character~=character or not character.Parent then return end
     humanoid.AutoRotate,humanoid.EvaluateStateMachine = false,false
     humanoid.WalkSpeed,humanoid.UseJumpPower,humanoid.JumpPower = C.WalkSpeed,true,C.JumpSpeed
@@ -470,7 +475,9 @@ print("PlanetTest ready; radius",C.Radius,"ideal lap seconds",2*math.pi*C.Radius
           <ProtectedString name="Source">local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
 local Lighting=game:GetService("Lighting")
-local Controller=require(script.Parent.Modules.GravityController)
+-- PlayerScripts의 형제 폴더는 이 LocalScript보다 늦게 복제될 수 있습니다.
+local modules=script.Parent:WaitForChild("Modules")
+local Controller=require(modules:WaitForChild("GravityController"))
 local player=Players.LocalPlayer
 local active,generation=nil,0
 local function cleanup()
@@ -581,10 +588,11 @@ return Animation
 local RunService=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
 local RS=game:GetService("ReplicatedStorage")
-local C=require(RS.Shared.Config)
-local P=require(RS.Shared.PlanetMath)
-local PlanetCamera=require(script.Parent.PlanetCamera)
-local Animation=require(script.Parent.AvatarAnimation)
+local shared=RS:WaitForChild("Shared")
+local C=require(shared:WaitForChild("Config"))
+local P=require(shared:WaitForChild("PlanetMath"))
+local PlanetCamera=require(script.Parent:WaitForChild("PlanetCamera"))
+local Animation=require(script.Parent:WaitForChild("AvatarAnimation"))
 local Controller={}
 Controller.__index=Controller
 function Controller.new(player,character,isCurrent)
@@ -676,8 +684,9 @@ return Controller
             <string name="Name">PlanetCamera</string>
             <ProtectedString name="Source">local UIS = game:GetService("UserInputService")
 local RS = game:GetService("ReplicatedStorage")
-local C = require(RS.Shared.Config)
-local P = require(RS.Shared.PlanetMath)
+local shared = RS:WaitForChild("Shared")
+local C = require(shared:WaitForChild("Config"))
+local P = require(shared:WaitForChild("PlanetMath"))
 local Camera = {}
 Camera.__index = Camera
 function Camera.new(character)
