@@ -1,11 +1,11 @@
 return {
     ActiveStage = 8, -- 5: pets, 6: capture, 7: data, 8: tutorial/UI
     MaxPlayers = 6,
-    TargetNights = 3,
-    FirstDaySeconds = 300,
-    DaySeconds = 180,
+    TargetNights = 5, -- 5밤, 약 37분 (첫 낮 6분 + 낮 4분 x4 + 밤 3분 x5)
+    FirstDaySeconds = 360,
+    DaySeconds = 240,
     NightSeconds = 180,
-    WarningSeconds = 45,
+    WarningSeconds = 75, -- 맵이 넓어서 멀리 나간 사람이 돌아올 시간
     StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
     StartDelay = 15,
     ResultSeconds = 20,
@@ -16,13 +16,16 @@ return {
     TowerDamageScale = 0.7, -- tuning hypothesis: pets should supply mobile damage
     InteractionRange = 13,
     InteractionCooldown = 0.35,
-    SpearRange = 11,
+    SpearRange = 11, -- 손에 든 도구의 공격·채집 거리
     SpearDamage = 24,
     SpearCooldown = 0.55,
-    HarvestDamage = 25,
+    HarvestDamage = 25, -- 채집 기본 피해 (도구 배율을 곱한다, ItemConfig)
+    EatCooldown = 0.8,
+    SnackRange = 26, -- 간식을 들고 쓰면 이 거리 안의 다친 내 펫을 회복
     PickupRadius = 5,
     DepositRadius = 11,
-    CarryCapacity = 60,
+    KeepBerries = 5, -- 창고에 넣을 때 가방에 남기는 열매 (먹을 것)
+    CarryCapacity = 60, -- 가방 없을 때 (가방은 ItemConfig)
     DeathDropFraction = 0.3,
     RespawnSeconds = 4,
     EnemyLimit = 35,
@@ -34,6 +37,13 @@ return {
     DropLifetime = 45,
     DropLimit = 180,
     FXLifetime = 0.12,
+    -- 배고픔 (가볍게): 약 7분에 100 → 0. 0이면 체력이 조금씩 닳지만 StarveFloor 아래로는 안 내려간다
+    HungerMax = 100,
+    HungerDecay = 0.24,
+    StarveDamage = 3,
+    StarveInterval = 3,
+    StarveFloor = 20,
+    RespawnHunger = 50,
     DayClock = 13,
     NightClock = 0,
 }

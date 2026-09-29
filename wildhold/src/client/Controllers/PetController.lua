@@ -1,12 +1,13 @@
 -- 펫 패널 (내 펫 / 야생 / 명령 / 제작 / 도감) + 빠른 명령 버튼 + 포획 카드.
 -- 서버 액션은 기존과 같다: PetAction(Toggle/Favorite/Heal/Focus/Follow/Stay/Guard/Best/SaveTeam/LoadTeam/Register),
--- CaptureAction(wildId, "Trap"/"BetterTrap", bait), CraftAction(itemId)
+-- CaptureAction(wildId, 덫ID, bait), CraftAction(아이템ID 또는 "BenchUpgrade")
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local P = require(RS.Shared.Config.PetConfig)
 local Recipes = require(RS.Shared.Config.RecipeConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
+local I = require(RS.Shared.Config.ItemConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local Controller = {}
@@ -14,8 +15,7 @@ local TITLE, BODY = Enum.Font.FredokaOne, Enum.Font.GothamBold
 local COL = {Back = Color3.fromHex("#141d2a"), Card = Color3.fromHex("#1f2b3b"), Card2 = Color3.fromHex("#273548"), Text = Color3.fromHex("#f1f5fa"),
 	Muted = Color3.fromHex("#aab6c6"), Mint = Color3.fromHex("#7be0b6"), Gold = Color3.fromHex("#ffd36b"), Red = Color3.fromHex("#ff8a8a")}
 local ELEMENT = {Leaf = {"🌿 풀", "#7ed36a"}, Ember = {"🔥 불", "#ff9a4a"}, Tide = {"💧 물", "#6fc3ff"}}
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
-local ITEM_ICON = {Trap = "🧺", BetterTrap = "🧺✨", Bait = "🍓", Snack = "🍪"}
+local ICON = R.Icons
 
 local function create(kind, parent, props)
 	local node = Instance.new(kind)
@@ -42,6 +42,14 @@ local function button(parent, text, pos, size, fn, color)
 	create("UIStroke", node, {Color = Color3.new(0, 0, 0), Transparency = 0.6, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
 	node.Activated:Connect(fn)
 	return node
+end
+
+local function costText(cost)
+	local parts = {}
+	for _, material in ipairs(R.Order) do
+		if cost[material] then parts[#parts + 1] = ICON[material] .. " " .. cost[material] end
+	end
+	return table.concat(parts, "  ")
 end
 
 function Controller:Init(remotes)
@@ -110,6 +118,7 @@ function Controller:Init(remotes)
 	end)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, name, seconds)
 		if kind == "OpenCraft" then
+			self.Station = name
 			self:Open("Craft")
 		elseif kind == "Shake" then
 			self:Close()
@@ -243,17 +252,31 @@ function Controller:Render()
 		end)
 		self.Rows[#self.Rows + 1] = {}
 	elseif self.Tab == "Craft" then
+		-- 제작대 레벨 + 업그레이드 (팀 공용)
+		local level = d.Bench or 1
+		local nextBench = Recipes.Bench[level + 1]
+		local head = self:Row(nextBench and 100 or 56)
+		label(head, "🔨", UDim2.fromOffset(10, 6), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+		label(head, string.format("제작대 Lv%d  ·  팀 공용\n%s", level, nextBench and ("다음: " .. nextBench.Name .. "  " .. costText(nextBench.Cost)) or "최고 레벨"),
+			UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+		if nextBench then
+			button(head, "⬆ 제작대 업그레이드 (낮)", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
+				Color3.fromHex("#8a5a2f"))
+		end
+		self.Rows[#self.Rows + 1] = {}
+		-- 모닥불에서 열면 요리를 먼저 보여준다
+		local order = {}
 		for _, id in ipairs(Recipes.Order) do
-			local spec = Recipes.Recipes[id]
-			local cost = {}
-			for _, material in ipairs(R.Order) do
-				if spec.Cost[material] then cost[#cost + 1] = ICON[material] .. " " .. spec.Cost[material] end
-			end
+			if self.Station == "Campfire" and Recipes.Recipes[id].Station == "Campfire" then table.insert(order, 1, id) else table.insert(order, id) end
+		end
+		for _, id in ipairs(order) do
+			local recipe, spec = Recipes.Recipes[id], I.Items[id]
 			local row = self:Row(100)
-			label(row, ITEM_ICON[id] or "", UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+			label(row, spec.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
 			local info = label(row, "", UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
-			button(row, "🔨 만들기", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
-			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Cost = table.concat(cost, "  ")}
+			local verb = recipe.Station == "Campfire" and "🔥 요리하기" or "🔨 만들기"
+			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
+			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
@@ -287,6 +310,8 @@ function Controller:Signature()
 		for _, wild in ipairs(self.Data.Wild or {}) do ids[#ids + 1] = wild.Id end
 		table.sort(ids)
 		for _, id in ipairs(ids) do pieces[#pieces + 1] = id end
+	elseif self.Tab == "Craft" then
+		pieces[#pieces + 1] = tostring(self.Data.Bench) .. tostring(self.Station)
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local e = self.Data.Dex[id]
@@ -326,12 +351,20 @@ function Controller:Refresh(skip)
 				end
 			end
 		elseif row.Info and self.Tab == "Craft" then
-			row.Info.Text = Recipes.Recipes[row.Key].Name .. "   (보유 " .. tostring((d.Items or {})[row.Key] or 0) .. ")\n" .. row.Cost
+			local recipe, spec = Recipes.Recipes[row.Key], I.Items[row.Key]
+			local have = (d.Items or {})[row.Key] or 0
+			local locked = recipe.Bench > (d.Bench or 1)
+			local owned = (spec.Kind == "Tool" or spec.Kind == "Bag") and (have > 0 and "✅ 보유 중" or "") or ("보유 " .. have)
+			local place = recipe.Station == "Campfire" and "모닥불" or "제작대"
+			row.Info.Text = string.format("%s  %s\n%s%s · %s", spec.Name, owned, locked and ("🔒 제작대 Lv" .. recipe.Bench .. " 필요 · ") or "", place, row.Cost)
+			row.Info.TextColor3 = locked and COL.Muted or COL.Text
+			row.Button.BackgroundColor3 = locked and COL.Card2 or Color3.fromHex("#2f8f83")
 		end
 	end
 	local items = d.Items or {}
-	self.Footer.Text = string.format("🧺 덫 %d · ✨ 강화 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.Bait or 0, items.Snack or 0,
-		self.Tab == "Craft" and "낮에 기지 제작대 근처에서 만들 수 있어요 (재료는 공용 창고에서 사용)" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
+	self.Footer.Text = string.format("🧺 덫 %d · 🧺 강화 %d · 💠 수정 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.CrystalTrap or 0,
+		items.Bait or 0, items.Snack or 0,
+		self.Tab == "Craft" and "제작대·모닥불 근처에서 만들어요 (재료는 공용 창고) · 만든 도구는 화면 아래 칸에 생겨요" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
 end
 
 return Controller

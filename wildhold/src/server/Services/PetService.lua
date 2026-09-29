@@ -172,7 +172,20 @@ function S:Action(player,action,value)
         self.ctx.Notify(player,n.."마리 등록 · 다음 밤을 버티면 저장됩니다.")
     elseif action=="Heal" and type(value)=="string" and roster[value] then
         local rec=roster[value]
-        if rec.HP>0 and rec.HP<rec.MaxHP and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
+        local near=U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) or (rec.Part~=nil and U.near(player,rec.Part.Position,G.SnackRange))
+        if rec.HP>0 and rec.HP<rec.MaxHP and near and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
+    end
+end
+-- 간식을 들고 공격 버튼: 가까이 있는 내 펫 중 가장 많이 다친 펫을 회복
+function S:FeedNearest(player)
+    local best,ratio=nil,1
+    for _,rec in pairs(self.Rosters[player] or {}) do
+        if rec.Part and rec.HP>0 and rec.HP<rec.MaxHP and U.near(player,rec.Part.Position,G.SnackRange) and rec.HP/rec.MaxHP<ratio then best,ratio=rec,rec.HP/rec.MaxHP end
+    end
+    if not best then self.ctx.Notify(player,"가까이에 다친 펫이 없습니다.");return end
+    if self.ctx.Crafting:Use(player,"Snack") then
+        best.HP=math.min(best.MaxHP,best.HP+best.MaxHP*0.5)
+        self.ctx.FX:FireAllClients("Eat",best.Part.Position,"Snack")
     end
 end
 function S:Damage(rec,amount)

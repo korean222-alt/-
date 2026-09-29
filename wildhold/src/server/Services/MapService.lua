@@ -1,5 +1,5 @@
 -- 초원 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 펫 우리) + 3 길목 + 자원 노드 + 숲/연못/알파의 숲.
--- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, Core, Warehouse, Workbench, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt
+-- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.MapConfig)
@@ -185,7 +185,8 @@ function Map:BuildBase()
 	S.workbench(base, toCore(C.Workbench[1], C.Workbench[3]))
 	self.Workbench = base.Workbench.Hitbox
 	self.Workbench.Name = "제작대"
-	self.CraftPrompt = U.prompt(self.Workbench, "Craft", "덫 · 먹이 · 간식 만들기", Enum.KeyCode.E, Vector3.new(0, 1.5, -2.5))
+	self.CraftPrompt = U.prompt(self.Workbench, "Craft", "도구 · 덫 · 가방 만들기 / 업그레이드", Enum.KeyCode.E, Vector3.new(0, 1.5, -2.5))
+	self.Workbench:SetAttribute("Level", 1)
 	self.CraftPrompt.ObjectText = "제작대"
 
 	local _, penPad = S.pen(base, CFrame.new(C.Cage[1], 0, C.Cage[3]))
@@ -267,6 +268,10 @@ function Map:BuildBase()
 	fx.Size, fx.Heat = 4, 9
 	fx.Parent = flame
 	B.light(flame, "PointLight", {Range = 20, Brightness = 1.8, Color = Color3.fromHex("#ffa860"), Shadows = true})
+	flame.Name = "모닥불"
+	self.Campfire = flame
+	self.CookPrompt = U.prompt(flame, "Cook", "요리하기 · 구운 버섯 · 스튜", Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
+	self.CookPrompt.ObjectText = "모닥불"
 	for i, off in ipairs({Vector3.new(-3.6, 0, 0.5), Vector3.new(3.4, 0, -0.6)}) do
 		B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood)
 	end
@@ -349,6 +354,12 @@ local NODE_BUILDERS = {
 	end,
 	Berry = function(parent, at, rng)
 		return Props.bush(parent, at, rng, 1.05, true), Vector3.new(5.5, 5, 5.5)
+	end,
+	Mushroom = function(parent, at, rng)
+		return Props.mushroomPatch(parent, at, rng, 1.1), Vector3.new(4, 3, 4)
+	end,
+	Crystal = function(parent, at, rng)
+		return Props.crystals(parent, at, rng, 1.0), Vector3.new(5, 6, 5)
 	end,
 }
 

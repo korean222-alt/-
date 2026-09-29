@@ -72,12 +72,21 @@ function S:Refresh(slot)
 		slot.Visual:SetAttribute("MaxHealth", stats and stats.HP or 0)
 	end
 	slot.BuildPrompt.Enabled = C.ActiveStage >= 3 and phase == "Day" and nextStats ~= nil
-	slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 · " or "강화 · ") .. (nextStats and self:CostText(nextStats.Cost) or "최대")
+	local bench = nextStats and self:BenchNeeded(slot)
+	slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 · " or "강화 · ") .. (bench and ("🔒 제작대 Lv" .. bench .. " 필요") or (nextStats and self:CostText(nextStats.Cost) or "최대"))
 	slot.BuildPrompt.ObjectText = spec.Name .. (slot.Level > 0 and (" Lv" .. slot.Level) or " (빈 자리)")
 	slot.RepairPrompt.Enabled = C.ActiveStage >= 3 and (phase == "Day" or phase == "Night") and stats ~= nil and slot.HP < stats.HP
 	local mult = phase == "Night" and C.NightRepairMultiplier or 1
 	slot.RepairPrompt.ActionText = "수리 · " .. (stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or "")
 	slot.RepairPrompt.ObjectText = spec.Name .. (stats and string.format(" %d/%d", slot.HP, stats.HP) or "")
+end
+
+-- 방어 시설 Lv2 는 제작대 Lv2, Lv3 은 제작대 Lv3 이 있어야 강화할 수 있다. 필요하면 그 레벨, 아니면 nil
+function S:BenchNeeded(slot)
+	local want = slot.Level + 1
+	local have = self.ctx.Crafting and self.ctx.Crafting.BenchLevel or 3
+	if want >= 2 and have < want then return want end
+	return nil
 end
 
 function S:RefreshAll() for _, slot in pairs(self.Slots) do self:Refresh(slot) end end
@@ -94,6 +103,8 @@ function S:Interact(player, slot, action)
 		if phase ~= "Day" then return end
 		local nextStats = spec.Levels[slot.Level + 1]
 		if not nextStats then return end
+		local bench = self:BenchNeeded(slot)
+		if bench then self.ctx.Notify(player, "제작대 Lv" .. bench .. "가 필요합니다 · 제작대를 업그레이드하세요"); return end
 		if not self.ctx.Resources:Spend(nextStats.Cost) then self.ctx.Notify(player, "공용 창고의 자원이 부족합니다 · " .. self:CostText(nextStats.Cost)); return end
 		-- No yielding in validation, spend, mutation: simultaneous requests serialize.
 		local oldHP = slot.Level > 0 and spec.Levels[slot.Level].HP or 0

@@ -247,6 +247,40 @@ function P.mushrooms(parent, at, rng)
 	return B.decorate(m, false)
 end
 
+-- 먹을 수 있는 갈색 버섯 무리 (채집 노드)
+function P.mushroomPatch(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "Mushrooms")
+	B.cyl(m, 0.3, 3.4 * scale, at * CFrame.new(0, 0.1, 0), "#4a3a2a", M.Ground, true)
+	for _ = 1, 6 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = rng:NextNumber() * 1.4 * scale
+		local h = (0.6 + rng:NextNumber() * 0.9) * scale
+		local p = at * CFrame.new(math.cos(a) * r, 0, math.sin(a) * r)
+		B.cyl(m, h, 0.35 * scale, p * CFrame.new(0, h / 2, 0), "#e6dccb", M.SmoothPlastic, true)
+		B.ellipsoid(m, Vector3.new(1.3, 0.55, 1.3) * scale * (0.8 + h * 0.3), p * CFrame.new(0, h, 0), pick(rng, {"#a8683a", "#c07d45", "#8f5a34"}), M.SmoothPlastic)
+	end
+	return B.decorate(m, false)
+end
+
+-- 빛나는 수정 덩어리 (채집 노드, 고철 곡괭이부터)
+function P.crystals(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "Crystals")
+	local base = at * yaw(rng)
+	B.block(m, Vector3.new(4.4, 1.4, 3.8) * scale, base * CFrame.new(0, 0.5 * scale, 0) * CFrame.Angles(0, 0, math.rad(6)), "#4f5560", M.Slate)
+	for i = 1, 6 do
+		local a = i / 6 * math.pi * 2 + rng:NextNumber() * 0.5
+		local h = (2.2 + rng:NextNumber() * 2.6) * scale
+		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-25, 25)), 0, math.rad(rng:NextInteger(-25, 25)))
+		local p = base * CFrame.new(math.cos(a) * 1.2 * scale, 1 * scale, math.sin(a) * 1.2 * scale) * tilt
+		B.block(m, Vector3.new(0.7, h, 0.7) * scale, p * CFrame.new(0, h / 2, 0) * CFrame.Angles(0, math.rad(45), 0), "#7ff0ff", M.Neon, {Transparency = 0.15})
+	end
+	B.light(B.block(m, Vector3.new(1, 1, 1), base * CFrame.new(0, 3 * scale, 0), "#ffffff", M.SmoothPlastic, {Transparency = 1}), "PointLight",
+		{Range = 14, Brightness = 1.1, Color = Color3.fromHex("#8ff5ff"), Shadows = false})
+	return B.decorate(m, false)
+end
+
 function P.rock(parent, at, rng, scale, name)
 	scale = scale or 1
 	local found = mesh(parent, name or "Rock", ROCKS, at, rng, (3.4 + rng:NextNumber() * 1.2) * scale, 0.1, true)

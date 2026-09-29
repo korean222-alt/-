@@ -13,7 +13,7 @@ local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=
 ctx.Notify=function(player,message) if player then remotes.Notice:FireClient(player,message) else remotes.Notice:FireAllClients(message) end end
 local names={Map="MapService",Clock="DayNightService",Core="CoreService",Resources="ResourceService",Defenses="DefenseService",
     Enemies="EnemyService",Waves="WaveService",Run="RunService",Combat="CombatService",Data="DataService",Pets="PetService",
-    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService"}
+    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService",Survival="SurvivalService"}
 for key,name in pairs(names) do ctx[key]=require(script.Parent.Services[name]) end
 -- Studio 에서 가져온 펫 모델(FBX)을 작업 공간에 그대로 두었으면 PetModels 로 옮긴다 (같은 이름이 있으면 새로 가져온 쪽으로 교체)
 local petModels=RS:FindFirstChild("PetModels") or Instance.new("Folder");petModels.Name,petModels.Parent="PetModels",RS
@@ -25,14 +25,17 @@ for _,id in ipairs(require(RS.Shared.Config.PetConfig).Order) do
     end
 end
 ctx.Map:Build()
-for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Combat"}) do ctx[name]:Init(ctx) end
+for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Survival","Combat"}) do ctx[name]:Init(ctx) end
 ctx.Clock:Begin("Waiting",0,0)
 remotes.PetAction.OnServerEvent:Connect(function(player,action,value) ctx.Pets:Action(player,action,value) end)
 remotes.CraftAction.OnServerEvent:Connect(function(player,item) ctx.Crafting:Craft(player,item) end)
 remotes.CaptureAction.OnServerEvent:Connect(function(player,uid,trap,bait) ctx.Capture:Attempt(player,uid,trap,bait) end)
 ctx.Map.CagePrompt.Triggered:Connect(function(player) ctx.Pets:Action(player,"Register") end)
 ctx.Map.CraftPrompt.Triggered:Connect(function(player)
-    if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft") end
+    if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Workbench") end
+end)
+ctx.Map.CookPrompt.Triggered:Connect(function(player)
+    if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Campfire.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Campfire") end
 end)
 for _,slot in ipairs(ctx.Map.Slots) do
     if slot.Kind=="PetStand" then
@@ -49,7 +52,7 @@ local function playerAdded(player)
     if loading[player] then return end;loading[player]=true
     if not ctx.Data:Load(player) then loading[player]=nil;return end
     if not player.Parent or not ctx.Run:Join(player) then ctx.Data:Save(player,true);loading[player]=nil;return end
-    ctx.Resources:AddPlayer(player);ctx.Crafting:AddPlayer(player);ctx.Pets:AddPlayer(player)
+    ctx.Resources:AddPlayer(player);ctx.Crafting:AddPlayer(player);ctx.Survival:AddPlayer(player);ctx.Pets:AddPlayer(player)
     player.RespawnLocation=ctx.Map.Spawn
     player.CharacterAdded:Connect(function(character) if ctx.Run:IsParticipant(player) then ctx.Combat:Equip(player,character) end end)
     if player.Character then task.spawn(function() ctx.Combat:Equip(player,player.Character) end) end
@@ -57,7 +60,7 @@ end
 Players.PlayerAdded:Connect(playerAdded)
 Players.PlayerRemoving:Connect(function(player)
     ctx.Data:Save(player,true);ctx.Pets:RemovePlayer(player);ctx.Capture:RemovePlayer(player)
-    ctx.Crafting:RemovePlayer(player);ctx.Resources:RemovePlayer(player)
+    ctx.Crafting:RemovePlayer(player);ctx.Survival:RemovePlayer(player);ctx.Resources:RemovePlayer(player)
     ctx.Combat.LastAttack[player],ctx.Defenses.LastAction[player],loading[player]=nil,nil,nil
     ctx.Run:Leave(player)
 end)
@@ -70,6 +73,7 @@ Engine.Heartbeat:Connect(function(dt)
         local step=math.min(elapsed,C.TickSeconds*2);elapsed=0
         ctx.Data:Tick();ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
         ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
+        ctx.Crafting:Tick();ctx.Survival:Tick(step)
     end
     if broadcast>=C.StateInterval then
         broadcast=0
@@ -83,6 +87,7 @@ Engine.Heartbeat:Connect(function(dt)
                     Enemies=ctx.Enemies:Count(),Spawned=ctx.Waves.Spawned,Total=#ctx.Waves.Queue,
                     Result=ctx.Run.Result,Stage=C.ActiveStage,Players=ctx.Run:Count(),TimeScale=clock:Scale(),
                     Pets=ctx.Pets:Snapshot(player),Wild=ctx.Capture:Snapshot(player),Items=ctx.Crafting.Items[player],
+                    Hunger=ctx.Survival:Get(player),Capacity=ctx.Crafting:Capacity(player),Bench=ctx.Crafting.BenchLevel,
                     Coins=session.Profile.Coins,Dex=session.Profile.Dex,SaveStatus=session.Status,Practice=ctx.Data.Memory,
                     Objective=C.ActiveStage>=8 and ctx.Tutorial:Objective(player) or nil,
                 })

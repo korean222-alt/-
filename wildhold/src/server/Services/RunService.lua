@@ -32,7 +32,7 @@ function S:Start()
     self.RoundId = self.RoundId + 1
     self.LockedPlayerCount, self.Result, self.Warned = self:Count(), nil, false
     self:Change("Day", 1, C.FirstDaySeconds)
-    self.ctx.Notify(nil, "원정 시작! 약한 펫 포획 → 우리 등록 → 펫과 함께 밤 방어")
+    self.ctx.Notify(nil, "원정 시작! 펫 포획 · 재료 모으기 · 제작대에서 더 좋은 도구 · 밤에는 기지 방어")
 end
 function S:Finish(won, reason)
     if self.ctx.Clock.Phase == "Result" or self.ctx.Clock.Phase == "Waiting" then return end
@@ -52,6 +52,7 @@ function S:Reset()
     if self.ctx.Pets then self.ctx.Pets:Reset() end
     if self.ctx.Capture then self.ctx.Capture:Reset() end
     if self.ctx.Crafting then self.ctx.Crafting:Reset() end
+    if self.ctx.Survival then self.ctx.Survival:Reset() end
     self.Result, self.Warned = nil, false
     self.StartAt = self:Count() > 0 and workspace:GetServerTimeNow() + C.StartDelay or nil
     for player in pairs(self.Participants) do

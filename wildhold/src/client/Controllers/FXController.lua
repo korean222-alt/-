@@ -286,6 +286,17 @@ function FX:OnSpikes(pos)
 		Spread = Vector2.new(40, 40)})
 end
 
+function FX:OnEat(pos, id)
+	local col = ({Berry = "#ff6b9a", RoastMushroom = "#e0a060", Stew = "#d98a4a", Snack = "#ffd27a"})[id] or "#ffe9a8"
+	self:Burst(pos + Vector3.new(0, 1.5, 0), 10, {Color = ColorSequence.new(Color3.fromHex(col), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.4, 0),
+		Speed = NumberRange.new(2, 5), Acceleration = Vector3.new(0, 6, 0), LightEmission = 0.6})
+end
+
+function FX:OnCraft(pos)
+	self:Burst(pos + Vector3.new(0, 2.5, 0), 14, {Color = ColorSequence.new(Color3.fromHex("#ffe29a"), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.5, 0),
+		Speed = NumberRange.new(4, 9), Acceleration = Vector3.new(0, -12, 0), LightEmission = 0.9})
+end
+
 function FX:OnRegrow(pos, kind)
 	local col = kind == "Berry" and Color3.fromHex("#ff6b9a") or Color3.fromHex("#9df07e")
 	self:Burst(pos + Vector3.new(0, 2, 0), 16, {Color = ColorSequence.new(col, Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.6, 0),

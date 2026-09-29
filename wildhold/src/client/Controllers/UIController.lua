@@ -2,7 +2,7 @@
 --  위 가운데 : 낮/밤 알약 + 남은 시간 + Core 체력
 --  왼쪽 위   : 지금 할 일 (목표 카드)
 --  왼쪽      : 출전 펫 3칸 (얼굴, 레벨, 체력, 확정 상태)
---  아래      : 가방 / 공용 창고 자원
+--  아래      : 가방 / 공용 창고 자원 (그 아래 핫바·체력·배고픔은 HotbarController)
 --  가운데    : 알림, 밤 경고 배너, 결과 화면
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -21,7 +21,7 @@ local BODY = Enum.Font.GothamBold
 local INK = Color3.fromHex("#f4f7fb")
 local MUTED = Color3.fromHex("#b9c4d4")
 local PANEL = Color3.fromHex("#16202e")
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
+local ICON = R.Icons
 local PHASE = {
 	Waiting = {"🧭", "출발 준비", "#2f8f83", "#47b8a6"},
 	Day = {"☀️", "낮", "#e29a2e", "#f6c453"},
@@ -119,26 +119,27 @@ function UI:Init(remotes)
 		self.Cards[i] = self:MakeCard(i)
 	end
 
-	-- 아래: 자원
-	local bag = panel(gui, {Name = "Resources", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.fromOffset(470, 62)})
+	-- 아래: 자원 (핫바와 체력·배고픔 막대 위)
+	local bag = panel(gui, {Name = "Resources", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -100),
+		Size = UDim2.fromOffset(#R.Order * 66 + 12, 58)})
 	self.ResourceRows = {}
 	local row = new("Frame", bag, {Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -16, 0, 34), BackgroundTransparency = 1})
 	new("UIListLayout", row, {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center})
 	for _, kind in ipairs(R.Order) do
-		local cell = new("Frame", row, {Size = UDim2.fromOffset(84, 34), BackgroundColor3 = Color3.fromHex("#24303f"), BorderSizePixel = 0})
+		local cell = new("Frame", row, {Size = UDim2.fromOffset(60, 34), BackgroundColor3 = Color3.fromHex("#24303f"), BorderSizePixel = 0})
 		round(cell, 10)
-		text(cell, {Position = UDim2.fromOffset(4, 0), Size = UDim2.fromOffset(26, 34), Text = ICON[kind], TextSize = 18})
-		local count = text(cell, {Position = UDim2.fromOffset(30, 1), Size = UDim2.new(1, -32, 0, 18), Text = "0", TextSize = 15, Font = TITLE,
+		text(cell, {Position = UDim2.fromOffset(2, 0), Size = UDim2.fromOffset(22, 34), Text = ICON[kind], TextSize = 16})
+		local count = text(cell, {Position = UDim2.fromOffset(24, 1), Size = UDim2.new(1, -26, 0, 18), Text = "0", TextSize = 14, Font = TITLE,
 			TextXAlignment = Enum.TextXAlignment.Left})
-		local bank = text(cell, {Position = UDim2.fromOffset(30, 17), Size = UDim2.new(1, -32, 0, 14), Text = "창고 0", TextSize = 10,
+		local bank = text(cell, {Position = UDim2.fromOffset(24, 17), Size = UDim2.new(1, -26, 0, 14), Text = "🏠0", TextSize = 10,
 			TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Left})
 		self.ResourceRows[kind] = {Count = count, Bank = bank}
 	end
-	local capBack = new("Frame", bag, {Position = UDim2.new(0, 12, 1, -16), Size = UDim2.new(1, -120, 0, 6), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
+	local capBack = new("Frame", bag, {Position = UDim2.new(0, 12, 1, -13), Size = UDim2.new(1, -120, 0, 6), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
 	round(capBack, 3)
 	self.CapFill = new("Frame", capBack, {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromHex("#f6c453"), BorderSizePixel = 0})
 	round(self.CapFill, 3)
-	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -6), Size = UDim2.fromOffset(100, 16), Text = "가방 0/60",
+	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -3), Size = UDim2.fromOffset(100, 16), Text = "가방 0/60",
 		TextSize = 11, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right})
 
 	-- 알림 (위에서 내려옴)
@@ -330,17 +331,18 @@ function UI:Update(previous)
 		local amount = d.Bag and d.Bag[kind] or 0
 		total = total + amount
 		row.Count.Text = tostring(amount)
-		row.Bank.Text = "창고 " .. tostring(d.Bank and d.Bank[kind] or 0)
+		row.Bank.Text = "🏠" .. tostring(d.Bank and d.Bank[kind] or 0)
 	end
-	self.CapFill.Size = UDim2.fromScale(math.clamp(total / C.CarryCapacity, 0, 1), 1)
-	self.CapFill.BackgroundColor3 = total >= C.CarryCapacity and Color3.fromHex("#ff8a8a") or Color3.fromHex("#f6c453")
-	self.CapText.Text = string.format("가방 %d/%d", total, C.CarryCapacity)
+	local capacity = d.Capacity or C.CarryCapacity
+	self.CapFill.Size = UDim2.fromScale(math.clamp(total / capacity, 0, 1), 1)
+	self.CapFill.BackgroundColor3 = total >= capacity and Color3.fromHex("#ff8a8a") or Color3.fromHex("#f6c453")
+	self.CapText.Text = string.format("🎒 %d/%d", total, capacity)
 
 	-- 목표
 	local goal
 	if d.Phase == "Waiting" then
-		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 손에 든 창(클릭 / F / 공격 버튼)으로 야생 펫 사냥과 나무·돌 채집", d.Players)
-	elseif total >= C.CarryCapacity and d.Phase == "Day" then
+		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 화면 아래 칸(1~9)에서 창·도끼를 골라 들고 클릭 / F / 공격 버튼", d.Players)
+	elseif total >= capacity and d.Phase == "Day" then
 		goal = "가방이 가득! 기지의 공용 창고 앞으로 가면 자동으로 넣어요"
 	elseif d.Phase == "Result" then
 		goal = "원정 종료 · 잠시 뒤 같은 팀으로 다시 시작합니다"

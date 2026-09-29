@@ -15,10 +15,12 @@ function P.stats(pet,config)
     local scale=1+(level-1)*config.Growth
     return {HP=math.floor(spec.HP*scale),Damage=spec.Damage*scale,Range=spec.Range,Level=level}
 end
-function P.chance(base,hp,maxHP,better,bait,failures,config)
+-- trap: 덫 배율(숫자) 또는 true = 강화 덫(1.35)
+function P.chance(base,hp,maxHP,trap,bait,failures,config)
     if hp/maxHP>config.CaptureHP then return 0 end
     local health=1+(1-hp/maxHP/config.CaptureHP)*0.25
-    return math.min(config.ChanceCap,base*health*(better and 1.35 or 1)*(bait and 1.2 or 1)+failures*config.FailBonus)
+    local trapMult=type(trap)=="number" and trap or (trap and 1.35 or 1)
+    return math.min(config.ChanceCap,base*health*trapMult*(bait and 1.2 or 1)+failures*config.FailBonus)
 end
 function P.addXP(pet,amount,config)
     pet.Exp=pet.Exp+amount

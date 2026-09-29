@@ -296,7 +296,20 @@ for _, w in ipairs(R.Warnings) do
 end
 check("HUD 생성", playerGui:FindFirstChild("WildholdHUD") ~= nil)
 check("펫 패널 생성", playerGui:FindFirstChild("PetBook") ~= nil)
-check("스피어 장착", char:FindFirstChildOfClass("Tool") ~= nil)
+local held = char:FindFirstChildOfClass("Tool")
+check("창 장착 (첫 칸 자동)", held ~= nil and held:GetAttribute("ItemId") == "OldSpear", held and held:GetAttribute("ItemId"))
+local function toolOf(id)
+	for _, container in ipairs({char, player:FindFirstChildOfClass("Backpack")}) do
+		if container then
+			for _, t in ipairs(container:GetChildren()) do
+				if t:GetAttribute("ItemId") == id then return t end
+			end
+		end
+	end
+	return nil
+end
+check("핫바 도구 (창·도끼·덫)", toolOf("OldAxe") ~= nil and toolOf("Trap") ~= nil and toolOf("Snack") ~= nil)
+check("핫바 UI", playerGui:FindFirstChild("Hotbar") ~= nil)
 check("기본 펫 소환", #root.Pets:GetChildren() == 1, #root.Pets:GetChildren())
 local visuals = workspace:FindFirstChild("ClientVisuals")
 check("펫 모델 표시(클라이언트)", visuals ~= nil and #visuals:GetChildren() >= 2, visuals and #visuals:GetChildren())
@@ -367,7 +380,11 @@ local function harvest(kind, times)
 		end
 	end
 end
-for _, kind in ipairs({"Wood", "Wood", "Stone", "Fiber"}) do harvest(kind, 8) end
+-- 나무는 도끼로 (창으로 치면 느리다)
+char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("OldAxe"))
+if not step(0.3) then fail("도끼 들기") end
+check("도끼 들기", char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):GetAttribute("ItemId") == "OldAxe")
+for _, kind in ipairs({"Wood", "Wood", "Stone", "Fiber", "Berry"}) do harvest(kind, 12) end
 local bagTotal = 0
 for _, v in pairs(latest.Bag) do bagTotal = bagTotal + v end
 check("가방에 자원", bagTotal > 0, bagTotal)
@@ -388,11 +405,31 @@ local buildPrompt = wallSlot:FindFirstChildOfClass("Attachment"):FindFirstChildO
 buildPrompt.Triggered:Fire(player)
 if not step(1) then fail("건설") end
 check("벽 건설", wallSlot:GetAttribute("Level") == 1, notices[#notices])
--- 제작
+-- 벽 Lv2 는 제작대 Lv2 가 있어야 한다
+buildPrompt.Triggered:Fire(player)
+if not step(1) then fail("강화 시도") end
+check("강화는 제작대 레벨 필요", wallSlot:GetAttribute("Level") == 1 and string.find(notices[#notices] or "", "제작대 Lv2") ~= nil, notices[#notices])
+-- 제작: 횃불 → 핫바에 새 칸
 teleport(-21 * 0.75, -12 * 0.75)
 if not step(0.5) then fail("제작대 이동") end
-RS.Remotes.CraftAction:FireServer("Bait")
-if not step(0.6) then fail("제작") end
+RS.Remotes.CraftAction:FireServer("Torch")
+if not step(1.2) then fail("제작") end
+check("횃불 제작 → 핫바", toolOf("Torch") ~= nil, notices[#notices])
+-- 배고픔: 시간이 지나면 줄고, 열매를 먹으면 오른다
+check("배고픔 감소", latest.Hunger < 100, latest.Hunger)
+local berryTool = toolOf("Berry")
+if berryTool then
+	local before = latest.Hunger
+	char:FindFirstChildOfClass("Humanoid"):EquipTool(berryTool)
+	if not step(0.3) then fail("열매 들기") end
+	RS.Remotes.AttackRequest:FireServer()
+	if not step(1) then fail("먹기") end
+	check("열매 먹기", latest.Hunger > before, string.format("%.1f → %.1f", before, latest.Hunger))
+else
+	check("열매 먹기", false, "가방에 열매 없음")
+end
+char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("OldSpear"))
+if not step(0.3) then fail("창 들기") end
 
 local function exportScene()
 	-- 맵 미리보기용 장면 내보내기

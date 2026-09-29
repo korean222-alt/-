@@ -6,7 +6,7 @@ local R = require(RS.Shared.Config.ResourceConfig)
 
 local W = {}
 local player = Players.LocalPlayer
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
+local ICON = R.Icons
 local FONT = Enum.Font.FredokaOne
 
 local function new(className, parent, props)

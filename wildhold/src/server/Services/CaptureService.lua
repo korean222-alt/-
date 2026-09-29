@@ -4,6 +4,7 @@ local P=require(RS.Shared.Config.PetConfig)
 local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
+local I=require(RS.Shared.Config.ItemConfig)
 local S={}
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
 function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
@@ -54,13 +55,33 @@ function S:Nearest(position,range)
     end
     return best
 end
-function S:Chance(player,wild,better,bait)
+-- trap: 덫 배율(ItemConfig 의 Catch)
+function S:Chance(player,wild,trap,bait)
     local profile=self.ctx.Data:Get(player)
     if P.FirstCaptureGuaranteed and profile and not profile.Tutorial.Captured and wild.SpeciesId=="Mossling" then return 1 end
-    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,better,bait,wild.Failures,P)
+    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,trap,bait,wild.Failures,P)
+end
+-- 덫을 들고 공격 버튼: 가장 가까운 "지친" 야생 펫에게 던진다. 강화·수정 덫은 먹이가 있으면 같이 쓴다.
+function S:Throw(player,trap)
+    local spec=I.Items[trap];if not spec or spec.Kind~="Trap" then return end
+    local root=U.aliveRoot(player);if not root then return end
+    local best,distance,weak=nil,P.CaptureRange,nil
+    for _,wild in pairs(self.Wild) do
+        local d=(wild.Part.Position-root.Position).Magnitude
+        if d<=P.CaptureRange and not wild.Busy then
+            if wild.HP/wild.MaxHP<=P.CaptureHP then if d<distance then best,distance=wild,d end else weak=wild end
+        end
+    end
+    if not best then
+        self.ctx.Notify(player,weak and "먼저 사냥해서 HP를 25% 이하로 낮추세요 · 그다음 덫을 던지세요" or "덫을 던질 지친 야생 펫이 근처에 없습니다.")
+        return
+    end
+    local items=self.ctx.Crafting.Items[player]
+    self:Attempt(player,best.Id,trap,spec.Better==true and items~=nil and (items.Bait or 0)>0)
 end
 function S:Attempt(player,uid,trap,bait)
-    if G.ActiveStage<6 or type(uid)~="string" or (trap~="Trap" and trap~="BetterTrap") or type(bait)~="boolean" then return end
+    if G.ActiveStage<6 or type(uid)~="string" or type(trap)~="string" or type(bait)~="boolean" then return end
+    local trapSpec=I.Items[trap];if not trapSpec or trapSpec.Kind~="Trap" then return end
     if not self.ctx.Data:Ready(player) or not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
     if os.clock()-(self.Last[player] or -100)<0.5 then return end;self.Last[player]=os.clock()
     if self.Attempts[player] then return end
@@ -72,12 +93,12 @@ function S:Attempt(player,uid,trap,bait)
     end
     if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,"보유 공간이나 임시 펫 공간이 가득 찼습니다.");return end
     local items=self.ctx.Crafting.Items[player]
-    if not items or items[trap]<=0 or (bait and items.Bait<=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
+    if not items or (items[trap] or 0)<=0 or (bait and (items.Bait or 0)<=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
     self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
     wild.Busy=player
-    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trap=="BetterTrap",bait)}
+    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trapSpec.Catch or 1,bait)}
     self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
-    self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trap=="BetterTrap",wild.Id)
+    self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trapSpec.Better==true,wild.Id)
 end
 function S:Finish(player,attempt)
     local wild=attempt.Wild
@@ -148,7 +169,7 @@ function S:Snapshot(player)
         local distance=(root.Position-wild.Part.Position).Magnitude
         if distance<90 then
             list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
-                Distance=math.floor(distance),Chance=self:Chance(player,wild,false,false),BetterChance=self:Chance(player,wild,true,true),
+                Distance=math.floor(distance),Chance=self:Chance(player,wild,1,false),BetterChance=self:Chance(player,wild,I.Items.BetterTrap.Catch,true),
                 Ready=wild.HP/wild.MaxHP<=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()>(wild.ClaimUntil or 0)}
         end
     end

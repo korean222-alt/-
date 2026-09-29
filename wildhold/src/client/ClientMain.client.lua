@@ -20,6 +20,7 @@ local ui = start("UIController", remotes)
 local pets = start("PetController", remotes)
 if ui and pets then ui.PetController = pets end
 start("CombatController", remotes)
+start("HotbarController", remotes)
 start("CreatureController")
 start("FXController", remotes)
 start("WorldUI")

@@ -288,7 +288,14 @@ function E.decorate(inst)
 				self.Health = math.max(0, self.Health - n)
 				if self.Health <= 0 and not rawget(self, "_dead") then rawset(self, "_dead", true); self.Died:Fire() end
 			end,
-			EquipTool = function(self, tool) tool.Parent = self.Parent end,
+			-- 실제 Roblox 처럼 들고 있던 다른 도구는 가방(도구가 있던 곳)으로 돌아간다
+			EquipTool = function(self, tool)
+				local from = tool.Parent
+				for _, other in ipairs(self.Parent:GetChildren()) do
+					if other ~= tool and other.ClassName == "Tool" then other.Parent = from end
+				end
+				tool.Parent = self.Parent
+			end,
 			MoveTo = function() end,
 			GetState = function() return R.Enum.HumanoidStateType.Running end,
 		})

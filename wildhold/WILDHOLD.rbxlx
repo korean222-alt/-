@@ -109,11 +109,11 @@ return {
             <ProtectedString name="Source">return {
     ActiveStage = 8, -- 5: pets, 6: capture, 7: data, 8: tutorial/UI
     MaxPlayers = 6,
-    TargetNights = 3,
-    FirstDaySeconds = 300,
-    DaySeconds = 180,
+    TargetNights = 5, -- 5밤, 약 37분 (첫 낮 6분 + 낮 4분 x4 + 밤 3분 x5)
+    FirstDaySeconds = 360,
+    DaySeconds = 240,
     NightSeconds = 180,
-    WarningSeconds = 45,
+    WarningSeconds = 75, -- 맵이 넓어서 멀리 나간 사람이 돌아올 시간
     StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
     StartDelay = 15,
     ResultSeconds = 20,
@@ -124,13 +124,16 @@ return {
     TowerDamageScale = 0.7, -- tuning hypothesis: pets should supply mobile damage
     InteractionRange = 13,
     InteractionCooldown = 0.35,
-    SpearRange = 11,
+    SpearRange = 11, -- 손에 든 도구의 공격·채집 거리
     SpearDamage = 24,
     SpearCooldown = 0.55,
-    HarvestDamage = 25,
+    HarvestDamage = 25, -- 채집 기본 피해 (도구 배율을 곱한다, ItemConfig)
+    EatCooldown = 0.8,
+    SnackRange = 26, -- 간식을 들고 쓰면 이 거리 안의 다친 내 펫을 회복
     PickupRadius = 5,
     DepositRadius = 11,
-    CarryCapacity = 60,
+    KeepBerries = 5, -- 창고에 넣을 때 가방에 남기는 열매 (먹을 것)
+    CarryCapacity = 60, -- 가방 없을 때 (가방은 ItemConfig)
     DeathDropFraction = 0.3,
     RespawnSeconds = 4,
     EnemyLimit = 35,
@@ -142,6 +145,13 @@ return {
     DropLifetime = 45,
     DropLimit = 180,
     FXLifetime = 0.12,
+    -- 배고픔 (가볍게): 약 7분에 100 → 0. 0이면 체력이 조금씩 닳지만 StarveFloor 아래로는 안 내려간다
+    HungerMax = 100,
+    HungerDecay = 0.24,
+    StarveDamage = 3,
+    StarveInterval = 3,
+    StarveFloor = 20,
+    RespawnHunger = 50,
     DayClock = 13,
     NightClock = 0,
 }
@@ -149,6 +159,61 @@ return {
           </Properties>
         </Item>
         <Item class="ModuleScript" referent="RBX000011">
+          <Properties>
+            <string name="Name">ItemConfig</string>
+            <ProtectedString name="Source">-- 손에 드는 모든 것 (핫바에 보이는 것). 판마다 초기화된다.
+--  Tool    : 창·도끼·곡괭이·횃불. 계열(Family)마다 가장 좋은 등급 하나만 핫바에 보인다.
+--  Trap    : 덫. 들고 공격하면 가까운 지친 야생 펫에게 던진다. Catch = 포획 확률 배율, Better = 먹이가 있으면 같이 쓴다
+--  PetFood : 펫 회복 간식. 들고 공격하면 가까운 다친 내 펫을 회복.
+--  Food    : 먹으면 배고픔(+Hunger)과 체력(+Heal)을 채운다.
+--  Bag     : 가방. 들고 다니는 게 아니라 가진 것 중 가장 큰 용량이 적용된다 (핫바에 안 보임).
+-- Damage = 적·야생 펫에게 주는 피해, Gather = 맞는 도구로 채집할 때 배율 (ResourceConfig 의 Tool 참고)
+return {
+	-- 핫바 순서
+	Order = {"Spear", "Axe", "Pickaxe", "Torch", "Trap", "BetterTrap", "CrystalTrap", "Snack", "Berry", "RoastMushroom", "Stew"},
+	Families = {"Spear", "Axe", "Pickaxe", "Torch"},
+	HandDamage = 6,
+	HandGather = 0.3, -- 맨손으로 나무·돌을 칠 때
+	WrongToolGather = 0.35, -- 창으로 나무를 칠 때처럼 안 맞는 도구
+	Items = {
+		OldSpear = {Name = "낡은 창", Icon = "🔱", Kind = "Tool", Family = "Spear", Tier = 1, Damage = 24},
+		StoneSpear = {Name = "돌 창", Icon = "🔱", Kind = "Tool", Family = "Spear", Tier = 2, Damage = 34},
+		IronSpear = {Name = "고철 창", Icon = "🔱", Kind = "Tool", Family = "Spear", Tier = 3, Damage = 48},
+		CrystalSpear = {Name = "수정 창", Icon = "🔱", Kind = "Tool", Family = "Spear", Tier = 4, Damage = 66},
+		OldAxe = {Name = "낡은 도끼", Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 1, Damage = 14, Gather = 1.0},
+		StoneAxe = {Name = "돌 도끼", Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 2, Damage = 20, Gather = 1.6},
+		IronAxe = {Name = "고철 도끼", Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 3, Damage = 28, Gather = 2.4},
+		StonePick = {Name = "돌 곡괭이", Icon = "⛏️", Kind = "Tool", Family = "Pickaxe", Tier = 2, Damage = 12, Gather = 1.3},
+		IronPick = {Name = "고철 곡괭이", Icon = "⛏️", Kind = "Tool", Family = "Pickaxe", Tier = 3, Damage = 18, Gather = 2.2},
+		Torch = {Name = "횃불", Icon = "🔥", Kind = "Tool", Family = "Torch", Tier = 1, Damage = 8},
+		Trap = {Name = "포획 덫", Icon = "🧺", Kind = "Trap", Catch = 1},
+		BetterTrap = {Name = "강화 덫", Icon = "🧺", Kind = "Trap", Catch = 1.35, Better = true},
+		CrystalTrap = {Name = "수정 덫", Icon = "💠", Kind = "Trap", Catch = 1.7, Better = true},
+		Bait = {Name = "열매 먹이", Icon = "🍓", Kind = "Bait"},
+		Snack = {Name = "회복 간식", Icon = "🍪", Kind = "PetFood", HealPet = 0.5},
+		-- 열매는 가방의 자원(Berry)을 바로 먹는다
+		Berry = {Name = "열매", Icon = "🍓", Kind = "Food", Hunger = 9, Heal = 2, FromBag = true},
+		RoastMushroom = {Name = "구운 버섯", Icon = "🍄", Kind = "Food", Hunger = 32, Heal = 15},
+		Stew = {Name = "열매 스튜", Icon = "🍲", Kind = "Food", Hunger = 65, Heal = 40},
+		FiberBag = {Name = "섬유 가방", Icon = "🎒", Kind = "Bag", Capacity = 100},
+		SturdyBag = {Name = "튼튼한 가방", Icon = "🎒", Kind = "Bag", Capacity = 150},
+	},
+	-- 원정 시작 때 받는 것
+	Starter = {OldSpear = 1, OldAxe = 1, Trap = 5, Bait = 1, Snack = 1},
+	Limit = 30, -- 소모품 최대 보유
+	BaseCapacity = 60, -- 가방 없을 때
+	-- 도구 등급별 모양 색 (낡은 → 돌 → 고철 → 수정)
+	TierLook = {
+		{Head = "#8a7f72", Material = "Slate", Wood = "#7a5a3c"},
+		{Head = "#9aa1a6", Material = "Slate", Wood = "#8a6242"},
+		{Head = "#c9d2d8", Material = "Metal", Wood = "#5e4430"},
+		{Head = "#7ff0ff", Material = "Neon", Wood = "#3d4a63"},
+	},
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000012">
           <Properties>
             <string name="Name">MapConfig</string>
             <ProtectedString name="Source">-- 초원 맵 배치. 좌표는 stud, 기지 중심(Core) = (0, 0).
@@ -192,7 +257,7 @@ return {
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000012">
+        <Item class="ModuleScript" referent="RBX000013">
           <Properties>
             <string name="Name">PetConfig</string>
             <ProtectedString name="Source">return {
@@ -224,40 +289,70 @@ return {
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000013">
-          <Properties>
-            <string name="Name">RecipeConfig</string>
-            <ProtectedString name="Source">return {
-    Order = {"Trap", "BetterTrap", "Bait", "Snack"},
-    Recipes = {
-        Trap = {Name="포획 덫", Cost={Wood=2,Fiber=3}},
-        BetterTrap = {Name="강화 덫", Cost={Wood=2,Fiber=3,Scrap=2}},
-        Bait = {Name="열매 먹이", Cost={Berry=3}},
-        Snack = {Name="회복 간식", Cost={Berry=2,Fiber=1}},
-    },
-    Starter = {Trap=5,BetterTrap=0,Bait=1,Snack=1}, Limit=30,
-}
-</ProtectedString>
-          </Properties>
-        </Item>
         <Item class="ModuleScript" referent="RBX000014">
           <Properties>
-            <string name="Name">ResourceConfig</string>
-            <ProtectedString name="Source">return {
-    Order = {"Wood", "Stone", "Fiber", "Scrap", "Berry"},
-    Labels = {Wood = "나무", Stone = "돌", Fiber = "섬유", Scrap = "고철", Berry = "열매"},
-    Types = {
-        Wood = {HP = 75, Yield = 8, Respawn = 35, Color = {130, 102, 75}},
-        Stone = {HP = 100, Yield = 6, Respawn = 40, Color = {138, 150, 158}},
-        Fiber = {HP = 25, Yield = 5, Respawn = 25, Color = {126, 175, 111}},
-        Scrap = {HP = 100, Yield = 4, Respawn = 50, Color = {119, 145, 163}},
-        Berry = {HP = 25, Yield = 4, Respawn = 30, Color = {208, 112, 144}},
-    },
+            <string name="Name">RecipeConfig</string>
+            <ProtectedString name="Source">-- 제작법. 재료는 공용 창고에서 쓴다. 만든 물건은 만든 사람이 갖는다 (가방·도구·소모품).
+--  Station = "Workbench" : 기지 제작대. Bench = 필요한 제작대 레벨 (제작대는 팀 공용으로 업그레이드)
+--  Station = "Campfire"  : 기지 모닥불에서 요리
+return {
+	Order = {
+		"Torch", "StoneAxe", "StonePick", "StoneSpear", "Trap", "Bait", "Snack", "FiberBag", "RoastMushroom",
+		"BetterTrap", "IronAxe", "IronPick", "IronSpear", "SturdyBag", "Stew",
+		"CrystalTrap", "CrystalSpear",
+	},
+	Recipes = {
+		Torch = {Station = "Workbench", Bench = 1, Cost = {Wood = 2, Fiber = 2}},
+		StoneAxe = {Station = "Workbench", Bench = 1, Cost = {Wood = 5, Stone = 4, Fiber = 3}},
+		StonePick = {Station = "Workbench", Bench = 1, Cost = {Wood = 5, Stone = 4, Fiber = 3}},
+		StoneSpear = {Station = "Workbench", Bench = 1, Cost = {Wood = 6, Stone = 3, Fiber = 4}},
+		Trap = {Station = "Workbench", Bench = 1, Cost = {Wood = 2, Fiber = 3}},
+		Bait = {Station = "Workbench", Bench = 1, Cost = {Berry = 3}},
+		Snack = {Station = "Workbench", Bench = 1, Cost = {Berry = 2, Fiber = 1}},
+		FiberBag = {Station = "Workbench", Bench = 1, Cost = {Fiber = 18, Wood = 6}},
+		RoastMushroom = {Station = "Campfire", Bench = 1, Cost = {Mushroom = 2}},
+		BetterTrap = {Station = "Workbench", Bench = 2, Cost = {Wood = 2, Fiber = 3, Scrap = 2}},
+		IronAxe = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Stone = 4}},
+		IronPick = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Stone = 4}},
+		IronSpear = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Fiber = 4}},
+		SturdyBag = {Station = "Workbench", Bench = 2, Cost = {Fiber = 25, Scrap = 8}},
+		Stew = {Station = "Campfire", Bench = 2, Cost = {Berry = 4, Mushroom = 3}},
+		CrystalTrap = {Station = "Workbench", Bench = 3, Cost = {Crystal = 2, Scrap = 3, Fiber = 4}},
+		CrystalSpear = {Station = "Workbench", Bench = 3, Cost = {Crystal = 6, Scrap = 10, Wood = 4}},
+	},
+	-- 제작대 레벨 (팀 공용). 레벨이 오르면 새 제작법과 방어 시설 업그레이드가 풀린다.
+	Bench = {
+		{Name = "제작대 Lv1"},
+		{Name = "제작대 Lv2", Cost = {Wood = 40, Stone = 25, Fiber = 10}},
+		{Name = "제작대 Lv3", Cost = {Stone = 40, Scrap = 20, Crystal = 5}},
+	},
 }
 </ProtectedString>
           </Properties>
         </Item>
         <Item class="ModuleScript" referent="RBX000015">
+          <Properties>
+            <string name="Name">ResourceConfig</string>
+            <ProtectedString name="Source">-- 자원. Tool = 이 자원을 잘 캐는 도구 계열 (ItemConfig). 없으면 맨손·아무 도구로 똑같이 캔다.
+-- MinTier = 이 등급 이상의 맞는 도구가 있어야 캘 수 있다 (수정 = 고철 곡괭이부터).
+return {
+	Order = {"Wood", "Stone", "Fiber", "Berry", "Mushroom", "Scrap", "Crystal"},
+	Labels = {Wood = "나무", Stone = "돌", Fiber = "섬유", Berry = "열매", Mushroom = "버섯", Scrap = "고철", Crystal = "수정"},
+	Icons = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Berry = "🍓", Mushroom = "🍄", Scrap = "⚙️", Crystal = "💎"},
+	Types = {
+		Wood = {HP = 75, Yield = 8, Respawn = 45, Tool = "Axe", Color = {130, 102, 75}},
+		Stone = {HP = 70, Yield = 6, Respawn = 50, Tool = "Pickaxe", Color = {138, 150, 158}},
+		Fiber = {HP = 25, Yield = 5, Respawn = 30, Color = {126, 175, 111}},
+		Berry = {HP = 25, Yield = 4, Respawn = 35, Color = {208, 112, 144}},
+		Mushroom = {HP = 20, Yield = 3, Respawn = 40, Color = {196, 150, 110}},
+		Scrap = {HP = 100, Yield = 4, Respawn = 60, Tool = "Pickaxe", Color = {119, 145, 163}},
+		Crystal = {HP = 150, Yield = 3, Respawn = 90, Tool = "Pickaxe", MinTier = 3, Color = {127, 240, 255}},
+	},
+}
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000016">
           <Properties>
             <string name="Name">WaveConfig</string>
             <ProtectedString name="Source">return {
@@ -275,11 +370,73 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="RBX000016">
+      <Item class="Folder" referent="RBX000017">
         <Properties>
           <string name="Name">Modules</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000017">
+        <Item class="ModuleScript" referent="RBX000018">
+          <Properties>
+            <string name="Name">Inventory</string>
+            <ProtectedString name="Source">-- 소지품 규칙 (서버·클라이언트 공용, Roblox 의존 없음).
+-- items = {아이템ID = 개수}, bag = 가방 자원 {Berry = 3, ...}
+local I = {}
+
+-- 계열(창·도끼·곡괭이·횃불)에서 가진 것 중 가장 높은 등급
+function I.best(items, family, config)
+	local bestId, bestTier = nil, 0
+	for id, spec in pairs(config.Items) do
+		if spec.Family == family and (items[id] or 0) &gt; 0 and spec.Tier &gt; bestTier then
+			bestId, bestTier = id, spec.Tier
+		end
+	end
+	return bestId, bestId and config.Items[bestId] or nil
+end
+
+-- 가진 것 중 가장 큰 가방 용량
+function I.capacity(items, config)
+	local cap = config.BaseCapacity
+	for id, spec in pairs(config.Items) do
+		if spec.Kind == "Bag" and (items[id] or 0) &gt; 0 then
+			cap = math.max(cap, spec.Capacity)
+		end
+	end
+	return cap
+end
+
+-- 개수: 가방에서 바로 먹는 음식(열매)은 가방 자원 수
+function I.count(items, bag, id, config)
+	local spec = config.Items[id]
+	if spec and spec.FromBag then
+		return bag and bag[id] or 0
+	end
+	return items[id] or 0
+end
+
+-- 화면 아래 핫바에 보일 아이템 ID 목록 (순서 고정, 최대 9칸)
+function I.hotbar(items, bag, config)
+	local list = {}
+	for _, key in ipairs(config.Order) do
+		local id
+		if table.find(config.Families, key) then
+			id = I.best(items, key, config)
+		elseif I.count(items, bag, key, config) &gt; 0 then
+			id = key
+		end
+		if id then
+			table.insert(list, id)
+		end
+		if #list &gt;= 9 then
+			break
+		end
+	end
+	return list
+end
+
+return I
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000019">
           <Properties>
             <string name="Name">PetRules</string>
             <ProtectedString name="Source">local P = {}
@@ -299,10 +456,12 @@ function P.stats(pet,config)
     local scale=1+(level-1)*config.Growth
     return {HP=math.floor(spec.HP*scale),Damage=spec.Damage*scale,Range=spec.Range,Level=level}
 end
-function P.chance(base,hp,maxHP,better,bait,failures,config)
+-- trap: 덫 배율(숫자) 또는 true = 강화 덫(1.35)
+function P.chance(base,hp,maxHP,trap,bait,failures,config)
     if hp/maxHP&gt;config.CaptureHP then return 0 end
     local health=1+(1-hp/maxHP/config.CaptureHP)*0.25
-    return math.min(config.ChanceCap,base*health*(better and 1.35 or 1)*(bait and 1.2 or 1)+failures*config.FailBonus)
+    local trapMult=type(trap)=="number" and trap or (trap and 1.35 or 1)
+    return math.min(config.ChanceCap,base*health*trapMult*(bait and 1.2 or 1)+failures*config.FailBonus)
 end
 function P.addXP(pet,amount,config)
     pet.Exp=pet.Exp+amount
@@ -327,7 +486,7 @@ return P
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000018">
+        <Item class="ModuleScript" referent="RBX000020">
           <Properties>
             <string name="Name">Rules</string>
             <ProtectedString name="Source">-- Pure rules: no Roblox dependencies; executable in tests and Luau.
@@ -386,7 +545,7 @@ return Rules
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000019">
+        <Item class="ModuleScript" referent="RBX000021">
           <Properties>
             <string name="Name">Utility</string>
             <ProtectedString name="Source">local U = {}
@@ -442,11 +601,11 @@ return U
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="RBX000020">
+      <Item class="Folder" referent="RBX000022">
         <Properties>
           <string name="Name">Visuals</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000021">
+        <Item class="ModuleScript" referent="RBX000023">
           <Properties>
             <string name="Name">Build</string>
             <ProtectedString name="Source">-- 파트 조립 도우미. 맵·시설·크리처 모델이 모두 이 함수들로 만들어진다.
@@ -592,7 +751,7 @@ return B
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000022">
+        <Item class="ModuleScript" referent="RBX000024">
           <Properties>
             <string name="Name">Creatures</string>
             <ProtectedString name="Source">-- 파트로 만든 크리처 (펫 대체 모델 + 밤의 괴물).
@@ -989,7 +1148,7 @@ return C
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000023">
+        <Item class="ModuleScript" referent="RBX000025">
           <Properties>
             <string name="Name">Props</string>
             <ProtectedString name="Source">-- 초원 소품: 나무, 바위, 덤불, 갈대, 폐허, 꽃, 횃불, 말뚝, 굴.
@@ -1241,6 +1400,40 @@ function P.mushrooms(parent, at, rng)
 	return B.decorate(m, false)
 end
 
+-- 먹을 수 있는 갈색 버섯 무리 (채집 노드)
+function P.mushroomPatch(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "Mushrooms")
+	B.cyl(m, 0.3, 3.4 * scale, at * CFrame.new(0, 0.1, 0), "#4a3a2a", M.Ground, true)
+	for _ = 1, 6 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = rng:NextNumber() * 1.4 * scale
+		local h = (0.6 + rng:NextNumber() * 0.9) * scale
+		local p = at * CFrame.new(math.cos(a) * r, 0, math.sin(a) * r)
+		B.cyl(m, h, 0.35 * scale, p * CFrame.new(0, h / 2, 0), "#e6dccb", M.SmoothPlastic, true)
+		B.ellipsoid(m, Vector3.new(1.3, 0.55, 1.3) * scale * (0.8 + h * 0.3), p * CFrame.new(0, h, 0), pick(rng, {"#a8683a", "#c07d45", "#8f5a34"}), M.SmoothPlastic)
+	end
+	return B.decorate(m, false)
+end
+
+-- 빛나는 수정 덩어리 (채집 노드, 고철 곡괭이부터)
+function P.crystals(parent, at, rng, scale)
+	scale = scale or 1
+	local m = B.model(parent, "Crystals")
+	local base = at * yaw(rng)
+	B.block(m, Vector3.new(4.4, 1.4, 3.8) * scale, base * CFrame.new(0, 0.5 * scale, 0) * CFrame.Angles(0, 0, math.rad(6)), "#4f5560", M.Slate)
+	for i = 1, 6 do
+		local a = i / 6 * math.pi * 2 + rng:NextNumber() * 0.5
+		local h = (2.2 + rng:NextNumber() * 2.6) * scale
+		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-25, 25)), 0, math.rad(rng:NextInteger(-25, 25)))
+		local p = base * CFrame.new(math.cos(a) * 1.2 * scale, 1 * scale, math.sin(a) * 1.2 * scale) * tilt
+		B.block(m, Vector3.new(0.7, h, 0.7) * scale, p * CFrame.new(0, h / 2, 0) * CFrame.Angles(0, math.rad(45), 0), "#7ff0ff", M.Neon, {Transparency = 0.15})
+	end
+	B.light(B.block(m, Vector3.new(1, 1, 1), base * CFrame.new(0, 3 * scale, 0), "#ffffff", M.SmoothPlastic, {Transparency = 1}), "PointLight",
+		{Range = 14, Brightness = 1.1, Color = Color3.fromHex("#8ff5ff"), Shadows = false})
+	return B.decorate(m, false)
+end
+
 function P.rock(parent, at, rng, scale, name)
 	scale = scale or 1
 	local found = mesh(parent, name or "Rock", ROCKS, at, rng, (3.4 + rng:NextNumber() * 1.2) * scale, 0.1, true)
@@ -1453,7 +1646,7 @@ return P
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000024">
+        <Item class="ModuleScript" referent="RBX000026">
           <Properties>
             <string name="Name">Structures</string>
             <ProtectedString name="Source">-- 기지 건물과 방어 시설 모델. 모두 "바닥 중심" CFrame 을 받고, -Z 가 바깥(적이 오는 쪽)이다.
@@ -1883,9 +2076,119 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="RBX000027">
+          <Properties>
+            <string name="Name">ToolLook</string>
+            <ProtectedString name="Source">-- 손에 드는 도구 모양 (Roblox Tool). 서버가 만들어 플레이어 Backpack 에 넣는다.
+-- Handle 의 -Z 쪽이 앞(손을 뻗은 방향)이다. Grip 으로 손이 잡는 위치를 정한다.
+local RS = game:GetService("ReplicatedStorage")
+local I = require(RS.Shared.Config.ItemConfig)
+
+local T = {}
+
+local function hex(value)
+	return Color3.fromHex(value)
+end
+
+local function makeTool(id, spec)
+	local tool = Instance.new("Tool")
+	tool.Name = spec.Name
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool.ToolTip = spec.Name
+	tool:SetAttribute("ItemId", id)
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.CanCollide, handle.CanTouch, handle.CanQuery, handle.Massless = false, false, false, true
+	handle.TopSurface, handle.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	handle.Parent = tool
+	return tool, handle
+end
+
+-- 손잡이에 붙는 조각
+local function piece(tool, handle, size, offset, color, material, shape)
+	local p = Instance.new("Part")
+	p.Size, p.Color, p.Material = size, color, material
+	p.CanCollide, p.CanTouch, p.CanQuery, p.Massless = false, false, false, true
+	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	if shape then p.Shape = shape end
+	p.CFrame = handle.CFrame * offset
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0, weld.Part1 = handle, p
+	weld.Parent = p
+	p.Parent = tool
+	return p
+end
+
+local function shaft(handle, length, look)
+	handle.Size = Vector3.new(0.3, 0.3, length)
+	handle.Color = hex(look.Wood)
+	handle.Material = Enum.Material.Wood
+end
+
+function T.make(id)
+	local spec = I.Items[id]
+	if not spec then return nil end
+	local tool, handle = makeTool(id, spec)
+	local look = I.TierLook[spec.Tier or 1]
+	local headColor, headMat = hex(look.Head), Enum.Material[look.Material]
+	if spec.Family == "Spear" then
+		shaft(handle, 5.6, look)
+		piece(tool, handle, Vector3.new(0.12, 0.62, 1.3), CFrame.new(0, 0, -3.25), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.12, 0.62, 0.62), CFrame.new(0, 0, -3.95) * CFrame.Angles(math.rad(45), 0, 0), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.42, 0.42, 0.7), CFrame.new(0, 0, -2.4), hex("#40aa96"), Enum.Material.Fabric)
+		piece(tool, handle, Vector3.new(0.42, 0.42, 0.5), CFrame.new(0, 0, 0.6), hex("#784e2c"), Enum.Material.Fabric)
+		tool.Grip = CFrame.new(0, 0, 0.9)
+	elseif spec.Family == "Axe" then
+		shaft(handle, 3.2, look)
+		-- 도끼날: 손잡이 끝에서 위로 솟은 쐐기
+		piece(tool, handle, Vector3.new(0.22, 1.1, 0.9), CFrame.new(0, 0.45, -1.35), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.16, 0.5, 1.2), CFrame.new(0, 1.05, -1.35), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.36, 0.36, 0.5), CFrame.new(0, 0, 1.2), hex("#4a3322"), Enum.Material.Fabric)
+		tool.Grip = CFrame.new(0, 0, 1.0)
+	elseif spec.Family == "Pickaxe" then
+		shaft(handle, 3.4, look)
+		-- 곡괭이 머리: 손잡이 끝을 가로지르는 뾰족한 막대
+		piece(tool, handle, Vector3.new(0.26, 2.4, 0.3), CFrame.new(0, 0, -1.5), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.2, 0.5, 0.2), CFrame.new(0, 1.35, -1.45) * CFrame.Angles(math.rad(-25), 0, 0), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.2, 0.5, 0.2), CFrame.new(0, -1.35, -1.45) * CFrame.Angles(math.rad(25), 0, 0), headColor, headMat)
+		tool.Grip = CFrame.new(0, 0, 1.1)
+	elseif spec.Family == "Torch" then
+		shaft(handle, 2.6, look)
+		local head = piece(tool, handle, Vector3.new(0.5, 0.5, 0.6), CFrame.new(0, 0, -1.4), hex("#3b2a1c"), Enum.Material.Fabric)
+		local fire = Instance.new("Fire")
+		fire.Size, fire.Heat, fire.Color, fire.SecondaryColor = 2.2, 6, hex("#ff9a3c"), hex("#ffd27a")
+		fire.Parent = head
+		local light = Instance.new("PointLight")
+		light.Range, light.Brightness, light.Color, light.Shadows = 22, 1.6, hex("#ffae5c"), true
+		light.Parent = head
+		-- 앞으로 들되 불꽃이 위를 향하게 기울인다
+		tool.Grip = CFrame.new(0, 0, 0.8) * CFrame.Angles(math.rad(-35), 0, 0)
+	elseif spec.Kind == "Trap" then
+		handle.Size = Vector3.new(1.1, 0.7, 1.1)
+		handle.Color = id == "CrystalTrap" and hex("#7ff0ff") or (spec.Better and hex("#c9a45c") or hex("#9a7a4a"))
+		handle.Material = id == "CrystalTrap" and Enum.Material.Glass or Enum.Material.Fabric
+		piece(tool, handle, Vector3.new(1.2, 0.12, 1.2), CFrame.new(0, 0.36, 0), hex("#6b4a2c"), Enum.Material.Wood)
+		tool.Grip = CFrame.new(0, 0, 0.2)
+	else
+		-- 음식·간식: 손에 쥔 작은 덩어리
+		local colors = {Berry = "#c8304e", RoastMushroom = "#b07a4a", Stew = "#8a5a3a", Snack = "#d9a55c"}
+		handle.Shape = Enum.PartType.Ball
+		handle.Size = Vector3.new(0.8, 0.8, 0.8)
+		handle.Color = hex(colors[id] or "#c8a060")
+		handle.Material = Enum.Material.SmoothPlastic
+		tool.Grip = CFrame.new(0, 0, 0.1)
+	end
+	return tool
+end
+
+return T
+</ProtectedString>
+          </Properties>
+        </Item>
       </Item>
     </Item>
-    <Item class="Folder" referent="RBX000025">
+    <Item class="Folder" referent="RBX000028">
       <Properties>
         <string name="Name">PetModels</string>
       </Properties>
@@ -10277,11 +10580,11 @@ OWMzNzQ1ODE3]]></BinaryString>
 			</Item>
 		</Item>
   </Item>
-  <Item class="ServerScriptService" referent="RBX000026">
+  <Item class="ServerScriptService" referent="RBX000029">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="RBX000027">
+    <Item class="Script" referent="RBX000030">
       <Properties>
         <string name="Name">ServerMain</string>
         <ProtectedString name="Source">local Players=game:GetService("Players")
@@ -10299,7 +10602,7 @@ local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=
 ctx.Notify=function(player,message) if player then remotes.Notice:FireClient(player,message) else remotes.Notice:FireAllClients(message) end end
 local names={Map="MapService",Clock="DayNightService",Core="CoreService",Resources="ResourceService",Defenses="DefenseService",
     Enemies="EnemyService",Waves="WaveService",Run="RunService",Combat="CombatService",Data="DataService",Pets="PetService",
-    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService"}
+    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService",Survival="SurvivalService"}
 for key,name in pairs(names) do ctx[key]=require(script.Parent.Services[name]) end
 -- Studio 에서 가져온 펫 모델(FBX)을 작업 공간에 그대로 두었으면 PetModels 로 옮긴다 (같은 이름이 있으면 새로 가져온 쪽으로 교체)
 local petModels=RS:FindFirstChild("PetModels") or Instance.new("Folder");petModels.Name,petModels.Parent="PetModels",RS
@@ -10311,14 +10614,17 @@ for _,id in ipairs(require(RS.Shared.Config.PetConfig).Order) do
     end
 end
 ctx.Map:Build()
-for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Combat"}) do ctx[name]:Init(ctx) end
+for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Survival","Combat"}) do ctx[name]:Init(ctx) end
 ctx.Clock:Begin("Waiting",0,0)
 remotes.PetAction.OnServerEvent:Connect(function(player,action,value) ctx.Pets:Action(player,action,value) end)
 remotes.CraftAction.OnServerEvent:Connect(function(player,item) ctx.Crafting:Craft(player,item) end)
 remotes.CaptureAction.OnServerEvent:Connect(function(player,uid,trap,bait) ctx.Capture:Attempt(player,uid,trap,bait) end)
 ctx.Map.CagePrompt.Triggered:Connect(function(player) ctx.Pets:Action(player,"Register") end)
 ctx.Map.CraftPrompt.Triggered:Connect(function(player)
-    if C.ActiveStage&gt;=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft") end
+    if C.ActiveStage&gt;=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Workbench") end
+end)
+ctx.Map.CookPrompt.Triggered:Connect(function(player)
+    if C.ActiveStage&gt;=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Campfire.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Campfire") end
 end)
 for _,slot in ipairs(ctx.Map.Slots) do
     if slot.Kind=="PetStand" then
@@ -10335,7 +10641,7 @@ local function playerAdded(player)
     if loading[player] then return end;loading[player]=true
     if not ctx.Data:Load(player) then loading[player]=nil;return end
     if not player.Parent or not ctx.Run:Join(player) then ctx.Data:Save(player,true);loading[player]=nil;return end
-    ctx.Resources:AddPlayer(player);ctx.Crafting:AddPlayer(player);ctx.Pets:AddPlayer(player)
+    ctx.Resources:AddPlayer(player);ctx.Crafting:AddPlayer(player);ctx.Survival:AddPlayer(player);ctx.Pets:AddPlayer(player)
     player.RespawnLocation=ctx.Map.Spawn
     player.CharacterAdded:Connect(function(character) if ctx.Run:IsParticipant(player) then ctx.Combat:Equip(player,character) end end)
     if player.Character then task.spawn(function() ctx.Combat:Equip(player,player.Character) end) end
@@ -10343,7 +10649,7 @@ end
 Players.PlayerAdded:Connect(playerAdded)
 Players.PlayerRemoving:Connect(function(player)
     ctx.Data:Save(player,true);ctx.Pets:RemovePlayer(player);ctx.Capture:RemovePlayer(player)
-    ctx.Crafting:RemovePlayer(player);ctx.Resources:RemovePlayer(player)
+    ctx.Crafting:RemovePlayer(player);ctx.Survival:RemovePlayer(player);ctx.Resources:RemovePlayer(player)
     ctx.Combat.LastAttack[player],ctx.Defenses.LastAction[player],loading[player]=nil,nil,nil
     ctx.Run:Leave(player)
 end)
@@ -10356,6 +10662,7 @@ Engine.Heartbeat:Connect(function(dt)
         local step=math.min(elapsed,C.TickSeconds*2);elapsed=0
         ctx.Data:Tick();ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
         ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
+        ctx.Crafting:Tick();ctx.Survival:Tick(step)
     end
     if broadcast&gt;=C.StateInterval then
         broadcast=0
@@ -10369,6 +10676,7 @@ Engine.Heartbeat:Connect(function(dt)
                     Enemies=ctx.Enemies:Count(),Spawned=ctx.Waves.Spawned,Total=#ctx.Waves.Queue,
                     Result=ctx.Run.Result,Stage=C.ActiveStage,Players=ctx.Run:Count(),TimeScale=clock:Scale(),
                     Pets=ctx.Pets:Snapshot(player),Wild=ctx.Capture:Snapshot(player),Items=ctx.Crafting.Items[player],
+                    Hunger=ctx.Survival:Get(player),Capacity=ctx.Crafting:Capacity(player),Bench=ctx.Crafting.BenchLevel,
                     Coins=session.Profile.Coins,Dex=session.Profile.Dex,SaveStatus=session.Status,Practice=ctx.Data.Memory,
                     Objective=C.ActiveStage&gt;=8 and ctx.Tutorial:Objective(player) or nil,
                 })
@@ -10380,11 +10688,11 @@ print("WILDHOLD stages 1–8 prototype ready. Studio uses practice data by defau
 </ProtectedString>
       </Properties>
     </Item>
-    <Item class="Folder" referent="RBX000028">
+    <Item class="Folder" referent="RBX000031">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="RBX000029">
+      <Item class="ModuleScript" referent="RBX000032">
         <Properties>
           <string name="Name">CaptureService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -10393,6 +10701,7 @@ local P=require(RS.Shared.Config.PetConfig)
 local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
+local I=require(RS.Shared.Config.ItemConfig)
 local S={}
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
 function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last=ctx,{},{},{};self:Reset() end
@@ -10443,13 +10752,33 @@ function S:Nearest(position,range)
     end
     return best
 end
-function S:Chance(player,wild,better,bait)
+-- trap: 덫 배율(ItemConfig 의 Catch)
+function S:Chance(player,wild,trap,bait)
     local profile=self.ctx.Data:Get(player)
     if P.FirstCaptureGuaranteed and profile and not profile.Tutorial.Captured and wild.SpeciesId=="Mossling" then return 1 end
-    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,better,bait,wild.Failures,P)
+    return R.chance(P.Species[wild.SpeciesId].Capture,wild.HP,wild.MaxHP,trap,bait,wild.Failures,P)
+end
+-- 덫을 들고 공격 버튼: 가장 가까운 "지친" 야생 펫에게 던진다. 강화·수정 덫은 먹이가 있으면 같이 쓴다.
+function S:Throw(player,trap)
+    local spec=I.Items[trap];if not spec or spec.Kind~="Trap" then return end
+    local root=U.aliveRoot(player);if not root then return end
+    local best,distance,weak=nil,P.CaptureRange,nil
+    for _,wild in pairs(self.Wild) do
+        local d=(wild.Part.Position-root.Position).Magnitude
+        if d&lt;=P.CaptureRange and not wild.Busy then
+            if wild.HP/wild.MaxHP&lt;=P.CaptureHP then if d&lt;distance then best,distance=wild,d end else weak=wild end
+        end
+    end
+    if not best then
+        self.ctx.Notify(player,weak and "먼저 사냥해서 HP를 25% 이하로 낮추세요 · 그다음 덫을 던지세요" or "덫을 던질 지친 야생 펫이 근처에 없습니다.")
+        return
+    end
+    local items=self.ctx.Crafting.Items[player]
+    self:Attempt(player,best.Id,trap,spec.Better==true and items~=nil and (items.Bait or 0)&gt;0)
 end
 function S:Attempt(player,uid,trap,bait)
-    if G.ActiveStage&lt;6 or type(uid)~="string" or (trap~="Trap" and trap~="BetterTrap") or type(bait)~="boolean" then return end
+    if G.ActiveStage&lt;6 or type(uid)~="string" or type(trap)~="string" or type(bait)~="boolean" then return end
+    local trapSpec=I.Items[trap];if not trapSpec or trapSpec.Kind~="Trap" then return end
     if not self.ctx.Data:Ready(player) or not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
     if os.clock()-(self.Last[player] or -100)&lt;0.5 then return end;self.Last[player]=os.clock()
     if self.Attempts[player] then return end
@@ -10461,12 +10790,12 @@ function S:Attempt(player,uid,trap,bait)
     end
     if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,"보유 공간이나 임시 펫 공간이 가득 찼습니다.");return end
     local items=self.ctx.Crafting.Items[player]
-    if not items or items[trap]&lt;=0 or (bait and items.Bait&lt;=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
+    if not items or (items[trap] or 0)&lt;=0 or (bait and (items.Bait or 0)&lt;=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
     self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
     wild.Busy=player
-    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trap=="BetterTrap",bait)}
+    self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trapSpec.Catch or 1,bait)}
     self.ctx.PetFX:FireClient(player,"Shake",P.Species[wild.SpeciesId].Name,P.CaptureSeconds)
-    self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trap=="BetterTrap",wild.Id)
+    self.ctx.FX:FireAllClients("TrapStart",wild.Part.Position,P.CaptureSeconds,trapSpec.Better==true,wild.Id)
 end
 function S:Finish(player,attempt)
     local wild=attempt.Wild
@@ -10537,7 +10866,7 @@ function S:Snapshot(player)
         local distance=(root.Position-wild.Part.Position).Magnitude
         if distance&lt;90 then
             list[#list+1]={Id=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,HP=math.ceil(wild.HP),MaxHP=wild.MaxHP,
-                Distance=math.floor(distance),Chance=self:Chance(player,wild,false,false),BetterChance=self:Chance(player,wild,true,true),
+                Distance=math.floor(distance),Chance=self:Chance(player,wild,1,false),BetterChance=self:Chance(player,wild,I.Items.BetterTrap.Catch,true),
                 Ready=wild.HP/wild.MaxHP&lt;=P.CaptureHP,Busy=wild.Busy~=nil,Owner=wild.Owner and wild.Owner.DisplayName or "",CanClaim=not wild.Owner or wild.Owner==player or os.clock()&gt;(wild.ClaimUntil or 0)}
         end
     end
@@ -10547,99 +10876,101 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000030">
+      <Item class="ModuleScript" referent="RBX000033">
         <Properties>
           <string name="Name">CombatService</string>
-          <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
+          <ProtectedString name="Source">-- 공격 버튼 하나로 "손에 든 것" 을 쓴다. 클라이언트는 의도만 보내고, 대상·피해·결과는 서버가 정한다.
+--  도구(창·도끼·곡괭이·횃불)·맨손 : 가까운 괴물 → 야생 펫(낮) → 자원 노드 순으로 친다. 도구마다 피해·채집 배율이 다르다.
+--  음식 : 먹는다 (배고픔·체력)   덫 : 가까운 지친 야생 펫에게 던진다   간식 : 가까운 다친 내 펫을 회복
+local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
+local I = require(RS.Shared.Config.ItemConfig)
 local S = {}
 function S:Init(ctx)
-    self.ctx, self.LastAttack = ctx, {}
-    ctx.Attack.OnServerEvent:Connect(function(player) self:Attack(player) end)
+	self.ctx, self.LastAttack = ctx, {}
+	ctx.Attack.OnServerEvent:Connect(function(player) self:Attack(player) end)
 end
+-- 캐릭터가 생길 때: 스폰 위치로 옮기고, 도구를 맞춰 넣고, 죽으면 자원 일부를 떨어뜨린다
 function S:Equip(player, character)
-    local human = character:WaitForChild("Humanoid", 10)
-    local backpack = player:WaitForChild("Backpack", 10)
-    if not human or not backpack or not character.Parent then return end
-    character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
-    for _, old in ipairs(backpack:GetChildren()) do if old:GetAttribute("WildholdSpear") then old:Destroy() end end
-    local tool = Instance.new("Tool")
-    tool.Name, tool.CanBeDropped, tool.RequiresHandle = "창", false, true
-    tool.ToolTip = "공격 · 채집"
-    tool:SetAttribute("WildholdSpear", true)
-    -- 손잡이(Handle) + 창날 + 천 감개. 창끝이 앞(-Z)으로 향하도록 GripForward 를 맞춘다.
-    local handle = Instance.new("Part")
-    handle.Name, handle.Size = "Handle", Vector3.new(0.32, 0.32, 5.6)
-    handle.Color, handle.Material, handle.CanCollide, handle.Massless = Color3.fromRGB(150, 104, 62), Enum.Material.Wood, false, true
-    handle.Parent = tool
-    local function piece(size, offset, color, material, shape)
-        local p = Instance.new("Part")
-        p.Size, p.Color, p.Material, p.CanCollide, p.Massless = size, color, material, false, true
-        if shape then p.Shape = shape end
-        p.CFrame = handle.CFrame * offset
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0, weld.Part1, weld.Parent = handle, p, p
-        p.Parent = tool
-        return p
-    end
-    piece(Vector3.new(0.12, 0.62, 1.3), CFrame.new(0, 0, -3.25), Color3.fromRGB(214, 226, 232), Enum.Material.Metal)
-    piece(Vector3.new(0.12, 0.62, 0.62), CFrame.new(0, 0, -3.95) * CFrame.Angles(math.rad(45), 0, 0), Color3.fromRGB(214, 226, 232), Enum.Material.Metal)
-    piece(Vector3.new(0.42, 0.42, 0.7), CFrame.new(0, 0, -2.4), Color3.fromRGB(64, 170, 150), Enum.Material.Fabric)
-    piece(Vector3.new(0.42, 0.42, 0.5), CFrame.new(0, 0, 0.6), Color3.fromRGB(120, 78, 44), Enum.Material.Fabric)
-    tool.Grip = CFrame.new(0, 0, 0.9) * CFrame.Angles(0, 0, 0)
-    tool.Parent = backpack
-    human:EquipTool(tool)
-    human.Died:Connect(function()
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if root then self.ctx.Resources:OnDeath(player, root.Position) end
-    end)
+	local human = character:WaitForChild("Humanoid", 10)
+	if not human then return end
+	-- CharacterAdded 는 캐릭터가 작업 공간에 들어가기 전에 올 수 있다. 들어간 뒤에 도구를 쥐여 준다.
+	local waited = 0
+	while not character:IsDescendantOf(workspace) and waited &lt; 10 do
+		waited = waited + task.wait(0.1)
+	end
+	if not character:IsDescendantOf(workspace) or player.Character ~= character then return end
+	character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
+	if self.ctx.Survival then self.ctx.Survival:OnSpawn(player) end
+	self.ctx.Crafting:OnSpawn(player)
+	human.Died:Connect(function()
+		local root = character:FindFirstChild("HumanoidRootPart")
+		if root then self.ctx.Resources:OnDeath(player, root.Position) end
+	end)
+end
+function S:Held(player)
+	local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+	if not tool then return nil, nil, nil end
+	local id = tool:GetAttribute("ItemId")
+	return id, id and I.Items[id], tool
 end
 function S:Attack(player)
-    if C.ActiveStage &lt; 2 or not self.ctx.Run:IsParticipant(player) then return end
-    local phase = self.ctx.Clock.Phase
-    if phase ~= "Day" and phase ~= "Night" then return end
-    local root = U.aliveRoot(player)
-    if not root or (self.ctx.Data and not self.ctx.Data:Ready(player)) then return end
-    local tool = player.Character:FindFirstChildOfClass("Tool")
-    if not tool or tool:GetAttribute("WildholdSpear") ~= true then return end
-    local now = os.clock()
-    if now - (self.LastAttack[player] or -math.huge) &lt; C.SpearCooldown then return end
-    self.LastAttack[player] = now
-    -- 기본 Animate 스크립트가 "toolanim" 값을 보고 찌르기 동작을 재생한다
-    local anim = Instance.new("StringValue")
-    anim.Name, anim.Value, anim.Parent = "toolanim", "Lunge", tool
-    game:GetService("Debris"):AddItem(anim, 0.3)
-    -- Client sends intent only. Server chooses a nearby valid target and damage.
-    local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
-    if enemy then
-        self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position)
-        self.ctx.Enemies:Damage(enemy, C.SpearDamage)
-        return
-    end
-    if C.ActiveStage &gt;= 6 and self.ctx.Clock.Phase == "Day" then
-        local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
-        if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) then
-            self.ctx.Capture:Damage(wild, C.SpearDamage, player)
-            self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
-            return
-        end
-    end
-    local best, distance = nil, C.SpearRange
-    for _, node in ipairs(self.ctx.Map.Nodes) do
-        local d = (node.Part.Position - root.Position).Magnitude
-        if node.HP &gt; 0 and d &lt; distance and self.ctx.Enemies:ClearShot(root.Position, node.Part.Position) then best, distance = node, d end
-    end
-    if best then
-        self.ctx.FX:FireAllClients("Harvest", root.Position, best.Part.Position)
-        self.ctx.Resources:Harvest(player, best)
-    end
+	if C.ActiveStage &lt; 2 or not self.ctx.Run:IsParticipant(player) then return end
+	local phase = self.ctx.Clock.Phase
+	if phase ~= "Day" and phase ~= "Night" then return end
+	local root = U.aliveRoot(player)
+	if not root or (self.ctx.Data and not self.ctx.Data:Ready(player)) then return end
+	local id, spec, tool = self:Held(player)
+	if tool and not spec then return end
+	local now = os.clock()
+	if now - (self.LastAttack[player] or -math.huge) &lt; C.SpearCooldown then return end
+	self.LastAttack[player] = now
+	if spec and spec.Kind == "Food" then
+		if self.ctx.Survival then self.ctx.Survival:Eat(player, id) end
+		return
+	elseif spec and spec.Kind == "Trap" then
+		if C.ActiveStage &gt;= 6 then self.ctx.Capture:Throw(player, id) end
+		return
+	elseif spec and spec.Kind == "PetFood" then
+		if C.ActiveStage &gt;= 5 then self.ctx.Pets:FeedNearest(player) end
+		return
+	end
+	-- 휘두르기: 기본 Animate 스크립트가 "toolanim" 값을 보고 찌르기 동작을 재생한다
+	if tool then
+		local anim = Instance.new("StringValue")
+		anim.Name, anim.Value, anim.Parent = "toolanim", "Lunge", tool
+		game:GetService("Debris"):AddItem(anim, 0.3)
+	end
+	local damage = spec and spec.Damage or I.HandDamage
+	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
+	if enemy then
+		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position)
+		self.ctx.Enemies:Damage(enemy, damage)
+		return
+	end
+	if C.ActiveStage &gt;= 6 and phase == "Day" then
+		local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
+		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) then
+			self.ctx.Capture:Damage(wild, damage, player)
+			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
+			return
+		end
+	end
+	local best, distance = nil, C.SpearRange
+	for _, node in ipairs(self.ctx.Map.Nodes) do
+		local d = (node.Part.Position - root.Position).Magnitude
+		if node.HP &gt; 0 and d &lt; distance and self.ctx.Enemies:ClearShot(root.Position, node.Part.Position) then best, distance = node, d end
+	end
+	if best and self.ctx.Resources:Harvest(player, best, spec) then
+		self.ctx.FX:FireAllClients("Harvest", root.Position, best.Part.Position, best.Kind)
+	end
 end
 return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000031">
+      <Item class="ModuleScript" referent="RBX000034">
         <Properties>
           <string name="Name">CoreService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -10662,39 +10993,194 @@ return Core
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000032">
+      <Item class="ModuleScript" referent="RBX000035">
         <Properties>
           <string name="Name">CraftingService</string>
-          <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
-local C=require(RS.Shared.Config.RecipeConfig)
-local G=require(RS.Shared.Config.GameConfig)
-local R=require(RS.Shared.Modules.PetRules)
-local U=require(RS.Shared.Modules.Utility)
-local S={}
-function S:Init(ctx) self.ctx,self.Items,self.Last=ctx,{},{} end
-function S:AddPlayer(player) self.Items[player]=R.copy(C.Starter) end
-function S:RemovePlayer(player) self.Items[player],self.Last[player]=nil,nil end
-function S:Reset() for player in pairs(self.Items) do self:AddPlayer(player) end end
-function S:Use(player,item)
-    local inventory=self.Items[player]
-    if inventory and (inventory[item] or 0)&gt;0 then inventory[item]=inventory[item]-1;return true end
-    return false
+          <ProtectedString name="Source">-- 판 단위 소지품(도구·덫·먹이·음식·가방)과 제작.
+--  제작대(팀 공용, Lv1~3)에서 재료로 도구·덫·가방을, 모닥불에서 음식을 만든다. 재료는 공용 창고에서 쓴다.
+--  손에 드는 것은 전부 Roblox Tool 로 만들어 Backpack 에 넣는다 → 화면 아래 핫바(HotbarController)에서 골라 든다.
+--  Sync 가 0.5초마다 "가진 것 = 가방 속 Tool" 이 되도록 맞추므로, 캐릭터가 늦게 생겨도 도구가 빠지지 않는다.
+local RS = game:GetService("ReplicatedStorage")
+local C = require(RS.Shared.Config.RecipeConfig)
+local I = require(RS.Shared.Config.ItemConfig)
+local G = require(RS.Shared.Config.GameConfig)
+local R = require(RS.Shared.Modules.PetRules)
+local U = require(RS.Shared.Modules.Utility)
+local Inv = require(RS.Shared.Modules.Inventory)
+local ToolLook = require(RS.Shared.Visuals.ToolLook)
+local S = {}
+
+function S:Init(ctx)
+	self.ctx, self.Items, self.Last, self.AutoEquip, self.NextSync = ctx, {}, {}, {}, 0
+	self.BenchLevel = 1
 end
-function S:Craft(player,item)
-    if G.ActiveStage&lt;6 or type(item)~="string" or not C.Recipes[item] or not self.ctx.Data:Ready(player) then return end
-    if not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase~="Day" then return end
-    if os.clock()-(self.Last[player] or -100)&lt;0.4 then return end
-    self.Last[player]=os.clock()
-    if not U.near(player,self.ctx.Map.Workbench.Position,G.InteractionRange) then self.ctx.Notify(player,"기지 제작대 근처에서 제작할 수 있습니다.");return end
-    local items=self.Items[player];if not items or items[item]&gt;=C.Limit then return end
-    if self.ctx.Resources:Spend(C.Recipes[item].Cost) then items[item]=items[item]+1;self.ctx.Notify(player,C.Recipes[item].Name.." 제작 완료")
-    else self.ctx.Notify(player,"공용 창고의 재료가 부족합니다.") end
+function S:AddPlayer(player)
+	self.Items[player] = R.copy(I.Starter)
+	self.AutoEquip[player] = true
 end
+function S:RemovePlayer(player)
+	self.Items[player], self.Last[player], self.AutoEquip[player] = nil, nil, nil
+end
+function S:Reset()
+	self.BenchLevel = 1
+	for player in pairs(self.Items) do self:AddPlayer(player) end
+end
+
+function S:Capacity(player)
+	return Inv.capacity(self.Items[player] or {}, I)
+end
+function S:Best(player, family)
+	return Inv.best(self.Items[player] or {}, family, I)
+end
+function S:Use(player, item)
+	local inventory = self.Items[player]
+	if inventory and (inventory[item] or 0) &gt; 0 then
+		inventory[item] = inventory[item] - 1
+		return true
+	end
+	return false
+end
+
+-- 가진 것과 Backpack/손의 Tool 을 맞춘다
+function S:Sync(player)
+	local items = self.Items[player]
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not items or not backpack then return end
+	local character = player.Character
+	local human = character and character:FindFirstChildOfClass("Humanoid")
+	local bag = self.ctx.Resources.Bags[player]
+	local want = {}
+	for _, id in ipairs(Inv.hotbar(items, bag, I)) do want[id] = true end
+	local have, lostFamily = {}, nil
+	for _, container in ipairs({backpack, character}) do
+		if container then
+			for _, tool in ipairs(container:GetChildren()) do
+				if tool:IsA("Tool") then
+					local id = tool:GetAttribute("ItemId")
+					if id and want[id] and not have[id] then
+						have[id] = tool
+					else
+						-- 다 쓴 소모품, 더 좋은 등급으로 바뀐 도구, 우리 것이 아닌 도구
+						if container == character and id and I.Items[id] then lostFamily = I.Items[id].Family or "" end
+						tool:Destroy()
+					end
+				end
+			end
+		end
+	end
+	local created = {}
+	for id in pairs(want) do
+		if not have[id] then
+			local tool = ToolLook.make(id)
+			tool.Parent = backpack
+			have[id], created[id] = tool, true
+		end
+	end
+	-- 들고 있던 도구가 더 좋은 등급으로 바뀌면 새 도구를 바로 든다. 처음 스폰했을 때는 첫 칸(창)을 든다.
+	if human and human.Health &gt; 0 and character.Parent and not character:FindFirstChildOfClass("Tool") then
+		local pick
+		if lostFamily and lostFamily ~= "" then
+			local id = Inv.best(items, lostFamily, I)
+			pick = id and have[id]
+		elseif self.AutoEquip[player] then
+			local first = Inv.hotbar(items, bag, I)[1]
+			pick = first and have[first]
+		end
+		if pick then
+			self.AutoEquip[player] = nil
+			human:EquipTool(pick)
+		end
+	end
+	return created
+end
+
+function S:Tick()
+	if os.clock() &lt; self.NextSync then return end
+	self.NextSync = os.clock() + 0.5
+	for player in pairs(self.Items) do
+		if player.Parent then self:Sync(player) end
+	end
+end
+
+function S:OnSpawn(player)
+	self.AutoEquip[player] = true
+	self:Sync(player)
+end
+
+-- 제작 가능 여부와 이유 (UI 도 같은 규칙을 보여준다)
+function S:Station(player, recipe)
+	local map = self.ctx.Map
+	local spot = recipe.Station == "Campfire" and map.Campfire or map.Workbench
+	return U.near(player, spot.Position, G.InteractionRange + 2)
+end
+
+function S:Craft(player, id)
+	if G.ActiveStage &lt; 6 or type(id) ~= "string" or not self.ctx.Data:Ready(player) then return end
+	if id == "BenchUpgrade" then return self:UpgradeBench(player) end
+	local recipe = C.Recipes[id]
+	local spec = I.Items[id]
+	if not recipe or not spec then return end
+	if not self.ctx.Run:IsParticipant(player) then return end
+	local phase = self.ctx.Clock.Phase
+	if phase ~= "Day" and phase ~= "Night" then return end
+	if os.clock() - (self.Last[player] or -100) &lt; 0.4 then return end
+	self.Last[player] = os.clock()
+	if not self:Station(player, recipe) then
+		self.ctx.Notify(player, recipe.Station == "Campfire" and "기지 모닥불 근처에서 요리할 수 있습니다." or "기지 제작대 근처에서 제작할 수 있습니다.")
+		return
+	end
+	if recipe.Bench &gt; self.BenchLevel then
+		self.ctx.Notify(player, "제작대 Lv" .. recipe.Bench .. "가 필요합니다. 제작대를 업그레이드하세요.")
+		return
+	end
+	local items = self.Items[player]
+	if not items then return end
+	if spec.Kind == "Tool" or spec.Kind == "Bag" then
+		if (items[id] or 0) &gt; 0 then self.ctx.Notify(player, "이미 가지고 있습니다: " .. spec.Name); return end
+	elseif (items[id] or 0) &gt;= I.Limit then
+		self.ctx.Notify(player, "더 들 수 없습니다: " .. spec.Name)
+		return
+	end
+	if self.ctx.Resources:Spend(recipe.Cost) then
+		items[id] = (items[id] or 0) + 1
+		self.ctx.Notify(player, spec.Icon .. " " .. spec.Name .. (recipe.Station == "Campfire" and " 요리 완료" or " 제작 완료"))
+		local station = recipe.Station == "Campfire" and self.ctx.Map.Campfire or self.ctx.Map.Workbench
+		self.ctx.FX:FireAllClients("Craft", station.Position, id)
+		self:Sync(player)
+	else
+		self.ctx.Notify(player, "공용 창고의 재료가 부족합니다.")
+	end
+end
+
+function S:UpgradeBench(player)
+	if not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase ~= "Day" then
+		self.ctx.Notify(player, "제작대 업그레이드는 낮에만 할 수 있습니다.")
+		return
+	end
+	if os.clock() - (self.Last[player] or -100) &lt; 0.4 then return end
+	self.Last[player] = os.clock()
+	local nextLevel = C.Bench[self.BenchLevel + 1]
+	if not nextLevel then return end
+	if not U.near(player, self.ctx.Map.Workbench.Position, G.InteractionRange + 2) then
+		self.ctx.Notify(player, "기지 제작대 근처에서 업그레이드할 수 있습니다.")
+		return
+	end
+	if not self.ctx.Resources:Spend(nextLevel.Cost) then
+		self.ctx.Notify(player, "공용 창고의 재료가 부족합니다.")
+		return
+	end
+	self.BenchLevel = self.BenchLevel + 1
+	self.ctx.Map.Workbench:SetAttribute("Level", self.BenchLevel)
+	self.ctx.FX:FireAllClients("Build", self.ctx.Map.Workbench.Position, "Workbench", self.BenchLevel)
+	self.ctx.Notify(nil, "🔨 " .. nextLevel.Name .. " 달성! 새 제작법과 방어 시설 강화가 풀렸습니다")
+	if self.ctx.Defenses then self.ctx.Defenses:RefreshAll() end
+end
+
 return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000033">
+      <Item class="ModuleScript" referent="RBX000036">
         <Properties>
           <string name="Name">DataService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -10832,7 +11318,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000034">
+      <Item class="ModuleScript" referent="RBX000037">
         <Properties>
           <string name="Name">DayNightService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -10859,7 +11345,7 @@ return D
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000035">
+      <Item class="ModuleScript" referent="RBX000038">
         <Properties>
           <string name="Name">DefenseService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -10936,12 +11422,21 @@ function S:Refresh(slot)
 		slot.Visual:SetAttribute("MaxHealth", stats and stats.HP or 0)
 	end
 	slot.BuildPrompt.Enabled = C.ActiveStage &gt;= 3 and phase == "Day" and nextStats ~= nil
-	slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 · " or "강화 · ") .. (nextStats and self:CostText(nextStats.Cost) or "최대")
+	local bench = nextStats and self:BenchNeeded(slot)
+	slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 · " or "강화 · ") .. (bench and ("🔒 제작대 Lv" .. bench .. " 필요") or (nextStats and self:CostText(nextStats.Cost) or "최대"))
 	slot.BuildPrompt.ObjectText = spec.Name .. (slot.Level &gt; 0 and (" Lv" .. slot.Level) or " (빈 자리)")
 	slot.RepairPrompt.Enabled = C.ActiveStage &gt;= 3 and (phase == "Day" or phase == "Night") and stats ~= nil and slot.HP &lt; stats.HP
 	local mult = phase == "Night" and C.NightRepairMultiplier or 1
 	slot.RepairPrompt.ActionText = "수리 · " .. (stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or "")
 	slot.RepairPrompt.ObjectText = spec.Name .. (stats and string.format(" %d/%d", slot.HP, stats.HP) or "")
+end
+
+-- 방어 시설 Lv2 는 제작대 Lv2, Lv3 은 제작대 Lv3 이 있어야 강화할 수 있다. 필요하면 그 레벨, 아니면 nil
+function S:BenchNeeded(slot)
+	local want = slot.Level + 1
+	local have = self.ctx.Crafting and self.ctx.Crafting.BenchLevel or 3
+	if want &gt;= 2 and have &lt; want then return want end
+	return nil
 end
 
 function S:RefreshAll() for _, slot in pairs(self.Slots) do self:Refresh(slot) end end
@@ -10958,6 +11453,8 @@ function S:Interact(player, slot, action)
 		if phase ~= "Day" then return end
 		local nextStats = spec.Levels[slot.Level + 1]
 		if not nextStats then return end
+		local bench = self:BenchNeeded(slot)
+		if bench then self.ctx.Notify(player, "제작대 Lv" .. bench .. "가 필요합니다 · 제작대를 업그레이드하세요"); return end
 		if not self.ctx.Resources:Spend(nextStats.Cost) then self.ctx.Notify(player, "공용 창고의 자원이 부족합니다 · " .. self:CostText(nextStats.Cost)); return end
 		-- No yielding in validation, spend, mutation: simultaneous requests serialize.
 		local oldHP = slot.Level &gt; 0 and spec.Levels[slot.Level].HP or 0
@@ -11060,7 +11557,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000036">
+      <Item class="ModuleScript" referent="RBX000039">
         <Properties>
           <string name="Name">EnemyService</string>
           <ProtectedString name="Source">local Players = game:GetService("Players")
@@ -11249,11 +11746,11 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000037">
+      <Item class="ModuleScript" referent="RBX000040">
         <Properties>
           <string name="Name">MapService</string>
           <ProtectedString name="Source">-- 초원 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 펫 우리) + 3 길목 + 자원 노드 + 숲/연못/알파의 숲.
--- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, Core, Warehouse, Workbench, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt
+-- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.MapConfig)
@@ -11439,7 +11936,8 @@ function Map:BuildBase()
 	S.workbench(base, toCore(C.Workbench[1], C.Workbench[3]))
 	self.Workbench = base.Workbench.Hitbox
 	self.Workbench.Name = "제작대"
-	self.CraftPrompt = U.prompt(self.Workbench, "Craft", "덫 · 먹이 · 간식 만들기", Enum.KeyCode.E, Vector3.new(0, 1.5, -2.5))
+	self.CraftPrompt = U.prompt(self.Workbench, "Craft", "도구 · 덫 · 가방 만들기 / 업그레이드", Enum.KeyCode.E, Vector3.new(0, 1.5, -2.5))
+	self.Workbench:SetAttribute("Level", 1)
 	self.CraftPrompt.ObjectText = "제작대"
 
 	local _, penPad = S.pen(base, CFrame.new(C.Cage[1], 0, C.Cage[3]))
@@ -11521,6 +12019,10 @@ function Map:BuildBase()
 	fx.Size, fx.Heat = 4, 9
 	fx.Parent = flame
 	B.light(flame, "PointLight", {Range = 20, Brightness = 1.8, Color = Color3.fromHex("#ffa860"), Shadows = true})
+	flame.Name = "모닥불"
+	self.Campfire = flame
+	self.CookPrompt = U.prompt(flame, "Cook", "요리하기 · 구운 버섯 · 스튜", Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
+	self.CookPrompt.ObjectText = "모닥불"
 	for i, off in ipairs({Vector3.new(-3.6, 0, 0.5), Vector3.new(3.4, 0, -0.6)}) do
 		B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood)
 	end
@@ -11603,6 +12105,12 @@ local NODE_BUILDERS = {
 	end,
 	Berry = function(parent, at, rng)
 		return Props.bush(parent, at, rng, 1.05, true), Vector3.new(5.5, 5, 5.5)
+	end,
+	Mushroom = function(parent, at, rng)
+		return Props.mushroomPatch(parent, at, rng, 1.1), Vector3.new(4, 3, 4)
+	end,
+	Crystal = function(parent, at, rng)
+		return Props.crystals(parent, at, rng, 1.0), Vector3.new(5, 6, 5)
 	end,
 }
 
@@ -11767,7 +12275,7 @@ return Map
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000038">
+      <Item class="ModuleScript" referent="RBX000041">
         <Properties>
           <string name="Name">PetService</string>
           <ProtectedString name="Source">local RS=game:GetService("ReplicatedStorage")
@@ -11944,7 +12452,20 @@ function S:Action(player,action,value)
         self.ctx.Notify(player,n.."마리 등록 · 다음 밤을 버티면 저장됩니다.")
     elseif action=="Heal" and type(value)=="string" and roster[value] then
         local rec=roster[value]
-        if rec.HP&gt;0 and rec.HP&lt;rec.MaxHP and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
+        local near=U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) or (rec.Part~=nil and U.near(player,rec.Part.Position,G.SnackRange))
+        if rec.HP&gt;0 and rec.HP&lt;rec.MaxHP and near and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
+    end
+end
+-- 간식을 들고 공격 버튼: 가까이 있는 내 펫 중 가장 많이 다친 펫을 회복
+function S:FeedNearest(player)
+    local best,ratio=nil,1
+    for _,rec in pairs(self.Rosters[player] or {}) do
+        if rec.Part and rec.HP&gt;0 and rec.HP&lt;rec.MaxHP and U.near(player,rec.Part.Position,G.SnackRange) and rec.HP/rec.MaxHP&lt;ratio then best,ratio=rec,rec.HP/rec.MaxHP end
+    end
+    if not best then self.ctx.Notify(player,"가까이에 다친 펫이 없습니다.");return end
+    if self.ctx.Crafting:Use(player,"Snack") then
+        best.HP=math.min(best.MaxHP,best.HP+best.MaxHP*0.5)
+        self.ctx.FX:FireAllClients("Eat",best.Part.Position,"Snack")
     end
 end
 function S:Damage(rec,amount)
@@ -12052,7 +12573,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000039">
+      <Item class="ModuleScript" referent="RBX000042">
         <Properties>
           <string name="Name">ResourceService</string>
           <ProtectedString name="Source">local Players = game:GetService("Players")
@@ -12061,6 +12582,7 @@ local U = require(RS.Shared.Modules.Utility)
 local Rules = require(RS.Shared.Modules.Rules)
 local C = require(RS.Shared.Config.GameConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
+local I = require(RS.Shared.Config.ItemConfig)
 local B = require(RS.Shared.Visuals.Build)
 local S = {}
 
@@ -12071,6 +12593,8 @@ local DROP_LOOK = {
 	Fiber = function(parent, at) return B.ellipsoid(parent, Vector3.new(0.6, 1.5, 0.6), at * CFrame.Angles(0, 0, 0.5), "#8cbf5a", Enum.Material.SmoothPlastic) end,
 	Scrap = function(parent, at) return B.cyl(parent, 0.35, 1.3, at * CFrame.Angles(0, 0, math.rad(90)), "#b0763e", Enum.Material.CorrodedMetal) end,
 	Berry = function(parent, at) return B.ball(parent, 0.9, at, "#e2385b", Enum.Material.SmoothPlastic) end,
+	Mushroom = function(parent, at) return B.ellipsoid(parent, Vector3.new(1.2, 0.6, 1.2), at, "#c79a6e", Enum.Material.SmoothPlastic) end,
+	Crystal = function(parent, at) return B.block(parent, Vector3.new(0.6, 1.4, 0.6), at * CFrame.Angles(0.3, 0.5, 0.2), "#7ff0ff", Enum.Material.Neon) end,
 }
 function S:Empty()
     local result = {}
@@ -12078,11 +12602,11 @@ function S:Empty()
     return result
 end
 function S:Init(ctx)
-    self.ctx, self.Bags, self.Bank, self.Drops = ctx, {}, self:Empty(), {}
+    self.ctx, self.Bags, self.Bank, self.Drops, self.HintAt = ctx, {}, self:Empty(), {}, {}
     self:Reset()
 end
 function S:AddPlayer(player) self.Bags[player] = self:Empty() end
-function S:RemovePlayer(player) self.Bags[player] = nil end
+function S:RemovePlayer(player) self.Bags[player], self.HintAt[player] = nil, nil end
 function S:Reset()
     self.Bank = self:Empty()
     self.Drops = {}
@@ -12100,7 +12624,7 @@ function S:ShowNode(node, visible)
     node.Part.CanQuery = visible
     node.Part:SetAttribute("CurrentHealth", node.HP)
     if not node.Stump then
-        local color = node.Kind == "Wood" and "#7a5230" or (node.Kind == "Berry" and "#3f8f4a" or "#8d949a")
+        local color = node.Kind == "Wood" and "#7a5230" or ((node.Kind == "Berry" or node.Kind == "Mushroom" or node.Kind == "Fiber") and "#3f5a34" or "#8d949a")
         node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, node.Kind == "Wood" and 1.6 or 2.2, node.Home * CFrame.new(0, 0.4, 0), color,
             node.Kind == "Wood" and Enum.Material.Wood or Enum.Material.Slate, true)
         node.Stump.Name = "Depleted"
@@ -12115,20 +12639,43 @@ function S:Drop(kind, amount, position)
     p:SetAttribute("Amount", amount)
     table.insert(self.Drops, {Part = p, Kind = kind, Amount = amount, Expires = os.clock() + C.DropLifetime})
 end
-function S:Harvest(player, node)
-    if node.HP &lt;= 0 or not U.near(player, node.Part.Position, C.SpearRange) then return end
-    node.HP = math.max(0, node.HP - C.HarvestDamage)
+-- 손에 든 도구로 채집 배율을 정한다. 맞는 도구(도끼→나무, 곡괭이→돌·고철·수정)는 등급이 높을수록 빠르고 많이 나온다.
+-- 반환: 배율, 수확량 배율 (캘 수 없으면 nil 과 이유)
+function S:GatherRate(kind, tool)
+    local spec = R.Types[kind]
+    if not spec.Tool then return 1, 1 end
+    if tool and tool.Family == spec.Tool then
+        if spec.MinTier and (tool.Tier or 1) &lt; spec.MinTier then return nil, "더 좋은 곡괭이가 필요합니다 (고철 곡괭이)" end
+        return tool.Gather or 1, 1 + 0.25 * ((tool.Tier or 1) - 1)
+    end
+    if spec.MinTier then return nil, "곡괭이가 필요합니다 (고철 곡괭이부터 캘 수 있음)" end
+    return tool and I.WrongToolGather or I.HandGather, 1
+end
+function S:Harvest(player, node, tool)
+    if node.HP &lt;= 0 or not U.near(player, node.Part.Position, C.SpearRange) then return false end
+    local rate, bonus = self:GatherRate(node.Kind, tool)
+    if not rate then
+        if os.clock() &gt;= (self.HintAt[player] or 0) then self.HintAt[player] = os.clock() + 3; self.ctx.Notify(player, bonus) end
+        return false
+    end
+    if rate &lt; 0.5 and os.clock() &gt;= (self.HintAt[player] or 0) then
+        self.HintAt[player] = os.clock() + 8
+        self.ctx.Notify(player, (R.Types[node.Kind].Tool == "Axe" and "도끼" or "곡괭이") .. "를 들면 훨씬 빨리 캡니다 · 화면 아래 칸에서 골라 드세요")
+    end
+    node.HP = math.max(0, node.HP - C.HarvestDamage * rate)
     node.Part:SetAttribute("CurrentHealth", node.HP)
     node.Part:SetAttribute("HitAt", workspace:GetServerTimeNow())
     if node.HP == 0 then self:ShowNode(node, false) end
     if node.HP == 0 then
         node.RespawnAt = os.clock() + R.Types[node.Kind].Respawn
+        local yield = math.floor(R.Types[node.Kind].Yield * bonus + 0.5)
         for n = 1, 2 do
-            local amount = n == 1 and math.ceil(R.Types[node.Kind].Yield / 2) or math.floor(R.Types[node.Kind].Yield / 2)
+            local amount = n == 1 and math.ceil(yield / 2) or math.floor(yield / 2)
             local spread = CFrame.Angles(0, math.random() * math.pi * 2, 0) * CFrame.new(0, 0, 3.5)
             self:Drop(node.Kind, amount, node.Part.Position + spread.Position)
         end
     end
+    return true
 end
 function S:OnDeath(player, position)
     local bag = self.Bags[player]
@@ -12156,7 +12703,7 @@ function S:Tick()
         for _, player in ipairs(Players:GetPlayers()) do
             local bag = self.Bags[player]
             if bag and U.near(player, drop.Part.Position, C.PickupRadius) then
-                local amount = Rules.pickupAmount(bag, drop.Amount, C.CarryCapacity)
+                local amount = Rules.pickupAmount(bag, drop.Amount, self.ctx.Crafting and self.ctx.Crafting:Capacity(player) or C.CarryCapacity)
                 bag[drop.Kind], drop.Amount = bag[drop.Kind] + amount, drop.Amount - amount
                 if drop.Amount == 0 then break end
             end
@@ -12165,7 +12712,11 @@ function S:Tick()
     end
     for player, bag in pairs(self.Bags) do
         if U.near(player, self.ctx.Map.Warehouse.Position, C.DepositRadius) then
-            for kind, amount in pairs(bag) do self.Bank[kind], bag[kind] = self.Bank[kind] + amount, 0 end
+            -- 먹을 열매 몇 개는 가방에 남긴다 (핫바에서 바로 먹을 수 있게)
+            for kind, amount in pairs(bag) do
+                local keep = kind == "Berry" and math.min(amount, C.KeepBerries) or 0
+                self.Bank[kind], bag[kind] = self.Bank[kind] + amount - keep, keep
+            end
         end
     end
 end
@@ -12174,7 +12725,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000040">
+      <Item class="ModuleScript" referent="RBX000043">
         <Properties>
           <string name="Name">RunService</string>
           <ProtectedString name="Source">local Players = game:GetService("Players")
@@ -12211,7 +12762,7 @@ function S:Start()
     self.RoundId = self.RoundId + 1
     self.LockedPlayerCount, self.Result, self.Warned = self:Count(), nil, false
     self:Change("Day", 1, C.FirstDaySeconds)
-    self.ctx.Notify(nil, "원정 시작! 약한 펫 포획 → 우리 등록 → 펫과 함께 밤 방어")
+    self.ctx.Notify(nil, "원정 시작! 펫 포획 · 재료 모으기 · 제작대에서 더 좋은 도구 · 밤에는 기지 방어")
 end
 function S:Finish(won, reason)
     if self.ctx.Clock.Phase == "Result" or self.ctx.Clock.Phase == "Waiting" then return end
@@ -12231,6 +12782,7 @@ function S:Reset()
     if self.ctx.Pets then self.ctx.Pets:Reset() end
     if self.ctx.Capture then self.ctx.Capture:Reset() end
     if self.ctx.Crafting then self.ctx.Crafting:Reset() end
+    if self.ctx.Survival then self.ctx.Survival:Reset() end
     self.Result, self.Warned = nil, false
     self.StartAt = self:Count() &gt; 0 and workspace:GetServerTimeNow() + C.StartDelay or nil
     for player in pairs(self.Participants) do
@@ -12275,7 +12827,89 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000041">
+      <Item class="ModuleScript" referent="RBX000044">
+        <Properties>
+          <string name="Name">SurvivalService</string>
+          <ProtectedString name="Source">-- 배고픔 (가볍게). 낮·밤 동안 천천히 줄고, 음식을 들고 공격 버튼을 누르면 먹는다.
+-- 0이 되면 체력이 조금씩 닳지만 StarveFloor 아래로는 떨어지지 않는다 (굶어서 죽지는 않는다).
+local RS = game:GetService("ReplicatedStorage")
+local U = require(RS.Shared.Modules.Utility)
+local G = require(RS.Shared.Config.GameConfig)
+local I = require(RS.Shared.Config.ItemConfig)
+local S = {}
+
+function S:Init(ctx)
+	self.ctx, self.Hunger, self.NextStarve, self.LastEat = ctx, {}, {}, {}
+end
+function S:AddPlayer(player)
+	self.Hunger[player] = G.HungerMax
+end
+function S:RemovePlayer(player)
+	self.Hunger[player], self.NextStarve[player], self.LastEat[player] = nil, nil, nil
+end
+function S:Reset()
+	for player in pairs(self.Hunger) do self.Hunger[player] = G.HungerMax end
+end
+function S:OnSpawn(player)
+	if self.Hunger[player] then self.Hunger[player] = math.max(self.Hunger[player], G.RespawnHunger) end
+end
+function S:Get(player)
+	return self.Hunger[player] or G.HungerMax
+end
+
+function S:Tick(dt)
+	local phase = self.ctx.Clock.Phase
+	if phase ~= "Day" and phase ~= "Night" then return end
+	local now = os.clock()
+	local loss = G.HungerDecay * dt * self.ctx.Clock:Scale()
+	for player, hunger in pairs(self.Hunger) do
+		local _, human = U.aliveRoot(player)
+		if human then
+			hunger = math.max(0, hunger - loss)
+			self.Hunger[player] = hunger
+			if hunger &lt;= 0 and now &gt;= (self.NextStarve[player] or 0) then
+				self.NextStarve[player] = now + G.StarveInterval
+				local room = human.Health - G.StarveFloor
+				if room &gt; 0 then human:TakeDamage(math.min(G.StarveDamage, room)) end
+			end
+		end
+	end
+end
+
+-- 음식 먹기. 성공하면 true
+function S:Eat(player, id)
+	local spec = I.Items[id]
+	if not spec or spec.Kind ~= "Food" or not self.Hunger[player] then return false end
+	local _, human = U.aliveRoot(player)
+	if not human then return false end
+	local now = os.clock()
+	if now - (self.LastEat[player] or -100) &lt; G.EatCooldown then return false end
+	if self.Hunger[player] &gt;= G.HungerMax - 1 and human.Health &gt;= human.MaxHealth then
+		self.ctx.Notify(player, "배가 부릅니다.")
+		return false
+	end
+	local ok
+	if spec.FromBag then
+		local bag = self.ctx.Resources.Bags[player]
+		ok = bag and (bag[id] or 0) &gt; 0
+		if ok then bag[id] = bag[id] - 1 end
+	else
+		ok = self.ctx.Crafting:Use(player, id)
+	end
+	if not ok then return false end
+	self.LastEat[player] = now
+	self.Hunger[player] = math.min(G.HungerMax, self.Hunger[player] + spec.Hunger)
+	if spec.Heal and spec.Heal &gt; 0 then human.Health = math.min(human.MaxHealth, human.Health + spec.Heal) end
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root then self.ctx.FX:FireAllClients("Eat", root.Position, id) end
+	return true
+end
+
+return S
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000045">
         <Properties>
           <string name="Name">TutorialService</string>
           <ProtectedString name="Source">local S={}
@@ -12294,7 +12928,7 @@ return S
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="RBX000042">
+      <Item class="ModuleScript" referent="RBX000046">
         <Properties>
           <string name="Name">WaveService</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -12328,17 +12962,17 @@ return S
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="RBX000043">
+  <Item class="StarterPlayer" referent="RBX000047">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">80</float>
       <float name="CharacterWalkSpeed">18</float>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="RBX000044">
+    <Item class="StarterPlayerScripts" referent="RBX000048">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="RBX000045">
+      <Item class="LocalScript" referent="RBX000049">
         <Properties>
           <string name="Name">ClientMain</string>
           <ProtectedString name="Source">local RS = game:GetService("ReplicatedStorage")
@@ -12363,6 +12997,7 @@ local ui = start("UIController", remotes)
 local pets = start("PetController", remotes)
 if ui and pets then ui.PetController = pets end
 start("CombatController", remotes)
+start("HotbarController", remotes)
 start("CreatureController")
 start("FXController", remotes)
 start("WorldUI")
@@ -12370,11 +13005,11 @@ start("AudioController", remotes)
 </ProtectedString>
         </Properties>
       </Item>
-      <Item class="Folder" referent="RBX000046">
+      <Item class="Folder" referent="RBX000050">
         <Properties>
           <string name="Name">Controllers</string>
         </Properties>
-        <Item class="ModuleScript" referent="RBX000047">
+        <Item class="ModuleScript" referent="RBX000051">
           <Properties>
             <string name="Name">Anim</string>
             <ProtectedString name="Source">-- 절차적 애니메이션: 상태(대기/걷기/공격/기절/탈진)와 시간으로 뼈 포즈를 계산한다.
@@ -12499,7 +13134,7 @@ return Anim
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000048">
+        <Item class="ModuleScript" referent="RBX000052">
           <Properties>
             <string name="Name">AudioController</string>
             <ProtectedString name="Source">-- 효과음. AudioConfig 에 직접 올린 사운드 ID 가 있으면 그것을, 없으면 Roblox 기본 내장 사운드를 쓴다.
@@ -12573,7 +13208,7 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000049">
+        <Item class="ModuleScript" referent="RBX000053">
           <Properties>
             <string name="Name">CombatController</string>
             <ProtectedString name="Source">-- 공격/채집 입력. 클라이언트는 "공격하고 싶다"는 의도만 보낸다. 대상과 피해는 서버가 정한다.
@@ -12607,7 +13242,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000050">
+        <Item class="ModuleScript" referent="RBX000054">
           <Properties>
             <string name="Name">CreatureController</string>
             <ProtectedString name="Source">-- 펫·야생 펫·밤의 괴물을 화면에 그린다.
@@ -13004,7 +13639,7 @@ return CC
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000051">
+        <Item class="ModuleScript" referent="RBX000055">
           <Properties>
             <string name="Name">EnvironmentController</string>
             <ProtectedString name="Source">-- 하늘·조명·안개를 낮 → 노을 → 밤 → 새벽으로 부드럽게 바꾸고, 기지 소품(수정, 횃불, 떨어진 자원)을 살아 움직이게 한다.
@@ -13212,7 +13847,7 @@ return Env
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000052">
+        <Item class="ModuleScript" referent="RBX000056">
           <Properties>
             <string name="Name">FXController</string>
             <ProtectedString name="Source">-- 전투·채집·건설·포획 효과. 서버 FX 리모트를 받아 로컬에서만 그린다 (서버 부하 없음).
@@ -13503,6 +14138,17 @@ function FX:OnSpikes(pos)
 		Spread = Vector2.new(40, 40)})
 end
 
+function FX:OnEat(pos, id)
+	local col = ({Berry = "#ff6b9a", RoastMushroom = "#e0a060", Stew = "#d98a4a", Snack = "#ffd27a"})[id] or "#ffe9a8"
+	self:Burst(pos + Vector3.new(0, 1.5, 0), 10, {Color = ColorSequence.new(Color3.fromHex(col), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.4, 0),
+		Speed = NumberRange.new(2, 5), Acceleration = Vector3.new(0, 6, 0), LightEmission = 0.6})
+end
+
+function FX:OnCraft(pos)
+	self:Burst(pos + Vector3.new(0, 2.5, 0), 14, {Color = ColorSequence.new(Color3.fromHex("#ffe29a"), Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.5, 0),
+		Speed = NumberRange.new(4, 9), Acceleration = Vector3.new(0, -12, 0), LightEmission = 0.9})
+end
+
 function FX:OnRegrow(pos, kind)
 	local col = kind == "Berry" and Color3.fromHex("#ff6b9a") or Color3.fromHex("#9df07e")
 	self:Burst(pos + Vector3.new(0, 2, 0), 16, {Color = ColorSequence.new(col, Color3.fromHex("#ffffff")), Size = NumberSequence.new(0.6, 0),
@@ -13513,18 +14159,248 @@ return FX
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000053">
+        <Item class="ModuleScript" referent="RBX000057">
+          <Properties>
+            <string name="Name">HotbarController</string>
+            <ProtectedString name="Source">-- 화면 아래 핫바 (마인크래프트처럼). 손에 든 것을 보여주고 1~9 키·마우스 휠·터치로 바꾼다.
+-- 칸마다 서버가 넣어 준 Tool(ItemId 속성)이 하나씩 있다. 고르면 그 Tool 을 손에 든다 (EquipTool 은 클라이언트에서 해도 서버로 복제된다).
+-- 핫바 위: 체력(❤) · 배고픔(🍖) 막대. Roblox 기본 가방/체력 표시는 끈다.
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+local CAS = game:GetService("ContextActionService")
+local TweenService = game:GetService("TweenService")
+local RS = game:GetService("ReplicatedStorage")
+local G = require(RS.Shared.Config.GameConfig)
+local I = require(RS.Shared.Config.ItemConfig)
+local Inv = require(RS.Shared.Modules.Inventory)
+
+local H = {}
+local player = Players.LocalPlayer
+local TITLE = Enum.Font.FredokaOne
+local BODY = Enum.Font.GothamBold
+local SLOT = 58
+local GAP = 6
+local KEYS = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five,
+	Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine}
+local ACTION = {Tool = "공격", Food = "먹기", Trap = "덫 던지기", PetFood = "간식 주기"}
+
+local function new(className, parent, props)
+	local o = Instance.new(className)
+	for k, v in pairs(props or {}) do o[k] = v end
+	o.Parent = parent
+	return o
+end
+
+local function hideCoreGui()
+	for _ = 1, 20 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+		end)
+		if ok then return end
+		task.wait(0.5)
+	end
+end
+
+function H:Init(remotes)
+	task.spawn(hideCoreGui)
+	self.List, self.Slots, self.Data = {}, {}, nil
+	local gui = new("ScreenGui", player:WaitForChild("PlayerGui"), {Name = "Hotbar", ResetOnSpawn = false, DisplayOrder = 12,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
+	self.Gui = gui
+	self.Scale = new("UIScale", gui, {Scale = 1})
+	local function rescale()
+		local size = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		self.Scale.Scale = math.clamp(math.min(size.X / 1100, size.Y / 700), 0.62, 1.15)
+	end
+	rescale()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
+
+	self.Bar = new("Frame", gui, {Name = "Slots", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.fromOffset(SLOT, SLOT), BackgroundTransparency = 1})
+	new("UIListLayout", self.Bar, {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, GAP),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})
+	for i = 1, 9 do
+		self.Slots[i] = self:MakeSlot(i)
+	end
+
+	-- 체력 / 배고픔
+	local vitals = new("Frame", gui, {Name = "Vitals", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -(SLOT + 14)),
+		Size = UDim2.fromOffset(440, 16), BackgroundTransparency = 1})
+	self.HPFill, self.HPText = self:Meter(vitals, 0, "❤", "#e0525b")
+	self.FoodFill, self.FoodText = self:Meter(vitals, 1, "🍖", "#e8a04a")
+	-- 고른 물건 이름 (잠깐 보였다 사라짐)
+	self.Name = new("TextLabel", gui, {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -(SLOT + 36)), Size = UDim2.fromOffset(300, 22),
+		BackgroundTransparency = 1, Font = TITLE, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.3, Text = "", TextTransparency = 1})
+
+	remotes.State.OnClientEvent:Connect(function(data)
+		self.Data = data
+		self:Refresh()
+	end)
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then return end
+		for i, key in ipairs(KEYS) do
+			if input.KeyCode == key then self:Select(i) end
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input, processed)
+		if processed or input.UserInputType ~= Enum.UserInputType.MouseWheel or #self.List == 0 then return end
+		local index = (self:HeldIndex() or 1) + (input.Position.Z &gt; 0 and -1 or 1)
+		self:Select((index - 1) % #self.List + 1)
+	end)
+	local function watch(character)
+		character.ChildAdded:Connect(function() self:Refresh() end)
+		character.ChildRemoved:Connect(function() self:Refresh() end)
+		local human = character:WaitForChild("Humanoid", 10)
+		if human then
+			human.HealthChanged:Connect(function() self:Vitals() end)
+			self:Vitals()
+		end
+	end
+	player.CharacterAdded:Connect(watch)
+	if player.Character then task.spawn(watch, player.Character) end
+end
+
+function H:Meter(parent, column, icon, color)
+	local box = new("Frame", parent, {Position = UDim2.new(column * 0.5, column == 1 and 6 or 0, 0, 0), Size = UDim2.new(0.5, -6, 1, 0),
+		BackgroundColor3 = Color3.fromHex("#1c2330"), BackgroundTransparency = 0.2, BorderSizePixel = 0})
+	new("UICorner", box, {CornerRadius = UDim.new(0, 8)})
+	new("UIStroke", box, {Color = Color3.fromHex("#0b1018"), Thickness = 1.5, Transparency = 0.3})
+	local fill = new("Frame", box, {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromHex(color), BorderSizePixel = 0})
+	new("UICorner", fill, {CornerRadius = UDim.new(0, 8)})
+	local label = new("TextLabel", box, {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Font = BODY, TextSize = 12,
+		TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.4, Text = icon, ZIndex = 2})
+	return fill, label
+end
+
+function H:MakeSlot(i)
+	local b = new("TextButton", self.Bar, {Name = "Slot" .. i, LayoutOrder = i, Size = UDim2.fromOffset(SLOT, SLOT), Text = "",
+		BackgroundColor3 = Color3.fromHex("#16202e"), BackgroundTransparency = 0.18, BorderSizePixel = 0, AutoButtonColor = true, Visible = false})
+	new("UICorner", b, {CornerRadius = UDim.new(0, 10)})
+	local stroke = new("UIStroke", b, {Color = Color3.fromHex("#0b1018"), Thickness = 2, Transparency = 0.3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+	local icon = new("TextLabel", b, {Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 1, -16), BackgroundTransparency = 1, Font = BODY,
+		TextSize = 28, Text = "", TextColor3 = Color3.new(1, 1, 1)})
+	local tier = new("TextLabel", b, {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -2), Size = UDim2.new(1, -4, 0, 13),
+		BackgroundTransparency = 1, Font = BODY, TextSize = 10, Text = "", TextColor3 = Color3.fromHex("#d8e2ee"), TextStrokeTransparency = 0.5})
+	local key = new("TextLabel", b, {Position = UDim2.fromOffset(4, 2), Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, Font = TITLE,
+		TextSize = 12, Text = tostring(i), TextColor3 = Color3.fromHex("#9fb0c4"), TextXAlignment = Enum.TextXAlignment.Left})
+	local count = new("TextLabel", b, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 2), Size = UDim2.fromOffset(30, 16),
+		BackgroundTransparency = 1, Font = TITLE, TextSize = 14, Text = "", TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.3,
+		TextXAlignment = Enum.TextXAlignment.Right})
+	b.Activated:Connect(function() self:Select(i) end)
+	return {Button = b, Stroke = stroke, Icon = icon, Tier = tier, Key = key, Count = count}
+end
+
+function H:Tool(id)
+	for _, container in ipairs({player.Character, player:FindFirstChildOfClass("Backpack")}) do
+		if container then
+			for _, tool in ipairs(container:GetChildren()) do
+				if tool:IsA("Tool") and tool:GetAttribute("ItemId") == id then return tool end
+			end
+		end
+	end
+	return nil
+end
+
+function H:HeldId()
+	local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+	return tool and tool:GetAttribute("ItemId")
+end
+
+function H:HeldIndex()
+	local held = self:HeldId()
+	for i, id in ipairs(self.List) do
+		if id == held then return i end
+	end
+	return nil
+end
+
+function H:Select(i)
+	local id = self.List[i]
+	local human = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not id or not human or human.Health &lt;= 0 then return end
+	if self:HeldId() == id then return end
+	local tool = self:Tool(id)
+	if tool then
+		human:EquipTool(tool)
+		self:ShowName(I.Items[id].Name)
+	end
+end
+
+function H:ShowName(text)
+	self.Name.Text = text
+	self.Name.TextTransparency, self.Name.TextStrokeTransparency = 0, 0.3
+	self.NameToken = (self.NameToken or 0) + 1
+	local token = self.NameToken
+	task.delay(1.6, function()
+		if self.NameToken ~= token then return end
+		TweenService:Create(self.Name, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+	end)
+end
+
+function H:Refresh()
+	local d = self.Data
+	if not d then return end
+	local items, bag = d.Items or {}, d.Bag or {}
+	self.List = Inv.hotbar(items, bag, I)
+	local held = self:HeldId()
+	for i, slot in ipairs(self.Slots) do
+		local id = self.List[i]
+		slot.Button.Visible = id ~= nil
+		if id then
+			local spec = I.Items[id]
+			slot.Icon.Text = spec.Icon
+			slot.Tier.Text = spec.Name
+			local n = Inv.count(items, bag, id, I)
+			slot.Count.Text = spec.Kind == "Tool" and "" or tostring(n)
+			local selected = id == held
+			slot.Stroke.Color = selected and Color3.fromHex("#ffe066") or Color3.fromHex("#0b1018")
+			slot.Stroke.Thickness = selected and 3 or 2
+			slot.Stroke.Transparency = selected and 0 or 0.3
+			slot.Button.BackgroundColor3 = selected and Color3.fromHex("#2c3b52") or Color3.fromHex("#16202e")
+		end
+	end
+	self.Bar.Size = UDim2.fromOffset(math.max(1, #self.List) * (SLOT + GAP) - GAP, SLOT)
+	-- 공격 버튼 글자: 손에 든 것에 맞게
+	local spec = held and I.Items[held]
+	pcall(function() CAS:SetTitle("WildholdAttack", spec and ACTION[spec.Kind] or "공격") end)
+	self:Vitals()
+end
+
+function H:Vitals()
+	local human = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if human then
+		local ratio = math.clamp(human.Health / math.max(1, human.MaxHealth), 0, 1)
+		self.HPFill.Size = UDim2.fromScale(ratio, 1)
+		self.HPText.Text = string.format("❤ %d", math.ceil(human.Health))
+	end
+	local d = self.Data
+	if d and d.Hunger then
+		local ratio = math.clamp(d.Hunger / G.HungerMax, 0, 1)
+		self.FoodFill.Size = UDim2.fromScale(ratio, 1)
+		self.FoodFill.BackgroundColor3 = ratio &gt; 0.25 and Color3.fromHex("#e8a04a") or Color3.fromHex("#ef5b5b")
+		self.FoodText.Text = ratio &lt;= 0 and "🍖 배고픔! 열매나 음식을 드세요" or string.format("🍖 %d", math.ceil(d.Hunger))
+	end
+end
+
+return H
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000058">
           <Properties>
             <string name="Name">PetController</string>
             <ProtectedString name="Source">-- 펫 패널 (내 펫 / 야생 / 명령 / 제작 / 도감) + 빠른 명령 버튼 + 포획 카드.
 -- 서버 액션은 기존과 같다: PetAction(Toggle/Favorite/Heal/Focus/Follow/Stay/Guard/Best/SaveTeam/LoadTeam/Register),
--- CaptureAction(wildId, "Trap"/"BetterTrap", bait), CraftAction(itemId)
+-- CaptureAction(wildId, 덫ID, bait), CraftAction(아이템ID 또는 "BenchUpgrade")
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local P = require(RS.Shared.Config.PetConfig)
 local Recipes = require(RS.Shared.Config.RecipeConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
+local I = require(RS.Shared.Config.ItemConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local Controller = {}
@@ -13532,8 +14408,7 @@ local TITLE, BODY = Enum.Font.FredokaOne, Enum.Font.GothamBold
 local COL = {Back = Color3.fromHex("#141d2a"), Card = Color3.fromHex("#1f2b3b"), Card2 = Color3.fromHex("#273548"), Text = Color3.fromHex("#f1f5fa"),
 	Muted = Color3.fromHex("#aab6c6"), Mint = Color3.fromHex("#7be0b6"), Gold = Color3.fromHex("#ffd36b"), Red = Color3.fromHex("#ff8a8a")}
 local ELEMENT = {Leaf = {"🌿 풀", "#7ed36a"}, Ember = {"🔥 불", "#ff9a4a"}, Tide = {"💧 물", "#6fc3ff"}}
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
-local ITEM_ICON = {Trap = "🧺", BetterTrap = "🧺✨", Bait = "🍓", Snack = "🍪"}
+local ICON = R.Icons
 
 local function create(kind, parent, props)
 	local node = Instance.new(kind)
@@ -13560,6 +14435,14 @@ local function button(parent, text, pos, size, fn, color)
 	create("UIStroke", node, {Color = Color3.new(0, 0, 0), Transparency = 0.6, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
 	node.Activated:Connect(fn)
 	return node
+end
+
+local function costText(cost)
+	local parts = {}
+	for _, material in ipairs(R.Order) do
+		if cost[material] then parts[#parts + 1] = ICON[material] .. " " .. cost[material] end
+	end
+	return table.concat(parts, "  ")
 end
 
 function Controller:Init(remotes)
@@ -13628,6 +14511,7 @@ function Controller:Init(remotes)
 	end)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, name, seconds)
 		if kind == "OpenCraft" then
+			self.Station = name
 			self:Open("Craft")
 		elseif kind == "Shake" then
 			self:Close()
@@ -13761,17 +14645,31 @@ function Controller:Render()
 		end)
 		self.Rows[#self.Rows + 1] = {}
 	elseif self.Tab == "Craft" then
+		-- 제작대 레벨 + 업그레이드 (팀 공용)
+		local level = d.Bench or 1
+		local nextBench = Recipes.Bench[level + 1]
+		local head = self:Row(nextBench and 100 or 56)
+		label(head, "🔨", UDim2.fromOffset(10, 6), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+		label(head, string.format("제작대 Lv%d  ·  팀 공용\n%s", level, nextBench and ("다음: " .. nextBench.Name .. "  " .. costText(nextBench.Cost)) or "최고 레벨"),
+			UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+		if nextBench then
+			button(head, "⬆ 제작대 업그레이드 (낮)", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
+				Color3.fromHex("#8a5a2f"))
+		end
+		self.Rows[#self.Rows + 1] = {}
+		-- 모닥불에서 열면 요리를 먼저 보여준다
+		local order = {}
 		for _, id in ipairs(Recipes.Order) do
-			local spec = Recipes.Recipes[id]
-			local cost = {}
-			for _, material in ipairs(R.Order) do
-				if spec.Cost[material] then cost[#cost + 1] = ICON[material] .. " " .. spec.Cost[material] end
-			end
+			if self.Station == "Campfire" and Recipes.Recipes[id].Station == "Campfire" then table.insert(order, 1, id) else table.insert(order, id) end
+		end
+		for _, id in ipairs(order) do
+			local recipe, spec = Recipes.Recipes[id], I.Items[id]
 			local row = self:Row(100)
-			label(row, ITEM_ICON[id] or "", UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
+			label(row, spec.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
 			local info = label(row, "", UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
-			button(row, "🔨 만들기", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
-			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Cost = table.concat(cost, "  ")}
+			local verb = recipe.Station == "Campfire" and "🔥 요리하기" or "🔨 만들기"
+			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
+			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
@@ -13805,6 +14703,8 @@ function Controller:Signature()
 		for _, wild in ipairs(self.Data.Wild or {}) do ids[#ids + 1] = wild.Id end
 		table.sort(ids)
 		for _, id in ipairs(ids) do pieces[#pieces + 1] = id end
+	elseif self.Tab == "Craft" then
+		pieces[#pieces + 1] = tostring(self.Data.Bench) .. tostring(self.Station)
 	elseif self.Tab == "Dex" then
 		for _, id in ipairs(P.Order) do
 			local e = self.Data.Dex[id]
@@ -13844,19 +14744,27 @@ function Controller:Refresh(skip)
 				end
 			end
 		elseif row.Info and self.Tab == "Craft" then
-			row.Info.Text = Recipes.Recipes[row.Key].Name .. "   (보유 " .. tostring((d.Items or {})[row.Key] or 0) .. ")\n" .. row.Cost
+			local recipe, spec = Recipes.Recipes[row.Key], I.Items[row.Key]
+			local have = (d.Items or {})[row.Key] or 0
+			local locked = recipe.Bench &gt; (d.Bench or 1)
+			local owned = (spec.Kind == "Tool" or spec.Kind == "Bag") and (have &gt; 0 and "✅ 보유 중" or "") or ("보유 " .. have)
+			local place = recipe.Station == "Campfire" and "모닥불" or "제작대"
+			row.Info.Text = string.format("%s  %s\n%s%s · %s", spec.Name, owned, locked and ("🔒 제작대 Lv" .. recipe.Bench .. " 필요 · ") or "", place, row.Cost)
+			row.Info.TextColor3 = locked and COL.Muted or COL.Text
+			row.Button.BackgroundColor3 = locked and COL.Card2 or Color3.fromHex("#2f8f83")
 		end
 	end
 	local items = d.Items or {}
-	self.Footer.Text = string.format("🧺 덫 %d · ✨ 강화 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.Bait or 0, items.Snack or 0,
-		self.Tab == "Craft" and "낮에 기지 제작대 근처에서 만들 수 있어요 (재료는 공용 창고에서 사용)" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
+	self.Footer.Text = string.format("🧺 덫 %d · 🧺 강화 %d · 💠 수정 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.CrystalTrap or 0,
+		items.Bait or 0, items.Snack or 0,
+		self.Tab == "Craft" and "제작대·모닥불 근처에서 만들어요 (재료는 공용 창고) · 만든 도구는 화면 아래 칸에 생겨요" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
 end
 
 return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000054">
+        <Item class="ModuleScript" referent="RBX000059">
           <Properties>
             <string name="Name">Portrait</string>
             <ProtectedString name="Source">-- 펫 얼굴 사진 (ViewportFrame). 팀 카드, 펫 목록, 도감에서 쓴다.
@@ -13908,7 +14816,7 @@ return Portrait
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000055">
+        <Item class="ModuleScript" referent="RBX000060">
           <Properties>
             <string name="Name">Rig</string>
             <ProtectedString name="Source">-- 크리처 리그 두 종류를 같은 방식으로 움직인다.
@@ -14052,14 +14960,14 @@ return Rig
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000056">
+        <Item class="ModuleScript" referent="RBX000061">
           <Properties>
             <string name="Name">UIController</string>
             <ProtectedString name="Source">-- 메인 HUD (모바일 우선).
 --  위 가운데 : 낮/밤 알약 + 남은 시간 + Core 체력
 --  왼쪽 위   : 지금 할 일 (목표 카드)
 --  왼쪽      : 출전 펫 3칸 (얼굴, 레벨, 체력, 확정 상태)
---  아래      : 가방 / 공용 창고 자원
+--  아래      : 가방 / 공용 창고 자원 (그 아래 핫바·체력·배고픔은 HotbarController)
 --  가운데    : 알림, 밤 경고 배너, 결과 화면
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14078,7 +14986,7 @@ local BODY = Enum.Font.GothamBold
 local INK = Color3.fromHex("#f4f7fb")
 local MUTED = Color3.fromHex("#b9c4d4")
 local PANEL = Color3.fromHex("#16202e")
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
+local ICON = R.Icons
 local PHASE = {
 	Waiting = {"🧭", "출발 준비", "#2f8f83", "#47b8a6"},
 	Day = {"☀️", "낮", "#e29a2e", "#f6c453"},
@@ -14176,26 +15084,27 @@ function UI:Init(remotes)
 		self.Cards[i] = self:MakeCard(i)
 	end
 
-	-- 아래: 자원
-	local bag = panel(gui, {Name = "Resources", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.fromOffset(470, 62)})
+	-- 아래: 자원 (핫바와 체력·배고픔 막대 위)
+	local bag = panel(gui, {Name = "Resources", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -100),
+		Size = UDim2.fromOffset(#R.Order * 66 + 12, 58)})
 	self.ResourceRows = {}
 	local row = new("Frame", bag, {Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -16, 0, 34), BackgroundTransparency = 1})
 	new("UIListLayout", row, {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center})
 	for _, kind in ipairs(R.Order) do
-		local cell = new("Frame", row, {Size = UDim2.fromOffset(84, 34), BackgroundColor3 = Color3.fromHex("#24303f"), BorderSizePixel = 0})
+		local cell = new("Frame", row, {Size = UDim2.fromOffset(60, 34), BackgroundColor3 = Color3.fromHex("#24303f"), BorderSizePixel = 0})
 		round(cell, 10)
-		text(cell, {Position = UDim2.fromOffset(4, 0), Size = UDim2.fromOffset(26, 34), Text = ICON[kind], TextSize = 18})
-		local count = text(cell, {Position = UDim2.fromOffset(30, 1), Size = UDim2.new(1, -32, 0, 18), Text = "0", TextSize = 15, Font = TITLE,
+		text(cell, {Position = UDim2.fromOffset(2, 0), Size = UDim2.fromOffset(22, 34), Text = ICON[kind], TextSize = 16})
+		local count = text(cell, {Position = UDim2.fromOffset(24, 1), Size = UDim2.new(1, -26, 0, 18), Text = "0", TextSize = 14, Font = TITLE,
 			TextXAlignment = Enum.TextXAlignment.Left})
-		local bank = text(cell, {Position = UDim2.fromOffset(30, 17), Size = UDim2.new(1, -32, 0, 14), Text = "창고 0", TextSize = 10,
+		local bank = text(cell, {Position = UDim2.fromOffset(24, 17), Size = UDim2.new(1, -26, 0, 14), Text = "🏠0", TextSize = 10,
 			TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Left})
 		self.ResourceRows[kind] = {Count = count, Bank = bank}
 	end
-	local capBack = new("Frame", bag, {Position = UDim2.new(0, 12, 1, -16), Size = UDim2.new(1, -120, 0, 6), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
+	local capBack = new("Frame", bag, {Position = UDim2.new(0, 12, 1, -13), Size = UDim2.new(1, -120, 0, 6), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
 	round(capBack, 3)
 	self.CapFill = new("Frame", capBack, {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromHex("#f6c453"), BorderSizePixel = 0})
 	round(self.CapFill, 3)
-	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -6), Size = UDim2.fromOffset(100, 16), Text = "가방 0/60",
+	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -3), Size = UDim2.fromOffset(100, 16), Text = "가방 0/60",
 		TextSize = 11, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right})
 
 	-- 알림 (위에서 내려옴)
@@ -14387,17 +15296,18 @@ function UI:Update(previous)
 		local amount = d.Bag and d.Bag[kind] or 0
 		total = total + amount
 		row.Count.Text = tostring(amount)
-		row.Bank.Text = "창고 " .. tostring(d.Bank and d.Bank[kind] or 0)
+		row.Bank.Text = "🏠" .. tostring(d.Bank and d.Bank[kind] or 0)
 	end
-	self.CapFill.Size = UDim2.fromScale(math.clamp(total / C.CarryCapacity, 0, 1), 1)
-	self.CapFill.BackgroundColor3 = total &gt;= C.CarryCapacity and Color3.fromHex("#ff8a8a") or Color3.fromHex("#f6c453")
-	self.CapText.Text = string.format("가방 %d/%d", total, C.CarryCapacity)
+	local capacity = d.Capacity or C.CarryCapacity
+	self.CapFill.Size = UDim2.fromScale(math.clamp(total / capacity, 0, 1), 1)
+	self.CapFill.BackgroundColor3 = total &gt;= capacity and Color3.fromHex("#ff8a8a") or Color3.fromHex("#f6c453")
+	self.CapText.Text = string.format("🎒 %d/%d", total, capacity)
 
 	-- 목표
 	local goal
 	if d.Phase == "Waiting" then
-		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 손에 든 창(클릭 / F / 공격 버튼)으로 야생 펫 사냥과 나무·돌 채집", d.Players)
-	elseif total &gt;= C.CarryCapacity and d.Phase == "Day" then
+		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 화면 아래 칸(1~9)에서 창·도끼를 골라 들고 클릭 / F / 공격 버튼", d.Players)
+	elseif total &gt;= capacity and d.Phase == "Day" then
 		goal = "가방이 가득! 기지의 공용 창고 앞으로 가면 자동으로 넣어요"
 	elseif d.Phase == "Result" then
 		goal = "원정 종료 · 잠시 뒤 같은 팀으로 다시 시작합니다"
@@ -14448,7 +15358,7 @@ return UI
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000057">
+        <Item class="ModuleScript" referent="RBX000062">
           <Properties>
             <string name="Name">WorldUI</string>
             <ProtectedString name="Source">-- 월드에 떠 있는 정보: Core 체력, 가까운 자원 노드 이름·체력, 부서지는 시설 체력.
@@ -14459,7 +15369,7 @@ local R = require(RS.Shared.Config.ResourceConfig)
 
 local W = {}
 local player = Players.LocalPlayer
-local ICON = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Scrap = "⚙️", Berry = "🍓"}
+local ICON = R.Icons
 local FONT = Enum.Font.FredokaOne
 
 local function new(className, parent, props)
@@ -14579,12 +15489,12 @@ return W
       </Item>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000058">
+  <Item class="StarterGui" referent="RBX000063">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPack" referent="RBX000059">
+  <Item class="StarterPack" referent="RBX000064">
     <Properties>
       <string name="Name">StarterPack</string>
     </Properties>
