@@ -31,7 +31,7 @@ GPT 가 만든 1~8단계는 서버 로직은 대부분 쓸 만했지만, 화면�
 
 1. `WILDHOLD.rbxlx` 를 Roblox Studio 로 연다.
 2. **플레이(F5)**. 15초 뒤 원정이 시작된다.
-3. 숲 키트는 이미 들어 있다. 펫은 처음엔 **파트로 만든 대체 모델**로 나오고, 아래 3번(펫)을 한 번만 해 주면 블렌더 모델로 바뀐다.
+3. 숲 키트와 블렌더 펫은 이미 들어 있다. (빠지면 파트로 만든 대체 모델로 나온다)
 
 ## 2. 숲 키트 (이미 들어 있음)
 
@@ -55,16 +55,21 @@ GPT 가 만든 1~8단계는 서버 로직은 대부분 쓸 만했지만, 화면�
 | 바위 (둥근·납작·기둥) | 4 | 1.1~1.5k |
 | 쓰러진 통나무, 그루터기, 고사리 | 각 1 | 0.2~0.8k |
 
-## 3. 블렌더 펫 넣기 (한 번만, 3분)
+## 3. 블렌더 펫 (이미 들어 있음)
 
 `assets/pets/` 에 4종이 들어 있다: `Mossling.fbx`, `Emberpup.fbx`, `Shellbub.fbx`, `Briarhorn.fbx` (+ 텍스처 png, 수정용 .blend).
+Studio 가져오기 결과를 `assets/pets/PetModels.rbxmx` 로 저장해 두어서 `WILDHOLD.rbxlx` 를 열면 `ReplicatedStorage/PetModels` 에 이미 들어 있다.
+
+펫을 고치거나 새 펫을 넣을 때만 (**파일 경로는 영어로**):
 
 1. Studio 상단 **홈 → 가져오기(Import 3D)** 를 누른다.
 2. FBX 4개를 한꺼번에 선택해서 연다. 설정은 기본값 그대로 두고 **가져오기**.
    - 리그 종류가 나오면 **Custom (사용자 지정)**. 텍스처가 같이 올라가는지(Texture 체크) 확인.
 3. 작업 공간(Workspace)에 `Mossling` 같은 모델 4개가 생긴다.
 4. 탐색기에서 4개를 **ReplicatedStorage → PetModels** 폴더로 끌어다 놓는다. **이름은 바꾸지 않는다.**
-5. 다시 플레이하면 펫이 블렌더 모델로 바뀐다.
+   (깜빡하고 작업 공간에 둬도 게임이 시작할 때 서버가 옮긴다)
+5. 다시 플레이하면 펫이 블렌더 모델로 바뀐다. place 에 고정하려면 PetModels 안의 모델들을 선택 → 우클릭 **파일로 저장** →
+   `assets/pets/PetModels.rbxmx` 를 덮어쓰고 `python3 tools/build_place.py`.
 
 코드가 알아서 처리하는 것: 크기(종별 키로 자동 맞춤), 앞/뒤 방향(뼈 위치로 자동 판별), 뼈 애니메이션(걷기·숨쉬기·꼬리·귀·공격·기절),
 엠버펍 꼬리 불꽃 파티클, 알파 오라. 모델에 문제가 있으면 출력 창에 경고를 남기고 대체 모델로 표시한다.
@@ -119,7 +124,7 @@ wildhold/
 │   ├── shared/Visuals       # Build, Props, Structures, Creatures (모델 조립)
 │   ├── server/Services      # 게임 로직 (서버 권한)
 │   └── client/Controllers   # 화면: Creature, Rig, Anim, FX, Environment, UI, Pet, WorldUI, Audio
-├── assets/pets/            # 블렌더 펫 FBX + 텍스처 + .blend
+├── assets/pets/            # 블렌더 펫 FBX + 텍스처 + .blend + Studio 가져오기 결과 PetModels.rbxmx
 ├── assets/env/             # 숲 키트 EnvModels.fbx + 텍스처 + .blend + Studio 가져오기 결과 EnvModels.rbxmx
 ├── blender/                # 펫(sdf 조각 → 베이크 → 리깅 → FBX)과 숲 키트(env_kit.py)를 만드는 파이썬 스크립트
 ├── tests/                  # 헤드리스 플레이 테스트 (실제 Luau VM + Roblox API 모의)

@@ -167,9 +167,36 @@ local function check(name, ok, detail)
 end
 
 -- ===================================================================== 서버 시작
+-- 블렌더 FBX 를 Studio 로 가져온 것과 같은 구조의 가짜 모델 (MeshPart + Bone 계층).
+-- 일부러 작업 공간에 둔다 → 서버가 PetModels 로 옮기는지도 검사한다.
+do
+	local model = E.Instance.new("Model")
+	model.Name = "Mossling"
+	local mesh = E.Instance.new("MeshPart")
+	mesh.Name = "Mossling"
+	mesh.Size = D.Vector3.new(0.9, 1.29, 1.0)
+	mesh.CFrame = D.CFrame.new(0, 0.645, 0) * D.CFrame.Angles(0, math.pi, 0)
+	mesh.Parent = model
+	local function bone(name, parent, pos)
+		local b = E.Instance.new("Bone")
+		b.Name = name
+		b.Parent = parent
+		b.WorldPosition = pos
+		return b
+	end
+	local rootBone = bone("Root", mesh, D.Vector3.new(0, 0, -0.05))
+	local body = bone("Body", rootBone, D.Vector3.new(0, 0.3, -0.2))
+	local head = bone("Head", body, D.Vector3.new(0, 0.52, 0.05))
+	bone("EarL", head, D.Vector3.new(-0.19, 0.86, 0))
+	bone("EarR", head, D.Vector3.new(0.19, 0.86, 0))
+	bone("Front", head, D.Vector3.new(0, 0.55, 0.4))
+	for _, n in ipairs({"LegFL", "LegFR", "LegBL", "LegBR"}) do bone(n, body, D.Vector3.new(0, 0.25, 0)) end
+	model.Parent = workspace
+end
 print("▶ 서버 시작")
 run(SSS.ServerMain, serverGlobals, serverRequire)
 if #R.Errors > 0 then fail("ServerMain 시작") end
+check("펫 모델 작업 공간 → PetModels 로 옮김", RS.PetModels:FindFirstChild("Mossling") ~= nil and workspace:FindFirstChild("Mossling") == nil)
 local root = workspace:FindFirstChild("WILDHOLD")
 check("맵 생성", root ~= nil)
 local partCount = 0
@@ -261,31 +288,6 @@ local notices = {}
 RS.Remotes.Notice.OnClientEvent:Connect(function(msg) table.insert(notices, msg) end)
 local fxCount = {}
 RS.Remotes.FX.OnClientEvent:Connect(function(kind) fxCount[kind] = (fxCount[kind] or 0) + 1 end)
--- 블렌더 FBX 를 Studio 로 가져온 것과 같은 구조의 가짜 모델 (MeshPart + Bone 계층)
-do
-	local model = E.Instance.new("Model")
-	model.Name = "Mossling"
-	local mesh = E.Instance.new("MeshPart")
-	mesh.Name = "Mossling"
-	mesh.Size = D.Vector3.new(0.9, 1.29, 1.0)
-	mesh.CFrame = D.CFrame.new(0, 0.645, 0) * D.CFrame.Angles(0, math.pi, 0)
-	mesh.Parent = model
-	local function bone(name, parent, pos)
-		local b = E.Instance.new("Bone")
-		b.Name = name
-		b.Parent = parent
-		b.WorldPosition = pos
-		return b
-	end
-	local rootBone = bone("Root", mesh, D.Vector3.new(0, 0, -0.05))
-	local body = bone("Body", rootBone, D.Vector3.new(0, 0.3, -0.2))
-	local head = bone("Head", body, D.Vector3.new(0, 0.52, 0.05))
-	bone("EarL", head, D.Vector3.new(-0.19, 0.86, 0))
-	bone("EarR", head, D.Vector3.new(0.19, 0.86, 0))
-	bone("Front", head, D.Vector3.new(0, 0.55, 0.4))
-	for _, n in ipairs({"LegFL", "LegFR", "LegBL", "LegBR"}) do bone(n, body, D.Vector3.new(0, 0.25, 0)) end
-	model.Parent = RS.PetModels
-end
 print("▶ 클라이언트 시작")
 run(playerScripts.ClientMain, clientGlobals, clientRequire)
 if not step(2) then fail("클라이언트 시작") end

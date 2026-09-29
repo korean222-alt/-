@@ -15,6 +15,15 @@ local names={Map="MapService",Clock="DayNightService",Core="CoreService",Resourc
     Enemies="EnemyService",Waves="WaveService",Run="RunService",Combat="CombatService",Data="DataService",Pets="PetService",
     Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService"}
 for key,name in pairs(names) do ctx[key]=require(script.Parent.Services[name]) end
+-- Studio 에서 가져온 펫 모델(FBX)을 작업 공간에 그대로 두었으면 PetModels 로 옮긴다 (같은 이름이 있으면 새로 가져온 쪽으로 교체)
+local petModels=RS:FindFirstChild("PetModels") or Instance.new("Folder");petModels.Name,petModels.Parent="PetModels",RS
+for _,id in ipairs(require(RS.Shared.Config.PetConfig).Order) do
+    local model=workspace:FindFirstChild(id)
+    if model and model:IsA("Model") and model:FindFirstChildWhichIsA("Bone",true) then
+        local old=petModels:FindFirstChild(id);if old then old:Destroy() end
+        model.Parent=petModels
+    end
+end
 ctx.Map:Build()
 for _,name in ipairs({"Run","Core","Resources","Enemies","Waves","Defenses","Data","Pets","Crafting","Capture","Tutorial","Combat"}) do ctx[name]:Init(ctx) end
 ctx.Clock:Begin("Waiting",0,0)

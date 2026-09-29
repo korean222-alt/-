@@ -15,9 +15,10 @@ from xml.sax.saxutils import escape
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 OUT = ROOT / "WILDHOLD.rbxlx"
-# Studio 에서 EnvModels.fbx 를 가져온 결과(메쉬·텍스처가 Roblox 에 올라간 MeshPart 14개)를 저장한 모델 파일.
-# 있으면 ReplicatedStorage/EnvModels 로 그대로 넣어서 place 를 다시 만들어도 숲 키트를 또 가져올 필요가 없다.
-ENV_MODELS = ROOT / "assets" / "env" / "EnvModels.rbxmx"
+# Studio 에서 FBX 를 가져온 결과(메쉬·텍스처가 Roblox 에 올라간 모델)를 저장한 파일들.
+# 있으면 place 에 그대로 넣어서, place 를 다시 만들어도 Studio 에서 또 가져올 필요가 없다.
+ENV_MODELS = ROOT / "assets" / "env" / "EnvModels.rbxmx"    # Model "EnvModels" (숲 키트 14개) → ReplicatedStorage
+PET_MODELS = ROOT / "assets" / "pets" / "PetModels.rbxmx"   # 펫 Model 들 → ReplicatedStorage/PetModels
 
 _ref = 0
 
@@ -87,20 +88,30 @@ def folder_item(path: pathlib.Path, name: str | None = None):
     return build
 
 
-def env_models() -> tuple[list, list]:
-    """EnvModels.rbxmx 에서 모델 Item 과 그 메쉬 데이터(SharedStrings)를 꺼낸다. 없으면 빈 목록."""
-    if not ENV_MODELS.exists():
+def saved_models(path: pathlib.Path) -> tuple[list, list]:
+    """Studio 가져오기 결과 .rbxmx 에서 최상위 Model Item 들과 메쉬 데이터(SharedStrings)를 꺼낸다. 없으면 빈 목록."""
+    if not path.exists():
         return [], []
-    text = ENV_MODELS.read_text(encoding="utf-8")
-    start = text.index('<Item class="Model"')
-    end = text.index("<SharedStrings>")
-    model = text[start:end].rstrip()
+    text = path.read_text(encoding="utf-8")
+    body = text[: text.index("<SharedStrings>")] if "<SharedStrings>" in text else text
+    models, depth, start = [], 0, None
+    for m in re.finditer(r"<Item |</Item>", body):
+        if m.group() == "<Item ":
+            if depth == 0:
+                start = m.start()
+            depth += 1
+        else:
+            depth -= 1
+            if depth == 0:
+                models.append(body[start:m.end()])
     shared = re.findall(r"<SharedString md5=.*?</SharedString>", text, re.S)
-    return [model], shared
+    return models, shared
 
 
 def main() -> None:
-    env_items, env_shared = env_models()
+    env_items, env_shared = saved_models(ENV_MODELS)
+    pet_items, pet_shared = saved_models(PET_MODELS)
+    shared = list(dict.fromkeys(env_shared + pet_shared))
     server_children = [script_item(SRC / "server" / "ServerMain.server.lua"), folder_item(SRC / "server" / "Services")]
     client_children = [script_item(SRC / "client" / "ClientMain.client.lua"), folder_item(SRC / "client" / "Controllers")]
     parts = [
@@ -118,8 +129,8 @@ def main() -> None:
              ExposureCompensation=("float", 0.1)),
         item("ReplicatedStorage", "ReplicatedStorage", [
             folder_item(SRC / "shared", "Shared"),
-            # 블렌더에서 만든 펫 FBX 를 Studio 로 가져온 뒤 여기에 넣는다 (docs/PET_IMPORT_GUIDE.md)
-            lambda indent: item("Folder", "PetModels", indent=indent),
+            # 블렌더 펫 4종 (Studio 가져오기 결과). 새 펫은 Studio 에서 가져와 여기에 넣고 PetModels.rbxmx 로 저장
+            lambda indent: item("Folder", "PetModels", pet_items, indent=indent),
             *env_items,
         ]),
         item("ServerScriptService", "ServerScriptService", server_children),
@@ -128,7 +139,7 @@ def main() -> None:
         ], CameraMaxZoomDistance=("float", 80), CharacterWalkSpeed=("float", 18)),
         item("StarterGui", "StarterGui"),
         item("StarterPack", "StarterPack"),
-        *(["  <SharedStrings>", *("    " + x for x in env_shared), "  </SharedStrings>"] if env_shared else []),
+        *(["  <SharedStrings>", *("    " + x for x in shared), "  </SharedStrings>"] if shared else []),
         "</roblox>",
         "",
     ]

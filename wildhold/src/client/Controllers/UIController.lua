@@ -339,7 +339,7 @@ function UI:Update(previous)
 	-- 목표
 	local goal
 	if d.Phase == "Waiting" then
-		goal = string.format("원정대 %d명 모이는 중 · 곧 출발합니다", d.Players)
+		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 손에 든 창(클릭 / F / 공격 버튼)으로 야생 펫 사냥과 나무·돌 채집", d.Players)
 	elseif total >= C.CarryCapacity and d.Phase == "Day" then
 		goal = "가방이 가득! 기지의 공용 창고 앞으로 가면 자동으로 넣어요"
 	elseif d.Phase == "Result" then
@@ -355,7 +355,7 @@ function UI:Update(previous)
 	local was = previous and previous.Phase
 	if was ~= d.Phase then
 		if d.Phase == "Day" and d.Night == 1 and was == "Waiting" then
-			self:ShowBanner("🌿 원정 시작!", "약한 야생 펫을 잡아 동료를 늘리세요", Color3.fromHex("#b6ff8a"))
+			self:ShowBanner("🌿 원정 시작!", "문 밖 초원의 야생 모슬링부터 잡아 동료를 늘리세요", Color3.fromHex("#b6ff8a"))
 		elseif d.Phase == "Night" then
 			self:ShowBanner(string.format("🌙 밤 %d", d.Night), "괴물들이 굴에서 나온다! Core 를 지키세요", Color3.fromHex("#c9b8ff"))
 			self:SetVignette(0.35)
