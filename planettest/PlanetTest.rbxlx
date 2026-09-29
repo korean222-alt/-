@@ -1,0 +1,791 @@
+<?xml version="1.0" encoding="utf-8"?>
+<roblox version="4">
+<External>null</External>
+<External>nil</External>
+  <Item class="Workspace" referent="RBX000001">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="FilteringEnabled">true</bool>
+      <bool name="StreamingEnabled">false</bool>
+      <float name="FallenPartsDestroyHeight">-50000</float>
+    </Properties>
+  </Item>
+  <Item class="Lighting" referent="RBX000002">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <token name="Technology">4</token>
+      <float name="ClockTime">14</float>
+      <float name="Brightness">2</float>
+      <bool name="GlobalShadows">true</bool>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="RBX000003">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="RBX000004">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="RBX000005">
+        <Properties>
+          <string name="Name">Config</string>
+          <ProtectedString name="Source">-- 숫자는 이곳에서만 바꿉니다. Studio: Stop → 수정 → Play.
+return {
+    Radius = 220,                 -- 속도 16이면 한 바퀴 약 86초
+    CenterX = 0, CenterY = 0, CenterZ = 0,
+    Gravity = 90,
+    WalkSpeed = 16,
+    JumpSpeed = 38,
+    MoveResponse = 12,
+    MaxMoveAcceleration = 160,
+    AirControl = 0.35,
+    GroundProbe = 0.45,
+    GroundNormalMin = 0.45,       -- 벽 옆면을 점프 가능한 땅으로 취급하지 않음
+    JumpCooldown = 0.25,
+    ColliderRadius = 1,
+    OrientationResponse = 45,
+    TurnResponse = 14,
+    SpawnClearance = 3,
+    OppositeSpawns = true,       -- 2번째 플레이어는 행성 반대편에서 시작
+    RespawnDistance = 160,       -- 표면에서 너무 멀어지면 재시작
+    Embed = 0.4,
+    TreeCount = 48,
+    RockCount = 12,
+    Seed = 2718,
+    FlagDistances = {30,60,90,120},
+    RouteFlagCount = 12,         -- 적도 대신 기지를 지나는 대원에 한 바퀴 표지
+    MonsterSpeed = 7,
+    MonsterNear = 14,
+    MonsterFarFraction = 0.75,   -- pi*반지름에 대한 비율
+    CameraDistance = 12,
+    CameraMinDistance = 5,
+    CameraMaxDistance = 32,
+    CameraPitch = 12,
+    CameraMinPitch = -15,
+    CameraMaxPitch = 75,
+    CameraFocusHeight = 1.5,
+    CameraSensitivity = 0.004,
+    CameraZoomStep = 2,
+    CameraCollisionRadius = 0.45,
+    CameraPadding = 0.5,
+    CameraReturnResponse = 12,
+    GamepadCameraSpeed = 2,
+}
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000006">
+        <Properties>
+          <string name="Name">Layout</string>
+          <ProtectedString name="Source">local C = require(script.Parent.Config)
+local P = require(script.Parent.PlanetMath)
+local L = {}
+function L.props()
+    local result = {}
+    -- Fibonacci 구면 분포. 대원 보행 코스와 기지 주변은 비웁니다.
+    for _, kind in ipairs({"Tree","Rock"}) do
+        local count = if kind=="Tree" then C.TreeCount else C.RockCount
+        for i=1,count do
+            local y = 1-2*(i-0.5)/count
+            local a = i*math.pi*(3-math.sqrt(5))+C.Seed*0.01
+            local r = math.sqrt(1-y*y)
+            local up = Vector3.new(math.cos(a)*r,y,math.sin(a)*r)
+            if math.abs(up.X)*C.Radius&gt;10 and y&lt;0.99 then
+                table.insert(result,{kind=kind,frame=P.frame(up,-C.Embed)})
+            end
+        end
+    end
+    return result
+end
+function L.flags()
+    local result = {}
+    local Y,Z = Vector3.new(0,1,0),Vector3.new(0,0,1)
+    for _,distance in ipairs(C.FlagDistances) do
+        local up,f = P.arc(Y,Z,distance/C.Radius)
+        -- 코스 옆 5 stud에 두되 밑바닥은 정확히 구면으로 투영
+        up = (up+Vector3.new(5/C.Radius,0,0)).Unit
+        table.insert(result,{name=distance.." stud",frame=P.frame(up,-C.Embed,f)})
+    end
+    for i=1,C.RouteFlagCount do
+        local up,f = P.arc(Y,Z,i*2*math.pi/C.RouteFlagCount)
+        up = (up+Vector3.new(-5/C.Radius,0,0)).Unit
+        table.insert(result,{name=math.floor(i*360/C.RouteFlagCount).."°",frame=P.frame(up,-C.Embed,f)})
+    end
+    return result
+end
+return L
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="RBX000007">
+        <Properties>
+          <string name="Name">PlanetMath</string>
+          <ProtectedString name="Source">local C = require(script.Parent.Config)
+local P = {}
+P.Center = Vector3.new(C.CenterX,C.CenterY,C.CenterZ)
+local Y, X, Z = Vector3.new(0,1,0),Vector3.new(1,0,0),Vector3.new(0,0,1)
+function P.up(position)
+    local delta = position-P.Center
+    return if delta.Magnitude &gt; 0.001 then delta.Unit else Y
+end
+function P.tangent(vector, up)
+    local projected = vector-up*vector:Dot(up)
+    if projected.Magnitude &lt; 0.0001 then
+        local axis = if math.abs(up:Dot(Z))&lt;0.9 then Z else X
+        projected = axis-up*axis:Dot(up)
+    end
+    return projected.Unit
+end
+-- 최단 회전: EgoMoose getRotationBetween 기반. 대척점에서도 유효한 축 사용.
+function P.rotationBetween(a,b,axis)
+    local dot = math.clamp(a:Dot(b),-1,1)
+    if dot &lt; -0.99999 then return CFrame.fromAxisAngle(P.tangent(axis,a),math.pi) end
+    local cross = a:Cross(b)
+    if cross.Magnitude&lt;1e-8 then return CFrame.new() end
+    return CFrame.fromAxisAngle(cross.Unit,math.atan2(cross.Magnitude,dot))
+end
+function P.transport(forward,oldUp,newUp)
+    return P.tangent(P.rotationBetween(oldUp,newUp,forward)*forward,newUp)
+end
+function P.frame(up,height,forward)
+    up = up.Unit
+    local f = P.tangent(forward or Z,up)
+    return CFrame.fromMatrix(P.Center+up*(C.Radius+(height or 0)),f:Cross(up),up,-f)
+end
+function P.arc(start,tangent,angle)
+    local t = P.tangent(tangent,start)
+    return (start*math.cos(angle)+t*math.sin(angle)).Unit,
+        (-start*math.sin(angle)+t*math.cos(angle)).Unit
+end
+function P.monster(t)
+    local far = math.pi*C.Radius*C.MonsterFarFraction
+    local span = far-C.MonsterNear
+    local distance = (t*C.MonsterSpeed)%(2*span)
+    local inbound = distance&lt;span
+    local radius = if inbound then far-distance else C.MonsterNear+distance-span
+    local up,tangent = P.arc(Y,Z,radius/C.Radius)
+    return P.frame(up,0,if inbound then -tangent else tangent)
+end
+function P.gravityForce(position,mass,worldGravity)
+    return mass*(Y*worldGravity-P.up(position)*C.Gravity)
+end
+assert(C.Radius&gt;=40 and C.Radius&lt;=900, "Radius는 40~900으로 설정하세요")
+assert(C.Gravity&gt;0 and C.WalkSpeed&gt;0 and C.MonsterSpeed&gt;0)
+assert(C.MonsterFarFraction&gt;0 and C.MonsterFarFraction&lt;1)
+assert(C.MonsterNear&lt;math.pi*C.Radius*C.MonsterFarFraction)
+return P
+</ProtectedString>
+        </Properties>
+      </Item>
+    </Item>
+    <Item class="Folder" referent="RBX000008">
+      <Properties>
+        <string name="Name">EnvModels</string>
+      </Properties>
+    </Item>
+    <Item class="StringValue" referent="RBX000009">
+      <Properties>
+        <string name="Name">ThirdPartyNotices</string>
+        <string name="Value">MIT License
+
+Copyright (c) 2020 EgoMoose
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+# EgoMoose 출처 / 수정 범위
+
+- 원본: https://github.com/EgoMoose/Rbx-Gravity-Controller
+- 고정 커밋: `95e2a79596052bc36b2bf3290d92390b10db7210`
+- 라이선스: MIT, Copyright (c) 2020 EgoMoose. 상업적 이용·수정·배포를 허용하며 저작권 및 허가 고지를 유지해야 합니다. 원문 전체는 `EgoMoose-LICENSE.txt`이며 생성된 place의 `ReplicatedStorage.ThirdPartyNotices`에도 포함합니다.
+
+`src/client/Modules/GravityController.lua`는 원본 GravityController의 중력 보정력, 접선/수직 속도 분해, 이동 힘과 Collider의 구형 충돌체 방식을 행성용으로 크게 줄여 수정한 파생 구현입니다. `src/shared/PlanetMath.lua`의 rotationBetween은 원본 getRotationBetween을 바탕으로 축·각 표현과 대척점 안전 처리를 사용합니다.
+
+변경: 발밑 표면 법선 대신 행성 중심, AssemblyLinearVelocity/AssemblyMass, AlignOrientation, 서버 생성 충돌체·클라이언트 물리 소유권, 시간 기반 회전/이동 응답, 휴대폰 기본 입력과 점프 연결, 리스폰 정리. 카메라는 별도 작성한 평행 이동(방향 운반) 방식으로 교체했습니다.
+
+원본의 CameraInjector, PlayerScriptsLoader, Quenty Signal, 커스텀 Animate/사운드 묶음은 포함하지 않았습니다. Roblox 내부 카메라 모듈을 바꾸거나 외부 자산 ID에서 코드를 다운로드하지 않습니다. 캐릭터 모양과 리그는 기본 아바타를 유지합니다.
+
+확인한 Roblox 공식 문서:
+- https://create.roblox.com/docs/reference/engine/classes/Humanoid#EvaluateStateMachine
+- https://create.roblox.com/docs/reference/engine/classes/AlignOrientation
+- https://create.roblox.com/docs/reference/engine/classes/BasePart#SetNetworkOwner
+- https://create.roblox.com/docs/reference/engine/classes/UserInputService
+</string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="RBX000010">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="RBX000011">
+      <Properties>
+        <string name="Name">PlanetTest</string>
+        <ProtectedString name="Source">local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local C = require(RS.Shared.Config)
+local P = require(RS.Shared.PlanetMath)
+local L = require(RS.Shared.Layout)
+-- 낙사 삭제 높이는 스크립트 권한으로 수정할 수 없어 빌더에서 -50000으로 저장합니다.
+local world = Instance.new("Folder")
+world.Name,world.Parent = "PlanetTest",workspace
+local function part(name,size,cf,color,parent)
+    local p = Instance.new("Part")
+    p.Name,p.Size,p.CFrame,p.Color = name,size,cf,color
+    p.Anchored = true
+    p.TopSurface,p.BottomSurface = Enum.SurfaceType.Smooth,Enum.SurfaceType.Smooth
+    p.Parent = parent or world
+    return p
+end
+local planet = part("Planet",Vector3.new(1,1,1)*C.Radius*2,CFrame.new(P.Center),Color3.fromRGB(74,110,72))
+planet.Shape,planet.Material = Enum.PartType.Ball,Enum.Material.Grass
+planet.CustomPhysicalProperties = PhysicalProperties.new(1,0.4,0,1,100)
+local wood = Color3.fromRGB(103,66,39)
+local base = P.frame(Vector3.new(0,1,0),-C.Embed)
+local logs = part("Campfire",Vector3.new(4,1,4),base*CFrame.new(0,0.5,0),wood)
+local fire = Instance.new("Fire")
+fire.Size,fire.Heat,fire.Parent = 5,6,logs
+local light = Instance.new("PointLight")
+light.Brightness,light.Range,light.Color,light.Shadows = 4,65,Color3.fromRGB(255,170,75),true
+light.Parent = logs
+
+local templates = {Tree={},Rock={}}
+local env = RS:FindFirstChild("EnvModels")
+if env then
+    for _,candidate in ipairs(env:GetDescendants()) do
+        local kind = if candidate.Name:match("^Spruce") then "Tree" elseif candidate.Name:match("^Boulder") then "Rock" else nil
+        if kind and (candidate:IsA("Model") or candidate:IsA("BasePart")) then
+            local ancestor,nested = candidate.Parent,false
+            while ancestor and ancestor~=env do
+                if ancestor.Name:match("^Spruce") or ancestor.Name:match("^Boulder") then nested = true end
+                ancestor = ancestor.Parent
+            end
+            if not nested then table.insert(templates[kind],candidate) end
+        end
+    end
+end
+for i,entry in ipairs(L.props()) do
+    local list = templates[entry.kind]
+    if #list&gt;0 then
+        local model = Instance.new("Model")
+        model.Name = entry.kind
+        local clone = list[(i-1)%#list+1]:Clone()
+        clone.Parent = model
+        for _,child in ipairs(model:GetDescendants()) do
+            if child:IsA("BasePart") then child.Anchored = true end
+            if child:IsA("LuaSourceContainer") then child:Destroy() end
+        end
+        local box,size = model:GetBoundingBox()
+        local bottom = box*CFrame.new(0,-size.Y/2,0)
+        model:PivotTo(entry.frame*bottom:Inverse()*model:GetPivot())
+        model.Parent = world
+    elseif entry.kind=="Tree" then
+        part("TreeTrunk",Vector3.new(2,10,2),entry.frame*CFrame.new(0,5,0),wood)
+        local crown = part("TreeCrown",Vector3.new(8,11,8),entry.frame*CFrame.new(0,12,0),Color3.fromRGB(30,70,44))
+        crown.Shape,crown.CanCollide = Enum.PartType.Ball,false
+    else
+        local rock = part("Rock",Vector3.new(5,3,4),entry.frame*CFrame.new(0,1.5,0),Color3.fromRGB(115,119,125))
+        rock.Shape,rock.Material = Enum.PartType.Ball,Enum.Material.Slate
+    end
+end
+-- 기지 옆 기울어진 바위: 벽면에 닿아도 중력 방향이 바뀌지 않는지 시험.
+local slopeUp = (Vector3.new(0,1,0)+Vector3.new(18/C.Radius,0,15/C.Radius)).Unit
+part("SlopedRock",Vector3.new(8,3,9),P.frame(slopeUp,0.5)*CFrame.Angles(0,0,math.rad(28)),Color3.fromRGB(130,132,140))
+for _,entry in ipairs(L.flags()) do
+    part("FlagPole",Vector3.new(0.5,6,0.5),entry.frame*CFrame.new(0,3,0),wood)
+    local flag = part("Flag",Vector3.new(3,1.5,0.15),entry.frame*CFrame.new(1.5,5.2,0),Color3.fromRGB(252,192,61))
+    flag.CanCollide = false
+    for _,face in ipairs({Enum.NormalId.Front,Enum.NormalId.Back}) do
+        local gui = Instance.new("SurfaceGui")
+        gui.Face,gui.AlwaysOnTop,gui.Parent = face,false,flag
+        local label = Instance.new("TextLabel")
+        label.Size,label.BackgroundTransparency = UDim2.fromScale(1,1),1
+        label.Text,label.TextScaled,label.TextColor3 = entry.name,true,Color3.new(0,0,0)
+        label.Parent = gui
+    end
+end
+local monster = Instance.new("Model")
+monster.Name,monster.Parent = "WalkingMonster",world
+local root = part("Root",Vector3.new(0.2,0.2,0.2),CFrame.new(),Color3.new(),monster)
+root.Transparency,root.CanCollide = 1,false
+monster.PrimaryPart = root
+local dark = Color3.fromRGB(42,37,53)
+part("Body",Vector3.new(3,3,2),CFrame.new(0,3.2,0),dark,monster)
+part("Head",Vector3.new(2.5,2,2),CFrame.new(0,5.5,0),dark,monster)
+local legs = {}
+for _,side in ipairs({-1,1}) do
+    table.insert(legs,part("Leg",Vector3.new(0.9,2,1),CFrame.new(side*0.8,1,0),dark,monster))
+    local eye = part("Eye",Vector3.new(0.4,0.4,0.15),CFrame.new(side*0.6,5.6,-1.05),Color3.fromRGB(255,80,35),monster)
+    eye.Material = Enum.Material.Neon
+end
+local monsterOffsets = {}
+for _,p in ipairs(monster:GetChildren()) do
+    p.CanCollide = false
+    monsterOffsets[p] = p.CFrame
+end
+local elapsed = 0
+local function animateMonster(dt)
+    elapsed += dt
+    local cf = P.monster(elapsed)
+    -- 매번 원래 로컬 좌표에서 계산해 누적 이동 오차를 만들지 않습니다.
+    for p,offset in pairs(monsterOffsets) do p.CFrame = cf*offset end
+    for i,leg in ipairs(legs) do
+        local side = if i==1 then -1 else 1
+        leg.CFrame = cf*CFrame.new(side*0.8,1,0)*CFrame.Angles(math.sin(elapsed*6)*0.3*side,0,0)
+    end
+end
+animateMonster(0)
+RunService.Heartbeat:Connect(animateMonster)
+
+local ready = Instance.new("RemoteEvent")
+ready.Name,ready.Parent = "PlanetClientReady",RS
+local nextSlot,slots = 0,{}
+local function setupCharacter(player,character)
+    local hrp = character:WaitForChild("HumanoidRootPart")
+    local humanoid = character:WaitForChild("Humanoid")
+    hrp.Anchored = true -- 클라이언트 준비 전에는 추락하지 않습니다.
+    if not player:HasAppearanceLoaded() then player.CharacterAppearanceLoaded:Wait() end
+    if player.Character~=character or not character.Parent then return end
+    humanoid.AutoRotate,humanoid.EvaluateStateMachine = false,false
+    humanoid.WalkSpeed,humanoid.UseJumpPower,humanoid.JumpPower = C.WalkSpeed,true,C.JumpSpeed
+    if not humanoid:FindFirstChildOfClass("Animator") then Instance.new("Animator",humanoid) end
+    local function noCollision(p)
+        if p:IsA("BasePart") and p.Name~="PlanetCollider" then p.CanCollide = false end
+    end
+    for _,p in ipairs(character:GetDescendants()) do noCollision(p) end
+    local added = character.DescendantAdded:Connect(noCollision)
+    local respawning = false
+    -- EvaluateStateMachine=false에서도 Reset/낙사 후 다시 시작할 수 있게 명시적으로 처리.
+    local health = humanoid.HealthChanged:Connect(function(value)
+        if value&gt;0 or respawning then return end
+        respawning = true
+        task.delay(Players.RespawnTime,function()
+            if player.Parent==Players and player.Character==character then player:LoadCharacterAsync() end
+        end)
+    end)
+    character.Destroying:Once(function() added:Disconnect(); health:Disconnect() end)
+    local height = humanoid.HipHeight+hrp.Size.Y/2
+    if humanoid.RigType==Enum.HumanoidRigType.R6 then
+        height = hrp.Size.Y/2+character:WaitForChild("Left Leg").Size.Y
+    end
+    local collider = Instance.new("Part")
+    collider.Name,collider.Shape,collider.Size = "PlanetCollider",Enum.PartType.Ball,Vector3.new(1,1,1)*C.ColliderRadius*2
+    collider.Transparency,collider.Massless,collider.CanCollide = 1,true,true
+    collider.CustomPhysicalProperties = PhysicalProperties.new(0.7,0,0,100,100)
+    collider.CFrame = hrp.CFrame*CFrame.new(0,-height+C.ColliderRadius,0)
+    collider.Parent = character
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0,weld.Part1,weld.Parent = hrp,collider,collider
+    local attach = Instance.new("Attachment")
+    attach.Name,attach.Parent = "PlanetAttachment",hrp
+    local force = Instance.new("VectorForce")
+    force.Name,force.Attachment0 = "PlanetForce",attach
+    force.RelativeTo,force.ApplyAtCenterOfMass = Enum.ActuatorRelativeTo.World,true
+    force.Parent = hrp
+    local align = Instance.new("AlignOrientation")
+    align.Name,align.Attachment0,align.Mode = "PlanetOrientation",attach,Enum.OrientationAlignmentMode.OneAttachment
+    align.MaxTorque,align.MaxAngularVelocity,align.Responsiveness = 1000000,100,C.OrientationResponse
+    align.Parent = hrp
+    local opposite = C.OppositeSpawns and slots[player]%2==0
+    local up = Vector3.new(0,if opposite then -1 else 1,0)
+    up = (up+Vector3.new(0,0,-8/C.Radius)).Unit
+    local frame = P.frame(up,height+C.SpawnClearance)
+    character:PivotTo(frame*(hrp.CFrame:Inverse()*character:GetPivot()))
+    align.CFrame = frame.Rotation
+    character:SetAttribute("PlanetPrepared",true)
+    print("PlanetTest spawn",player.Name,if opposite then "opposite" else "base")
+end
+ready.OnServerEvent:Connect(function(player,character)
+    if typeof(character)~="Instance" or character~=player.Character or not character:GetAttribute("PlanetPrepared") or character:GetAttribute("PlanetActive") then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    hrp.Anchored = false
+    hrp:SetNetworkOwner(player)
+    character:SetAttribute("PlanetActive",true)
+end)
+local function addPlayer(player)
+    nextSlot+=1; slots[player]=nextSlot
+    player.CharacterAdded:Connect(function(character) setupCharacter(player,character) end)
+    if player.Character then task.spawn(setupCharacter,player,player.Character) end
+end
+Players.PlayerAdded:Connect(addPlayer)
+Players.PlayerRemoving:Connect(function(player) slots[player]=nil end)
+for _,player in ipairs(Players:GetPlayers()) do addPlayer(player) end
+-- 튕겨나감/관통 시 작은 시험판을 리셋으로 복구합니다.
+local checkElapsed = 0
+RunService.Heartbeat:Connect(function(dt)
+    checkElapsed+=dt
+    if checkElapsed&lt;1 then return end
+    checkElapsed=0
+    for _,player in ipairs(Players:GetPlayers()) do
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChild("Humanoid")
+        if hrp and humanoid and character:GetAttribute("PlanetActive") then
+            local radius = (hrp.Position-P.Center).Magnitude
+            if radius&lt;C.Radius-8 or radius&gt;C.Radius+C.RespawnDistance then
+                warn("PlanetTest recovery: 행성 이탈",player.Name,radius)
+                humanoid.Health=0
+            end
+        end
+    end
+end)
+print("PlanetTest ready; radius",C.Radius,"ideal lap seconds",2*math.pi*C.Radius/C.WalkSpeed)
+</ProtectedString>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="RBX000012">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <token name="DevComputerMovementMode">1</token>
+      <token name="DevTouchMovementMode">1</token>
+      <bool name="EnableMouseLockOption">false</bool>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="RBX000013">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="RBX000014">
+        <Properties>
+          <string name="Name">ClientMain</string>
+          <ProtectedString name="Source">local Players=game:GetService("Players")
+local RS=game:GetService("ReplicatedStorage")
+local Lighting=game:GetService("Lighting")
+local Controller=require(script.Parent.Modules.GravityController)
+local player=Players.LocalPlayer
+local active,generation=nil,0
+local function cleanup()
+    generation+=1
+    if active then active:Destroy(); active=nil end
+end
+local function start(character)
+    cleanup()
+    local token=generation
+    while character.Parent and not character:GetAttribute("PlanetPrepared") do
+        if token~=generation then return end
+        task.wait()
+    end
+    if token~=generation or not character.Parent then return end
+    local controller=Controller.new(player,character,function() return token==generation and character.Parent~=nil end)
+    if not controller then return end
+    active=controller
+    RS:WaitForChild("PlanetClientReady"):FireServer(character)
+    character:WaitForChild("Humanoid").Died:Once(function()
+        if active==controller then cleanup() end
+    end)
+    print("PlanetTest client ready: 중심 중력 / 기본 입력 / 행성 카메라")
+end
+player.CharacterAdded:Connect(start)
+player.CharacterRemoving:Connect(cleanup)
+if player.Character then task.spawn(start,player.Character) end
+local gui=Instance.new("ScreenGui")
+gui.Name,gui.ResetOnSpawn="PlanetDayNight",false
+local button=Instance.new("TextButton")
+button.Size,button.Position=UDim2.fromOffset(120,44),UDim2.new(1,-136,0,16)
+button.BackgroundColor3,button.TextColor3,button.TextSize=Color3.fromRGB(32,42,47),Color3.new(1,1,1),18
+button.Parent=gui
+gui.Parent=player:WaitForChild("PlayerGui")
+local night=false
+local function update()
+    Lighting.ClockTime=if night then 0 else 14
+    Lighting.Brightness=if night then 0 else 2
+    -- 낮에는 반대편에서도 걷기를 검사할 수 있게 약한 전체 조명을 둡니다.
+    Lighting.Ambient=if night then Color3.new(0,0,0) else Color3.fromRGB(140,145,155)
+    Lighting.OutdoorAmbient=Lighting.Ambient
+    Lighting.EnvironmentDiffuseScale=if night then 0 else 0.6
+    Lighting.EnvironmentSpecularScale=if night then 0 else 0.5
+    button.Text=if night then "☀ 낮으로" else "☾ 밤으로"
+end
+button.Activated:Connect(function() night=not night; update() end)
+update()
+</ProtectedString>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="RBX000015">
+        <Properties>
+          <string name="Name">Modules</string>
+        </Properties>
+        <Item class="ModuleScript" referent="RBX000016">
+          <Properties>
+            <string name="Name">AvatarAnimation</string>
+            <ProtectedString name="Source">-- 기본 아바타/리그는 유지하고, 중력 조종기의 이동 상태로 기존 애니메이션을 재생합니다.
+local Animation={}
+Animation.__index=Animation
+function Animation.new(character)
+    local humanoid=character:WaitForChild("Humanoid")
+    local animator=humanoid:WaitForChild("Animator")
+    local animate=character:WaitForChild("Animate",5)
+    if animate then animate.Enabled=false end
+    for _,track in ipairs(animator:GetPlayingAnimationTracks()) do track:Stop(0.1) end
+    local ids=if humanoid.RigType==Enum.HumanoidRigType.R15 then
+        {idle=507766666,walk=507777826,jump=507765000,fall=507767968} else
+        {idle=180435571,walk=180426354,jump=125750702,fall=180436148}
+    local self=setmetatable({Tracks={},State=nil},Animation)
+    for name,id in pairs(ids) do
+        local folder=animate and animate:FindFirstChild(name)
+        local original=folder and folder:FindFirstChildWhichIsA("Animation",true)
+        local asset=Instance.new("Animation")
+        asset.AnimationId=if original then original.AnimationId else "rbxassetid://"..id
+        local ok,track=pcall(function() return animator:LoadAnimation(asset) end)
+        asset:Destroy()
+        if ok then
+            track.Looped=name~="jump"
+            track.Priority=Enum.AnimationPriority.Movement
+            self.Tracks[name]=track
+        else warn("PlanetTest animation",name,track) end
+    end
+    return self
+end
+function Animation:Update(grounded,speed,radialSpeed)
+    local state=if grounded then (if speed&gt;0.5 then "walk" else "idle") else (if radialSpeed&gt;1 then "jump" else "fall")
+    if state~=self.State then
+        if self.Tracks[self.State] then self.Tracks[self.State]:Stop(0.15) end
+        self.State=state
+        if self.Tracks[state] then self.Tracks[state]:Play(0.15) end
+    end
+    if state=="walk" and self.Tracks.walk then self.Tracks.walk:AdjustSpeed(math.max(0.1,speed/14)) end
+end
+function Animation:Destroy()
+    for _,track in pairs(self.Tracks) do track:Stop(); track:Destroy() end
+end
+return Animation
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000017">
+          <Properties>
+            <string name="Name">GravityController</string>
+            <ProtectedString name="Source">-- Adapted from EgoMoose/Rbx-Gravity-Controller (MIT), Copyright (c) 2020 EgoMoose.
+-- Upstream 95e2a79596052bc36b2bf3290d92390b10db7210.
+-- See ReplicatedStorage.ThirdPartyNotices and planettest/third_party/EgoMoose-LICENSE.txt.
+-- 중력 보정력/접선 속도 분해/구형 충돌체 방식에서 출발한 작은 행성 전용 개정판.
+local RunService=game:GetService("RunService")
+local UIS=game:GetService("UserInputService")
+local RS=game:GetService("ReplicatedStorage")
+local C=require(RS.Shared.Config)
+local P=require(RS.Shared.PlanetMath)
+local PlanetCamera=require(script.Parent.PlanetCamera)
+local Animation=require(script.Parent.AvatarAnimation)
+local Controller={}
+Controller.__index=Controller
+function Controller.new(player,character,isCurrent)
+    local self=setmetatable({},Controller)
+    self.Character,self.Root,self.Humanoid=character,character:WaitForChild("HumanoidRootPart"),character:WaitForChild("Humanoid")
+    self.Collider=character:WaitForChild("PlanetCollider")
+    self.Force,self.Align=self.Root:WaitForChild("PlanetForce"),self.Root:WaitForChild("PlanetOrientation")
+    self.Controls=require(player.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
+    self.Humanoid.AutoRotate,self.Humanoid.EvaluateStateMachine=false,false
+    self.Animation=Animation.new(character)
+    if isCurrent and not isCurrent() then self.Animation:Destroy(); return nil end
+    self.Camera=PlanetCamera.new(character)
+    self.Forward=P.tangent(self.Root.CFrame.LookVector,P.up(self.Root.Position))
+    self.Up=P.up(self.Root.Position)
+    self.LastJump=-math.huge
+    self.JumpQueued=false
+    self.Params=RaycastParams.new()
+    -- 바위/나무에 서기는 가능하지만 법선은 중력에 사용하지 않습니다.
+    self.Params.FilterType=Enum.RaycastFilterType.Include
+    self.Params.FilterDescendantsInstances={workspace:WaitForChild("PlanetTest")}
+    self.Params.RespectCanCollide=true
+    self.Connections={}
+    local function connect(signal,fn) table.insert(self.Connections,signal:Connect(fn)) end
+    connect(UIS.JumpRequest,function()
+        if not UIS:GetFocusedTextBox() then self.JumpQueued=true end
+    end)
+    -- Roblox 기본 휴대폰 점프 버튼은 Humanoid.Jump로 전달합니다.
+    connect(self.Humanoid:GetPropertyChangedSignal("Jump"),function()
+        if self.Humanoid.Jump then self.JumpQueued=true; self.Humanoid.Jump=false end
+    end)
+    connect(RunService.PreSimulation,function(dt) self:Step(dt) end)
+    RunService:BindToRenderStep("PlanetCamera",Enum.RenderPriority.Camera.Value+1,function(dt) self.Camera:Update(dt) end)
+    self:Step(1/60)
+    self.Camera:Update(1/60)
+    return self
+end
+function Controller:Step(dt)
+    if not self.Root.Parent or self.Humanoid.Health&lt;=0 then return end
+    local up=P.up(self.Root.Position)
+    self.Forward=P.transport(self.Forward,self.Up,up)
+    self.Up=up
+    local camForward=self.Camera:GetForward(up)
+    local right=camForward:Cross(up)
+    local input=self.Controls:GetMoveVector()
+    if UIS:GetFocusedTextBox() then input=Vector3.new() end
+    local worldMove=right*input.X-camForward*input.Z
+    if worldMove.Magnitude&gt;1 then worldMove=worldMove.Unit end
+    local velocity=self.Root.AssemblyLinearVelocity
+    local radial=velocity:Dot(up)
+    local horizontal=velocity-up*radial
+    local hit=workspace:Raycast(self.Collider.Position,-up*(C.ColliderRadius+C.GroundProbe),self.Params)
+    local grounded=hit~=nil and hit.Normal:Dot(up)&gt;C.GroundNormalMin and radial&lt;4
+    local time=os.clock()
+    if self.JumpQueued and grounded and time-self.LastJump&gt;C.JumpCooldown then
+        self.Root.AssemblyLinearVelocity=horizontal+up*C.JumpSpeed
+        self.LastJump=time
+        radial=C.JumpSpeed; grounded=false
+    end
+    self.JumpQueued=false
+    if time-self.LastJump&lt;0.15 then grounded=false end
+    if worldMove.Magnitude&gt;0.01 then
+        local turn=P.rotationBetween(self.Forward,worldMove.Unit,up)
+        self.Forward=P.tangent(CFrame.new():Lerp(turn,1-math.exp(-C.TurnResponse*dt))*self.Forward,up)
+    end
+    -- EgoMoose 방식: 기본 아래 중력을 상쇄하고 중심 방향 중력을 더합니다.
+    local mass=self.Root.AssemblyMass
+    if mass==math.huge or mass&lt;=0 then return end -- 서버 준비 중 Anchored 상태
+    local gravityForce=P.gravityForce(self.Root.Position,mass,workspace.Gravity)
+    local deltaVelocity=C.WalkSpeed*worldMove-horizontal
+    local acceleration=deltaVelocity*C.MoveResponse*(if grounded then 1 else C.AirControl)
+    if acceleration.Magnitude&gt;C.MaxMoveAcceleration then acceleration=acceleration.Unit*C.MaxMoveAcceleration end
+    self.Force.Force=gravityForce+mass*acceleration
+    self.Align.CFrame=P.frame(up,0,self.Forward).Rotation
+    self.Animation:Update(grounded,horizontal.Magnitude,radial)
+end
+function Controller:Destroy()
+    RunService:UnbindFromRenderStep("PlanetCamera")
+    for _,connection in ipairs(self.Connections) do connection:Disconnect() end
+    self.Camera:Destroy()
+    self.Animation:Destroy()
+    if self.Force.Parent then self.Force.Force=Vector3.new() end
+end
+return Controller
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000018">
+          <Properties>
+            <string name="Name">PlanetCamera</string>
+            <ProtectedString name="Source">local UIS = game:GetService("UserInputService")
+local RS = game:GetService("ReplicatedStorage")
+local C = require(RS.Shared.Config)
+local P = require(RS.Shared.PlanetMath)
+local Camera = {}
+Camera.__index = Camera
+function Camera.new(character)
+    local self = setmetatable({},Camera)
+    self.Root = character:WaitForChild("HumanoidRootPart")
+    self.Up = P.up(self.Root.Position)
+    self.Forward = P.tangent(self.Root.CFrame.LookVector,self.Up)
+    self.Pitch,self.Distance = math.rad(C.CameraPitch),C.CameraDistance
+    self.ActualDistance = self.Distance
+    self.Connections,self.Drag,self.Touch,self.Stick = {},false,nil,Vector2.new()
+    self.Params = RaycastParams.new()
+    self.Params.FilterType = Enum.RaycastFilterType.Exclude
+    self.Params.FilterDescendantsInstances = {character}
+    self.Params.RespectCanCollide = true
+    local function connect(signal,fn) table.insert(self.Connections,signal:Connect(fn)) end
+    connect(UIS.InputBegan,function(input,processed)
+        if not processed and input.UserInputType==Enum.UserInputType.MouseButton2 then
+            self.Drag=true
+            UIS.MouseBehavior=Enum.MouseBehavior.LockCurrentPosition
+        end
+    end)
+    connect(UIS.InputEnded,function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton2 then
+            self.Drag=false; UIS.MouseBehavior=Enum.MouseBehavior.Default
+        end
+        if input==self.Touch then self.Touch=nil end
+    end)
+    connect(UIS.WindowFocusReleased,function()
+        self.Drag,self.Touch=false,nil
+        self.Stick=Vector2.new()
+        UIS.MouseBehavior=Enum.MouseBehavior.Default
+    end)
+    connect(UIS.InputChanged,function(input,processed)
+        if input.UserInputType==Enum.UserInputType.MouseMovement and self.Drag then
+            self:Rotate(input.Delta.X,input.Delta.Y)
+        elseif input.UserInputType==Enum.UserInputType.MouseWheel and not processed then
+            self.Distance=math.clamp(self.Distance-input.Position.Z*C.CameraZoomStep,C.CameraMinDistance,C.CameraMaxDistance)
+        elseif input.KeyCode==Enum.KeyCode.Thumbstick2 then
+            self.Stick=Vector2.new(input.Position.X,-input.Position.Y)
+        end
+    end)
+    connect(UIS.TouchStarted,function(input,processed)
+        local camera = workspace.CurrentCamera
+        if not processed and not self.Touch and input.Position.X&gt;camera.ViewportSize.X*0.45 then
+            self.Touch=input; self.LastTouch=input.Position
+        end
+    end)
+    connect(UIS.TouchMoved,function(input)
+        if input==self.Touch then
+            local delta=input.Position-self.LastTouch
+            self.LastTouch=input.Position
+            self:Rotate(delta.X,delta.Y)
+        end
+    end)
+    return self
+end
+function Camera:Rotate(dx,dy)
+    self.Forward=CFrame.fromAxisAngle(self.Up,-dx*C.CameraSensitivity)*self.Forward
+    self.Pitch=math.clamp(self.Pitch+dy*C.CameraSensitivity,math.rad(C.CameraMinPitch),math.rad(C.CameraMaxPitch))
+end
+function Camera:GetForward(up)
+    return P.transport(self.Forward,self.Up,up)
+end
+function Camera:Update(dt)
+    local up=P.up(self.Root.Position)
+    self.Forward=self:GetForward(up)
+    self.Up=up
+    if self.Stick.Magnitude&gt;0.15 then
+        self:Rotate(self.Stick.X*dt*C.GamepadCameraSpeed/C.CameraSensitivity,self.Stick.Y*dt*C.GamepadCameraSpeed/C.CameraSensitivity)
+    end
+    local camera=workspace.CurrentCamera
+    camera.CameraType=Enum.CameraType.Scriptable
+    local focus=self.Root.Position+up*C.CameraFocusHeight
+    local offset=-self.Forward*math.cos(self.Pitch)+up*math.sin(self.Pitch)
+    local desired=offset*self.Distance
+    local hit=workspace:Spherecast(focus,C.CameraCollisionRadius,desired,self.Params)
+    local allowed=if hit then math.max(0.5,hit.Distance-C.CameraPadding) else self.Distance
+    -- 막힐 때는 즉시 당기고, 다시 멀어질 때만 부드럽게 합니다.
+    if allowed&lt;self.ActualDistance then self.ActualDistance=allowed
+    else self.ActualDistance+=(allowed-self.ActualDistance)*(1-math.exp(-C.CameraReturnResponse*dt)) end
+    local position=focus+offset*self.ActualDistance
+    local delta=position-P.Center
+    if delta.Magnitude&lt;C.Radius+C.CameraPadding then
+        position=P.Center+delta.Unit*(C.Radius+C.CameraPadding)
+    end
+    camera.CFrame=CFrame.lookAt(position,focus,up)
+    camera.Focus=CFrame.new(focus)
+end
+function Camera:Destroy()
+    for _,connection in ipairs(self.Connections) do connection:Disconnect() end
+    UIS.MouseBehavior=Enum.MouseBehavior.Default
+    if workspace.CurrentCamera then workspace.CurrentCamera.CameraType=Enum.CameraType.Custom end
+end
+return Camera
+</ProtectedString>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterGui" referent="RBX000019">
+    <Properties>
+      <string name="Name">StarterGui</string>
+    </Properties>
+  </Item>
+  <Item class="StarterPack" referent="RBX000020">
+    <Properties>
+      <string name="Name">StarterPack</string>
+    </Properties>
+  </Item>
+</roblox>
