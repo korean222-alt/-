@@ -9,11 +9,15 @@ Rojo 를 쓰는 경우에는 default.project.json 으로 같은 구조를 동기
 from __future__ import annotations
 
 import pathlib
+import re
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 OUT = ROOT / "WILDHOLD.rbxlx"
+# Studio 에서 EnvModels.fbx 를 가져온 결과(메쉬·텍스처가 Roblox 에 올라간 MeshPart 14개)를 저장한 모델 파일.
+# 있으면 ReplicatedStorage/EnvModels 로 그대로 넣어서 place 를 다시 만들어도 숲 키트를 또 가져올 필요가 없다.
+ENV_MODELS = ROOT / "assets" / "env" / "EnvModels.rbxmx"
 
 _ref = 0
 
@@ -83,7 +87,20 @@ def folder_item(path: pathlib.Path, name: str | None = None):
     return build
 
 
+def env_models() -> tuple[list, list]:
+    """EnvModels.rbxmx 에서 모델 Item 과 그 메쉬 데이터(SharedStrings)를 꺼낸다. 없으면 빈 목록."""
+    if not ENV_MODELS.exists():
+        return [], []
+    text = ENV_MODELS.read_text(encoding="utf-8")
+    start = text.index('<Item class="Model"')
+    end = text.index("<SharedStrings>")
+    model = text[start:end].rstrip()
+    shared = re.findall(r"<SharedString md5=.*?</SharedString>", text, re.S)
+    return [model], shared
+
+
 def main() -> None:
+    env_items, env_shared = env_models()
     server_children = [script_item(SRC / "server" / "ServerMain.server.lua"), folder_item(SRC / "server" / "Services")]
     client_children = [script_item(SRC / "client" / "ClientMain.client.lua"), folder_item(SRC / "client" / "Controllers")]
     parts = [
@@ -103,6 +120,7 @@ def main() -> None:
             folder_item(SRC / "shared", "Shared"),
             # 블렌더에서 만든 펫 FBX 를 Studio 로 가져온 뒤 여기에 넣는다 (docs/PET_IMPORT_GUIDE.md)
             lambda indent: item("Folder", "PetModels", indent=indent),
+            *env_items,
         ]),
         item("ServerScriptService", "ServerScriptService", server_children),
         item("StarterPlayer", "StarterPlayer", [
@@ -110,6 +128,7 @@ def main() -> None:
         ], CameraMaxZoomDistance=("float", 80), CharacterWalkSpeed=("float", 18)),
         item("StarterGui", "StarterGui"),
         item("StarterPack", "StarterPack"),
+        *(["  <SharedStrings>", *("    " + x for x in env_shared), "  </SharedStrings>"] if env_shared else []),
         "</roblox>",
         "",
     ]

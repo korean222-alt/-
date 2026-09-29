@@ -31,15 +31,22 @@ GPT 가 만든 1~8단계는 서버 로직은 대부분 쓸 만했지만, 화면�
 
 1. `WILDHOLD.rbxlx` 를 Roblox Studio 로 연다.
 2. **플레이(F5)**. 15초 뒤 원정이 시작된다.
-3. 숲과 펫은 처음엔 **파트로 만든 대체 모델**로 나온다. 아래 2번(숲 키트)과 3번(펫)을 한 번만 해 주면 블렌더 모델로 바뀐다.
+3. 숲 키트는 이미 들어 있다. 펫은 처음엔 **파트로 만든 대체 모델**로 나오고, 아래 3번(펫)을 한 번만 해 주면 블렌더 모델로 바뀐다.
 
-## 2. 숲 키트 넣기 (한 번만, 2분) — 꼭 하기
+## 2. 숲 키트 (이미 들어 있음)
 
 `assets/env/EnvModels.fbx` 한 파일에 사실적인 숲 모델 14개가 들어 있다. **이걸 넣어야 맵이 어두운 생존 숲으로 보인다.**
 
-1. Studio 상단 **홈 → 가져오기(Import 3D)** → `EnvModels.fbx` 선택 → 기본값 그대로 **가져오기** (텍스처 포함 확인).
-2. 작업 공간에 생긴 `EnvModels` 를 **ReplicatedStorage** 로 끌어다 놓는다. 이름은 바꾸지 않는다.
+이미 한 번 Studio 로 가져와서 메쉬·텍스처가 Roblox 에 올라갔고, 그 결과를 `assets/env/EnvModels.rbxmx` 로 저장해 두었다.
+`tools/build_place.py` 가 이것을 `ReplicatedStorage/EnvModels` 에 넣으므로 **`WILDHOLD.rbxlx` 를 열면 바로 숲 키트가 쓰인다.**
+
+숲 키트를 고쳐서 다시 가져와야 할 때만:
+
+1. **파일·폴더 경로에 한글이 없게** 한다 (예: `C:\WILDHOLD\`). 한글 경로에서는 텍스처 업로드가 `base_color_texture 업로드 실패` 로 실패했다.
+2. Studio 상단 **홈 → 가져오기(Import 3D)** → `EnvModels.fbx` 선택 → 기본값 그대로 **가져오기** (텍스처 포함 확인).
+3. 작업 공간에 생긴 `EnvModels` 를 **ReplicatedStorage** 로 끌어다 놓는다. 이름은 바꾸지 않는다.
    (깜빡해도 게임이 시작할 때 코드가 옮긴다. 안 넣으면 예전 파트 나무로 대체된다)
+4. 탐색기에서 `EnvModels` 우클릭 → **파일로 저장** → `assets/env/EnvModels.rbxmx` 를 덮어쓰고 `python3 tools/build_place.py`.
 
 | 에셋 | 개수 | 삼각형 |
 |---|---|---|
@@ -113,7 +120,7 @@ wildhold/
 │   ├── server/Services      # 게임 로직 (서버 권한)
 │   └── client/Controllers   # 화면: Creature, Rig, Anim, FX, Environment, UI, Pet, WorldUI, Audio
 ├── assets/pets/            # 블렌더 펫 FBX + 텍스처 + .blend
-├── assets/env/             # 숲 키트 EnvModels.fbx + 텍스처 + .blend
+├── assets/env/             # 숲 키트 EnvModels.fbx + 텍스처 + .blend + Studio 가져오기 결과 EnvModels.rbxmx
 ├── blender/                # 펫(sdf 조각 → 베이크 → 리깅 → FBX)과 숲 키트(env_kit.py)를 만드는 파이썬 스크립트
 ├── tests/                  # 헤드리스 플레이 테스트 (실제 Luau VM + Roblox API 모의)
 └── tools/build_place.py    # src → WILDHOLD.rbxlx
