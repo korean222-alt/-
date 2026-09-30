@@ -7,6 +7,9 @@
 -- 예전에는 도끼·곡괭이도 창처럼 앞으로 눕혀 들어서 "막대 끝에 돌덩이" 처럼 보였다.
 local RS = game:GetService("ReplicatedStorage")
 local I = require(RS.Shared.Config.ItemConfig)
+local Kit = require(script.Parent.Kit)
+local okSizes, KitSizes = pcall(function() return require(RS.Shared.Config.KitSizes) end)
+if not okSizes then KitSizes = {} end
 
 local T = {}
 local MAT = Enum.Material
@@ -173,9 +176,46 @@ local function food(tool, handle, id)
 	tool.Grip = CFrame.new(0, 0, 0)
 end
 
+-- 블렌더 건축 키트의 도구 메쉬 (있을 때). 메쉬 원점 = 손이 쥐는 곳 → Grip 은 상자 중심에서 원점까지
+local TOOL_KIT = {OldAxe = "Axe1", StoneAxe = "Axe2", IronAxe = "Axe3", StonePick = "Pick2", IronPick = "Pick3",
+	OldSpear = "Spear1", StoneSpear = "Spear2", IronSpear = "Spear3", CrystalSpear = "Spear4", Torch = "TorchTool"}
+local LEAN = {Axe = 20, Pickaxe = 20, Torch = 12, Spear = -8}
+
+local function kitTool(id, spec)
+	local name = TOOL_KIT[id]
+	local src = name and Kit.part(name)
+	local info = name and KitSizes[name]
+	if not src or not info then return nil end
+	local tool = Instance.new("Tool")
+	tool.Name, tool.CanBeDropped, tool.RequiresHandle, tool.ToolTip = spec.Name, false, true, spec.Name
+	tool:SetAttribute("ItemId", id)
+	local handle = src:Clone()
+	local have = src.Size.X + src.Size.Y + src.Size.Z
+	local fix = have > 0 and (info.Size[1] + info.Size[2] + info.Size[3]) / have or 1
+	handle.Name, handle.Size = "Handle", src.Size * fix
+	handle.CanCollide, handle.CanTouch, handle.CanQuery, handle.Massless, handle.Anchored = false, false, false, true, false
+	handle.Parent = tool
+	local centre = Vector3.new(info.Center[1], info.Center[2], info.Center[3])
+	tool.Grip = CFrame.new(-centre) * CFrame.Angles(math.rad(LEAN[spec.Family] or 0), 0, 0)
+	if spec.Family == "Torch" then
+		-- 불꽃: 천을 감은 머리 위 (메쉬 원점 기준 높이 2.1)
+		local head = piece(tool, handle, Vector3.new(0.3, 0.3, 0.3), CFrame.new(Vector3.new(0, 2.1, 0) - centre), hex("#ffb347"), MAT.Neon)
+		head.Transparency = 1
+		local fire = Instance.new("Fire")
+		fire.Size, fire.Heat, fire.Color, fire.SecondaryColor = 2.2, 6, hex("#ff9a3c"), hex("#ffd27a")
+		fire.Parent = head
+		local light = Instance.new("PointLight")
+		light.Range, light.Brightness, light.Color, light.Shadows = 22, 1.6, hex("#ffae5c"), true
+		light.Parent = head
+	end
+	return tool
+end
+
 function T.make(id)
 	local spec = I.Items[id]
 	if not spec then return nil end
+	local meshTool = kitTool(id, spec)
+	if meshTool then return meshTool end
 	local tool, handle = makeTool(id, spec)
 	local look = I.TierLook[spec.Tier or 1]
 	local headColor, headMat = hex(look.Head), MAT[look.Material]

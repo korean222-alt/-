@@ -19,6 +19,7 @@ OUT = ROOT / "WILDHOLD.rbxlx"
 # 있으면 place 에 그대로 넣어서, place 를 다시 만들어도 Studio 에서 또 가져올 필요가 없다.
 ENV_MODELS = ROOT / "assets" / "env" / "EnvModels.rbxmx"    # Model "EnvModels" (숲 키트 14개) → ReplicatedStorage
 PET_MODELS = ROOT / "assets" / "pets" / "PetModels.rbxmx"   # 펫 Model 들 → ReplicatedStorage/PetModels
+BUILD_MODELS = ROOT / "assets" / "build" / "BuildModels.rbxmx"  # Model "BuildModels" (건축 키트) → ReplicatedStorage (있을 때만)
 
 _ref = 0
 
@@ -111,7 +112,8 @@ def saved_models(path: pathlib.Path) -> tuple[list, list]:
 def main() -> None:
     env_items, env_shared = saved_models(ENV_MODELS)
     pet_items, pet_shared = saved_models(PET_MODELS)
-    shared = list(dict.fromkeys(env_shared + pet_shared))
+    build_items, build_shared = saved_models(BUILD_MODELS)
+    shared = list(dict.fromkeys(env_shared + pet_shared + build_shared))
     server_children = [script_item(SRC / "server" / "ServerMain.server.lua"), folder_item(SRC / "server" / "Services")]
     client_children = [script_item(SRC / "client" / "ClientMain.client.lua"), folder_item(SRC / "client" / "Controllers")]
     parts = [
@@ -135,6 +137,7 @@ def main() -> None:
             # 블렌더 펫 4종 (Studio 가져오기 결과). 새 펫은 Studio 에서 가져와 여기에 넣고 PetModels.rbxmx 로 저장
             lambda indent: item("Folder", "PetModels", pet_items, indent=indent),
             *env_items,
+            *build_items,
         ]),
         item("ServerScriptService", "ServerScriptService", server_children),
         item("StarterPlayer", "StarterPlayer", [

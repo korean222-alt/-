@@ -59,6 +59,22 @@ do
 	end
 	env.Parent = workspace
 end
+-- 건축 키트: Studio 에서 BuildModels.fbx 를 가져온 것과 같은 구조 (Model 안에 에셋 이름의 MeshPart). 역시 작업 공간에 둔다
+local KIT_SIZES = loadsource(readfile(ROOT .. "/src/shared/Config/KitSizes.lua"), "kit")()
+do
+	local kit = E.Instance.new("Model")
+	kit.Name = "BuildModels"
+	local x = 0
+	for name, info in pairs(KIT_SIZES) do
+		local mp = E.Instance.new("MeshPart")
+		mp.Name = name
+		mp.Size = D.Vector3.new(info.Size[1], info.Size[2], info.Size[3])
+		mp.CFrame = D.CFrame.new(x, info.Size[2] / 2, 60)
+		mp.Parent = kit
+		x = x + info.Size[1] + 2
+	end
+	kit.Parent = workspace
+end
 local SSS = svc("ServerScriptService")
 local SPS = svc("StarterPlayer").StarterPlayerScripts
 for line in readfile(ROOT .. "/tests/.manifest"):gmatch("[^\n]+") do
@@ -337,9 +353,17 @@ do
 		local placed = tool.Grip:Inverse() -- 손 = 원점, 앞 = -Z, 위 = +Y
 		local top, front = -math.huge, math.huge
 		for _, part in ipairs(tool:GetDescendants()) do
-			if R.isA(part._class, "BasePart") then
-				local p = placed * handle.CFrame:ToObjectSpace(part.CFrame).Position
-				top, front = math.max(top, p.Y), math.min(front, p.Z)
+			if R.isA(part._class, "BasePart") and part.Transparency < 1 then
+				local rel = placed * handle.CFrame:ToObjectSpace(part.CFrame)
+				local h = part.Size / 2
+				for _, sx in ipairs({-1, 1}) do
+					for _, sy in ipairs({-1, 1}) do
+						for _, sz in ipairs({-1, 1}) do
+							local p = rel * D.Vector3.new(sx * h.X, sy * h.Y, sz * h.Z)
+							top, front = math.max(top, p.Y), math.min(front, p.Z)
+						end
+					end
+				end
 			end
 		end
 		return top, front
@@ -560,6 +584,18 @@ local function structureCount(kind)
 	return n
 end
 check("시작 구조물 (길목 문·벽·포탑) · 제작대 없음", structureCount() == 4 and Def:BenchLevel() == 0, structureCount() .. "개")
+do
+	local kitParts, names = 0, {}
+	for _, d in ipairs(root.Defenses:GetDescendants()) do
+		local name = R.isA(d._class, "BasePart") and d:GetAttribute("KitAsset")
+		if name then kitParts = kitParts + 1; names[name] = true end
+	end
+	check("건축 키트 메쉬 사용 (구조물)", kitParts >= 4 and names.Gate1 and names.Wall1 and names.Tower1 and RS:FindFirstChild("BuildModels") ~= nil
+		and workspace:FindFirstChild("BuildModels") == nil, kitParts .. "개")
+	local axeTool = toolOf("OldAxe")
+	local axeHandle = axeTool and axeTool:FindFirstChild("Handle")
+	check("건축 키트 메쉬 사용 (도구)", axeHandle ~= nil and axeHandle._class == "MeshPart" and axeHandle:GetAttribute("KitAsset") == nil, axeHandle and axeHandle._class)
+end
 -- ① 제작대 설치 도구: 어디서나 (가방 + 기지 안에서는 공용 창고)
 RS.Remotes.CraftAction:FireServer("WorkbenchKit")
 if not step(0.6) then fail("제작대 도구") end
@@ -631,7 +667,14 @@ local function exportScene()
 		-- 숲 키트 메쉬는 이름·위치·크기만 내보내고 렌더러가 실제 블렌더 에셋으로 바꿔 넣는다.
 		-- 그 밖의 MeshPart 는 테스트가 넣은 가짜 블렌더 펫(회색 상자)이라 뺀다
 		local asset = d._class == "MeshPart" and d:GetAttribute("EnvAsset")
-		if asset then
+		local kitAsset = d._class == "MeshPart" and d:GetAttribute("KitAsset")
+		if kitAsset then
+			local c = d._props.CFrame
+			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
+			local s = d._props.Size
+			table.insert(out, string.format("Kit %s %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f 0 0 0 0",
+				kitAsset, x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22, s.X, s.Y, s.Z))
+		elseif asset then
 			local c = d._props.CFrame
 			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
 			local s = d._props.Size

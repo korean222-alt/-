@@ -129,10 +129,10 @@ def place_part(kind, x, y, z, rot, size, color, mat, transparency=0.0):
 ENV = {}
 
 
-def env_asset(name):
-    """EnvModels.blend 에서 에셋 메쉬를 가져와 (메쉬, 로컬 bbox 중심, Roblox 축 크기) 를 돌려준다."""
+def env_asset(name, blend="env/EnvModels.blend"):
+    """EnvModels.blend (또는 build/BuildModels.blend) 에서 에셋 메쉬를 가져와 (메쉬, 로컬 bbox 중심, Roblox 축 크기) 를 돌려준다."""
     if name not in ENV:
-        path = os.path.join(ROOT, "assets", "env", "EnvModels.blend")
+        path = os.path.join(ROOT, "assets", *blend.split("/"))
         with bpy.data.libraries.load(path, link=False) as (src, dst):
             dst.objects = [n for n in src.objects if n == name]
         obj = dst.objects[0]
@@ -144,9 +144,9 @@ def env_asset(name):
     return ENV[name]
 
 
-def place_asset(name, x, y, z, rot, size):
+def place_asset(name, x, y, z, rot, size, blend="env/EnvModels.blend"):
     # 가져오기 규칙: Blender 로컬 (x, y, z) → Roblox 로컬 (x, z, -y), 메쉬는 bbox 중심 기준으로 Size 에 맞춰 늘어난다
-    data, centre, dims = env_asset(name)
+    data, centre, dims = env_asset(name, blend)
     scale = Matrix.Diagonal((size[0] / dims.x, size[1] / dims.y, size[2] / dims.z))
     m = Matrix.Translation(P @ Vector((x, y, z))) @ (P @ rot @ scale @ P_INV).to_4x4() @ Matrix.Translation(-centre)
     obj = bpy.data.objects.new(name, data)
@@ -172,6 +172,11 @@ for line in open(os.path.join(HERE, ".scene_parts.txt")):
     rot = Matrix(((r[0], r[1], r[2]), (r[3], r[4], r[5]), (r[6], r[7], r[8])))
     if shape == "Asset":
         place_asset(matname, x, y, z, rot, (sx, sy, sz))
+        assets += 1
+        continue
+    if shape == "Kit":
+        # 건축 키트 (blender/build_kit.py)
+        place_asset(matname, x, y, z, rot, (sx, sy, sz), "build/BuildModels.blend")
         assets += 1
         continue
     if shape == "Ball" or shape == "Sphere":
@@ -300,7 +305,17 @@ def shoot(name, eye_r, target_r, lens=35, size=(1600, 900), kind="day", fog=1.0)
     bpy.ops.render.render(write_still=True)
 
 
-shoot("map_overview.png", (0, 260, 250), (0, 0, 10), lens=30, fog=0.35)
-shoot("map_base.png", (58, 42, 78), (0, 2, 0), lens=32)
-shoot("map_meadow.png", (22, 10, 38), (4, 6, 90), lens=30)
-shoot("map_night.png", (46, 26, 60), (0, 4, 0), lens=30, kind="night")
+# --shots=base,lobby 처럼 골라 찍을 수 있다 (기본: 전체 4장)
+SHOTS = {
+    "overview": lambda: shoot("map_overview.png", (0, 260, 250), (0, 0, 10), lens=30, fog=0.35),
+    "base": lambda: shoot("map_base.png", (58, 42, 78), (0, 2, 0), lens=32),
+    "meadow": lambda: shoot("map_meadow.png", (22, 10, 38), (4, 6, 90), lens=30),
+    "night": lambda: shoot("map_night.png", (46, 26, 60), (0, 4, 0), lens=30, kind="night"),
+    # 설치형 건축 가까이: 제작대(-21,-12)·길목 2 벽·시작 문
+    "build": lambda: shoot("map_build.png", (-44, 22, 20), (-8, 3, -10), lens=30),
+    # 로비 캠프 (Studio 에서는 z 2400)
+    "lobby": lambda: shoot("lobby.png", (0, 34, 2472), (0, 2, 2390), lens=30),
+}
+chosen = [a.split("=", 1)[1] for a in sys.argv if a.startswith("--shots=")]
+for key in (chosen[0].split(",") if chosen else ["overview", "base", "meadow", "night"]):
+    SHOTS[key]()

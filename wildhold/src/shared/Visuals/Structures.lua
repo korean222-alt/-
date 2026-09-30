@@ -2,6 +2,7 @@
 local CollectionService = game:GetService("CollectionService")
 local B = require(script.Parent.Build)
 local Props = require(script.Parent.Props)
+local Kit = require(script.Parent.Kit)
 
 local S = {}
 local M = Enum.Material
@@ -449,8 +450,68 @@ function S.defense(parent, kind, level, at, width)
 	return m, muzzle
 end
 
--- 설치형 구조물 하나 (DefenseService). 반환: 모델, 사격 높이
+-- ===================================================================== 블렌더 건축 키트 메쉬 (있을 때)
+-- 에셋 이름: 종류 + 레벨. 레벨이 모자라면 가장 높은 것
+local KIT_NAMES = {Workbench = {"Workbench1", "Workbench2", "Workbench3"}, Wall = {"Wall1", "Wall2", "Wall3"}, Gate = {"Gate1", "Gate2"},
+	ArrowTower = {"Tower1", "Tower2", "Tower3"}, SpikeTrap = {"Spike1", "Spike2"}, PetStand = {"PetStand"}, TorchPost = {"TorchPost"}}
+
+local function glow(m, at, offset, color, range, fire)
+	local p = B.block(m, Vector3.new(0.6, 0.6, 0.6), at * CFrame.new(offset), color, M.Neon, {Transparency = fire and 0.35 or 0})
+	p.Name = "Flame"
+	B.light(p, "PointLight", {Range = range, Brightness = 1.5, Color = Color3.fromHex(color), Shadows = false})
+	if fire then
+		local f = Instance.new("Fire")
+		f.Size, f.Heat, f.Color, f.SecondaryColor = 2.2, 6, Color3.fromHex("#ff9a3c"), Color3.fromHex("#ffd36b")
+		f.Parent = p
+	end
+	return p
+end
+
+local function kitStructure(parent, kind, level, at, width)
+	local names = KIT_NAMES[kind]
+	local name = names and (names[level] or names[#names])
+	if not name or not Kit.has(name) then return nil end
+	local m = B.model(parent, kind)
+	Kit.place(m, name, at)
+	local muzzle = 2
+	if kind == "Workbench" then
+		if level >= 2 then glow(m, at, Vector3.new(-6.1, 2.4, -0.2), "#ff9a4a", 9) end
+		if level >= 3 then glow(m, at, Vector3.new(3.2, 8.6, 1.5), "#8ff5ff", 16) end
+		B.hitbox(m, Vector3.new(8, 4, 4), at * CFrame.new(0, 2, 0), true)
+		muzzle = 3
+	elseif kind == "Wall" then
+		muzzle = level == 1 and 6 or (0.4 + (level >= 3 and 4 or 3) * 1.62)
+		B.hitbox(m, Vector3.new(width or 12, 7, 3), at * CFrame.new(0, 3.5, 0), true)
+	elseif kind == "Gate" then
+		for _, x in ipairs({-5.4, 5.4}) do Props.torch(m, at * CFrame.new(x, 0, -1.6), 5) end
+		B.hitbox(m, Vector3.new(width or 12, 8, 2), at * CFrame.new(0, 4, 0), false)
+		muzzle = 4
+	elseif kind == "ArrowTower" then
+		local h = ({8, 10, 12})[level] or 12
+		muzzle = h + 1.8
+		B.hitbox(m, Vector3.new(6.4, muzzle, 6.4), at * CFrame.new(0, muzzle / 2, 0), true)
+	elseif kind == "SpikeTrap" then
+		muzzle = 1
+		B.hitbox(m, Vector3.new(8.6, 1, 8.6), at * CFrame.new(0, 0.5, 0), false)
+	elseif kind == "PetStand" then
+		local ring = glow(m, at, Vector3.new(0, 2.1, 0), "#8ff5e8", 12)
+		ring.Name, ring.Transparency, ring.Size = "StandRing", 1, Vector3.new(0.2, 0.2, 0.2)
+		B.hitbox(m, Vector3.new(5.6, 2, 5.6), at * CFrame.new(0, 1, 0), true)
+		muzzle = 2.1
+		CollectionService:AddTag(m, "NightLight")
+	elseif kind == "TorchPost" then
+		glow(m, at, Vector3.new(0, 7.1, 0), "#ffb066", 22, true)
+		B.hitbox(m, Vector3.new(1.2, 7, 1.2), at * CFrame.new(0, 3.5, 0), true)
+		CollectionService:AddTag(m, "NightLight")
+		muzzle = 6
+	end
+	return B.decorate(m, kind ~= "SpikeTrap"), muzzle
+end
+
+-- 설치형 구조물 하나 (DefenseService · 설치 미리보기). 블렌더 키트가 있으면 메쉬, 없으면 파트 모델. 반환: 모델, 사격 높이
 function S.structure(parent, kind, level, at, width)
+	local model, muzzle = kitStructure(parent, kind, level, at, width)
+	if model then return model, muzzle end
 	if kind == "Workbench" then
 		return S.workbench(parent, at, level), 3
 	elseif kind == "TorchPost" then

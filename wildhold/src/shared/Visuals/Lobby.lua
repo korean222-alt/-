@@ -4,6 +4,7 @@
 local CollectionService = game:GetService("CollectionService")
 local B = require(script.Parent.Build)
 local Props = require(script.Parent.Props)
+local Kit = require(script.Parent.Kit)
 
 local L = {}
 local M = Enum.Material
@@ -23,6 +24,17 @@ end
 -- 원정 수레: 나무 짐칸 + 바퀴 4개 + 천막 + 등불. at 의 -Z 가 캠프 가운데를 본다
 local function wagon(parent, at, index)
 	local m = B.model(parent, "Wagon" .. index)
+	-- 블렌더 키트의 수레가 있으면 그것 (짐칸 충돌 상자만 따로)
+	if Kit.place(m, "Wagon", at) then
+		B.hitbox(m, Vector3.new(7.4, 3.2, 11), at * CFrame.new(0, 2.4, 0), true)
+		Props.lantern(m, at * CFrame.new(3.8, 6.2, -5))
+		local post = B.solid(B.block(m, Vector3.new(0.4, 5.4, 0.4), at * CFrame.new(-4.6, 2.7, -6.2), "#5a4535", M.Wood))
+		local _, text = sign(m, Vector3.new(5, 2.2, 0.3), post.CFrame * CFrame.new(0, 2, -0.3), "원정 수레 " .. index)
+		local pad = B.cyl(m, 0.12, 13, at * CFrame.new(0, 0.1, -8.5), "#8ff5e8", M.Neon, true, {Transparency = 0.7, CanQuery = true})
+		pad.Name = "WagonPad"
+		pad:SetAttribute("Room", index)
+		return B.decorate(m), pad, text
+	end
 	B.solid(B.block(m, Vector3.new(7, 0.6, 11), at * CFrame.new(0, 2.2, 0), "#6a5442", M.WoodPlanks))
 	for _, x in ipairs({-3.4, 3.4}) do
 		B.solid(B.block(m, Vector3.new(0.4, 1.6, 11), at * CFrame.new(x, 3.2, 0), "#5a4535", M.WoodPlanks))
@@ -131,13 +143,19 @@ function L.build(parent, origin, config)
 		end
 	end
 	B.spike(hut, 12, 10, 3, hat * CFrame.new(0, 7, 0) * CFrame.Angles(0, math.rad(90), 0), "#7a6a4a", M.Fabric)
-	local nest = B.ellipsoid(hut, Vector3.new(7, 1.6, 5), hat * CFrame.new(0, 0.7, 0), "#b8a060", M.Grass)
-	B.solid(nest)
-	local eggColors = {{"#e8dcc0", "#a8916a"}, {"#bfe8ff", "#7a5cff"}}
-	for i, col in ipairs(eggColors) do
-		local egg = B.ellipsoid(hut, Vector3.new(1.5, 2, 1.5), hat * CFrame.new(i == 1 and -1.5 or 1.5, 2.2, 0), col[1], M.SmoothPlastic)
-		B.ellipsoid(hut, Vector3.new(0.5, 0.35, 0.2), egg.CFrame * CFrame.new(0.3, 0.35, -0.65), col[2], M.SmoothPlastic)
-		B.ellipsoid(hut, Vector3.new(0.35, 0.3, 0.2), egg.CFrame * CFrame.new(-0.35, -0.2, -0.66), col[2], M.SmoothPlastic)
+	if Kit.place(hut, "Nest", hat) then
+		Kit.place(hut, "EggCommon", hat * CFrame.new(-1.3, 0.3, 0) * CFrame.Angles(0, 0, math.rad(8)))
+		Kit.place(hut, "EggRare", hat * CFrame.new(1.3, 0.3, 0.2) * CFrame.Angles(0, 0, math.rad(-6)))
+		B.hitbox(hut, Vector3.new(6, 1.4, 6), hat * CFrame.new(0, 0.7, 0), true)
+	else
+		local nest = B.ellipsoid(hut, Vector3.new(7, 1.6, 5), hat * CFrame.new(0, 0.7, 0), "#b8a060", M.Grass)
+		B.solid(nest)
+		local eggColors = {{"#e8dcc0", "#a8916a"}, {"#bfe8ff", "#7a5cff"}}
+		for i, col in ipairs(eggColors) do
+			local egg = B.ellipsoid(hut, Vector3.new(1.5, 2, 1.5), hat * CFrame.new(i == 1 and -1.5 or 1.5, 2.2, 0), col[1], M.SmoothPlastic)
+			B.ellipsoid(hut, Vector3.new(0.5, 0.35, 0.2), egg.CFrame * CFrame.new(0.3, 0.35, -0.65), col[2], M.SmoothPlastic)
+			B.ellipsoid(hut, Vector3.new(0.35, 0.3, 0.2), egg.CFrame * CFrame.new(-0.35, -0.2, -0.66), col[2], M.SmoothPlastic)
+		end
 	end
 	local lamp = B.ball(hut, 0.8, hat * CFrame.new(0, 6, 0), "#ffd27a", M.Neon)
 	B.light(lamp, "PointLight", {Range = 18, Brightness = 1.6, Color = Color3.fromHex("#ffcf8a"), Shadows = false})
