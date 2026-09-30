@@ -823,7 +823,7 @@ for _ = 1, 1200 do
 	if not step(0.5) then fail("원정 진행") end
 	if latest.Result then result = latest.Result break end
 end
-check("원정 결과", result ~= nil, result and (tostring(result.Won) .. " · " .. result.Reason))
+check("원정 결과", result ~= nil, result and (tostring(result.Won) .. " · " .. Loc.text(result.Reason, "ko")))
 if not step(3) then fail("결과 화면") end
 
 -- ===================================================================== 규칙: 성장·새 펫·지역
