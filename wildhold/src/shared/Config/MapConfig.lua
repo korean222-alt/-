@@ -5,6 +5,9 @@
 return {
 	GroundSize = 1720,
 	PlayRadius = 750, -- 이 바깥은 숲 벽과 언덕 (경계)
+	WallRadius = 766, -- 보이지 않는 경계 벽 (숲 벽 첫 줄 바로 뒤). 이 밖으로는 나갈 수 없다
+	MapCell = 16, -- 지도(미니맵) 한 칸 = 16 stud
+	MapReveal = 72, -- 이 거리 안을 지나가면 지도에 그려진다 (안 가 본 곳은 빈 양피지)
 	MeadowRadius = 250, -- 여기까지 초원
 	BaseRadius = 40, -- 기지 말뚝 울타리 반지름
 	GapWidth = 13, -- 울타리의 길목 구멍 폭

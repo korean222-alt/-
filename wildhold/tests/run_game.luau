@@ -310,6 +310,51 @@ local function toolOf(id)
 end
 check("핫바 도구 (창·도끼·덫)", toolOf("OldAxe") ~= nil and toolOf("Trap") ~= nil and toolOf("Snack") ~= nil)
 check("핫바 UI", playerGui:FindFirstChild("Hotbar") ~= nil)
+-- 도구 쥐는 법: 팔을 앞으로 뻗은 손(기준 CFrame) 에서 도끼·곡괭이 머리가 손보다 위, 창끝은 앞
+do
+	local function extremes(id)
+		local tool = toolOf(id) or serverRequire(shared.Visuals.ToolLook).make(id)
+		local handle = tool:FindFirstChild("Handle")
+		local placed = tool.Grip:Inverse() -- 손 = 원점, 앞 = -Z, 위 = +Y
+		local top, front = -math.huge, math.huge
+		for _, part in ipairs(tool:GetDescendants()) do
+			if R.isA(part._class, "BasePart") then
+				local p = placed * handle.CFrame:ToObjectSpace(part.CFrame).Position
+				top, front = math.max(top, p.Y), math.min(front, p.Z)
+			end
+		end
+		return top, front
+	end
+	local axeTop = extremes("OldAxe")
+	local pickTop = extremes("StonePick")
+	local _, spearFront = extremes("OldSpear")
+	check("도구 쥐는 법 (도끼·곡괭이는 세워서, 창은 앞으로)", axeTop > 1.5 and pickTop > 1.5 and spearFront < -3,
+		string.format("도끼 머리 %.1f · 곡괭이 머리 %.1f · 창끝 %.1f", axeTop, pickTop, spearFront))
+end
+-- 휘두르기 동작: 어깨 관절에 내려찍기를 덧입히고 끝나면 원래대로
+do
+	local Swing = clientRequire(playerScripts.Controllers.SwingController)
+	local arm = E.Instance.new("Part", char)
+	arm.Name = "RightUpperArm"
+	local shoulder = E.Instance.new("Motor6D", arm)
+	shoulder.Name = "RightShoulder"
+	shoulder.Transform = D.CFrame.identity
+	local played = Swing:Play(char, "Chop", true)
+	if not step(0.15) then fail("휘두르기") end
+	local mid = shoulder.Transform
+	if not step(0.6) then fail("휘두르기 끝") end
+	check("도끼 내려찍기 동작 (어깨 관절)", played and mid ~= D.CFrame.identity and shoulder.Transform == D.CFrame.identity)
+	arm:Destroy()
+end
+-- 지도: 서버가 만든 격자, 처음엔 기지 둘레만 보인다
+local MapC = clientRequire(playerScripts.Controllers.MapController)
+local gridValue = RS:FindFirstChild("MapGrid")
+local gridSize = gridValue and gridValue:GetAttribute("Size")
+check("지도 격자", gridValue ~= nil and #gridValue.Value == gridSize * gridSize and gridValue.Value:find("T") ~= nil and gridValue.Value:find("W") ~= nil,
+	gridSize and (gridSize .. "칸"))
+local seenStart = MapC.SeenCount
+check("미니맵 (처음엔 기지 둘레만)", playerGui:FindFirstChild("Minimap") ~= nil and seenStart > 0 and seenStart < 200 and #MapC.Cells:GetChildren() > 0,
+	seenStart .. "칸")
 check("기본 펫 소환", #root.Pets:GetChildren() == 1, #root.Pets:GetChildren())
 local visuals = workspace:FindFirstChild("ClientVisuals")
 check("펫 모델 표시(클라이언트)", visuals ~= nil and #visuals:GetChildren() >= 2, visuals and #visuals:GetChildren())
@@ -389,6 +434,49 @@ for _, kind in ipairs({"Wood", "Wood", "Stone", "Fiber", "Berry"}) do harvest(ki
 local bagTotal = 0
 for _, v in pairs(latest.Bag) do bagTotal = bagTotal + v end
 check("가방에 자원", bagTotal > 0, bagTotal)
+-- 숲의 나무·고사목도 벨 수 있다 (예전에는 장식이라 도끼가 안 먹혔다)
+do
+	local woodNodes, withTrunk, deadHit = 0, 0, nil
+	for _, model in ipairs(root.ResourceNodes:GetChildren()) do
+		local hit = model:IsA("Model") and model.PrimaryPart
+		if hit and hit:GetAttribute("ResourceType") == "Wood" then
+			woodNodes = woodNodes + 1
+			local trunk = model:FindFirstChild("Trunk")
+			if trunk and trunk.CanCollide and not hit.CanCollide then withTrunk = withTrunk + 1 end
+			for _, d in ipairs(model:GetChildren()) do
+				if not deadHit and tostring(d:GetAttribute("EnvAsset") or ""):find("DeadTree") then deadHit = hit end
+			end
+		end
+	end
+	check("맵의 모든 나무가 채집 노드 (줄기에 부딪힘)", woodNodes > 500 and withTrunk == woodNodes, woodNodes .. "그루 · 줄기 " .. withTrunk)
+	local before = deadHit and deadHit:GetAttribute("CurrentHealth")
+	if deadHit then
+		teleport(deadHit.Position.X, deadHit.Position.Z - 4)
+		RS.Remotes.AttackRequest:FireServer()
+		if not step(0.7) then fail("고사목 베기") end
+	end
+	check("고사목 도끼로 베기", deadHit ~= nil and deadHit:GetAttribute("CurrentHealth") < before, before and (before .. " → " .. deadHit:GetAttribute("CurrentHealth")))
+end
+-- 경계: 맵 밖으로 나가면 안으로 되돌린다 + 보이지 않는 벽
+do
+	local M = serverRequire(shared.Config.MapConfig)
+	local walls = root.Map:FindFirstChild("Boundary")
+	check("경계 벽", walls ~= nil and #walls:GetChildren() > 100, walls and #walls:GetChildren())
+	teleport(M.WallRadius + 60, 0)
+	if not step(0.5) then fail("경계 밖") end
+	local r = math.sqrt(hrp.Position.X ^ 2 + hrp.Position.Z ^ 2)
+	check("맵 밖 → 안으로 되돌림", r < M.WallRadius, string.format("%.0f", r))
+	-- 지도는 지나간 곳만 밝혀진다
+	check("지도: 가 본 곳이 넓어짐", MapC.SeenCount > seenStart and MapC:IsSeen(M.WallRadius - 30, 0) and not MapC:IsSeen(-(M.WallRadius - 30), 0),
+		seenStart .. " → " .. MapC.SeenCount .. "칸")
+	-- 지도 미리보기용 (tests/render_map.py)
+	local seen = {}
+	for i = 1, gridSize * gridSize do seen[i] = MapC.Seen[i] and "1" or "0" end
+	writefile(ROOT .. "/tests/.map_grid.txt", gridValue.Value .. "\n" .. table.concat(seen))
+	MapC:Toggle(true)
+	check("큰 지도 열기", playerGui.WorldMap.Enabled and MapC.Canvas.Parent == MapC.BigWindow)
+	MapC:Toggle(false)
+end
 teleport(21 * 0.7, -12 * 0.7)
 if not step(1.5) then fail("입금") end
 local bank = latest.Bank

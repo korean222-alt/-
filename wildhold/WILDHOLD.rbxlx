@@ -227,6 +227,9 @@ return {
 return {
 	GroundSize = 1720,
 	PlayRadius = 750, -- 이 바깥은 숲 벽과 언덕 (경계)
+	WallRadius = 766, -- 보이지 않는 경계 벽 (숲 벽 첫 줄 바로 뒤). 이 밖으로는 나갈 수 없다
+	MapCell = 16, -- 지도(미니맵) 한 칸 = 16 stud
+	MapReveal = 72, -- 이 거리 안을 지나가면 지도에 그려진다 (안 가 본 곳은 빈 양피지)
 	MeadowRadius = 250, -- 여기까지 초원
 	BaseRadius = 40, -- 기지 말뚝 울타리 반지름
 	GapWidth = 13, -- 울타리의 길목 구멍 폭
@@ -479,6 +482,23 @@ function I.hotbar(items, bag, config)
 		end
 	end
 	return list
+end
+
+-- 공격 버튼을 눌렀을 때 팔 동작 (클라이언트 SwingController 가 재생)
+--  Chop 내려찍기(도끼·곡괭이·횃불) · Stab 찌르기(창) · Punch 주먹(맨손) · Eat 먹기 · Throw 던지기(덫) · Give 건네기(간식)
+function I.motion(spec)
+	if not spec then
+		return "Punch"
+	elseif spec.Kind == "Food" then
+		return "Eat"
+	elseif spec.Kind == "Trap" then
+		return "Throw"
+	elseif spec.Kind == "PetFood" then
+		return "Give"
+	elseif spec.Family == "Spear" then
+		return "Stab"
+	end
+	return "Chop"
 end
 
 return I
@@ -846,6 +866,17 @@ end
 function B.hitbox(parent, size, at, collide)
 	return B.new("Part", parent, {Name = "Hitbox", Size = size, CFrame = cf(at), Transparency = 1,
 		CanCollide = collide == true, CanQuery = true, CastShadow = false})
+end
+
+-- 몸이 뚫고 지나가면 안 되는 파트 (기둥·벽·바위·울타리). 광선 검사(CanQuery)는 그대로 둔다.
+function B.solid(...)
+	for i = 1, select("#", ...) do
+		local p = select(i, ...)
+		if typeof(p) == "Instance" then
+			p.CanCollide = true
+		end
+	end
+	return ...
 end
 
 -- 이 모델 안 모든 파트의 그림자/충돌 설정을 한 번에
@@ -1445,10 +1476,17 @@ local function mesh(parent, modelName, variants, at, rng, height, sink, collide)
 	return m, part
 end
 
--- 나무 줄기만 막는 보이지 않는 기둥 (메쉬 전체를 충돌시키면 가지 끝까지 벽이 된다)
+-- 나무 줄기만 막는 보이지 않는 기둥 (메쉬 전체를 충돌시키면 가지 끝까지 벽이 된다).
+-- 폭은 보이는 줄기 밑동과 비슷하게 → 캐릭터 몸이 줄기에 파묻혀 보이지 않는다
 local function trunkCollider(m, at, height, width)
-	B.new("Part", m, {Name = "Trunk", Size = Vector3.new(width, height, width), CFrame = at * CFrame.new(0, height / 2, 0),
+	return B.new("Part", m, {Name = "Trunk", Size = Vector3.new(width, height, width), CFrame = at * CFrame.new(0, height / 2, 0),
 		Transparency = 1, CanCollide = true, CanQuery = false, CastShadow = false})
+end
+P.trunk = trunkCollider
+
+-- 줄기 굵기 (가문비나무 메쉬 밑동 지름 ≈ 높이의 6%)
+function P.trunkWidth(height)
+	return math.max(1.2, height * 0.06)
 end
 
 local SPRUCES = {"Spruce1", "Spruce2", "Spruce3"}
@@ -1457,15 +1495,17 @@ local ROCKS = {"Boulder1", "Boulder2", "RockSlab", "RockCrag"}
 
 function P.tree(parent, at, rng, scale, name)
 	scale = scale or 1
-	local found = mesh(parent, name or "Tree", SPRUCES, at, rng, (17 + rng:NextNumber() * 5) * scale, 0.02)
+	local height = (17 + rng:NextNumber() * 5) * scale
+	local found = mesh(parent, name or "Tree", SPRUCES, at, rng, height, 0.02)
 	if found then
-		return found
+		trunkCollider(found, at, height * 0.55, P.trunkWidth(height))
+		return found, P.trunkWidth(height)
 	end
 	local m = B.model(parent, name or "Tree")
 	local base = at * yaw(rng)
 	local h = (7 + rng:NextNumber() * 3) * scale
 	local trunkCol = rng:NextNumber() &lt; 0.5 and "#7a5230" or "#8a5d36"
-	B.cyl(m, h, 1.5 * scale, base * CFrame.new(0, h / 2, 0), trunkCol, M.Wood, true)
+	B.solid(B.cyl(m, h, 1.5 * scale, base * CFrame.new(0, h / 2, 0), trunkCol, M.Wood, true))
 	-- 뿌리
 	for i = 0, 2 do
 		local a = CFrame.Angles(0, math.rad(i * 120 + rng:NextInteger(0, 40)), 0)
@@ -1486,7 +1526,7 @@ function P.tree(parent, at, rng, scale, name)
 		local c = Color3.fromHex(leafCol):Lerp(Color3.fromHex("#8fa86a"), (i == 4) and 0.25 or rng:NextNumber() * 0.1)
 		B.ellipsoid(m, blob[1] * scale, top * CFrame.new(blob[2].Position * scale), c, M.SmoothPlastic)
 	end
-	return B.decorate(m)
+	return B.decorate(m), 1.5 * scale
 end
 
 function P.pine(parent, at, rng, scale)
@@ -1516,41 +1556,47 @@ function P.tallPine(parent, at, rng, scale, collide, far)
 	local found = mesh(parent, "TallPine", far and FAR_SPRUCES or SPRUCES, at, rng, height, 0.02)
 	if found then
 		if collide then
-			trunkCollider(found, at, height * 0.5, 1.6 * scale)
+			trunkCollider(found, at, height * 0.5, P.trunkWidth(height))
 		end
-		return found
+		return found, P.trunkWidth(height)
 	end
 	local m = B.model(parent, "TallPine")
 	local base = at * yaw(rng)
 	local h = (20 + rng:NextNumber() * 10) * scale
-	B.cyl(m, h * 0.62, 1.4 * scale, base * CFrame.new(0, h * 0.31, 0), "#3e2c20", M.Wood, true)
+	local trunk = B.cyl(m, h * 0.62, 1.4 * scale, base * CFrame.new(0, h * 0.31, 0), "#3e2c20", M.Wood, true)
+	if collide then
+		B.solid(trunk)
+	end
 	local col = Color3.fromHex(pick(rng, PINE))
 	for i = 0, 2 do
 		local t = i / 3
 		B.cone(m, (9 - i * 2.2) * scale, h * 0.36, base * CFrame.new(0, h * (0.3 + t * 0.24), 0), col:Lerp(Color3.fromHex("#3d5a44"), t * 0.4), M.SmoothPlastic, 3)
 	end
-	return B.decorate(m)
+	return B.decorate(m), 1.4 * scale
 end
 
 -- 말라 죽은 나무: 가지만 남은 회갈색 줄기
 function P.deadTree(parent, at, rng, scale)
 	scale = scale or 1
-	local found = mesh(parent, "DeadTree", {"DeadTree1", "DeadTree2"}, at, rng, (13 + rng:NextNumber() * 7) * scale, 0.01)
+	local height = (13 + rng:NextNumber() * 7) * scale
+	local found = mesh(parent, "DeadTree", {"DeadTree1", "DeadTree2"}, at, rng, height, 0.01)
 	if found then
-		return found
+		local width = math.max(1, height * 0.07)
+		trunkCollider(found, at, height * 0.6, width)
+		return found, width
 	end
 	local m = B.model(parent, "DeadTree")
 	local base = at * yaw(rng)
 	local h = (8 + rng:NextNumber() * 5) * scale
 	local col = "#5b5046"
-	B.cyl(m, h, 1.1 * scale, base * CFrame.new(0, h / 2, 0) * CFrame.Angles(math.rad(rng:NextInteger(-6, 6)), 0, 0), col, M.Wood, true)
+	B.solid(B.cyl(m, h, 1.1 * scale, base * CFrame.new(0, h / 2, 0) * CFrame.Angles(math.rad(rng:NextInteger(-6, 6)), 0, 0), col, M.Wood, true))
 	for i = 1, 4 do
 		local y = h * (0.45 + i * 0.12)
 		local a = math.rad(i * 97 + rng:NextInteger(0, 40))
 		local len = (3.4 - i * 0.5) * scale
 		B.cyl(m, len, 0.35 * scale, base * CFrame.new(0, y, 0) * CFrame.Angles(0, a, math.rad(35 + i * 6)) * CFrame.new(len / 2, 0, 0), col, M.Wood)
 	end
-	return B.decorate(m)
+	return B.decorate(m), 1.1 * scale
 end
 
 -- 쓰러진 통나무 (이끼 조금)
@@ -1563,7 +1609,7 @@ function P.log(parent, at, rng, scale)
 	local m = B.model(parent, "FallenLog")
 	local base = at * yaw(rng)
 	local len = (7 + rng:NextNumber() * 4) * scale
-	B.cyl(m, len, 1.6 * scale, base * CFrame.new(0, 0.7 * scale, 0), "#4e3a2a", M.Wood)
+	B.solid(B.cyl(m, len, 1.6 * scale, base * CFrame.new(0, 0.7 * scale, 0), "#4e3a2a", M.Wood))
 	B.cyl(m, 0.3, 1.3 * scale, base * CFrame.new(len / 2, 0.7 * scale, 0), "#a88a62", M.Wood)
 	B.ellipsoid(m, Vector3.new(len * 0.5, 0.5, 1.4) * scale, base * CFrame.new(-len * 0.1, 1.45 * scale, 0), "#4a6b3a", M.SmoothPlastic)
 	return B.decorate(m)
@@ -1577,7 +1623,7 @@ function P.stump(parent, at, rng, scale)
 		return found
 	end
 	local m = B.model(parent, "Stump")
-	B.cyl(m, 1.6 * scale, 2.6 * scale, at * CFrame.new(0, 0.8 * scale, 0), "#4e3a2a", M.Wood, true)
+	B.solid(B.cyl(m, 1.6 * scale, 2.6 * scale, at * CFrame.new(0, 0.8 * scale, 0), "#4e3a2a", M.Wood, true))
 	B.cyl(m, 0.1, 2.3 * scale, at * CFrame.new(0, 1.62 * scale, 0), "#a88a62", M.Wood, true)
 	return B.decorate(m)
 end
@@ -1665,7 +1711,7 @@ function P.rock(parent, at, rng, scale, name)
 	for i, piece in ipairs(pieces) do
 		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-18, 18)), math.rad(rng:NextInteger(0, 90)), math.rad(rng:NextInteger(-18, 18)))
 		local c = col:Lerp(Color3.new(1, 1, 1), i == 1 and 0.08 or 0)
-		B.block(m, piece[1] * scale, base * CFrame.new(piece[2].Position * scale) * tilt, c, M.Slate)
+		B.solid(B.block(m, piece[1] * scale, base * CFrame.new(piece[2].Position * scale) * tilt, c, M.Slate))
 	end
 	-- 이끼 한 줌
 	B.ellipsoid(m, Vector3.new(2.6, 0.6, 2) * scale, base * CFrame.new(-0.4 * scale, 3.1 * scale, 0.3 * scale), "#55703f", M.SmoothPlastic)
@@ -1771,7 +1817,7 @@ end
 function P.torch(parent, at, height)
 	height = height or 6
 	local m = B.model(parent, "Torch")
-	B.cyl(m, height, 0.5, at * CFrame.new(0, height / 2, 0), "#6e4a2c", M.Wood, true)
+	B.solid(B.cyl(m, height, 0.5, at * CFrame.new(0, height / 2, 0), "#6e4a2c", M.Wood, true))
 	B.cyl(m, 0.9, 1.1, at * CFrame.new(0, height + 0.2, 0), "#4b4f55", M.Metal, true)
 	local flame = B.ball(m, 0.9, at * CFrame.new(0, height + 0.9, 0), "#ffb347", M.Neon)
 	flame.Name = "Flame"
@@ -1795,7 +1841,7 @@ end
 function P.crate(parent, at, size)
 	size = size or 2.6
 	local m = B.model(parent, "Crate")
-	B.block(m, Vector3.one * size, at * CFrame.new(0, size / 2, 0), "#7d6248", M.WoodPlanks)
+	B.solid(B.block(m, Vector3.one * size, at * CFrame.new(0, size / 2, 0), "#7d6248", M.WoodPlanks))
 	for _, dir in ipairs({CFrame.new(), CFrame.Angles(0, math.rad(90), 0)}) do
 		B.block(m, Vector3.new(size + 0.1, 0.35, 0.35), at * CFrame.new(0, size / 2, 0) * dir * CFrame.new(0, 0, size / 2) * CFrame.Angles(0, 0, math.rad(45)), "#54402f", M.Wood)
 	end
@@ -1804,7 +1850,7 @@ end
 
 function P.barrel(parent, at)
 	local m = B.model(parent, "Barrel")
-	B.cyl(m, 3, 2.2, at * CFrame.new(0, 1.5, 0), "#6f5640", M.WoodPlanks, true)
+	B.solid(B.cyl(m, 3, 2.2, at * CFrame.new(0, 1.5, 0), "#6f5640", M.WoodPlanks, true))
 	B.cyl(m, 0.25, 2.3, at * CFrame.new(0, 0.6, 0), "#4b4f55", M.Metal, true)
 	B.cyl(m, 0.25, 2.3, at * CFrame.new(0, 2.4, 0), "#4b4f55", M.Metal, true)
 	return B.decorate(m)
@@ -1813,7 +1859,7 @@ end
 function P.logPile(parent, at)
 	local m = B.model(parent, "Logs")
 	for i, off in ipairs({Vector3.new(-0.8, 0.7, 0), Vector3.new(0.8, 0.7, 0), Vector3.new(0, 1.9, 0)}) do
-		B.cyl(m, 4, 1.4, at * CFrame.new(off) * CFrame.Angles(0, math.rad(90 + i * 4), 0), "#5e4a38", M.Wood)
+		B.solid(B.cyl(m, 4, 1.4, at * CFrame.new(off) * CFrame.Angles(0, math.rad(90 + i * 4), 0), "#5e4a38", M.Wood))
 	end
 	return B.decorate(m)
 end
@@ -1824,7 +1870,7 @@ function P.banner(parent, at, col, height)
 	col = Color3.fromHex(typeof(col) == "string" and col or "#3fa9a0")
 	col = col:Lerp(Color3.fromHex("#3b342d"), 0.6)
 	local m = B.model(parent, "Banner")
-	B.cyl(m, height, 0.4, at * CFrame.new(0, height / 2, 0), "#6e4a2c", M.Wood, true)
+	B.solid(B.cyl(m, height, 0.4, at * CFrame.new(0, height / 2, 0), "#6e4a2c", M.Wood, true))
 	B.block(m, Vector3.new(2.2, 3.2, 0.12), at * CFrame.new(1.2, height - 1.8, 0), col or "#3fa9a0", M.Fabric)
 	B.wedge(m, Vector3.new(0.12, 0.8, 2.2), at * CFrame.new(1.2, height - 3.8, 0) * CFrame.Angles(0, math.rad(90), math.rad(180)), col or "#3fa9a0", M.Fabric)
 	return B.decorate(m)
@@ -1840,7 +1886,7 @@ function P.burrow(parent, at, rng)
 	}
 	for _, piece in ipairs(ring) do
 		local tilt = CFrame.Angles(math.rad(rng:NextInteger(-12, 12)), math.rad(rng:NextInteger(-20, 20)), math.rad(rng:NextInteger(-12, 12)))
-		B.block(m, piece[1], at * CFrame.new(piece[2]) * tilt, "#4d4a55", M.Slate)
+		B.solid(B.block(m, piece[1], at * CFrame.new(piece[2]) * tilt, "#4d4a55", M.Slate))
 	end
 	local hole = B.block(m, Vector3.new(7.5, 6.5, 0.4), at * CFrame.new(0, 3.2, 0.6), "#120c1c", M.SmoothPlastic)
 	hole.Name = "Mouth"
@@ -1880,9 +1926,9 @@ local ROOF = "#4f4239"
 function S.core(parent, at)
 	local m = B.model(parent, "Core")
 	-- 3단 제단
-	B.cyl(m, 1.2, 15, at * CFrame.new(0, 0.6, 0), STONE_D, M.Cobblestone, true)
-	B.cyl(m, 1.2, 11, at * CFrame.new(0, 1.8, 0), STONE, M.Cobblestone, true)
-	B.cyl(m, 1, 7.5, at * CFrame.new(0, 2.9, 0), STONE_L, M.Slate, true)
+	B.solid(B.cyl(m, 1.2, 15, at * CFrame.new(0, 0.6, 0), STONE_D, M.Cobblestone, true),
+		B.cyl(m, 1.2, 11, at * CFrame.new(0, 1.8, 0), STONE, M.Cobblestone, true),
+		B.cyl(m, 1, 7.5, at * CFrame.new(0, 2.9, 0), STONE_L, M.Slate, true))
 	for i = 0, 5 do
 		local a = CFrame.Angles(0, math.rad(i * 60), 0)
 		local rune = B.block(m, Vector3.new(1.2, 0.1, 0.5), at * a * CFrame.new(0, 3.42, -2.9), "#6ff3e0", M.Neon)
@@ -1921,7 +1967,7 @@ function S.core(parent, at)
 	for i = 0, 4 do
 		local a = CFrame.Angles(0, math.rad(i * 72 + 20), 0)
 		local size = Vector3.new(1.1, 2.6 + (i % 2) * 1.2, 1.1)
-		B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate)
+		B.solid(B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate))
 	end
 	local hit = B.hitbox(m, Vector3.new(7.5, 12, 7.5), at * CFrame.new(0, 6, 0), true)
 	hit.Name = "CoreHitbox"
@@ -1981,7 +2027,7 @@ function S.workbench(parent, at)
 		end
 	end
 	-- 모루 그루터기, 망치, 톱, 밧줄, 덫 견본
-	B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true)
+	B.solid(B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true))
 	B.block(m, Vector3.new(2, 0.9, 1), at * CFrame.new(6, 2.8, 0.5), "#5d646b", M.Metal)
 	B.cyl(m, 1.8, 0.25, at * CFrame.new(-1.8, 3.8, -0.6) * CFrame.Angles(0, math.rad(30), 0), WOOD_D, M.Wood)
 	B.block(m, Vector3.new(0.5, 0.5, 0.9), at * CFrame.new(-1.0, 3.8, -0.9) * CFrame.Angles(0, math.rad(30), 0), "#5d646b", M.Metal)
@@ -2042,16 +2088,19 @@ function S.pen(parent, at)
 		for _, y in ipairs({1.4, 2.6}) do
 			B.block(m, Vector3.new(0.3, 0.35, len), at * look * CFrame.new(0, y, 0), WOOD_L, M.Wood)
 		end
+		-- 가로대 사이로 빠져나가지 않게 울타리 한 칸을 통째로 막는 보이지 않는 벽
+		B.new("Part", m, {Name = "FenceWall", Size = Vector3.new(0.4, 3.2, len), CFrame = at * look * CFrame.new(0, 1.6, 0), Transparency = 1,
+			CanCollide = true, CastShadow = false})
 	end
 	local corners = {Vector3.new(-w / 2, 0, -d / 2), Vector3.new(w / 2, 0, -d / 2), Vector3.new(w / 2, 0, d / 2), Vector3.new(-w / 2, 0, d / 2)}
 	for i, c in ipairs(corners) do
-		B.block(m, Vector3.new(0.7, 3.4, 0.7), at * CFrame.new(c + Vector3.new(0, 1.7, 0)), WOOD, M.Wood)
+		B.solid(B.block(m, Vector3.new(0.7, 3.4, 0.7), at * CFrame.new(c + Vector3.new(0, 1.7, 0)), WOOD, M.Wood))
 		local nextC = corners[i % 4 + 1]
 		if i == 1 then
 			fence(c, c + Vector3.new(4.5, 0, 0))
 			fence(nextC - Vector3.new(4.5, 0, 0), nextC)
-			B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(-2.5, 2.3, -d / 2), WOOD, M.Wood)
-			B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(2.5, 2.3, -d / 2), WOOD, M.Wood)
+			B.solid(B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(-2.5, 2.3, -d / 2), WOOD, M.Wood),
+				B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(2.5, 2.3, -d / 2), WOOD, M.Wood))
 			B.block(m, Vector3.new(6, 0.8, 0.5), at * CFrame.new(0, 4.6, -d / 2), WOOD_D, M.Wood)
 		else
 			fence(c, nextC)
@@ -2077,7 +2126,7 @@ function S.pen(parent, at)
 	text.Size, text.BackgroundTransparency, text.Text = UDim2.fromScale(1, 1), 1, "🐾\n펫 우리"
 	text.Font, text.TextScaled, text.TextColor3 = Enum.Font.FredokaOne, true, Color3.fromHex("#4b6b3a")
 	text.Parent = gui
-	B.block(m, Vector3.new(0.4, 2.6, 0.4), at * CFrame.new(-4.6, 1.3, -d / 2 - 0.45), WOOD, M.Wood)
+	B.solid(B.block(m, Vector3.new(0.4, 2.6, 0.4), at * CFrame.new(-4.6, 1.3, -d / 2 - 0.45), WOOD, M.Wood))
 	local pad = B.hitbox(m, Vector3.new(w, 1, d), at * CFrame.new(0, 0.5, 0), false)
 	pad.Name = "PenPad"
 	return B.decorate(m), pad
@@ -2162,7 +2211,7 @@ end
 
 local function gate(m, at, width)
 	for _, x in ipairs({-width / 2 - 0.2, width / 2 + 0.2}) do
-		B.block(m, Vector3.new(1.6, 9, 1.6), at * CFrame.new(x, 4.5, 0), WOOD_D, M.Wood)
+		B.solid(B.block(m, Vector3.new(1.6, 9, 1.6), at * CFrame.new(x, 4.5, 0), WOOD_D, M.Wood))
 		B.spike(m, 1.6, 1.6, 1.2, at * CFrame.new(x, 9, 0), WOOD_D, M.Wood)
 		Props.torch(m, at * CFrame.new(x, 0, -1.6), 5)
 	end
@@ -2294,11 +2343,17 @@ return S
           <Properties>
             <string name="Name">ToolLook</string>
             <ProtectedString name="Source">-- 손에 드는 도구 모양 (Roblox Tool). 서버가 만들어 플레이어 Backpack 에 넣는다.
--- Handle 의 -Z 쪽이 앞(손을 뻗은 방향)이다. Grip 으로 손이 잡는 위치를 정한다.
+--
+-- 쥐는 법: 도구를 들면 기본 Animate 가 오른팔을 앞으로 뻗는다(toolnone). 그때 손(RightGripAttachment) 기준으로
+--   +Y = 위, -Z = 앞 이다. Tool.Grip 을 CFrame.new(쥐는 점) * 기울기 로 주면 Handle 의 그 점을 손이 쥔다.
+--   · 도끼·곡괭이·횃불 : 자루를 Handle 의 Y 축으로 만들고 날/머리를 위(+Y)에 둔다 → 자루를 세워서 쥐고 날은 앞(-Z)을 본다
+--   · 창                : 자루를 Z 축으로 만들고 창날을 앞(-Z)에 둔다 → 앞으로 겨누어 쥔다
+-- 예전에는 도끼·곡괭이도 창처럼 앞으로 눕혀 들어서 "막대 끝에 돌덩이" 처럼 보였다.
 local RS = game:GetService("ReplicatedStorage")
 local I = require(RS.Shared.Config.ItemConfig)
 
 local T = {}
+local MAT = Enum.Material
 
 local function hex(value)
 	return Color3.fromHex(value)
@@ -2319,13 +2374,12 @@ local function makeTool(id, spec)
 	return tool, handle
 end
 
--- 손잡이에 붙는 조각
-local function piece(tool, handle, size, offset, color, material, shape)
-	local p = Instance.new("Part")
+-- 손잡이에 붙는 조각 (offset 은 Handle 기준)
+local function piece(tool, handle, size, offset, color, material, className)
+	local p = Instance.new(className or "Part")
 	p.Size, p.Color, p.Material = size, color, material
 	p.CanCollide, p.CanTouch, p.CanQuery, p.Massless = false, false, false, true
 	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
-	if shape then p.Shape = shape end
 	p.CFrame = handle.CFrame * offset
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0, weld.Part1 = handle, p
@@ -2334,10 +2388,120 @@ local function piece(tool, handle, size, offset, color, material, shape)
 	return p
 end
 
-local function shaft(handle, length, look)
-	handle.Size = Vector3.new(0.3, 0.3, length)
+-- 쥐는 점(Handle 기준)과 앞으로 기울이는 각도(도) → Tool.Grip
+local function grip(point, leanDeg)
+	return CFrame.new(point) * CFrame.Angles(math.rad(leanDeg or 0), 0, 0)
+end
+
+-- 세운 자루 (Y 축)
+local function upright(handle, length, look)
+	handle.Size = Vector3.new(0.26, length, 0.26)
 	handle.Color = hex(look.Wood)
-	handle.Material = Enum.Material.Wood
+	handle.Material = MAT.Wood
+end
+
+local function axe(tool, handle, look, headColor, headMat)
+	upright(handle, 3.3, look)
+	local top = 1.2
+	-- 머리: 자루를 감싸는 쇠고리 + 앞으로 뻗은 뺨 + 위아래로 벌어진 날
+	piece(tool, handle, Vector3.new(0.36, 0.62, 0.42), CFrame.new(0, top, 0), headColor, headMat)
+	piece(tool, handle, Vector3.new(0.2, 0.5, 0.55), CFrame.new(0, top, -0.45), headColor, headMat)
+	piece(tool, handle, Vector3.new(0.14, 1.05, 0.26), CFrame.new(0, top, -0.8), headColor, headMat)
+	-- 날 끝을 날카롭게 (쐐기 두 개가 위아래로 벌어진 모양)
+	-- (WedgePart: 세운 면이 +Z → Y 로 반 바퀴 돌리면 세운 면이 날 쪽(-Z), X 로 반 바퀴 돌리면 위아래도 뒤집힌다)
+	piece(tool, handle, Vector3.new(0.14, 0.28, 0.4), CFrame.new(0, top + 0.39, -0.62) * CFrame.Angles(0, math.pi, 0), headColor, headMat, "WedgePart")
+	piece(tool, handle, Vector3.new(0.14, 0.28, 0.4), CFrame.new(0, top - 0.39, -0.62) * CFrame.Angles(math.pi, 0, 0), headColor, headMat, "WedgePart")
+	-- 뒤통수 (망치 쪽)
+	piece(tool, handle, Vector3.new(0.3, 0.4, 0.26), CFrame.new(0, top, 0.3), headColor, headMat)
+	-- 손잡이 감개 + 자루 끝
+	piece(tool, handle, Vector3.new(0.32, 0.7, 0.32), CFrame.new(0, -1.05, 0), hex("#4a3322"), MAT.Fabric)
+	piece(tool, handle, Vector3.new(0.34, 0.16, 0.34), CFrame.new(0, -1.6, 0), hex(look.Wood):Lerp(hex("#2a1c12"), 0.4), MAT.Wood)
+	tool.Grip = grip(Vector3.new(0, -1.0, 0), 20)
+end
+
+local function pickaxe(tool, handle, look, headColor, headMat)
+	upright(handle, 3.5, look)
+	local top = 1.62
+	-- 머리: 자루 끝을 앞뒤로 가로지르고, 양 끝이 아래로 휘어 뾰족해진다
+	piece(tool, handle, Vector3.new(0.36, 0.4, 0.46), CFrame.new(0, top, 0), headColor, headMat)
+	for _, side in ipairs({-1, 1}) do
+		piece(tool, handle, Vector3.new(0.22, 0.3, 0.8), CFrame.new(0, top + 0.02, side * 0.58) * CFrame.Angles(math.rad(side * 8), 0, 0), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.18, 0.24, 0.62), CFrame.new(0, top - 0.14, side * 1.18) * CFrame.Angles(math.rad(side * 24), 0, 0), headColor, headMat)
+		piece(tool, handle, Vector3.new(0.12, 0.16, 0.36), CFrame.new(0, top - 0.34, side * 1.55) * CFrame.Angles(math.rad(side * 42), 0, 0), headColor, headMat)
+	end
+	piece(tool, handle, Vector3.new(0.32, 0.7, 0.32), CFrame.new(0, -1.15, 0), hex("#4a3322"), MAT.Fabric)
+	tool.Grip = grip(Vector3.new(0, -1.1, 0), 20)
+end
+
+local function spear(tool, handle, look, headColor, headMat)
+	handle.Size = Vector3.new(0.24, 0.24, 5.6)
+	handle.Color = hex(look.Wood)
+	handle.Material = MAT.Wood
+	-- 창날: 납작한 나뭇잎 모양 (세로로 선 날)
+	piece(tool, handle, Vector3.new(0.1, 0.5, 0.9), CFrame.new(0, 0, -3.15), headColor, headMat)
+	piece(tool, handle, Vector3.new(0.1, 0.36, 0.36), CFrame.new(0, 0, -3.62) * CFrame.Angles(math.rad(45), 0, 0), headColor, headMat)
+	piece(tool, handle, Vector3.new(0.3, 0.3, 0.5), CFrame.new(0, 0, -2.6), hex("#3a5a50"), MAT.Fabric)
+	piece(tool, handle, Vector3.new(0.3, 0.3, 0.6), CFrame.new(0, 0, 0.9), hex("#784e2c"), MAT.Fabric)
+	-- 가운데보다 조금 뒤를 쥐고 창끝을 살짝 위로
+	tool.Grip = grip(Vector3.new(0, 0, 0.9), -8)
+end
+
+local function torch(tool, handle, look)
+	upright(handle, 2.5, look)
+	local head = piece(tool, handle, Vector3.new(0.44, 0.6, 0.44), CFrame.new(0, 1.3, 0), hex("#3b2a1c"), MAT.Fabric)
+	piece(tool, handle, Vector3.new(0.5, 0.14, 0.5), CFrame.new(0, 0.98, 0), hex("#5d646b"), MAT.Metal)
+	local fire = Instance.new("Fire")
+	fire.Size, fire.Heat, fire.Color, fire.SecondaryColor = 2.2, 6, hex("#ff9a3c"), hex("#ffd27a")
+	fire.Parent = head
+	local light = Instance.new("PointLight")
+	light.Range, light.Brightness, light.Color, light.Shadows = 22, 1.6, hex("#ffae5c"), true
+	light.Parent = head
+	-- 불꽃이 위로 서도록 거의 세워서 쥔다
+	tool.Grip = grip(Vector3.new(0, -0.7, 0), 12)
+end
+
+local function trap(tool, handle, id, spec)
+	handle.Size = Vector3.new(1.1, 0.8, 1.1)
+	handle.Color = id == "CrystalTrap" and hex("#7ff0ff") or (spec.Better and hex("#c9a45c") or hex("#9a7a4a"))
+	handle.Material = id == "CrystalTrap" and MAT.Glass or MAT.Fabric
+	piece(tool, handle, Vector3.new(1.2, 0.12, 1.2), CFrame.new(0, 0.44, 0), hex("#6b4a2c"), MAT.Wood)
+	-- 바구니 손잡이 (고리)
+	piece(tool, handle, Vector3.new(0.12, 0.5, 0.12), CFrame.new(0, 0.74, -0.4), hex("#6b4a2c"), MAT.Wood)
+	piece(tool, handle, Vector3.new(0.12, 0.5, 0.12), CFrame.new(0, 0.74, 0.4), hex("#6b4a2c"), MAT.Wood)
+	piece(tool, handle, Vector3.new(0.12, 0.12, 0.92), CFrame.new(0, 1.0, 0), hex("#6b4a2c"), MAT.Wood)
+	-- 손잡이를 쥐고 바구니는 손 아래에 매단다
+	tool.Grip = grip(Vector3.new(0, 1.0, 0), 0)
+end
+
+local function food(tool, handle, id)
+	local colors = {Berry = "#c8304e", RoastMushroom = "#b07a4a", Stew = "#8a5a3a", Snack = "#d9a55c"}
+	if id == "Stew" then
+		-- 나무 그릇
+		handle.Shape = Enum.PartType.Cylinder
+		handle.Size = Vector3.new(0.5, 1.1, 1.1)
+		handle.Color = hex("#7a5230")
+		handle.Material = MAT.Wood
+		piece(tool, handle, Vector3.new(0.06, 0.9, 0.9), CFrame.new(0.26, 0, 0), hex(colors.Stew), MAT.SmoothPlastic).Shape = Enum.PartType.Cylinder
+		-- 원기둥은 X 축이 길이 방향 → 그릇이 위를 보게 세운다
+		tool.Grip = CFrame.new(0, 0, 0) * CFrame.Angles(0, 0, math.rad(-90))
+		return
+	elseif id == "RoastMushroom" then
+		handle.Size = Vector3.new(0.14, 1.4, 0.14)
+		handle.Color = hex("#8a6242")
+		handle.Material = MAT.Wood
+		piece(tool, handle, Vector3.new(0.7, 0.45, 0.7), CFrame.new(0, 0.55, 0), hex(colors.RoastMushroom), MAT.SmoothPlastic)
+		piece(tool, handle, Vector3.new(0.6, 0.4, 0.6), CFrame.new(0, 0.1, 0), hex("#9a6a3e"), MAT.SmoothPlastic)
+		tool.Grip = grip(Vector3.new(0, -0.5, 0), 10)
+		return
+	end
+	handle.Shape = Enum.PartType.Ball
+	handle.Size = Vector3.new(0.7, 0.7, 0.7)
+	handle.Color = hex(colors[id] or "#c8a060")
+	handle.Material = MAT.SmoothPlastic
+	if id == "Berry" then
+		piece(tool, handle, Vector3.new(0.08, 0.3, 0.08), CFrame.new(0, 0.42, 0), hex("#4f7a3a"), MAT.SmoothPlastic)
+	end
+	tool.Grip = CFrame.new(0, 0, 0)
 end
 
 function T.make(id)
@@ -2345,53 +2509,19 @@ function T.make(id)
 	if not spec then return nil end
 	local tool, handle = makeTool(id, spec)
 	local look = I.TierLook[spec.Tier or 1]
-	local headColor, headMat = hex(look.Head), Enum.Material[look.Material]
+	local headColor, headMat = hex(look.Head), MAT[look.Material]
 	if spec.Family == "Spear" then
-		shaft(handle, 5.6, look)
-		piece(tool, handle, Vector3.new(0.12, 0.62, 1.3), CFrame.new(0, 0, -3.25), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.12, 0.62, 0.62), CFrame.new(0, 0, -3.95) * CFrame.Angles(math.rad(45), 0, 0), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.42, 0.42, 0.7), CFrame.new(0, 0, -2.4), hex("#40aa96"), Enum.Material.Fabric)
-		piece(tool, handle, Vector3.new(0.42, 0.42, 0.5), CFrame.new(0, 0, 0.6), hex("#784e2c"), Enum.Material.Fabric)
-		tool.Grip = CFrame.new(0, 0, 0.9)
+		spear(tool, handle, look, headColor, headMat)
 	elseif spec.Family == "Axe" then
-		shaft(handle, 3.2, look)
-		-- 도끼날: 손잡이 끝에서 위로 솟은 쐐기
-		piece(tool, handle, Vector3.new(0.22, 1.1, 0.9), CFrame.new(0, 0.45, -1.35), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.16, 0.5, 1.2), CFrame.new(0, 1.05, -1.35), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.36, 0.36, 0.5), CFrame.new(0, 0, 1.2), hex("#4a3322"), Enum.Material.Fabric)
-		tool.Grip = CFrame.new(0, 0, 1.0)
+		axe(tool, handle, look, headColor, headMat)
 	elseif spec.Family == "Pickaxe" then
-		shaft(handle, 3.4, look)
-		-- 곡괭이 머리: 손잡이 끝을 가로지르는 뾰족한 막대
-		piece(tool, handle, Vector3.new(0.26, 2.4, 0.3), CFrame.new(0, 0, -1.5), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.2, 0.5, 0.2), CFrame.new(0, 1.35, -1.45) * CFrame.Angles(math.rad(-25), 0, 0), headColor, headMat)
-		piece(tool, handle, Vector3.new(0.2, 0.5, 0.2), CFrame.new(0, -1.35, -1.45) * CFrame.Angles(math.rad(25), 0, 0), headColor, headMat)
-		tool.Grip = CFrame.new(0, 0, 1.1)
+		pickaxe(tool, handle, look, headColor, headMat)
 	elseif spec.Family == "Torch" then
-		shaft(handle, 2.6, look)
-		local head = piece(tool, handle, Vector3.new(0.5, 0.5, 0.6), CFrame.new(0, 0, -1.4), hex("#3b2a1c"), Enum.Material.Fabric)
-		local fire = Instance.new("Fire")
-		fire.Size, fire.Heat, fire.Color, fire.SecondaryColor = 2.2, 6, hex("#ff9a3c"), hex("#ffd27a")
-		fire.Parent = head
-		local light = Instance.new("PointLight")
-		light.Range, light.Brightness, light.Color, light.Shadows = 22, 1.6, hex("#ffae5c"), true
-		light.Parent = head
-		-- 앞으로 들되 불꽃이 위를 향하게 기울인다
-		tool.Grip = CFrame.new(0, 0, 0.8) * CFrame.Angles(math.rad(-35), 0, 0)
+		torch(tool, handle, look)
 	elseif spec.Kind == "Trap" then
-		handle.Size = Vector3.new(1.1, 0.7, 1.1)
-		handle.Color = id == "CrystalTrap" and hex("#7ff0ff") or (spec.Better and hex("#c9a45c") or hex("#9a7a4a"))
-		handle.Material = id == "CrystalTrap" and Enum.Material.Glass or Enum.Material.Fabric
-		piece(tool, handle, Vector3.new(1.2, 0.12, 1.2), CFrame.new(0, 0.36, 0), hex("#6b4a2c"), Enum.Material.Wood)
-		tool.Grip = CFrame.new(0, 0, 0.2)
+		trap(tool, handle, id, spec)
 	else
-		-- 음식·간식: 손에 쥔 작은 덩어리
-		local colors = {Berry = "#c8304e", RoastMushroom = "#b07a4a", Stew = "#8a5a3a", Snack = "#d9a55c"}
-		handle.Shape = Enum.PartType.Ball
-		handle.Size = Vector3.new(0.8, 0.8, 0.8)
-		handle.Color = hex(colors[id] or "#c8a060")
-		handle.Material = Enum.Material.SmoothPlastic
-		tool.Grip = CFrame.new(0, 0, 0.1)
+		food(tool, handle, id)
 	end
 	return tool
 end
@@ -10877,6 +11007,7 @@ Engine.Heartbeat:Connect(function(dt)
         ctx.Data:Tick();ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
         ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
         ctx.Crafting:Tick();ctx.Survival:Tick(step)
+        for _,player in ipairs(Players:GetPlayers()) do ctx.Map:Contain(player) end
     end
     if broadcast&gt;=C.StateInterval then
         broadcast=0
@@ -11118,6 +11249,7 @@ local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
 local I = require(RS.Shared.Config.ItemConfig)
+local Inv = require(RS.Shared.Modules.Inventory)
 local S = {}
 function S:Init(ctx)
 	self.ctx, self.LastAttack = ctx, {}
@@ -11158,6 +11290,8 @@ function S:Attack(player)
 	local now = os.clock()
 	if now - (self.LastAttack[player] or -math.huge) &lt; C.SpearCooldown then return end
 	self.LastAttack[player] = now
+	-- 팔 동작: 모든 클라이언트가 이 캐릭터의 팔을 휘두르게 한다 (내 화면은 누르는 즉시 먼저 재생)
+	self.ctx.FX:FireAllClients("Swing", player, Inv.motion(spec))
 	if spec and spec.Kind == "Food" then
 		if self.ctx.Survival then self.ctx.Survival:Eat(player, id) end
 		return
@@ -11167,12 +11301,6 @@ function S:Attack(player)
 	elseif spec and spec.Kind == "PetFood" then
 		if C.ActiveStage &gt;= 5 then self.ctx.Pets:FeedNearest(player) end
 		return
-	end
-	-- 휘두르기: 기본 Animate 스크립트가 "toolanim" 값을 보고 찌르기 동작을 재생한다
-	if tool then
-		local anim = Instance.new("StringValue")
-		anim.Name, anim.Value, anim.Parent = "toolanim", "Lunge", tool
-		game:GetService("Debris"):AddItem(anim, 0.3)
 	end
 	local damage = spec and spec.Damage or I.HandDamage
 	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
@@ -12018,6 +12146,7 @@ return S
           <ProtectedString name="Source">-- 원정 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 모닥불, 펫 우리) + 3 길목 + 지역(초원·바위 협곡·고목의 숲·안개 늪)
 -- + 자원 노드 + 야생 펫 자리 + 숲. 놀 수 있는 곳은 지름 약 1500 (MapConfig).
 -- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, WildSpawns, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
+-- 맵 가장자리에는 보이지 않는 경계 벽(WallRadius)이 있고, 지도(미니맵)용 격자를 ReplicatedStorage.MapGrid 로 내보낸다.
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local Zones = require(RS.Shared.Modules.Zones)
@@ -12054,7 +12183,7 @@ function Map:Build()
 	self.PetsFolder = U.folder(self.Root, "Pets")
 	self.WildFolder = U.folder(self.Root, "WildPets")
 	self.Base = U.folder(self.Root, "Base")
-	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid = {}, {}, {}, {}, {}
+	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid, self.Marks = {}, {}, {}, {}, {}, {}
 	self.Rng = Random.new(20260928)
 
 	for i, angle in ipairs(C.LaneAngles) do
@@ -12084,7 +12213,14 @@ function Map:Build()
 	self:BuildNodes()
 	self:BuildWild()
 	self:BuildScenery()
+	self:BuildBoundary()
+	self:BuildMapGrid()
 	return self
+end
+
+-- 지도에 그릴 것 기록: 위치, 반지름, 종류(MapGrid 글자)
+function Map:Mark(pos, radius, class)
+	table.insert(self.Marks, {pos.X, pos.Z, radius, class})
 end
 
 -- ============================================================= 지형
@@ -12166,6 +12302,7 @@ function Map:BuildTerrain()
 		if self:Free(pos, radius + 6) then
 			T:FillBall(pos + Vector3.new(0, -radius * 0.45, 0), radius, rng:NextNumber() &lt; 0.5 and MAT.Rock or MAT.Basalt)
 			self:Block(pos, radius + 2)
+			self:Mark(pos, radius * 0.85, "H")
 		end
 	end
 	-- 기지 바닥: 흙 광장 + Core 주변 돌바닥
@@ -12176,6 +12313,9 @@ function Map:BuildTerrain()
 		local from, to = 6, C.LaneRadius + 8
 		local mid = lane.Dir * ((from + to) / 2)
 		T:FillBlock(CFrame.lookAt(mid + Vector3.new(0, -2, 0), mid + lane.Dir + Vector3.new(0, -2, 0)), Vector3.new(C.LaneWidth, 4, to - from), MAT.Ground)
+		for t = from, to, 8 do
+			self:Mark(lane.Dir * t, C.LaneWidth / 2, "P")
+		end
 		for n = 1, 14 do
 			local t = from + (to - from) * n / 15
 			local side = (n % 2 == 0 and 1 or -1) * (C.LaneWidth / 2 + 1)
@@ -12185,6 +12325,7 @@ function Map:BuildTerrain()
 		for t = C.LaneRadius + 20, C.TrailLength, step do
 			local pos = self:TrailPoint(lane, t)
 			T:FillCylinder(CFrame.new(pos + Vector3.new(0, -2, 0)), 4, 4.5, math.floor(t / step) % 3 == 0 and MAT.Mud or MAT.Ground)
+			self:Mark(pos, 4.5, "P")
 		end
 	end
 	-- 건물 아래 흙 바닥
@@ -12206,6 +12347,7 @@ function Map:BuildTerrain()
 	end
 	for i, pond in ipairs(self.Ponds) do
 		local pos, pr = pond[1], pond[2]
+		self:Mark(pos, pr, "W")
 		T:FillCylinder(CFrame.new(pos.X, -2, pos.Z), 4, pr + 5, i == 1 and MAT.Sand or MAT.Mud)
 		T:FillCylinder(CFrame.new(pos.X, -5, pos.Z), 10, pr, MAT.Air)
 		T:FillCylinder(CFrame.new(pos.X, -6, pos.Z), 8, pr, MAT.Water)
@@ -12216,6 +12358,7 @@ function Map:BuildTerrain()
 	local grove = self:GrovePosition()
 	T:FillCylinder(CFrame.new(grove.X, -2, grove.Z), 4, C.Grove.Size, MAT.LeafyGrass)
 	self:Block(grove, 9)
+	self:Mark(grove, C.Grove.Size * 0.55, "T")
 end
 
 function Map:GrovePosition()
@@ -12286,6 +12429,11 @@ function Map:BuildBase()
 	local _, coreHit = S.core(base, CFrame.new())
 	self.Core = coreHit
 	self.Core.Name = "Core"
+	self:Mark(Vector3.zero, C.BaseRadius, "B")
+	self:Mark(Vector3.zero, 5, "Q")
+	for _, spot in ipairs({C.Warehouse, C.Workbench, C.Cage}) do
+		self:Mark(Vector3.new(spot[1], 0, spot[3]), 6, "K")
+	end
 
 	S.storehouse(base, toCore(C.Warehouse[1], C.Warehouse[3]))
 	self.Warehouse = base.Storehouse.Hitbox
@@ -12372,7 +12520,7 @@ function Map:BuildBase()
 	local fire = B.model(base, "Campfire")
 	local fpos = CFrame.new(-12, 0, 20)
 	for i = 0, 5 do
-		B.block(fire, Vector3.new(1.2, 0.8, 1), fpos * CFrame.Angles(0, math.rad(i * 60), 0) * CFrame.new(0, 0.4, -1.6), "#8b8f94", MAT.Slate)
+		B.solid(B.block(fire, Vector3.new(1.2, 0.8, 1), fpos * CFrame.Angles(0, math.rad(i * 60), 0) * CFrame.new(0, 0.4, -1.6), "#8b8f94", MAT.Slate))
 	end
 	for i = 0, 2 do
 		B.cyl(fire, 2.6, 0.6, fpos * CFrame.Angles(0, math.rad(i * 60), 0) * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.rad(12)), "#6e4a2c", MAT.Wood)
@@ -12387,7 +12535,7 @@ function Map:BuildBase()
 	self.CookPrompt = U.prompt(flame, "Cook", "요리하기 · 구운 버섯 · 스튜", Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
 	self.CookPrompt.ObjectText = "모닥불"
 	for i, off in ipairs({Vector3.new(-3.6, 0, 0.5), Vector3.new(3.4, 0, -0.6)}) do
-		B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood)
+		B.solid(B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood))
 	end
 end
 
@@ -12398,14 +12546,17 @@ function Map:BuildLanes()
 		local mouth = lane.Dir * (C.LaneRadius + 6)
 		Props.burrow(folder, CFrame.lookAt(mouth, Vector3.zero), self.Rng)
 		self:Block(mouth, 14)
+		self:Mark(mouth, 7, "U")
 		-- 바깥 벽 자리 옆 울타리 날개: 길목이 "막히는 곳" 으로 읽히게 한다
 		for _, radius in ipairs({57, 78}) do
 			for _, s in ipairs({-1, 1}) do
 				local center = lane.Dir * radius + lane.Side * s * (C.LaneWidth / 2 + 5)
 				local frame = CFrame.lookAt(center, center + lane.Side)
 				for k = -1, 1 do
-					B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#5e4b3b", MAT.Wood, true)
+					B.solid(B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#5e4b3b", MAT.Wood, true))
 				end
+				B.new("Part", folder, {Name = "FenceWall", Size = Vector3.new(0.5, 3.4, 7.4), CFrame = frame * CFrame.new(0, 1.7, 0), Transparency = 1,
+					CanCollide = true, CastShadow = false})
 				for _, y in ipairs({1.2, 2.7}) do
 					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#54432f", MAT.Wood)
 				end
@@ -12414,7 +12565,7 @@ function Map:BuildLanes()
 		end
 		-- 길 표지 돌 (길목 번호)
 		local marker = lane.Dir * 46 + lane.Side * (C.LaneWidth / 2 + 2.5)
-		local stone = B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#6f7376", MAT.Slate)
+		local stone = B.solid(B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#6f7376", MAT.Slate))
 		local gui = Instance.new("SurfaceGui")
 		gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(100, 160), 1
 		gui.Parent = stone
@@ -12455,7 +12606,8 @@ end
 -- ============================================================= 채집 노드
 local NODE_BUILDERS = {
 	Wood = function(parent, at, rng)
-		return Props.tree(parent, at, rng, 0.9, "WoodTree"), Vector3.new(3.4, 12, 3.4)
+		local model, width = Props.tree(parent, at, rng, 0.9, "WoodTree")
+		return model, Vector3.new(3.4, 12, 3.4), width
 	end,
 	Stone = function(parent, at, rng)
 		return Props.rock(parent, at, rng, 1.05, "StoneRock"), Vector3.new(7, 5, 6)
@@ -12477,12 +12629,23 @@ local NODE_BUILDERS = {
 	end,
 }
 
-function Map:AddNode(kind, pos)
+local NODE_MARK = {Wood = "T", Stone = "R", Scrap = "R", Crystal = "Q"}
+
+-- 채집 노드. model 을 주면(숲의 나무·고사목) 그 모델을 그대로 노드로 쓴다 → 맵의 모든 나무를 도끼로 벨 수 있다.
+-- 나무는 보이지 않는 줄기 기둥(Props.trunk)이 몸을 막고, 채집용 Hitbox 는 부딪히지 않는다.
+function Map:AddNode(kind, pos, model, width)
 	local spec = R.Types[kind]
 	local n = #self.Nodes + 1
-	local model, size = NODE_BUILDERS[kind](self.NodesFolder, CFrame.new(pos), self.Rng)
+	local size
+	local placed = model ~= nil
+	if model then
+		local w = math.max(3.4, (width or 1.6) * 2)
+		size = Vector3.new(w, 12, w)
+	else
+		model, size, width = NODE_BUILDERS[kind](self.NodesFolder, CFrame.new(pos), self.Rng)
+	end
 	model.Name = kind .. n
-	local hit = B.hitbox(model, size, CFrame.new(pos + Vector3.new(0, size.Y / 2, 0)), true)
+	local hit = B.hitbox(model, size, CFrame.new(pos + Vector3.new(0, size.Y / 2, 0)), kind ~= "Wood")
 	hit.Name = kind .. n
 	hit:SetAttribute("ResourceType", kind)
 	hit:SetAttribute("MaxHealth", spec.HP)
@@ -12490,8 +12653,13 @@ function Map:AddNode(kind, pos)
 	hit:SetAttribute("RespawnTime", spec.Respawn)
 	hit:SetAttribute("Zone", Zones.id(pos, C))
 	model.PrimaryPart = hit
-	table.insert(self.Nodes, {Part = hit, Model = model, Kind = kind, Home = CFrame.new(pos)})
-	self:Block(pos, 7)
+	table.insert(self.Nodes, {Part = hit, Model = model, Kind = kind, Home = CFrame.new(pos), Width = width})
+	if not placed then
+		self:Block(pos, 7)
+		if NODE_MARK[kind] then
+			self:Mark(pos, 2, NODE_MARK[kind])
+		end
+	end
 end
 
 function Map:BuildNodes()
@@ -12553,7 +12721,8 @@ function Map:BuildScenery()
 		for i = 1, count do
 			local a = i / count * math.pi * 2 + B.jitter(rng, 0.004)
 			local r = C.PlayRadius + inner + rng:NextNumber() * spread
-			Props.tallPine(decor, CFrame.new(math.cos(a) * r, 0, math.sin(a) * r), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, false, row &gt; 1)
+			-- 첫 줄은 경계 벽 안쪽이라 줄기에 부딪혀야 한다 (뒷줄은 벽 너머라 필요 없음)
+			Props.tallPine(decor, CFrame.new(math.cos(a) * r, 0, math.sin(a) * r), rng, 1.0 + rng:NextNumber() * 0.45 + row * 0.08, row == 1, row &gt; 1)
 		end
 	end
 	-- 흩뿌림 도우미: 지역 안에서 길목·기지·자원·다른 소품을 피해 놓는다
@@ -12575,7 +12744,9 @@ function Map:BuildScenery()
 			for _ = 1, rng:NextInteger(minTrees, maxTrees) do
 				local a = rng:NextNumber() * math.pi * 2
 				local pos = center + Vector3.new(math.cos(a), 0, math.sin(a)) * (2 + rng:NextNumber() * 7)
-				Props.tallPine(decor, CFrame.new(pos), rng, scaleMin + rng:NextNumber() * scaleSpan, true)
+				local model, width = Props.tallPine(self.NodesFolder, CFrame.new(pos), rng, scaleMin + rng:NextNumber() * scaleSpan, true)
+				self:AddNode("Wood", pos, model, width)
+				self:Mark(pos, 2, "T")
 			end
 			for _ = 1, rng:NextInteger(2, 4) do
 				local a = rng:NextNumber() * math.pi * 2
@@ -12590,14 +12761,25 @@ function Map:BuildScenery()
 				Props.stump(decor, spot, rng, 0.9 + rng:NextNumber() * 0.4)
 			else
 				Props.rock(decor, spot, rng, 0.6 + rng:NextNumber() * 0.5)
+				self:Mark(spot.Position, 2, "R")
 			end
 		end)
 	end
 	local function props(zone, counts)
-		scatter(zone, counts.Dead or 0, 4, function(at) Props.deadTree(decor, at, rng, 0.8 + rng:NextNumber() * 0.5) end)
+		scatter(zone, counts.Dead or 0, 4, function(at, pos)
+			local model, width = Props.deadTree(self.NodesFolder, at, rng, 0.8 + rng:NextNumber() * 0.5)
+			self:AddNode("Wood", pos, model, width)
+			self:Mark(pos, 2, "D")
+		end)
 		scatter(zone, counts.Log or 0, 5, function(at) Props.log(decor, at, rng, 0.8 + rng:NextNumber() * 0.4) end)
 		scatter(zone, counts.Stump or 0, 3, function(at) Props.stump(decor, at, rng, 0.8 + rng:NextNumber() * 0.4) end)
-		scatter(zone, counts.Rock or 0, 3, function(at) Props.rock(decor, at, rng, (counts.RockScale or 0.4) + rng:NextNumber() * 0.7) end)
+		scatter(zone, counts.Rock or 0, 3, function(at, pos)
+			local scale = (counts.RockScale or 0.4) + rng:NextNumber() * 0.7
+			Props.rock(decor, at, rng, scale)
+			if scale &gt;= 0.7 then
+				self:Mark(pos, 2, "R")
+			end
+		end)
 		scatter(zone, counts.Fern or 0, 1.8, function(at) Props.fern(decor, at, rng, 0.7 + rng:NextNumber() * 0.5) end)
 		scatter(zone, counts.Glow or 0, 1.5, function(at) Props.mushrooms(decor, at, rng) end)
 		scatter(zone, counts.Reeds or 0, 2, function(at) Props.reeds(decor, at, rng, 0.7 + rng:NextNumber() * 0.4) end)
@@ -12649,7 +12831,7 @@ function Map:BuildScenery()
 		local a = math.rad(i * (360 / 7) + 10)
 		local pos = Vector3.new(gx + math.cos(a) * (gr - 3), 0, gz + math.sin(a) * (gr - 3))
 		if (pos - Vector3.new(gx - toward.X, 0, gz - toward.Z)).Magnitude &gt; 7 then
-			local stone = B.block(groveModel, Vector3.new(2, 5 + rng:NextNumber() * 2, 1.4), CFrame.lookAt(pos, Vector3.new(gx, 0, gz)) + Vector3.new(0, 2.6, 0), "#a3a8ad", MAT.Slate)
+			local stone = B.solid(B.block(groveModel, Vector3.new(2, 5 + rng:NextNumber() * 2, 1.4), CFrame.lookAt(pos, Vector3.new(gx, 0, gz)) + Vector3.new(0, 2.6, 0), "#a3a8ad", MAT.Slate))
 			B.block(groveModel, Vector3.new(0.3, 2, 0.1), stone.CFrame * CFrame.new(0, 0.5, -0.72), "#b6ff8a", MAT.Neon)
 		end
 	end
@@ -12665,7 +12847,7 @@ function Map:BuildScenery()
 		local zoneId = Zones.id(lane.Dir * (C.MeadowRadius + 30), C)
 		local zone = C.Zones[zoneId]
 		local at = self:TrailPoint(lane, C.MeadowRadius + 24) + lane.Side * 9
-		local post = B.block(decor, Vector3.new(0.6, 5, 0.6), CFrame.new(at + Vector3.new(0, 2.5, 0)), "#5e4b3b", MAT.Wood)
+		local post = B.solid(B.block(decor, Vector3.new(0.6, 5, 0.6), CFrame.new(at + Vector3.new(0, 2.5, 0)), "#5e4b3b", MAT.Wood))
 		local sign = B.block(decor, Vector3.new(5.2, 1.6, 0.3), CFrame.lookAt(at + Vector3.new(0, 4.4, 0), at + Vector3.new(0, 4.4, 0) - lane.Dir), "#6b5236", MAT.WoodPlanks)
 		post.Name = "ZoneSign"
 		local gui = Instance.new("SurfaceGui")
@@ -12676,6 +12858,133 @@ function Map:BuildScenery()
 		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, zone.Icon .. " " .. zone.Name, Color3.fromHex("#f2e6cf")
 		text.Parent = gui
 	end
+end
+
+-- ============================================================= 경계
+-- 숲 벽 첫 줄 바로 뒤를 두르는 보이지 않는 벽. 언덕을 타고 넘거나 나무 사이로 빠져나가 맵 밖으로 떨어지지 않게 한다.
+function Map:BuildBoundary()
+	local folder = U.folder(self.Map, "Boundary")
+	local radius = C.WallRadius
+	local count = math.ceil(2 * math.pi * radius / 24)
+	local length = 2 * math.pi * radius / count + 2
+	for i = 1, count do
+		local a = i / count * math.pi * 2
+		local pos = Vector3.new(math.cos(a) * radius, 60, math.sin(a) * radius)
+		B.new("Part", folder, {Name = "Wall", Size = Vector3.new(length, 220, 4), CFrame = CFrame.lookAt(pos, Vector3.new(0, 60, 0)),
+			Transparency = 1, CanCollide = true, CastShadow = false})
+	end
+	self.GroundRay = RaycastParams.new()
+	self.GroundRay.FilterType = Enum.RaycastFilterType.Include
+	self.GroundRay.FilterDescendantsInstances = {workspace.Terrain}
+end
+
+-- 안전장치: 벽을 뚫었거나(순간이동·끼임) 떨어진 캐릭터를 맵 안으로 되돌린다 (서버 틱마다)
+function Map:Contain(player)
+	local root = U.aliveRoot(player)
+	if not root then
+		return false
+	end
+	local p = root.Position
+	local r = math.sqrt(p.X * p.X + p.Z * p.Z)
+	if p.Y &gt; -60 and r &lt;= C.WallRadius + 6 then
+		return false
+	end
+	local back
+	if p.Y &lt;= -60 or r &lt; 1 then
+		back = self.Spawn.Position + Vector3.new(0, 4, 0)
+	else
+		local flatBack = Vector3.new(p.X, 0, p.Z) / r * (C.WallRadius - 24)
+		local hit = workspace:Raycast(flatBack + Vector3.new(0, 200, 0), Vector3.new(0, -400, 0), self.GroundRay)
+		back = flatBack + Vector3.new(0, (hit and hit.Position.Y or 0) + 4, 0)
+	end
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.Parent:PivotTo(CFrame.new(back))
+	return true
+end
+
+-- ============================================================= 지도 격자
+-- 미니맵(클라이언트 MapController)이 그릴 격자. 한 칸 = MapCell stud, 한 글자 = 그 칸의 모습. 북쪽(-Z)이 첫 줄.
+--  G 초원 · A 고목의 숲 바닥 · C 협곡 · S 늪 · O 경계 숲 · N 맵 밖 (안 그림)
+--  H 바위 언덕 · D 고사목 · R 바위 · T 나무 · Q 수정/Core · P 길 · W 물 · B 기지 바닥 · U 괴물 굴 · K 건물 · X 말뚝 울타리
+local GROUND = {Meadow = "G", Ancient = "A", Crags = "C", Swamp = "S"}
+local PRIORITY = {N = 0, G = 0, A = 0, C = 0, S = 0, O = 0, H = 1, D = 2, R = 3, T = 4, Q = 5, P = 6, W = 7, B = 8, U = 9, K = 10, X = 11}
+
+function Map:BuildMapGrid()
+	local cell = C.MapCell
+	local n = math.ceil((C.WallRadius + 24) * 2 / cell)
+	local origin = -n * cell / 2
+	local limit = n * cell / 2
+	local grid, prio = table.create(n * n, "N"), table.create(n * n, 0)
+	local function center(i)
+		return origin + (i + 0.5) * cell
+	end
+	for iz = 0, n - 1 do
+		for ix = 0, n - 1 do
+			local cx, cz = center(ix), center(iz)
+			local r = math.sqrt(cx * cx + cz * cz)
+			local class = "N"
+			if r &lt;= limit then
+				class = r &gt; C.PlayRadius + 2 and "O" or GROUND[Zones.id(Vector3.new(cx, 0, cz), C)]
+			end
+			grid[iz * n + ix + 1] = class
+		end
+	end
+	local function stamp(ix, iz, class)
+		if ix &lt; 0 or iz &lt; 0 or ix &gt;= n or iz &gt;= n then
+			return
+		end
+		local i = iz * n + ix + 1
+		if grid[i] ~= "N" and PRIORITY[class] &gt;= prio[i] then
+			grid[i], prio[i] = class, PRIORITY[class]
+		end
+	end
+	for _, mark in ipairs(self.Marks) do
+		local x, z, r, class = mark[1], mark[2], mark[3], mark[4]
+		if r &lt; cell * 0.5 then
+			-- 작은 것(나무 한 그루·길 한 토막)은 그 점이 든 칸 하나
+			stamp(math.floor((x - origin) / cell), math.floor((z - origin) / cell), class)
+		else
+			local reach = r + cell * 0.3
+			for iz = math.floor((z - reach - origin) / cell), math.floor((z + reach - origin) / cell) do
+				for ix = math.floor((x - reach - origin) / cell), math.floor((x + reach - origin) / cell) do
+					local dx, dz = center(ix) - x, center(iz) - z
+					if dx * dx + dz * dz &lt;= reach * reach then
+						stamp(ix, iz, class)
+					end
+				end
+			end
+		end
+	end
+	-- 말뚝 울타리 고리 (길목 자리는 뚫린 길)
+	for iz = 0, n - 1 do
+		for ix = 0, n - 1 do
+			local cx, cz = center(ix), center(iz)
+			local r = math.sqrt(cx * cx + cz * cz)
+			if math.abs(r - C.BaseRadius) &lt; cell * 0.55 then
+				local open = false
+				for _, lane in ipairs(self.Lanes) do
+					local d = Vector3.new(cx, 0, cz).Unit:Dot(lane.Dir)
+					if d &gt; math.cos((C.GapWidth / 2 + cell * 0.5) / C.BaseRadius) then
+						open = true
+					end
+				end
+				grid[iz * n + ix + 1] = open and "P" or "X"
+			end
+		end
+	end
+	local old = RS:FindFirstChild("MapGrid")
+	if old then
+		old:Destroy()
+	end
+	local value = Instance.new("StringValue")
+	value.Name = "MapGrid"
+	value.Value = table.concat(grid)
+	value:SetAttribute("Cell", cell)
+	value:SetAttribute("Size", n)
+	value:SetAttribute("Origin", origin)
+	value.Parent = RS
+	self.MapGrid = value
+	return value
 end
 
 return Map
@@ -13048,13 +13357,15 @@ function S:ShowNode(node, visible)
     node.Model.Parent = visible and self.ctx.Map.NodesFolder or nil
     node.Part.CanQuery = visible
     node.Part:SetAttribute("CurrentHealth", node.HP)
-    if not node.Stump then
+    -- 그루터기/잔해는 처음 다 캤을 때 만든다 (맵의 나무가 천 그루가 넘어서 미리 만들어 두면 파트가 너무 많다)
+    if not node.Stump and not visible then
         local color = node.Kind == "Wood" and "#7a5230" or ((node.Kind == "Berry" or node.Kind == "Mushroom" or node.Kind == "Fiber") and "#3f5a34" or "#8d949a")
-        node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, node.Kind == "Wood" and 1.6 or 2.2, node.Home * CFrame.new(0, 0.4, 0), color,
+        local width = node.Kind == "Wood" and math.max(1.6, (node.Width or 1.6) * 1.15) or 2.2
+        node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, width, node.Home * CFrame.new(0, 0.4, 0), color,
             node.Kind == "Wood" and Enum.Material.Wood or Enum.Material.Slate, true)
         node.Stump.Name = "Depleted"
     end
-    node.Stump.Transparency = visible and 1 or 0
+    if node.Stump then node.Stump.Transparency = visible and 1 or 0 end
     if visible and not wasVisible then self.ctx.FX:FireAllClients("Regrow", node.Home.Position, node.Kind) end
 end
 function S:Drop(kind, amount, position)
@@ -13467,11 +13778,13 @@ start("EnvironmentController")
 local ui = start("UIController", remotes)
 local pets = start("PetController", remotes)
 if ui and pets then ui.PetController = pets end
+start("SwingController", remotes)
 start("CombatController", remotes)
 start("HotbarController", remotes)
 start("CreatureController")
 start("FXController", remotes)
 start("WorldUI")
+start("MapController", remotes)
 start("AudioController", remotes)
 </ProtectedString>
         </Properties>
@@ -13690,6 +14003,9 @@ local CAS = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local C = require(RS.Shared.Config.GameConfig)
+local I = require(RS.Shared.Config.ItemConfig)
+local Inv = require(RS.Shared.Modules.Inventory)
+local Swing = require(script.Parent.SwingController)
 
 local Controller = {}
 
@@ -13701,6 +14017,10 @@ function Controller:Init(remotes)
 		if state == Enum.UserInputState.Begin and os.clock() - last &gt;= C.SpearCooldown then
 			last = os.clock()
 			remotes.AttackRequest:FireServer()
+			-- 팔 동작은 서버를 기다리지 않고 바로 (든 것에 맞게: 도끼 내려찍기, 창 찌르기, 음식 먹기 …)
+			local character = player.Character
+			local tool = character and character:FindFirstChildOfClass("Tool")
+			Swing:Play(character, Inv.motion(tool and I.Items[tool:GetAttribute("ItemId")]), true)
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
@@ -14880,6 +15200,323 @@ return H
         </Item>
         <Item class="ModuleScript" referent="RBX000060">
           <Properties>
+            <string name="Name">MapController</string>
+            <ProtectedString name="Source">-- 지도 (마인크래프트 지도처럼): 오른쪽 위 미니맵 + 누르면(또는 M 키) 큰 지도.
+-- 가 본 곳만 그려진다. 안 가 본 곳은 빈 양피지. 지나간 자리 둘레(MapConfig.MapReveal)가 칸 단위로 채워진다.
+-- 서버 MapService 가 맵을 만들 때 ReplicatedStorage.MapGrid 에 칸마다 글자 하나(풀·숲·길·물·바위…)를 적어 두고,
+-- 여기서는 한 줄씩 같은 색이 이어지는 칸을 Frame 하나로 묶어 그린다 (칸마다 Frame 을 만들면 수천 개가 된다).
+-- 북쪽(-Z)이 위. 표시: ▲ 나(보는 방향) · 🏠 기지 · ☠ 괴물 굴 · 👑 알파의 숲 · ★ 목표 · 파란 점 팀원
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local RS = game:GetService("ReplicatedStorage")
+local M = require(RS.Shared.Config.MapConfig)
+
+local Map = {}
+local player = Players.LocalPlayer
+local TITLE = Enum.Font.FredokaOne
+local BODY = Enum.Font.GothamBold
+local PAPER = Color3.fromHex("#d9c89d")
+local EDGE = Color3.fromHex("#7a6240")
+local MINI = 132 -- 미니맵 크기 (UIScale 전 픽셀)
+local ZOOM = 6 -- 미니맵에서 한 칸의 픽셀 → 약 350 stud 가 보인다
+
+-- 칸 글자 → 색 (두 번째 색은 숲·바위를 얼룩덜룩하게 섞는 데 쓴다)
+local PALETTE = {
+	G = {"#74814f"}, A = {"#56673f"}, C = {"#8b8577"}, S = {"#57634a"}, O = {"#2c4331", "#243a29"},
+	H = {"#6f6c66"}, D = {"#76664f"}, R = {"#9d9d97", "#8b8b86"}, T = {"#36532f", "#2d4729"}, Q = {"#6fe3ef"},
+	P = {"#a5885b"}, W = {"#4a7a99"}, B = {"#a8916a"}, U = {"#4d3663"}, K = {"#5a4232"}, X = {"#43301f"},
+}
+local COLORS = {}
+for key, list in pairs(PALETTE) do
+	COLORS[key] = {Color3.fromHex(list[1]), list[2] and Color3.fromHex(list[2]) or nil}
+end
+
+local function new(className, parent, props)
+	local o = Instance.new(className)
+	for k, v in pairs(props or {}) do o[k] = v end
+	o.Parent = parent
+	return o
+end
+
+local function hidePlayerList()
+	-- 컴퓨터에서는 기본 플레이어 목록이 오른쪽 위를 덮어 미니맵을 가린다
+	for _ = 1, 20 do
+		if pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false) end) then return end
+		task.wait(0.5)
+	end
+end
+
+local function scaleOf()
+	local size = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+	return math.clamp(math.min(size.X / 1100, size.Y / 700), 0.62, 1.15), size
+end
+
+function Map:Init(remotes)
+	local grid = RS:WaitForChild("MapGrid", 30)
+	assert(grid, "MapGrid 가 없습니다 (서버 MapService:BuildMapGrid)")
+	self.Grid = grid.Value
+	self.Cell, self.N, self.Origin = grid:GetAttribute("Cell"), grid:GetAttribute("Size"), grid:GetAttribute("Origin")
+	self.Seen, self.Rows, self.Dirty, self.SeenCount = {}, {}, {}, 0
+	self.Mates, self.Big = {}, false
+	task.spawn(hidePlayerList)
+	self:BuildGui()
+	-- 기지 둘레는 처음부터 안다
+	self:Reveal(Vector3.zero, M.BaseRadius + 50)
+	self:Flush()
+	remotes.State.OnClientEvent:Connect(function(data)
+		self.GoalAt = data and data.GoalAt
+	end)
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.M then self:Toggle() end
+	end)
+	self.NextReveal = 0
+	RunService.RenderStepped:Connect(function() self:Step() end)
+end
+
+-- ===================================================================== 화면
+function Map:BuildGui()
+	local gui = new("ScreenGui", player:WaitForChild("PlayerGui"), {Name = "Minimap", ResetOnSpawn = false, DisplayOrder = 11,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
+	local big = new("ScreenGui", player:WaitForChild("PlayerGui"), {Name = "WorldMap", ResetOnSpawn = false, DisplayOrder = 30, Enabled = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
+	self.Gui, self.BigGui = gui, big
+	local scales = {new("UIScale", gui, {Scale = 1}), new("UIScale", big, {Scale = 1})}
+	local function rescale()
+		local s = scaleOf()
+		for _, ui in ipairs(scales) do ui.Scale = s end
+		if self.Big then self:Layout() end
+	end
+	rescale()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
+
+	-- 오른쪽 위 미니맵: 양피지 액자
+	local holder = new("Frame", gui, {Name = "Holder", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 6),
+		Size = UDim2.fromOffset(MINI + 10, MINI + 10), BackgroundColor3 = EDGE, BorderSizePixel = 0})
+	new("UICorner", holder, {CornerRadius = UDim.new(0, 8)})
+	new("UIStroke", holder, {Color = Color3.fromHex("#1c140c"), Thickness = 2, Transparency = 0.3})
+	self.Mini = new("Frame", holder, {Name = "Window", Position = UDim2.fromOffset(5, 5), Size = UDim2.fromOffset(MINI, MINI),
+		BackgroundColor3 = PAPER, BorderSizePixel = 0, ClipsDescendants = true})
+	new("TextLabel", holder, {Name = "North", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 5), Size = UDim2.fromOffset(16, 14),
+		BackgroundTransparency = 1, Font = TITLE, TextSize = 13, Text = "N", TextColor3 = Color3.fromHex("#3a2a18"), ZIndex = 5,
+		TextStrokeTransparency = 0.6, TextStrokeColor3 = PAPER})
+	new("TextLabel", holder, {Name = "Hint", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 1, 2), Size = UDim2.fromOffset(MINI + 10, 14),
+		BackgroundTransparency = 1, Font = BODY, TextSize = 11, Text = "🗺 누르면 큰 지도 (M)", TextColor3 = Color3.new(1, 1, 1),
+		TextStrokeTransparency = 0.4, TextXAlignment = Enum.TextXAlignment.Right})
+	local open = new("TextButton", holder, {Name = "Open", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 6})
+	open.Activated:Connect(function() self:Toggle() end)
+
+	-- 그림판(Canvas): 맵 전체 크기. 미니맵에서는 나를 가운데 두고 움직이고, 큰 지도에서는 창에 꽉 맞춘다.
+	-- 칸·표시는 모두 비율(Scale) 좌표라 크기만 바꾸면 그대로 따라온다.
+	self.Canvas = new("Frame", self.Mini, {Name = "Canvas", Size = UDim2.fromOffset(self.N * ZOOM, self.N * ZOOM), BackgroundTransparency = 1})
+	self.Cells = new("Frame", self.Canvas, {Name = "Cells", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1})
+	self.Marks = new("Frame", self.Canvas, {Name = "Marks", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1})
+	local function icon(text, color, size)
+		return new("TextLabel", self.Marks, {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(size or 16, size or 16), BackgroundTransparency = 1,
+			Font = TITLE, TextSize = size or 16, Text = text, TextColor3 = color or Color3.new(1, 1, 1), TextStrokeTransparency = 0.35})
+	end
+	self.Icons = {}
+	local home = icon("🏠", nil, 15)
+	home.Position = self:ToCanvas(0, 0)
+	for _, angle in ipairs(M.LaneAngles) do
+		local a = math.rad(angle)
+		local pos = Vector3.new(math.sin(a), 0, -math.cos(a)) * (M.LaneRadius + 6)
+		local skull = icon("☠", Color3.fromHex("#ff7a7a"), 14)
+		skull.Position = self:ToCanvas(pos.X, pos.Z)
+		table.insert(self.Icons, {Label = skull, Pos = pos})
+	end
+	local ga = math.rad(M.Grove.Angle)
+	local grove = Vector3.new(math.sin(ga), 0, -math.cos(ga)) * M.Grove.Radius
+	local crown = icon("👑", nil, 15)
+	crown.Position = self:ToCanvas(grove.X, grove.Z)
+	table.insert(self.Icons, {Label = crown, Pos = grove})
+	self.GoalIcon = icon("★", Color3.fromHex("#ffe066"), 16)
+	self.GoalIcon.Visible = false
+	self.Me = icon("▲", Color3.new(1, 1, 1), 15)
+	self.Me.ZIndex = 3
+	self.Me.TextStrokeTransparency = 0
+
+	-- 큰 지도
+	local backdrop = new("TextButton", big, {Name = "Backdrop", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45, Text = "", AutoButtonColor = false})
+	backdrop.Activated:Connect(function() self:Toggle(false) end)
+	self.Panel = new("Frame", big, {Name = "Panel", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(420, 470), BackgroundColor3 = EDGE, BorderSizePixel = 0})
+	new("UICorner", self.Panel, {CornerRadius = UDim.new(0, 12)})
+	new("UIStroke", self.Panel, {Color = Color3.fromHex("#1c140c"), Thickness = 3, Transparency = 0.2})
+	new("TextLabel", self.Panel, {Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -60, 0, 28), BackgroundTransparency = 1, Font = TITLE,
+		TextSize = 20, Text = "🗺 지도 · 가 본 곳만 그려집니다", TextColor3 = Color3.fromHex("#fff3d6"), TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 0.5})
+	local close = new("TextButton", self.Panel, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 6), Size = UDim2.fromOffset(30, 28),
+		BackgroundColor3 = Color3.fromHex("#3a2a18"), Text = "✕", Font = TITLE, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0})
+	new("UICorner", close, {CornerRadius = UDim.new(0, 8)})
+	close.Activated:Connect(function() self:Toggle(false) end)
+	self.BigWindow = new("Frame", self.Panel, {Name = "Window", Position = UDim2.fromOffset(10, 40), Size = UDim2.fromOffset(400, 400),
+		BackgroundColor3 = PAPER, BorderSizePixel = 0, ClipsDescendants = true})
+	self.Legend = new("TextLabel", self.Panel, {AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -4), Size = UDim2.new(1, -24, 0, 22),
+		BackgroundTransparency = 1, Font = BODY, TextSize = 13, TextColor3 = Color3.fromHex("#fff3d6"), TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "▲ 나   🏠 기지   ☠ 괴물 굴   👑 알파   ★ 목표   🔵 팀원", TextStrokeTransparency = 0.5})
+end
+
+-- 큰 지도 창 크기: 화면 짧은 쪽의 80% 쯤
+function Map:Layout()
+	local s, vp = scaleOf()
+	local side = math.floor(math.max(220, math.min(vp.X, vp.Y) / s * 0.8 - 70))
+	self.Panel.Size = UDim2.fromOffset(side + 20, side + 72)
+	self.BigWindow.Size = UDim2.fromOffset(side, side)
+	self.Canvas.Size = UDim2.fromOffset(side, side)
+	self.Canvas.Position = UDim2.fromOffset(0, 0)
+end
+
+function Map:Toggle(want)
+	if want == nil then want = not self.Big end
+	if want == self.Big then return end
+	self.Big = want
+	self.BigGui.Enabled = want
+	if want then
+		self.Canvas.Parent = self.BigWindow
+		self:Layout()
+	else
+		self.Canvas.Parent = self.Mini
+		self.Canvas.Size = UDim2.fromOffset(self.N * ZOOM, self.N * ZOOM)
+	end
+end
+
+-- 월드 좌표 → 그림판 비율 좌표
+function Map:ToCanvas(x, z)
+	local span = self.N * self.Cell
+	return UDim2.fromScale((x - self.Origin) / span, (z - self.Origin) / span)
+end
+
+-- ===================================================================== 칸 밝히기 / 그리기
+function Map:Index(ix, iz)
+	return iz * self.N + ix + 1
+end
+
+function Map:IsSeen(x, z)
+	local ix, iz = math.floor((x - self.Origin) / self.Cell), math.floor((z - self.Origin) / self.Cell)
+	if ix &lt; 0 or iz &lt; 0 or ix &gt;= self.N or iz &gt;= self.N then return false end
+	return self.Seen[self:Index(ix, iz)] == true
+end
+
+function Map:Reveal(pos, radius)
+	local cell, n, o = self.Cell, self.N, self.Origin
+	for iz = math.max(0, math.floor((pos.Z - radius - o) / cell)), math.min(n - 1, math.floor((pos.Z + radius - o) / cell)) do
+		for ix = math.max(0, math.floor((pos.X - radius - o) / cell)), math.min(n - 1, math.floor((pos.X + radius - o) / cell)) do
+			local dx, dz = o + (ix + 0.5) * cell - pos.X, o + (iz + 0.5) * cell - pos.Z
+			local i = self:Index(ix, iz)
+			if not self.Seen[i] and dx * dx + dz * dz &lt;= radius * radius then
+				self.Seen[i] = true
+				self.SeenCount = self.SeenCount + 1
+				self.Dirty[iz] = true
+			end
+		end
+	end
+end
+
+-- 칸 색 (없으면 그리지 않는 칸)
+function Map:ColorAt(ix, iz)
+	local i = self:Index(ix, iz)
+	if not self.Seen[i] then return nil end
+	local key = string.sub(self.Grid, i, i)
+	local colors = COLORS[key]
+	if not colors then return nil end
+	if colors[2] and (ix * 7 + iz * 13) % 3 == 0 then
+		return key .. "2", colors[2]
+	end
+	return key, colors[1]
+end
+
+-- 한 줄을 다시 그린다: 같은 색이 이어지는 칸은 Frame 하나로
+function Map:BuildRow(iz)
+	for _, frame in ipairs(self.Rows[iz] or {}) do frame:Destroy() end
+	local n, frames = self.N, {}
+	local startX, runKey, runColor = nil, nil, nil
+	local function flush(endX)
+		if startX then
+			-- 1픽셀 겹쳐서 칸 사이 틈이 안 보이게
+			frames[#frames + 1] = new("Frame", self.Cells, {BorderSizePixel = 0, BackgroundColor3 = runColor,
+				Position = UDim2.fromScale(startX / n, iz / n), Size = UDim2.new((endX - startX) / n, 1, 1 / n, 1)})
+		end
+	end
+	for ix = 0, n do
+		local key, color = nil, nil
+		if ix &lt; n then key, color = self:ColorAt(ix, iz) end
+		if key ~= runKey then
+			flush(ix)
+			startX, runKey, runColor = key and ix or nil, key, color
+		end
+	end
+	self.Rows[iz] = frames
+end
+
+function Map:Flush()
+	for iz in pairs(self.Dirty) do
+		self:BuildRow(iz)
+	end
+	self.Dirty = {}
+end
+
+-- ===================================================================== 매 프레임
+function Map:Step()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root then
+		local pos = root.Position
+		local now = os.clock()
+		if now &gt;= self.NextReveal then
+			self.NextReveal = now + 0.25
+			self:Reveal(pos, M.MapReveal)
+			self:Flush()
+		end
+		local look = root.CFrame.LookVector
+		self.Me.Position = self:ToCanvas(pos.X, pos.Z)
+		self.Me.Rotation = math.deg(math.atan2(look.X, -look.Z))
+		if not self.Big then
+			local span = self.N * self.Cell
+			local px, pz = (pos.X - self.Origin) / span * self.N * ZOOM, (pos.Z - self.Origin) / span * self.N * ZOOM
+			self.Canvas.Position = UDim2.fromOffset(math.floor(MINI / 2 - px), math.floor(MINI / 2 - pz))
+		end
+	end
+	-- 괴물 굴·알파의 숲은 그 자리를 가 봐야 보인다
+	for _, entry in ipairs(self.Icons) do
+		entry.Label.Visible = self:IsSeen(entry.Pos.X, entry.Pos.Z)
+	end
+	local goal = self.GoalAt
+	self.GoalIcon.Visible = goal ~= nil
+	if goal then self.GoalIcon.Position = self:ToCanvas(goal.X, goal.Z) end
+	-- 팀원
+	local alive = {}
+	for _, other in ipairs(Players:GetPlayers()) do
+		local otherRoot = other ~= player and other.Character and other.Character:FindFirstChild("HumanoidRootPart")
+		if otherRoot then
+			alive[other] = true
+			local dot = self.Mates[other]
+			if not dot then
+				dot = new("Frame", self.Marks, {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(8, 8), BorderSizePixel = 0,
+					BackgroundColor3 = Color3.fromHex("#5cb8ff")})
+				new("UICorner", dot, {CornerRadius = UDim.new(0.5, 0)})
+				new("UIStroke", dot, {Color = Color3.new(0, 0, 0), Thickness = 1.5})
+				self.Mates[other] = dot
+			end
+			dot.Position = self:ToCanvas(otherRoot.Position.X, otherRoot.Position.Z)
+		end
+	end
+	for other, dot in pairs(self.Mates) do
+		if not alive[other] then
+			dot:Destroy()
+			self.Mates[other] = nil
+		end
+	end
+end
+
+return Map
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000061">
+          <Properties>
             <string name="Name">PetController</string>
             <ProtectedString name="Source">-- 펫 패널 (내 펫 / 야생 / 명령 / 제작 / 도감) + 빠른 명령 버튼 + 포획 카드.
 -- 서버 액션은 기존과 같다: PetAction(Toggle/Favorite/Heal/Focus/Follow/Stay/Guard/Best/SaveTeam/LoadTeam/Register),
@@ -15281,7 +15918,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000061">
+        <Item class="ModuleScript" referent="RBX000062">
           <Properties>
             <string name="Name">Portrait</string>
             <ProtectedString name="Source">-- 펫 얼굴 사진 (ViewportFrame). 팀 카드, 펫 목록, 도감에서 쓴다.
@@ -15333,7 +15970,7 @@ return Portrait
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000062">
+        <Item class="ModuleScript" referent="RBX000063">
           <Properties>
             <string name="Name">Rig</string>
             <ProtectedString name="Source">-- 크리처 리그 두 종류를 같은 방식으로 움직인다.
@@ -15477,7 +16114,138 @@ return Rig
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000063">
+        <Item class="ModuleScript" referent="RBX000064">
+          <Properties>
+            <string name="Name">SwingController</string>
+            <ProtectedString name="Source">-- 공격 버튼을 눌렀을 때의 팔 동작 (코드로 만든 절차적 애니메이션).
+-- 예전에는 기본 Animate 의 "찌르기(Lunge)" 하나로 도끼·곡괭이·음식까지 모두 칼처럼 찔렀다.
+--  Chop  : 도끼·곡괭이·횃불 — 머리 위로 들었다가 앞으로 내려찍기
+--  Stab  : 창 — 뒤로 당겼다가 앞으로 찌르기
+--  Punch : 맨손 — 주먹 뻗기          Eat : 입으로 두 번          Throw : 크게 들었다가 던지기          Give : 앞으로 내밀기
+-- 방법: 기본 애니메이션이 매 프레임 관절(Motor6D.Transform)을 쓴 다음(RunService.Stepped) 그 위에 어깨 회전·팔 밀기·허리 비틀기를 덧입힌다.
+-- 내 캐릭터는 누르는 즉시 재생하고(반응 속도), 다른 사람 것은 서버 FX("Swing") 를 받아 각자 화면에서 재생한다.
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local S = {}
+S.Active = {}
+
+-- 키프레임: {시간(초), 어깨 들기(도, + = 위로), 팔 밀기(stud, + = 앞으로), 허리 비틀기(도)}
+local MOTIONS = {
+	Chop = {{0, 0, 0, 0}, {0.13, 62, -0.25, -14}, {0.25, -58, 0.35, 12}, {0.3, -58, 0.35, 12}, {0.5, 0, 0, 0}},
+	Stab = {{0, 0, 0, 0}, {0.1, 10, -0.6, -10}, {0.2, -4, 1.5, 12}, {0.26, -4, 1.5, 12}, {0.44, 0, 0, 0}},
+	Punch = {{0, 0, 0, 0}, {0.08, 25, -0.2, -12}, {0.18, 85, 0.7, 14}, {0.4, 0, 0, 0}},
+	Eat = {{0, 0, 0, 0}, {0.14, 48, -0.5, 0}, {0.26, 32, -0.5, 0}, {0.38, 48, -0.5, 0}, {0.6, 0, 0, 0}},
+	Throw = {{0, 0, 0, 0}, {0.16, 100, -0.5, -20}, {0.3, -28, 0.7, 16}, {0.56, 0, 0, 0}},
+	Give = {{0, 0, 0, 0}, {0.16, 12, 0.9, 6}, {0.3, 12, 0.9, 6}, {0.5, 0, 0, 0}},
+}
+S.Motions = MOTIONS
+
+local function smooth(t)
+	return t * t * (3 - 2 * t)
+end
+
+-- 시간 t 의 (들기, 밀기, 비틀기)
+function S.sample(name, t)
+	local keys = MOTIONS[name] or MOTIONS.Chop
+	if t &gt;= keys[#keys][1] then
+		return 0, 0, 0, true
+	end
+	for i = 2, #keys do
+		local b = keys[i]
+		if t &lt;= b[1] then
+			local a = keys[i - 1]
+			local k = smooth((t - a[1]) / math.max(1e-3, b[1] - a[1]))
+			return a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k, a[4] + (b[4] - a[4]) * k, false
+		end
+	end
+	return 0, 0, 0, true
+end
+
+-- R15: 어깨 관절 축이 몸통과 같다 (X 축으로 돌리면 팔이 앞뒤로, -Z 가 앞)
+-- R6 : "Right Shoulder" 의 C0 가 Y 로 90° 돌아 있어서 관절 Z = 몸통 X, 관절 X = 몸통 앞
+local function joints(character)
+	local shoulder = character:FindFirstChild("RightShoulder", true)
+	if shoulder and shoulder:IsA("Motor6D") then
+		local waist = character:FindFirstChild("Waist", true)
+		return {Shoulder = shoulder, Waist = waist and waist:IsA("Motor6D") and waist or nil, R6 = false}
+	end
+	shoulder = character:FindFirstChild("Right Shoulder", true)
+	if shoulder and shoulder:IsA("Motor6D") then
+		return {Shoulder = shoulder, R6 = true}
+	end
+	return nil
+end
+
+local function offset(r6, raise, push)
+	if r6 then
+		return CFrame.new(push, 0, 0) * CFrame.Angles(0, 0, math.rad(raise))
+	end
+	return CFrame.new(0, 0, -push) * CFrame.Angles(math.rad(raise), 0, 0)
+end
+
+-- 애니메이션이 이번 프레임에 관절을 새로 썼으면 그 값을, 안 썼으면(우리가 쓴 값이 그대로면) 기억해 둔 값을 바탕으로 쓴다
+local function apply(entry, key, motor, extra)
+	local current = motor.Transform
+	local base = (entry.Applied[key] and current == entry.Applied[key]) and entry.Base[key] or current
+	entry.Base[key] = base
+	local value = extra * base
+	motor.Transform = value
+	entry.Applied[key] = value
+end
+
+local function restore(entry)
+	for key, motor in pairs({Shoulder = entry.Joints.Shoulder, Waist = entry.Joints.Waist}) do
+		if motor and entry.Applied[key] and motor.Transform == entry.Applied[key] then
+			motor.Transform = entry.Base[key]
+		end
+	end
+end
+
+function S:Init(remotes)
+	self.LocalAt = -math.huge
+	RunService.Stepped:Connect(function() self:Step() end)
+	remotes.FX.OnClientEvent:Connect(function(kind, who, motion)
+		if kind ~= "Swing" or typeof(who) ~= "Instance" then return end
+		-- 내 동작은 이미 눌렀을 때 재생했다
+		if who == Players.LocalPlayer and os.clock() - self.LocalAt &lt; 0.45 then return end
+		if who.Character then self:Play(who.Character, motion) end
+	end)
+end
+
+function S:Play(character, motion, isLocal)
+	if not character or not MOTIONS[motion] then return false end
+	local rig = joints(character)
+	if not rig then return false end
+	local old = self.Active[character]
+	if old then restore(old) end
+	self.Active[character] = {Motion = motion, Start = os.clock(), Joints = rig, Base = {}, Applied = {}}
+	if isLocal then self.LocalAt = os.clock() end
+	return true
+end
+
+function S:Step()
+	local now = os.clock()
+	for character, entry in pairs(self.Active) do
+		local shoulder = entry.Joints.Shoulder
+		local raise, push, twist, done = S.sample(entry.Motion, now - entry.Start)
+		if done or not character.Parent or not shoulder.Parent then
+			restore(entry)
+			self.Active[character] = nil
+		else
+			apply(entry, "Shoulder", shoulder, offset(entry.Joints.R6, raise, push))
+			if entry.Joints.Waist then
+				apply(entry, "Waist", entry.Joints.Waist, CFrame.Angles(0, math.rad(twist), 0))
+			end
+		end
+	end
+end
+
+return S
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000065">
           <Properties>
             <string name="Name">UIController</string>
             <ProtectedString name="Source">-- 메인 HUD (모바일 우선).
@@ -15934,7 +16702,7 @@ return UI
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000064">
+        <Item class="ModuleScript" referent="RBX000066">
           <Properties>
             <string name="Name">WorldUI</string>
             <ProtectedString name="Source">-- 월드에 떠 있는 정보: Core 체력, 가까운 자원 노드 이름·체력, 부서지는 시설 체력.
@@ -16020,10 +16788,11 @@ function W:Refresh()
 	local me = rootPart and rootPart.Position
 	for _, model in ipairs(self.NodesFolder:GetChildren()) do
 		local hit = model:IsA("Model") and model.PrimaryPart
-		if hit and hit:GetAttribute("ResourceType") then
-			local tag = self:NodeTag(hit)
+		-- 맵의 나무가 모두 노드라서 이름표는 가까이 간 것에만 만든다
+		local near = hit and me and (hit.Position - me).Magnitude &lt; 22
+		local tag = hit and (self.NodeTags[hit] or (near and hit:GetAttribute("ResourceType") and self:NodeTag(hit)))
+		if tag then
 			local hp, maxHP = hit:GetAttribute("CurrentHealth") or 1, hit:GetAttribute("MaxHealth") or 1
-			local near = me and (hit.Position - me).Magnitude &lt; 22
 			tag.Gui.Enabled = near == true and hp &gt; 0
 			tag.Fill.Size = UDim2.fromScale(math.clamp(hp / maxHP, 0, 1), 1)
 			tag.Fill.Parent.Visible = hp &lt; maxHP
@@ -16065,12 +16834,12 @@ return W
       </Item>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000065">
+  <Item class="StarterGui" referent="RBX000067">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPack" referent="RBX000066">
+  <Item class="StarterPack" referent="RBX000068">
     <Properties>
       <string name="Name">StarterPack</string>
     </Properties>

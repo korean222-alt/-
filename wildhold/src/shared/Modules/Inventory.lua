@@ -53,4 +53,21 @@ function I.hotbar(items, bag, config)
 	return list
 end
 
+-- 공격 버튼을 눌렀을 때 팔 동작 (클라이언트 SwingController 가 재생)
+--  Chop 내려찍기(도끼·곡괭이·횃불) · Stab 찌르기(창) · Punch 주먹(맨손) · Eat 먹기 · Throw 던지기(덫) · Give 건네기(간식)
+function I.motion(spec)
+	if not spec then
+		return "Punch"
+	elseif spec.Kind == "Food" then
+		return "Eat"
+	elseif spec.Kind == "Trap" then
+		return "Throw"
+	elseif spec.Kind == "PetFood" then
+		return "Give"
+	elseif spec.Family == "Spear" then
+		return "Stab"
+	end
+	return "Chop"
+end
+
 return I

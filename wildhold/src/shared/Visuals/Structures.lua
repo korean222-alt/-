@@ -15,9 +15,9 @@ local ROOF = "#4f4239"
 function S.core(parent, at)
 	local m = B.model(parent, "Core")
 	-- 3단 제단
-	B.cyl(m, 1.2, 15, at * CFrame.new(0, 0.6, 0), STONE_D, M.Cobblestone, true)
-	B.cyl(m, 1.2, 11, at * CFrame.new(0, 1.8, 0), STONE, M.Cobblestone, true)
-	B.cyl(m, 1, 7.5, at * CFrame.new(0, 2.9, 0), STONE_L, M.Slate, true)
+	B.solid(B.cyl(m, 1.2, 15, at * CFrame.new(0, 0.6, 0), STONE_D, M.Cobblestone, true),
+		B.cyl(m, 1.2, 11, at * CFrame.new(0, 1.8, 0), STONE, M.Cobblestone, true),
+		B.cyl(m, 1, 7.5, at * CFrame.new(0, 2.9, 0), STONE_L, M.Slate, true))
 	for i = 0, 5 do
 		local a = CFrame.Angles(0, math.rad(i * 60), 0)
 		local rune = B.block(m, Vector3.new(1.2, 0.1, 0.5), at * a * CFrame.new(0, 3.42, -2.9), "#6ff3e0", M.Neon)
@@ -56,7 +56,7 @@ function S.core(parent, at)
 	for i = 0, 4 do
 		local a = CFrame.Angles(0, math.rad(i * 72 + 20), 0)
 		local size = Vector3.new(1.1, 2.6 + (i % 2) * 1.2, 1.1)
-		B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate)
+		B.solid(B.block(m, size, at * a * CFrame.new(0, 1.2 + size.Y / 2, -6.2) * CFrame.Angles(math.rad(-8), math.rad(45), 0), "#5f646a", M.Slate))
 	end
 	local hit = B.hitbox(m, Vector3.new(7.5, 12, 7.5), at * CFrame.new(0, 6, 0), true)
 	hit.Name = "CoreHitbox"
@@ -116,7 +116,7 @@ function S.workbench(parent, at)
 		end
 	end
 	-- 모루 그루터기, 망치, 톱, 밧줄, 덫 견본
-	B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true)
+	B.solid(B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true))
 	B.block(m, Vector3.new(2, 0.9, 1), at * CFrame.new(6, 2.8, 0.5), "#5d646b", M.Metal)
 	B.cyl(m, 1.8, 0.25, at * CFrame.new(-1.8, 3.8, -0.6) * CFrame.Angles(0, math.rad(30), 0), WOOD_D, M.Wood)
 	B.block(m, Vector3.new(0.5, 0.5, 0.9), at * CFrame.new(-1.0, 3.8, -0.9) * CFrame.Angles(0, math.rad(30), 0), "#5d646b", M.Metal)
@@ -177,16 +177,19 @@ function S.pen(parent, at)
 		for _, y in ipairs({1.4, 2.6}) do
 			B.block(m, Vector3.new(0.3, 0.35, len), at * look * CFrame.new(0, y, 0), WOOD_L, M.Wood)
 		end
+		-- 가로대 사이로 빠져나가지 않게 울타리 한 칸을 통째로 막는 보이지 않는 벽
+		B.new("Part", m, {Name = "FenceWall", Size = Vector3.new(0.4, 3.2, len), CFrame = at * look * CFrame.new(0, 1.6, 0), Transparency = 1,
+			CanCollide = true, CastShadow = false})
 	end
 	local corners = {Vector3.new(-w / 2, 0, -d / 2), Vector3.new(w / 2, 0, -d / 2), Vector3.new(w / 2, 0, d / 2), Vector3.new(-w / 2, 0, d / 2)}
 	for i, c in ipairs(corners) do
-		B.block(m, Vector3.new(0.7, 3.4, 0.7), at * CFrame.new(c + Vector3.new(0, 1.7, 0)), WOOD, M.Wood)
+		B.solid(B.block(m, Vector3.new(0.7, 3.4, 0.7), at * CFrame.new(c + Vector3.new(0, 1.7, 0)), WOOD, M.Wood))
 		local nextC = corners[i % 4 + 1]
 		if i == 1 then
 			fence(c, c + Vector3.new(4.5, 0, 0))
 			fence(nextC - Vector3.new(4.5, 0, 0), nextC)
-			B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(-2.5, 2.3, -d / 2), WOOD, M.Wood)
-			B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(2.5, 2.3, -d / 2), WOOD, M.Wood)
+			B.solid(B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(-2.5, 2.3, -d / 2), WOOD, M.Wood),
+				B.block(m, Vector3.new(0.7, 4.6, 0.7), at * CFrame.new(2.5, 2.3, -d / 2), WOOD, M.Wood))
 			B.block(m, Vector3.new(6, 0.8, 0.5), at * CFrame.new(0, 4.6, -d / 2), WOOD_D, M.Wood)
 		else
 			fence(c, nextC)
@@ -212,7 +215,7 @@ function S.pen(parent, at)
 	text.Size, text.BackgroundTransparency, text.Text = UDim2.fromScale(1, 1), 1, "🐾\n펫 우리"
 	text.Font, text.TextScaled, text.TextColor3 = Enum.Font.FredokaOne, true, Color3.fromHex("#4b6b3a")
 	text.Parent = gui
-	B.block(m, Vector3.new(0.4, 2.6, 0.4), at * CFrame.new(-4.6, 1.3, -d / 2 - 0.45), WOOD, M.Wood)
+	B.solid(B.block(m, Vector3.new(0.4, 2.6, 0.4), at * CFrame.new(-4.6, 1.3, -d / 2 - 0.45), WOOD, M.Wood))
 	local pad = B.hitbox(m, Vector3.new(w, 1, d), at * CFrame.new(0, 0.5, 0), false)
 	pad.Name = "PenPad"
 	return B.decorate(m), pad
@@ -297,7 +300,7 @@ end
 
 local function gate(m, at, width)
 	for _, x in ipairs({-width / 2 - 0.2, width / 2 + 0.2}) do
-		B.block(m, Vector3.new(1.6, 9, 1.6), at * CFrame.new(x, 4.5, 0), WOOD_D, M.Wood)
+		B.solid(B.block(m, Vector3.new(1.6, 9, 1.6), at * CFrame.new(x, 4.5, 0), WOOD_D, M.Wood))
 		B.spike(m, 1.6, 1.6, 1.2, at * CFrame.new(x, 9, 0), WOOD_D, M.Wood)
 		Props.torch(m, at * CFrame.new(x, 0, -1.6), 5)
 	end

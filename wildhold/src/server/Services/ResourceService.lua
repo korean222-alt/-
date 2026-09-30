@@ -45,13 +45,15 @@ function S:ShowNode(node, visible)
     node.Model.Parent = visible and self.ctx.Map.NodesFolder or nil
     node.Part.CanQuery = visible
     node.Part:SetAttribute("CurrentHealth", node.HP)
-    if not node.Stump then
+    -- 그루터기/잔해는 처음 다 캤을 때 만든다 (맵의 나무가 천 그루가 넘어서 미리 만들어 두면 파트가 너무 많다)
+    if not node.Stump and not visible then
         local color = node.Kind == "Wood" and "#7a5230" or ((node.Kind == "Berry" or node.Kind == "Mushroom" or node.Kind == "Fiber") and "#3f5a34" or "#8d949a")
-        node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, node.Kind == "Wood" and 1.6 or 2.2, node.Home * CFrame.new(0, 0.4, 0), color,
+        local width = node.Kind == "Wood" and math.max(1.6, (node.Width or 1.6) * 1.15) or 2.2
+        node.Stump = B.cyl(self.ctx.Map.NodesFolder, 0.8, width, node.Home * CFrame.new(0, 0.4, 0), color,
             node.Kind == "Wood" and Enum.Material.Wood or Enum.Material.Slate, true)
         node.Stump.Name = "Depleted"
     end
-    node.Stump.Transparency = visible and 1 or 0
+    if node.Stump then node.Stump.Transparency = visible and 1 or 0 end
     if visible and not wasVisible then self.ctx.FX:FireAllClients("Regrow", node.Home.Position, node.Kind) end
 end
 function S:Drop(kind, amount, position)

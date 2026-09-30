@@ -123,6 +123,17 @@ function B.hitbox(parent, size, at, collide)
 		CanCollide = collide == true, CanQuery = true, CastShadow = false})
 end
 
+-- 몸이 뚫고 지나가면 안 되는 파트 (기둥·벽·바위·울타리). 광선 검사(CanQuery)는 그대로 둔다.
+function B.solid(...)
+	for i = 1, select("#", ...) do
+		local p = select(i, ...)
+		if typeof(p) == "Instance" then
+			p.CanCollide = true
+		end
+	end
+	return ...
+end
+
 -- 이 모델 안 모든 파트의 그림자/충돌 설정을 한 번에
 function B.decorate(model, castShadow)
 	for _, d in ipairs(model:GetDescendants()) do

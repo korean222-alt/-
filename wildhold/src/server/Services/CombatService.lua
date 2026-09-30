@@ -5,6 +5,7 @@ local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
 local I = require(RS.Shared.Config.ItemConfig)
+local Inv = require(RS.Shared.Modules.Inventory)
 local S = {}
 function S:Init(ctx)
 	self.ctx, self.LastAttack = ctx, {}
@@ -45,6 +46,8 @@ function S:Attack(player)
 	local now = os.clock()
 	if now - (self.LastAttack[player] or -math.huge) < C.SpearCooldown then return end
 	self.LastAttack[player] = now
+	-- 팔 동작: 모든 클라이언트가 이 캐릭터의 팔을 휘두르게 한다 (내 화면은 누르는 즉시 먼저 재생)
+	self.ctx.FX:FireAllClients("Swing", player, Inv.motion(spec))
 	if spec and spec.Kind == "Food" then
 		if self.ctx.Survival then self.ctx.Survival:Eat(player, id) end
 		return
@@ -54,12 +57,6 @@ function S:Attack(player)
 	elseif spec and spec.Kind == "PetFood" then
 		if C.ActiveStage >= 5 then self.ctx.Pets:FeedNearest(player) end
 		return
-	end
-	-- 휘두르기: 기본 Animate 스크립트가 "toolanim" 값을 보고 찌르기 동작을 재생한다
-	if tool then
-		local anim = Instance.new("StringValue")
-		anim.Name, anim.Value, anim.Parent = "toolanim", "Lunge", tool
-		game:GetService("Debris"):AddItem(anim, 0.3)
 	end
 	local damage = spec and spec.Damage or I.HandDamage
 	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)

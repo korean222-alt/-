@@ -81,10 +81,11 @@ function W:Refresh()
 	local me = rootPart and rootPart.Position
 	for _, model in ipairs(self.NodesFolder:GetChildren()) do
 		local hit = model:IsA("Model") and model.PrimaryPart
-		if hit and hit:GetAttribute("ResourceType") then
-			local tag = self:NodeTag(hit)
+		-- 맵의 나무가 모두 노드라서 이름표는 가까이 간 것에만 만든다
+		local near = hit and me and (hit.Position - me).Magnitude < 22
+		local tag = hit and (self.NodeTags[hit] or (near and hit:GetAttribute("ResourceType") and self:NodeTag(hit)))
+		if tag then
 			local hp, maxHP = hit:GetAttribute("CurrentHealth") or 1, hit:GetAttribute("MaxHealth") or 1
-			local near = me and (hit.Position - me).Magnitude < 22
 			tag.Gui.Enabled = near == true and hp > 0
 			tag.Fill.Size = UDim2.fromScale(math.clamp(hp / maxHP, 0, 1), 1)
 			tag.Fill.Parent.Visible = hp < maxHP

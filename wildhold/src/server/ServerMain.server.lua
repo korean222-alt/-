@@ -74,6 +74,7 @@ Engine.Heartbeat:Connect(function(dt)
         ctx.Data:Tick();ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
         ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
         ctx.Crafting:Tick();ctx.Survival:Tick(step)
+        for _,player in ipairs(Players:GetPlayers()) do ctx.Map:Contain(player) end
     end
     if broadcast>=C.StateInterval then
         broadcast=0
