@@ -17,13 +17,48 @@ function P.name(speciesId,stage,config)
     local spec=config.Species[speciesId]
     return (stage==2 and spec.Adult) and spec.Adult.Name or spec.Name
 end
+-- 이름표에 보이는 이름: 지어 준 이름이 있으면 그것
+function P.display(pet,config)
+    if type(pet.Nickname)=="string" and pet.Nickname~="" then return pet.Nickname end
+    return P.name(pet.SpeciesId,P.stage(pet),config)
+end
+function P.starText(stars)
+    stars=stars or 2
+    return string.rep("★",stars)..string.rep("☆",5-stars)
+end
+-- 재능 별 · 특성 · 레벨 · 성장 단계가 모두 들어간 능력치. 예전 저장(별 없음)은 별 2개(배율 1)로 본다
 function P.stats(pet,config)
     local spec=config.Species[pet.SpeciesId]
     local level=math.min(pet.Level,config.RegionCap)
     local scale=1+(level-1)*config.Growth
     local adult=P.stage(pet)==2 and spec.Adult
-    local hp,damage=spec.HP*scale*(adult and adult.HP or 1),spec.Damage*scale*(adult and adult.Damage or 1)
-    return {HP=math.floor(hp),Damage=damage,Range=spec.Range,Level=level}
+    local star=config.Stars and config.Stars.Mult[pet.Stars or 2] or 1
+    local trait=config.Traits and config.Traits[pet.Trait] or {}
+    local hp=spec.HP*scale*(adult and adult.HP or 1)*star*(trait.HP or 1)
+    local damage=spec.Damage*scale*(adult and adult.Damage or 1)*star*(trait.Damage or 1)
+    return {HP=math.floor(hp),Damage=damage,Range=spec.Range,Level=level,Interval=spec.Interval*(trait.Interval or 1)}
+end
+-- 전투력: 버티는 힘(체력) + 때리는 힘(초당 피해). 포획 조건과 화면 표시에 쓴다
+function P.power(pet,config)
+    local stats=P.stats(pet,config)
+    return math.floor(stats.HP*0.25+stats.Damage/stats.Interval*2+0.5)
+end
+-- 우리 팀 전투력 / 야생 전투력 → 포획 확률 배율 (0 = 너무 강해서 불가)
+function P.powerFactor(team,wild,config)
+    if wild<=0 then return 1 end
+    local ratio=team/wild
+    if ratio<config.PowerGate then return 0 end
+    return math.clamp(ratio^config.PowerExponent,config.PowerMin,config.PowerMax)
+end
+-- 개체 차이 굴리기 (야생 등장 · 알 부화). opts = {Weights, ShinyChance, MinStars}
+function P.roll(config,rng,opts)
+    opts=opts or {}
+    local weights=opts.Weights or config.Stars.Weights
+    local total=0;for _,w in ipairs(weights) do total=total+w end
+    local pick,stars=rng:NextNumber()*total,#weights
+    for i,w in ipairs(weights) do pick=pick-w;if pick<=0 then stars=i;break end end
+    stars=math.max(stars,opts.MinStars or 1)
+    return {Stars=stars,Shiny=rng:NextNumber()<(opts.ShinyChance or config.ShinyChance),Trait=config.TraitOrder[rng:NextInteger(1,#config.TraitOrder)]}
 end
 -- 레벨이 EvolveLevel 이상이고 성체가 있는 종이면 성체로. 진화했으면 true
 function P.evolve(pet,config)
@@ -39,7 +74,8 @@ function P.chance(base,hp,maxHP,trap,bait,failures,config)
     return math.min(config.ChanceCap,base*health*trapMult*(bait and 1.2 or 1)+failures*config.FailBonus)
 end
 function P.addXP(pet,amount,config)
-    pet.Exp=pet.Exp+amount
+    local trait=config.Traits and config.Traits[pet.Trait]
+    pet.Exp=pet.Exp+math.floor(amount*(trait and trait.XP or 1)+0.5)
     while pet.Level<config.MaxLevel and pet.Exp>=pet.Level*40 do
         pet.Exp=pet.Exp-pet.Level*40; pet.Level=pet.Level+1
     end

@@ -280,6 +280,15 @@ function E.build(localPlayerName)
 		"UserInputService", "ServerStorage", "TextService"}) do
 		service(name)
 	end
+	-- TextService: 필터 흉내 ("나쁜말" → ###)
+	custom(service("TextService"), {FilterStringAsync = function(_, text, userId)
+		assert(type(text) == "string" and type(userId) == "number", "FilterStringAsync 인자 오류")
+		task.wait(0.05)
+		local result = new("TextFilterResult")
+		local clean = string.gsub(text, "나쁜말", "###")
+		custom(result, {GetNonChatStringForBroadcastAsync = function() return clean end})
+		return result
+	end})
 	local starterPlayer = service("StarterPlayer")
 	local sps = new("StarterPlayerScripts", starterPlayer)
 	rawget(sps, "_props").Name = "StarterPlayerScripts"

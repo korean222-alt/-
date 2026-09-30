@@ -252,7 +252,8 @@ function UI:UpdateTeam(pets)
 				end
 				Portrait.make(card.Face, pet.SpeciesId, {Size = UDim2.fromScale(1.25, 1.25), Position = UDim2.fromScale(-0.125, -0.2)})
 			end
-			card.Name.Text = string.format("%s  Lv%d", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level)
+			local name = (pet.Nickname and pet.Nickname ~= "") and pet.Nickname or PR.name(pet.SpeciesId, pet.Stage, P)
+			card.Name.Text = string.format("%s%s  Lv%d %s", pet.Shiny and "✨" or "", name, pet.Level, string.rep("★", pet.Stars or 2))
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio > 0.5 and Color3.fromHex("#7be08a") or (ratio > 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
@@ -411,6 +412,12 @@ function UI:Update(previous)
 	self.Goal.Text = goal
 	self.Practice.Text = d.Practice and "연습 모드 · 저장 안 됨" or ""
 	self:UpdateTeam(d.Pets)
+	-- 우리 팀 전투력 (출전 펫 합): 야생 이름표가 "해볼 만함 / 너무 강함" 을 보여줄 때 쓴다
+	local power = 0
+	for _, pet in ipairs(d.Pets or {}) do
+		if pet.Active then power = power + (pet.Power or 0) end
+	end
+	if player:GetAttribute("TeamPower") ~= power then player:SetAttribute("TeamPower", power) end
 
 	-- 단계가 바뀔 때 배너
 	local was = previous and previous.Phase

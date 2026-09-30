@@ -103,7 +103,7 @@ function Controller:Init(remotes)
 		Size = UDim2.new(1, -120, 0, 40), BackgroundColor3 = COL.Card, TextColor3 = COL.Text, PlaceholderColor3 = COL.Muted, TextSize = 14, Font = BODY})
 	corner(self.Search, 10)
 	self.Search:GetPropertyChangedSignal("Text"):Connect(function() self.Filter = string.lower(self.Search.Text); self:Render() end)
-	self.FavButton = button(self.Panel, "☆ 즐겨찾기", UDim2.new(1, -104, 0, 108), UDim2.fromOffset(94, 40), function() self.Favorites = not self.Favorites; self:Render() end)
+	self.FavButton = button(self.Panel, "♡ 즐겨찾기", UDim2.new(1, -104, 0, 108), UDim2.fromOffset(94, 40), function() self.Favorites = not self.Favorites; self:Render() end)
 	self.Scroll = create("ScrollingFrame", self.Panel, {Position = UDim2.fromOffset(10, 156), Size = UDim2.new(1, -20, 1, -212), BackgroundTransparency = 1,
 		BorderSizePixel = 0, ScrollBarThickness = 6, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollBarImageColor3 = COL.Mint})
@@ -216,21 +216,29 @@ function Controller:Render()
 		for _, pet in ipairs(d.Pets or {}) do
 			local spec = P.Species[pet.SpeciesId]
 			if (not self.Favorites or pet.Favorite) and string.find(string.lower(spec.Name .. spec.Role .. spec.Element), self.Filter, 1, true) then
-				local row = self:Row(150)
+				local row = self:Row(196)
 				self:Face(row, pet.SpeciesId, 84)
-				local info = label(row, "", UDim2.fromOffset(102, 6), UDim2.new(1, -110, 0, 84))
+				local info = label(row, "", UDim2.fromOffset(102, 6), UDim2.new(1, -110, 0, 100))
+				-- 이름 짓기 (서버가 Roblox 필터를 거친다)
+				local nameBox = create("TextBox", row, {Position = UDim2.new(0, 8, 1, -96), Size = UDim2.new(0.64, -10, 0, 38), Text = "",
+					PlaceholderText = "✏ 이름 짓기 (최대 " .. P.NicknameMax .. "자)", ClearTextOnFocus = false, Font = BODY, TextSize = 14,
+					TextColor3 = COL.Text, PlaceholderColor3 = COL.Muted, BackgroundColor3 = COL.Card2, BorderSizePixel = 0})
+				corner(nameBox, 10)
+				button(row, "✔ 이름 저장", UDim2.new(0.64, 2, 1, -96), UDim2.new(0.36, -10, 0, 38), function()
+					self:Send("Rename", {Uid = pet.Uid, Name = nameBox.Text})
+				end, Color3.fromHex("#5a4a8a"))
 				local toggle = button(row, pet.Active and "출전 해제" or "⚔ 출전", UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42),
 					function() self:Send("Toggle", pet.Uid) end, pet.Active and COL.Card2 or Color3.fromHex("#2f8f83"))
-				button(row, pet.Favorite and "★ 즐겨찾기" or "☆ 즐겨찾기", UDim2.new(0.36, 2, 1, -50), UDim2.new(0.32, -6, 0, 42), function() self:Send("Favorite", pet.Uid) end)
+				button(row, pet.Favorite and "♥ 즐겨찾기" or "♡ 즐겨찾기", UDim2.new(0.36, 2, 1, -50), UDim2.new(0.32, -6, 0, 42), function() self:Send("Favorite", pet.Uid) end)
 				button(row, "🍪 간식", UDim2.new(0.68, 2, 1, -50), UDim2.new(0.32, -10, 0, 42), function() self:Send("Heal", pet.Uid) end)
 				self.Rows[#self.Rows + 1] = {Key = pet.Uid, Info = info, Toggle = toggle}
 			end
 		end
 	elseif self.Tab == "Wild" then
 		for _, wild in ipairs(d.Wild or {}) do
-			local row = self:Row(150)
+			local row = self:Row(168)
 			self:Face(row, wild.SpeciesId, 84)
-			local info = label(row, "", UDim2.fromOffset(102, 4), UDim2.new(1, -110, 0, 88))
+			local info = label(row, "", UDim2.fromOffset(102, 4), UDim2.new(1, -110, 0, 108))
 			button(row, "🎯 팀으로 약화", UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42), function() self:Send("Focus", wild.Id); self:Close() end, Color3.fromHex("#b0553a"))
 			button(row, "🧺 일반 덫", UDim2.new(0.36, 2, 1, -50), UDim2.new(0.3, -6, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "Trap", false) end)
 			button(row, "✨ 강화+먹이", UDim2.new(0.66, 2, 1, -50), UDim2.new(0.34, -10, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "BetterTrap", true) end,
@@ -327,7 +335,7 @@ end
 function Controller:Signature()
 	local pieces = {self.Tab}
 	if self.Tab == "Pets" then
-		for _, pet in ipairs(self.Data.Pets or {}) do pieces[#pieces + 1] = pet.Uid .. tostring(pet.Active) .. tostring(pet.Favorite) .. pet.Status end
+		for _, pet in ipairs(self.Data.Pets or {}) do pieces[#pieces + 1] = pet.Uid .. tostring(pet.Active) .. tostring(pet.Favorite) .. pet.Status .. tostring(pet.Nickname) end
 	elseif self.Tab == "Wild" then
 		local ids = {}
 		for _, wild in ipairs(self.Data.Wild or {}) do ids[#ids + 1] = wild.Id end
@@ -362,8 +370,13 @@ function Controller:Refresh(skip)
 					local element = ELEMENT[spec.Element]
 					local statusIcon = {["영구"] = "💾 영구", ["저장 중"] = "⏳ 저장 중", ["밤 생존 대기"] = "🏠 등록 · 밤 생존 대기", ["미등록"] = "⚠ 미등록 (우리에 등록!)"}
 					local growth = pet.Stage == 2 and "🌟 성체" or (spec.Adult and ("🐣 새끼 · Lv" .. P.EvolveLevel .. " 진화") or "")
-					row.Info.Text = string.format("%s%s  Lv%d  %s\n%s · %s · 초원 적용 Lv%d\nHP %d/%d  ·  %s\n%s", pet.Favorite and "★ " or "", PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, growth,
-						element[1], spec.Role, pet.EffectiveLevel, pet.HP, pet.MaxHP, pet.HP == 0 and "💤 기절" or ({Follow = "따라가는 중", Stay = "대기", Guard = "방어 중", Focus = "사냥 중"})[pet.Mode] or pet.Mode,
+					local trait = pet.Trait and P.Traits[pet.Trait]
+					local nick = (pet.Nickname and pet.Nickname ~= "") and (pet.Nickname .. " · ") or ""
+					row.Info.Text = string.format("%s%s%s%s  Lv%d  %s\n%s  %s · ⚔ 전투력 %d\n%s · %s · %s\nHP %d/%d  ·  %s\n%s",
+						pet.Favorite and "♥ " or "", pet.Shiny and "✨빛나는 " or "", nick, PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, growth,
+						PR.starText(pet.Stars), trait and (trait.Icon .. " " .. trait.Name .. "(" .. trait.Desc .. ")") or "특성 없음", pet.Power or 0,
+						element[1], spec.Role, "초원 적용 Lv" .. pet.EffectiveLevel, pet.HP, pet.MaxHP,
+						pet.HP == 0 and "💤 기절" or ({Follow = "따라가는 중", Stay = "대기", Guard = "방어 중", Focus = "사냥 중"})[pet.Mode] or pet.Mode,
 						statusIcon[pet.Status] or pet.Status)
 				end
 			end
@@ -373,8 +386,13 @@ function Controller:Refresh(skip)
 					local spec = P.Species[wild.SpeciesId]
 					local state = wild.Busy and "🧺 포획 진행 중" or (not wild.CanClaim and ("🏹 " .. wild.Owner .. "의 포획 우선권")
 						or (wild.Ready and "✨ 포획 가능! 16m 안에서 덫" or "HP 25% 이하로 약화하세요"))
-					row.Info.Text = string.format("%s Lv%d  ·  %dm\n%s · %s  ·  HP %d/%d\n%s\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%", PR.name(wild.SpeciesId, wild.Stage, P), wild.Level, wild.Distance,
-						ELEMENT[spec.Element][1], spec.Role, wild.HP, wild.MaxHP, state, wild.Ready and wild.Chance * 100 or 0, wild.Ready and wild.BetterChance * 100 or 0)
+					local trait = wild.Trait and P.Traits[wild.Trait]
+					local ratio = (wild.Power or 0) > 0 and (wild.TeamPower or 0) / wild.Power or 1
+					local verdict = ratio < P.PowerGate and "⚠ 너무 강함 · 펫을 키우거나 여러 마리로" or (ratio < 1 and "어려움 · 확률 낮음" or "해볼 만함")
+					row.Info.Text = string.format("%s%s Lv%d %s  ·  %dm\n%s · %s · %s\n⚔ 전투력 %d vs 우리 팀 %d · %s\n%s  ·  HP %d/%d\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%",
+						wild.Shiny and "✨" or "", PR.name(wild.SpeciesId, wild.Stage, P), wild.Level, PR.starText(wild.Stars), wild.Distance,
+						ELEMENT[spec.Element][1], spec.Role, trait and (trait.Icon .. " " .. trait.Name) or "",
+						wild.Power or 0, wild.TeamPower or 0, verdict, state, wild.HP, wild.MaxHP, wild.Ready and wild.Chance * 100 or 0, wild.Ready and wild.BetterChance * 100 or 0)
 				end
 			end
 		elseif row.Info and self.Tab == "Craft" then

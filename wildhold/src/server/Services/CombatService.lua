@@ -67,8 +67,7 @@ function S:Attack(player)
 	end
 	if C.ActiveStage >= 6 and phase == "Day" then
 		local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
-		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) then
-			self.ctx.Capture:Damage(wild, damage, player)
+		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) and self.ctx.Capture:Damage(wild, damage, player) then
 			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
 			return
 		end

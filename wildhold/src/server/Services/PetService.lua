@@ -5,6 +5,7 @@ local G=require(RS.Shared.Config.GameConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local Shop=require(RS.Shared.Config.ShopConfig)
+local TextService=game:GetService("TextService")
 local S={}
 -- 값이 바뀔 때만 속성을 복제한다 (0.2초마다 같은 값을 보내지 않도록)
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
@@ -39,6 +40,8 @@ function S:Spawn(rec,index)
     part.Transparency,part.CanCollide,part.CanTouch=1,false,false
     part:SetAttribute("SpeciesId",rec.Data.SpeciesId);part:SetAttribute("OwnerId",rec.Owner.UserId)
     part:SetAttribute("OwnerName",rec.Owner.DisplayName);part:SetAttribute("Uid",rec.Data.Uid);part:SetAttribute("Stage",R.stage(rec.Data))
+    part:SetAttribute("Stars",rec.Data.Stars or 2);part:SetAttribute("Shiny",rec.Data.Shiny==true);part:SetAttribute("Trait",rec.Data.Trait or "")
+    part:SetAttribute("Nickname",rec.Data.Nickname or "")
     rec.Part,rec.Index=part,index;self.Active[rec.Data.Uid]=rec
 end
 function S:SetTeam(player,ids,initial)
@@ -67,7 +70,8 @@ end
 function S:AddCapture(player,wild)
     if not self:CanCapture(player) then return false end
     local uid=Http:GenerateGUID(false)
-    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland",Stage=wild.Stage}
+    local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland",Stage=wild.Stage,
+        Stars=wild.Data and wild.Data.Stars or 2,Shiny=wild.Data and wild.Data.Shiny or false,Trait=wild.Data and wild.Data.Trait or nil}
     self:Record(player,data,false)
     if #self.Teams[player]<P.ActiveLimit then
         -- A catch joins an open slot without dismissing/rehealing existing companions.
@@ -171,7 +175,7 @@ function S:Action(player,action,value)
     elseif action=="Favorite" and type(value)=="string" and roster[value] then
         self.ctx.Data:Mutate(player,function() roster[value].Data.Favorite=not roster[value].Data.Favorite end)
     elseif action=="Best" then
-        local choices={};for uid,rec in pairs(roster) do table.insert(choices,{Uid=uid,Score=R.stats(rec.Data,P).Damage/P.Species[rec.Data.SpeciesId].Interval}) end
+        local choices={};for uid,rec in pairs(roster) do table.insert(choices,{Uid=uid,Score=R.power(rec.Data,P)}) end
         table.sort(choices,function(a,b) return a.Score>b.Score end)
         local ids={};for i=1,math.min(P.ActiveLimit,#choices) do ids[i]=choices[i].Uid end
         self:SetTeam(player,ids)
@@ -188,11 +192,37 @@ function S:Action(player,action,value)
     elseif action=="Register" and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) then
         local n=0;for _,rec in pairs(roster) do if not rec.Secured and not rec.PendingSave then rec.Registered=true;n=n+1 end end
         self.ctx.Notify(player,n.."마리 등록 · 다음 밤을 버티면 저장됩니다.")
+    elseif action=="Rename" and type(value)=="table" and type(value.Uid)=="string" and roster[value.Uid] and type(value.Name)=="string" then
+        self:Rename(player,roster[value.Uid],value.Name)
     elseif action=="Heal" and type(value)=="string" and roster[value] then
         local rec=roster[value]
         local near=U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) or (rec.Part~=nil and U.near(player,rec.Part.Position,G.SnackRange))
         if rec.HP>0 and rec.HP<rec.MaxHP and near and self.ctx.Crafting:Use(player,"Snack") then rec.HP=math.min(rec.MaxHP,rec.HP+rec.MaxHP*0.5) end
     end
+end
+-- 이름 짓기: Roblox 규칙상 다른 사람에게 보이는 글은 반드시 TextService 필터를 거친다 (걸러진 글자는 #### 로 바뀜)
+function S.cleanName(text,config)
+    text=string.gsub(text,"[%c]","")
+    text=string.gsub(text,"^%s+",""):gsub("%s+$","")
+    local ok,count=pcall(utf8.len,text)
+    if not ok or not count then return nil end
+    if count>config.NicknameMax then text=string.sub(text,1,utf8.offset(text,config.NicknameMax+1)-1) end
+    return text
+end
+function S:Rename(player,rec,text)
+    text=S.cleanName(text,P)
+    if not text then return end
+    if text~="" then
+        local ok,filtered=pcall(function()
+            return TextService:FilterStringAsync(text,player.UserId):GetNonChatStringForBroadcastAsync()
+        end)
+        if not ok or type(filtered)~="string" then self.ctx.Notify(player,"이름을 확인하지 못했습니다. 잠시 후 다시 해 주세요.");return end
+        text=filtered
+    end
+    if not self.ctx.Data:Ready(player) then return end
+    self.ctx.Data:Mutate(player,function() rec.Data.Nickname=text~="" and text or nil end)
+    if rec.Part then rec.Part:SetAttribute("Nickname",text) end
+    self.ctx.Notify(player,text~="" and ("이름을 지었습니다: "..text) or "이름을 지웠습니다")
 end
 -- 간식을 들고 공격 버튼: 가까이 있는 내 펫 중 가장 많이 다친 펫을 회복
 function S:FeedNearest(player)
@@ -209,7 +239,10 @@ end
 function S:Damage(rec,amount)
     if not rec.Part or rec.HP<=0 then return end
     rec.HP=math.max(0,rec.HP-amount);rec.LastCombat=os.clock()
-    if rec.HP==0 then rec.RecoverAt=os.clock()+P.DayRecovery;rec.Target=nil end
+    if rec.HP==0 then
+        local trait=P.Traits[rec.Data.Trait]
+        rec.RecoverAt=os.clock()+P.DayRecovery*(trait and trait.Recover or 1);rec.Target=nil
+    end
 end
 function S:Nearest(position,range)
     local best,distance=nil,range
@@ -254,12 +287,14 @@ function S:Tick(dt)
                     local pos=target.Part.Position
                     if (pos-rec.Part.Position).Magnitude<=range then
                         if os.clock()>=rec.NextAttack then
-                            rec.NextAttack,rec.LastCombat=os.clock()+spec.Interval,os.clock()
+                            rec.NextAttack,rec.LastCombat=os.clock()+stats.Interval,os.clock()
                             face(rec.Part,pos)
                             rec.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
                             self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId)
                             local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)
-                            if isWild then self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element),rec.Owner)
+                            if isWild then
+                                local trait=P.Traits[rec.Data.Trait]
+                                self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element)*(trait and trait.WildDamage or 1),rec.Owner,true)
                             else
                                 self.ctx.Enemies:Damage(target,damage)
                                 if spec.Splash then
@@ -302,7 +337,8 @@ function S:Snapshot(player)
     for uid,rec in pairs(self.Rosters[player] or {}) do
         list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Stage=R.stage(rec.Data),Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
-            Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode}
+            Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode,
+            Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P)}
     end
     table.sort(list,function(a,b) if a.Active~=b.Active then return a.Active end;if a.Favorite~=b.Favorite then return a.Favorite end;return a.Uid<b.Uid end)
     return list

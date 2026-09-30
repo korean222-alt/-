@@ -61,6 +61,12 @@ function CC:Init()
 		folder.ChildAdded:Connect(function(anchor) self:Watch(anchor, category) end)
 		for _, anchor in ipairs(folder:GetChildren()) do self:Watch(anchor, category) end
 	end
+	-- 우리 팀 전투력이 바뀌면 야생 이름표의 "해볼 만함/너무 강함" 을 다시 쓴다
+	player:GetAttributeChangedSignal("TeamPower"):Connect(function()
+		for _, v in pairs(self.Visuals) do
+			if v.Category == "Wild" then self:RefreshTag(v) end
+		end
+	end)
 	-- 블렌더 모델을 나중에 넣어도(스튜디오 테스트 중) 새로 소환되는 펫부터 반영된다
 	RunService.RenderStepped:Connect(function(dt) self:Step(dt) end)
 end
@@ -229,7 +235,10 @@ function CC:RefreshTag(v)
 	if v.Category == "Pet" then
 		local status = a:GetAttribute("Status")
 		local temp = status ~= "영구"
-		v.NameLabel.Text = string.format("%s Lv%d%s", PR.name(v.Kind, v.Stage, P), level, a:GetAttribute("Fainted") and " 💤" or "")
+		local nick = a:GetAttribute("Nickname")
+		local name = (nick and nick ~= "") and nick or PR.name(v.Kind, v.Stage, P)
+		v.NameLabel.Text = string.format("%s%s Lv%d %s%s", a:GetAttribute("Shiny") and "✨" or "", name, level,
+			string.rep("★", a:GetAttribute("Stars") or 2), a:GetAttribute("Fainted") and " 💤" or "")
 		v.NameLabel.TextColor3 = v.Own and (temp and Color3.fromHex("#ffe58a") or Color3.fromHex("#b7f5c8")) or Color3.fromHex("#e8eef5")
 		if not v.Own then
 			v.NameLabel.Text = (a:GetAttribute("OwnerName") or "") .. "의 " .. v.NameLabel.Text
@@ -238,7 +247,8 @@ function CC:RefreshTag(v)
 		return
 	end
 	-- 야생
-	v.NameLabel.Text = string.format("야생 %s Lv%d", PR.name(v.Kind, v.Stage, P), level)
+	v.NameLabel.Text = string.format("%s야생 %s Lv%d %s", a:GetAttribute("Shiny") and "✨" or "", PR.name(v.Kind, v.Stage, P), level,
+		PR.starText(a:GetAttribute("Stars")))
 	v.NameLabel.TextColor3 = ELEMENT_COLOR[spec.Element] or Color3.new(1, 1, 1)
 	local hint = v.Gui:FindFirstChild("Hint")
 	local hunter = a:GetAttribute("Hunter") or ""
@@ -248,11 +258,16 @@ function CC:RefreshTag(v)
 		hint.Text = "✨ 포획 가능! 가까이 가서 E"
 	elseif hunter ~= "" and hunter ~= player.DisplayName then
 		hint.Text = "🏹 " .. hunter .. " 사냥 중 · 도와주기"
-	elseif ratio < 1 then
-		hint.Text = "HP 25%까지 약하게!"
 	else
-		hint.Text = spec.Role .. " · " .. ({Leaf = "풀", Ember = "불", Tide = "물"})[spec.Element]
+		-- 전투력 비교: 우리 팀(출전 펫 합) 대 야생. 너무 강하면 빨강 (펫을 키우거나 여러 마리로)
+		local wildPower, team = a:GetAttribute("Power") or 0, player:GetAttribute("TeamPower") or 0
+		local ratio2 = wildPower > 0 and team / wildPower or 1
+		local verdict = ratio2 < P.PowerGate and "⚠ 너무 강함" or (ratio2 < 1 and "어려움" or "해볼 만함")
+		hint.TextColor3 = ratio2 < P.PowerGate and Color3.fromHex("#ff8a8a") or (ratio2 < 1 and Color3.fromHex("#ffe9a8") or Color3.fromHex("#b7f5c8"))
+		hint.Text = string.format("⚔ %d vs 우리 %d · %s%s", wildPower, team, verdict, ratio < 1 and " · 펫으로 25%까지" or "")
+		return
 	end
+	hint.TextColor3 = Color3.fromHex("#ffe9a8")
 end
 
 function CC:DamageNumber(v, amount)
@@ -311,6 +326,17 @@ function CC:Extras(v)
 		new("PointLight", aura, {Range = 24, Brightness = 2, Color = Color3.fromHex("#b25cff"), Shadows = false})
 		v.Extras.Aura = aura
 	end
+	-- 빛나는 변종: 금빛 반짝임 + 은은한 테두리 (블렌더·Meshy 텍스처 모델에도 똑같이 보인다)
+	if v.Category ~= "Enemy" and v.Anchor:GetAttribute("Shiny") then
+		local glow = localPart(model, "ShinyGlow")
+		local att = new("Attachment", glow)
+		emitter(att, {Texture = "rbxasset://textures/particles/sparkles_main.dds", Rate = 7, Lifetime = NumberRange.new(0.7, 1.3),
+			Speed = NumberRange.new(0.6, 2), SpreadAngle = Vector2.new(180, 180), LightEmission = 1, LightInfluence = 0,
+			Size = NumberSequence.new(0.45, 0), Color = ColorSequence.new(Color3.fromHex("#fff3a0"), Color3.fromHex("#ffc94a"))})
+		new("Highlight", model, {Adornee = model, FillColor = Color3.fromHex("#ffd86b"), FillTransparency = 0.72, OutlineColor = Color3.fromHex("#fff6c2"),
+			OutlineTransparency = 0.35, DepthMode = Enum.HighlightDepthMode.Occluded})
+		v.Extras.Shiny = glow
+	end
 	if v.Category == "Wild" then
 		-- 탈진하면 머리 위에 별이 돈다
 		local stars = {}
@@ -331,6 +357,9 @@ function CC:UpdateExtras(v, root, t)
 	end
 	if e.Aura then
 		e.Aura.CFrame = root * CFrame.new(0, v.Rig.Height * 0.5, 0)
+	end
+	if e.Shiny then
+		e.Shiny.CFrame = root * CFrame.new(0, v.Rig.Height * 0.55, 0)
 	end
 	if e.Ring then
 		e.Ring.CFrame = CFrame.new(root.Position + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90))

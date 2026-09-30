@@ -131,6 +131,7 @@ local serverRequire, clientRequire = requirer(serverGlobals), requirer(clientGlo
 -- 테스트용 시간 단축 (서버 설정 모듈만)
 local GameConfig = serverRequire(shared.Config.GameConfig)
 GameConfig.StudioTimeScale = 4
+GameConfig.FirstDaySeconds = 600 -- 첫 낮에 검사할 것이 많다 (시간 배율 4 → 150초)
 
 local function run(scriptInstance, globals, req)
 	local fn = loadsource(rawget(scriptInstance, "_source"), scriptInstance:GetFullName())
@@ -402,6 +403,57 @@ if not step(3.5) then fail("포획") end
 check("포획 성공 (첫 모슬링 보장)", latest and #latest.Pets == 2, latest and #latest.Pets)
 check("포획 FX", (fxCount.TrapStart or 0) >= 1 and (fxCount.TrapResult or 0) >= 1)
 check("잡은 펫 즉시 출전", #root.Pets:GetChildren() == 2, #root.Pets:GetChildren())
+-- 개체 차이: 재능 별 · 특성 · 빛나는 변종 · 이름 짓기
+do
+	local caught
+	for _, pet in ipairs(latest.Pets) do if pet.Status == "미등록" then caught = pet end end
+	check("잡은 펫의 재능 별·특성", caught ~= nil and caught.Stars >= 1 and caught.Stars <= 5 and caught.Trait ~= nil and caught.Power > 0,
+		caught and string.format("★%d · %s · 전투력 %d", caught.Stars, tostring(caught.Trait), caught.Power))
+	local withStars, shiny = 0, 0
+	for _, a in ipairs(root.WildPets:GetChildren()) do
+		if a:GetAttribute("Stars") and a:GetAttribute("Power") then withStars = withStars + 1 end
+		if a:GetAttribute("Shiny") then shiny = shiny + 1 end
+	end
+	check("야생 펫마다 별·전투력", withStars == #root.WildPets:GetChildren(), withStars .. "마리 · 빛나는 " .. shiny)
+	local PRt = serverRequire(shared.Modules.PetRules)
+	local Pc = serverRequire(shared.Config.PetConfig)
+	local low = PRt.stats({SpeciesId = "Mossling", Level = 5, Stars = 1}, Pc)
+	local high = PRt.stats({SpeciesId = "Mossling", Level = 5, Stars = 5, Trait = "Brave"}, Pc)
+	check("별 5개 + 용감함이 더 강함", high.Damage > low.Damage * 1.5 and high.HP > low.HP, string.format("공격 %.1f → %.1f", low.Damage, high.Damage))
+	RS.Remotes.PetAction:FireServer("Rename", {Uid = caught.Uid, Name = "나쁜말 친구"})
+	if not step(1) then fail("이름 짓기") end
+	local renamed
+	for _, pet in ipairs(latest.Pets) do if pet.Uid == caught.Uid then renamed = pet.Nickname end end
+	check("이름 짓기 (필터 거침)", renamed == "### 친구", renamed)
+end
+-- 포획 전투력: 도구만으로는 HP 60% 아래로 못 깎고, 너무 강한 야생은 덫을 못 던진다
+do
+	local Cap = serverRequire(SSS.Services.CaptureService)
+	local Pc = serverRequire(shared.Config.PetConfig)
+	RS.Remotes.PetAction:FireServer("Stay")
+	if not step(0.4) then fail("대기") end
+	local lone
+	for _, wild in pairs(Cap.Wild) do
+		if not lone and wild.SpeciesId == "Mossling" and not wild.Owner and (wild.Part.Position - hrp.Position).Magnitude < 150 then lone = wild end
+	end
+	if lone then
+		for _ = 1, 14 do
+			teleport(lone.Part.Position.X, lone.Part.Position.Z - 6)
+			RS.Remotes.AttackRequest:FireServer()
+			if not step(0.6) then fail("도구 사냥") end
+		end
+	end
+	check("도구만으로는 HP 60%까지", lone ~= nil and lone.HP / lone.MaxHP >= Pc.HuntFloor - 0.01 and lone.HP < lone.MaxHP,
+		lone and string.format("%.0f%%", lone.HP / lone.MaxHP * 100))
+	local alpha
+	for _, wild in pairs(Cap.Wild) do if wild.SpeciesId == "Briarhorn" then alpha = wild end end
+	check("알파는 너무 강함 (전투력 비교)", alpha ~= nil and Cap:TooStrong(player, alpha),
+		alpha and string.format("우리 %d vs 알파 %d", Cap:TeamPower(player, alpha), alpha.Power))
+	-- 멀리 떨어지면 화난 야생 펫이 제자리로 돌아간다
+	teleport(0, 10)
+	RS.Remotes.PetAction:FireServer("Follow")
+	if not step(1) then fail("따라와") end
+end
 
 -- ===================================================================== 채집 → 창고 → 건설
 print("▶ 채집 · 창고 · 건설")

@@ -9,6 +9,25 @@ return {
     CaptureRange = 16, CaptureSeconds = 2.4, ExhaustSeconds = 40,
     FirstCaptureGuaranteed = true, FailBonus = 0.07, ChanceCap = 0.95,
     NightXP = 35, CaptureXP = 12, KillXP = 3, NightCoins = 30, ClearCoins = 60,
+    -- 개체 차이 (포켓몬 개체값·이로치 참고): 같은 종이라도 잡을 때마다 다르다 → "더 좋은 한 마리" 를 찾는 재미
+    --  재능 별 1~5: 체력·공격 배율. 야생은 Weights 확률로, 알은 EggConfig 의 확률로
+    Stars = {Weights = {30, 32, 22, 11, 5}, Mult = {0.9, 1.0, 1.1, 1.22, 1.38}},
+    ShinyChance = 1 / 200, -- 빛나는 변종 (야생). 색이 다르고 반짝인다
+    -- 특성 1개 (성격). 배율은 PetRules.stats / PetService 에서 쓴다
+    TraitOrder = {"Brave", "Sturdy", "Swift", "Clever", "Loyal", "Hunter"},
+    Traits = {
+        Brave = {Name = "용감함", Icon = "⚔", Desc = "공격 +15%", Damage = 1.15},
+        Sturdy = {Name = "튼튼함", Icon = "🛡", Desc = "체력 +20%", HP = 1.2},
+        Swift = {Name = "날쌤", Icon = "💨", Desc = "공격 속도 +12%", Interval = 0.88},
+        Clever = {Name = "영리함", Icon = "🧠", Desc = "경험치 +30%", XP = 1.3},
+        Loyal = {Name = "충직함", Icon = "💚", Desc = "기절해도 두 배 빨리 회복", Recover = 0.5},
+        Hunter = {Name = "사냥꾼", Icon = "🎯", Desc = "야생 펫에게 피해 +25%", WildDamage = 1.25},
+    },
+    NicknameMax = 12, -- 이름 짓기 최대 글자 수
+    -- 포획 전투력 (Palworld 레벨 차이 · ARK 기절시키기 참고): 강한 야생 펫은 도구만으로 못 잡는다.
+    --  사람 도구로는 HP 를 HuntFloor 아래로 못 깎는다 → 펫이 약화시켜야 한다 (약한 여러 마리 또는 강한 한 마리)
+    --  포획 확률 × (우리 팀 전투력 / 야생 전투력)^PowerExponent (PowerMin~PowerMax), PowerGate 미만이면 포획 불가
+    HuntFloor = 0.6, PowerGate = 0.45, PowerExponent = 1.3, PowerMin = 0.3, PowerMax = 1.25, HelpRange = 40,
     Order = {"Mossling", "Emberpup", "Shellbub", "Mossdeer", "Ashlizard", "Bogtoad", "Briarhorn"},
     Species = {
         Mossling = {Name = "모슬링", Element = "Leaf", Role = "근접", HP = 110, Damage = 13, Range = 5, Interval = 0.8, Capture = 0.65, Color = {131,207,133}, Adult = {Name = "모스팽", HP = 1.6, Damage = 1.45, Scale = 1.5}},
