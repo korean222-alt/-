@@ -5165,7 +5165,7 @@ local function hex(value)
 	return Color3.fromHex(value)
 end
 
-local function makeTool(id, spec)
+local function makeTool(id)
 	local tool = Instance.new("Tool")
 	tool.Name = id
 	tool.CanBeDropped = false
@@ -5364,7 +5364,7 @@ function T.make(id)
 	if not spec then return nil end
 	local meshTool = kitTool(id, spec)
 	if meshTool then return meshTool end
-	local tool, handle = makeTool(id, spec)
+	local tool, handle = makeTool(id)
 	local look = I.TierLook[spec.Tier or 1]
 	local headColor, headMat = hex(look.Head), MAT[look.Material]
 	if spec.Family == "Spear" then
@@ -17843,7 +17843,6 @@ local RunService = game:GetService("RunService")
 local CAS = game:GetService("ContextActionService")
 local BC = require(RS.Shared.Config.BuildConfig)
 local M = require(RS.Shared.Config.MapConfig)
-local D = require(RS.Shared.Config.DefenseConfig)
 local Placement = require(RS.Shared.Modules.Placement)
 local Structures = require(RS.Shared.Visuals.Structures)
 local L = require(RS.Shared.Modules.Locale)

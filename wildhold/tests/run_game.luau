@@ -834,7 +834,7 @@ do
 	local baby = PR.stats(pet, P).HP
 	PR.addXP(pet, (P.EvolveLevel - 1) * 40, P)
 	check("레벨 오르면 성체로 진화", pet.Level == P.EvolveLevel and pet.Stage == 2 and PR.stats(pet, P).HP > baby * 1.4,
-		string.format("Lv%d Stage%s %s", pet.Level, tostring(pet.Stage), PR.name(pet.SpeciesId, 2, P)))
+		string.format("Lv%d Stage%s %s", pet.Level, tostring(pet.Stage), Loc.text(PR.name(pet.SpeciesId, 2, P), "ko")))
 	local Creatures = serverRequire(shared.Visuals.Creatures)
 	local missing = {}
 	for _, id in ipairs(P.Order) do
