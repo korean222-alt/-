@@ -196,6 +196,25 @@ bpy.ops.mesh.primitive_plane_add(size=460, location=(0, 0, 0))
 ground = bpy.context.active_object
 terrain_mats = {k: material("t_" + k, v, noise=0.22) for k, v in TERRAIN.items()}
 ground.data.materials.append(terrain_mats["Grass"])
+# 언덕 공·원판은 메쉬 하나를 같이 쓰고 bpy.data 로 만든다 (bpy.ops 는 물체가 많으면 한 번에 수십 ms → 수천 번이면 30분 넘게 걸림)
+bpy.ops.mesh.primitive_uv_sphere_add(radius=1, segments=24, ring_count=12)
+bpy.ops.object.shade_smooth()
+TERRAIN_MESH = {"tball": bpy.context.active_object.data}
+bpy.data.objects.remove(bpy.context.active_object, do_unlink=True)
+bpy.ops.mesh.primitive_cylinder_add(radius=1, depth=0.02, vertices=48)
+TERRAIN_MESH["tdisc"] = bpy.context.active_object.data
+bpy.data.objects.remove(bpy.context.active_object, do_unlink=True)
+for data in TERRAIN_MESH.values():
+    data.materials.append(MAT_OBJ)
+
+
+def terrain_obj(kind, matrix):
+    obj = bpy.data.objects.new(kind, TERRAIN_MESH[kind])
+    obj.matrix_world = matrix
+    coll.objects.link(obj)
+    return obj
+
+
 order = 0
 for line in open(os.path.join(HERE, ".scene_terrain.txt")):
     t = line.split()
@@ -206,15 +225,14 @@ for line in open(os.path.join(HERE, ".scene_terrain.txt")):
     lift = 0.02 + order * 0.00002  # 나중 명령이 위에 보이도록
     if kind == "Ball":
         x, y, z, rr = map(float, t[2:6])
-        bpy.ops.mesh.primitive_uv_sphere_add(radius=rr, location=P @ Vector((x, y, z)), segments=24, ring_count=12)
-        bpy.ops.object.shade_smooth()
+        obj = terrain_obj("tball", Matrix.Translation(P @ Vector((x, y, z))) @ Matrix.Diagonal((rr, rr, rr, 1)))
     elif kind == "Cylinder":
         x, y, z, h, rr = map(float, t[2:7])
         top = y + h / 2
         if top < -1 and mat != "Water":
             continue
         zz = -1.8 if mat == "Water" else lift
-        bpy.ops.mesh.primitive_cylinder_add(radius=rr, depth=0.02, location=(x, z * -1, zz), vertices=48)
+        obj = terrain_obj("tdisc", Matrix.Translation((x, z * -1, zz)) @ Matrix.Diagonal((rr, rr, 1, 1)))
     elif kind == "Block":
         x, y, z = map(float, t[2:5])
         r = list(map(float, t[5:14]))
@@ -226,8 +244,8 @@ for line in open(os.path.join(HERE, ".scene_terrain.txt")):
         continue
     else:
         continue
-    obj = bpy.context.active_object
-    obj.data.materials.append(terrain_mats.get(mat, MAT_OBJ))
+    obj.material_slots[0].link = "OBJECT"
+    obj.material_slots[0].material = terrain_mats.get(mat, MAT_OBJ)
 
 print("parts", count, "assets", assets, "lights", len(lights))
 
