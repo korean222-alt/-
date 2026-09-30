@@ -18,18 +18,7 @@ return {
 	TrailLength = 690, -- 굴 너머 각 지역으로 이어지는 흙길 (길 잃지 않게)
 	Spawn = {0, 0.5, 15},
 	Warehouse = {21, 0, -12},
-	Workbench = {-21, 0, -12},
 	Cage = {0, 0, 29},
-	-- 방어 자리: {종류, 길목, 반지름, 옆으로 비킨 거리, 시작 레벨}
-	-- 길목 0 은 Core 근처 (방향은 길목 1 기준)
-	Slots = {
-		{"Gate", 1, 40, 0, 1}, {"Gate", 2, 40, 0, 1}, {"Wall", 3, 40, 0, 1},
-		{"Wall", 1, 57, 0, 0}, {"Wall", 2, 57, 0, 0}, {"Wall", 3, 57, 0, 0},
-		{"Wall", 1, 78, 0, 0}, {"Wall", 2, 78, 0, 0}, {"Wall", 3, 78, 0, 0},
-		{"ArrowTower", 1, 31, 11, 1}, {"ArrowTower", 2, 31, 11, 0}, {"ArrowTower", 3, 31, 11, 0}, {"ArrowTower", 3, 31, -11, 0},
-		{"SpikeTrap", 1, 67, 0, 0}, {"SpikeTrap", 2, 67, 0, 0}, {"SpikeTrap", 3, 67, 0, 0}, {"SpikeTrap", 1, 90, 0, 0},
-		{"PetStand", 1, 31, -11, 0}, {"PetStand", 2, 31, -11, 0}, {"PetStand", 3, 24, 0, 0}, {"PetStand", 1, 12, 10, 0},
-	},
 	-- 지역. Angle 이 있는 지역은 그 방향 ±60° 부채꼴, MeadowRadius 바깥.
 	Zones = {
 		Meadow = {Name = "초원", Icon = "🌿", Danger = 1},

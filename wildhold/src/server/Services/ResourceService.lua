@@ -5,6 +5,7 @@ local Rules = require(RS.Shared.Modules.Rules)
 local C = require(RS.Shared.Config.GameConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
 local I = require(RS.Shared.Config.ItemConfig)
+local BC = require(RS.Shared.Config.BuildConfig)
 local B = require(RS.Shared.Visuals.Build)
 local S = {}
 
@@ -145,4 +146,11 @@ function S:Tick()
     end
 end
 function S:Spend(cost) return Rules.spend(self.Bank, cost) end
+-- 플레이어가 낼 때: 가방 먼저, 기지 영역 안이면 공용 창고까지
+function S:SpendFor(player, cost)
+    local wallets = {self.Bags[player] or self:Empty()}
+    local root = U.aliveRoot(player)
+    if root and U.flat(root.Position).Magnitude <= BC.Radius + 10 then table.insert(wallets, self.Bank) end
+    return Rules.spendMany(wallets, cost)
+end
 return S

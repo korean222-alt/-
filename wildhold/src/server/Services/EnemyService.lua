@@ -161,19 +161,20 @@ function S:UpdateUnit(unit, dt)
         end
         -- Failed/pending path falls back to attacking the lane barrier, never stalls.
     end
-    local barrier = self.ctx.Defenses:Barrier(unit.LaneId, unit.Part.Position)
-    if unit.Kind == "Brute" then
-        local nearby = self.ctx.Defenses:Nearest(unit.Part.Position, unit.Spec.Aggro)
-        if nearby and (not barrier or U.flat(nearby.Pad.Position - unit.Part.Position).Magnitude < U.flat(barrier.Pad.Position - unit.Part.Position).Magnitude) then barrier = nearby end
-    end
-    if barrier then
-        if not self:TryAttack(unit, barrier.Pad.Position, unit.Spec.Range, function(d) self.ctx.Defenses:Damage(barrier, d) end) then self:Move(unit, barrier.Pad.Position, dt) end
-        return
-    end
     local lane = self.ctx.Map.Lanes[unit.LaneId]
     -- A destroyed wall may leave us past a waypoint. Never backtrack outward.
     local radius = U.flat(unit.Part.Position):Dot(lane.Dir)
     while unit.Waypoint < #lane.Points and U.flat(lane.Points[unit.Waypoint]):Dot(lane.Dir) > radius + 1 do unit.Waypoint = unit.Waypoint + 1 end
+    -- 가는 길을 막은 벽·문(플레이어가 놓은 것)을 부순다. 브루트는 가까운 구조물이면 무엇이든 노린다
+    local barrier, contact = self.ctx.Defenses:Barrier(unit.Part.Position, lane.Points[unit.Waypoint], unit.Spec.Size / 2 + 0.5, unit.Spec.Range + 6)
+    if unit.Kind == "Brute" then
+        local nearby, point = self.ctx.Defenses:Nearest(unit.Part.Position, unit.Spec.Aggro)
+        if nearby and (not barrier or U.flat(point - unit.Part.Position).Magnitude < U.flat(contact - unit.Part.Position).Magnitude) then barrier, contact = nearby, point end
+    end
+    if barrier then
+        if not self:TryAttack(unit, contact, unit.Spec.Range, function(d) self.ctx.Defenses:Damage(barrier, d) end) then self:Move(unit, contact, dt) end
+        return
+    end
     local core = self.ctx.Map.Core.Position
     if self:TryAttack(unit, core, unit.Spec.Range + 4, function(d) self.ctx.Core:Damage(d) end) then return end
     local goal = lane.Points[unit.Waypoint]

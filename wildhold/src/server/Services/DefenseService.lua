@@ -1,23 +1,27 @@
+-- 설치형 구조물: 제작대 · 벽 · 문 · 화살 포탑 · 가시 함정 · 펫 배치대 · 횃불대.
+--  플레이어가 설치 도구(Kit)를 들고 기지 영역 안에 놓는다 (Request). 놓은 것은 [E] 강화 · [R] 수리 · 옮기기(도구로 돌려받기).
+--  괴물은 가는 길을 막은 벽·문을 부수고(Barrier), 브루트는 가까운 구조물을 노린다(Nearest).
+--  제작대의 가장 높은 레벨 = 팀 제작대 레벨 (새 제작법, 방어 시설 Lv2·3 강화 조건).
+-- 구조물마다 Map.DefenseSlots/<Id>/<Id> 에 보이지 않는 Pad 가 있다 (프롬프트 · 체력 속성 · WorldUI 체력 막대).
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local Rules = require(RS.Shared.Modules.Rules)
+local Placement = require(RS.Shared.Modules.Placement)
 local C = require(RS.Shared.Config.GameConfig)
 local D = require(RS.Shared.Config.DefenseConfig)
 local R = require(RS.Shared.Config.ResourceConfig)
+local BC = require(RS.Shared.Config.BuildConfig)
+local M = require(RS.Shared.Config.MapConfig)
+local I = require(RS.Shared.Config.ItemConfig)
 local Structures = require(RS.Shared.Visuals.Structures)
 local S = {}
 
+local KIT_OF = {}
+for kit, kind in pairs(BC.Kits) do KIT_OF[kind] = kit end
+
 function S:Init(ctx)
-	self.ctx, self.Slots, self.LastAction = ctx, {}, {}
-	for _, slot in ipairs(ctx.Map.Slots) do
-		if D[slot.Kind] then
-			self.Slots[slot.Id] = slot
-			slot.BuildPrompt = U.prompt(slot.Pad, "Build", "건설", Enum.KeyCode.E, Vector3.new(0, 2.5, 0))
-			slot.RepairPrompt = U.prompt(slot.Pad, "Repair", "수리", Enum.KeyCode.R, Vector3.new(0, 4.5, 0))
-			slot.BuildPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Build") end)
-			slot.RepairPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Repair") end)
-		end
-	end
+	self.ctx, self.LastAction, self.Slots, self.NextId = ctx, {}, {}, 0
+	self.Blocked = Placement.blocked(M)
 	self:Reset()
 end
 
@@ -29,31 +33,83 @@ function S:CostText(cost)
 	return table.concat(parts, " · ")
 end
 
+-- 판이 시작될 때: 모두 치우고 시작 구조물(길목 문·벽·포탑)만 둔다
 function S:Reset()
+	for _, slot in pairs(self.Slots) do self:Remove(slot, true) end
+	self.Slots, self.LastAction = {}, {}
 	self.ctx.Map.DefensesFolder:ClearAllChildren()
-	self.LastAction = {}
-	for _, slot in pairs(self.Slots) do
-		slot.Visual, slot.NextAttack, slot.LastMutation = nil, 0, -math.huge
-		slot.Level = C.ActiveStage >= 3 and slot.InitialLevel or 0
-		slot.HP = slot.Level > 0 and D[slot.Kind].Levels[slot.Level].HP or 0
-		self:Render(slot)
+	self.ctx.Map.SlotsFolder:ClearAllChildren()
+	if C.ActiveStage >= 3 then
+		for _, spec in ipairs(BC.Starter) do
+			local kind, laneId, radius, side = table.unpack(spec)
+			local lane = self.ctx.Map.Lanes[laneId]
+			local pos = lane.Dir * radius + lane.Side * side
+			self:Place(kind, CFrame.lookAt(pos, pos + lane.Dir), 1, nil)
+		end
 	end
+	self:UpdateBench()
+end
+
+-- ===================================================================== 놓기 / 치우기
+function S:Rect(kind, frame, pad)
+	return Placement.rect(frame.X, frame.Z, frame.RightVector.X, frame.RightVector.Z, BC.Footprint[kind], pad)
+end
+
+function S:Place(kind, frame, level, owner)
+	self.NextId = self.NextId + 1
+	local id = string.format("S%03d", self.NextId)
+	local size = BC.Footprint[kind]
+	frame = CFrame.new(frame.X, 0, frame.Z) * (frame - frame.Position)
+	local holder = Instance.new("Model")
+	holder.Name = id
+	local pad = U.part(holder, id, Vector3.new(size[1], 0.4, size[2]), frame.Position + Vector3.new(0, 0.2, 0))
+	pad.CFrame = frame * CFrame.new(0, 0.2, 0)
+	pad.Transparency, pad.CanCollide, pad.CanTouch, pad.CanQuery = 1, false, false, true
+	pad:SetAttribute("SlotId", id)
+	pad:SetAttribute("SlotType", kind)
+	holder.Parent = self.ctx.Map.SlotsFolder
+	local slot = {Id = id, Kind = kind, Level = level, CFrame = frame, Width = size[1], Pad = pad, Holder = holder, Owner = owner,
+		Rect = self:Rect(kind, frame), NextAttack = 0, LastMutation = -math.huge}
+	slot.HP = D[kind].Levels[level].HP
+	slot.BuildPrompt = U.prompt(pad, "Build", "강화", Enum.KeyCode.E, Vector3.new(0, 2.5, 0))
+	slot.RepairPrompt = U.prompt(pad, "Repair", "수리", Enum.KeyCode.R, Vector3.new(0, 4.5, 0))
+	slot.MovePrompt = U.prompt(pad, "Move", "옮기기 (설치 도구로 돌려받기)", Enum.KeyCode.G, Vector3.new(0, 6.5, 0))
+	slot.MovePrompt.HoldDuration = 0.6
+	slot.BuildPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Build") end)
+	slot.RepairPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Repair") end)
+	slot.MovePrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Move") end)
+	if kind == "Workbench" then
+		slot.CraftPrompt = U.prompt(pad, "Craft", "도구 · 설치 도구 · 덫 만들기", Enum.KeyCode.F, Vector3.new(0, 1, -2.5))
+		slot.CraftPrompt.ObjectText = "제작대"
+		slot.CraftPrompt.Triggered:Connect(function(player)
+			if self.ctx.Data:Ready(player) and U.near(player, pad.Position, C.InteractionRange + 2) then self.ctx.PetFX:FireClient(player, "OpenCraft", "Workbench") end
+		end)
+	elseif kind == "PetStand" then
+		local prompt = U.prompt(pad, "PlacePet", "펫 올려두기 (공격·사거리 강화)", Enum.KeyCode.F, Vector3.new(0, 3, 0))
+		prompt.ObjectText = "펫 배치대"
+		prompt.Triggered:Connect(function(player) if C.ActiveStage >= 5 then self.ctx.Pets:AssignStand(player, slot) end end)
+	end
+	self.Slots[id] = slot
+	self:Render(slot)
+	return slot
+end
+
+function S:Remove(slot, silent)
+	if slot.Visual then slot.Visual:Destroy() end
+	if slot.Holder then slot.Holder:Destroy() end
+	self.Slots[slot.Id] = nil
+	if not silent then self:UpdateBench() end
 end
 
 -- 레벨에 맞는 모델을 새로 짓는다. 충돌/사선 판정은 모델 안의 Hitbox 한 개로 한다.
 function S:Render(slot)
 	if slot.Visual then slot.Visual:Destroy(); slot.Visual, slot.Hitbox = nil, nil end
-	if slot.Level > 0 then
-		local model, muzzle = Structures.defense(self.ctx.Map.DefensesFolder, slot.Kind, slot.Level, slot.CFrame, slot.Width)
-		model.Name = slot.Id
-		model:SetAttribute("SlotId", slot.Id)
-		slot.Visual, slot.Hitbox = model, model:FindFirstChild("Hitbox")
-		slot.Hitbox.Name = slot.Id
-		slot.Muzzle = slot.CFrame.Position + Vector3.new(0, muzzle, 0)
-	end
-	if slot.Blueprint then
-		slot.Blueprint.Parent = slot.Level == 0 and slot.Pad.Parent or nil
-	end
+	local model, muzzle = Structures.structure(self.ctx.Map.DefensesFolder, slot.Kind, slot.Level, slot.CFrame, slot.Width)
+	model.Name = slot.Id
+	model:SetAttribute("SlotId", slot.Id)
+	slot.Visual, slot.Hitbox = model, model:FindFirstChild("Hitbox")
+	if slot.Hitbox then slot.Hitbox.Name = slot.Id end
+	slot.Muzzle = slot.CFrame.Position + Vector3.new(0, muzzle or 2, 0)
 	self:Refresh(slot)
 end
 
@@ -73,27 +129,93 @@ function S:Refresh(slot)
 	end
 	slot.BuildPrompt.Enabled = C.ActiveStage >= 3 and phase == "Day" and nextStats ~= nil
 	local bench = nextStats and self:BenchNeeded(slot)
-	slot.BuildPrompt.ActionText = (slot.Level == 0 and "건설 · " or "강화 · ") .. (bench and ("🔒 제작대 Lv" .. bench .. " 필요") or (nextStats and self:CostText(nextStats.Cost) or "최대"))
-	slot.BuildPrompt.ObjectText = spec.Name .. (slot.Level > 0 and (" Lv" .. slot.Level) or " (빈 자리)")
+	slot.BuildPrompt.ActionText = "강화 · " .. (bench and ("🔒 제작대 Lv" .. bench .. " 필요") or (nextStats and self:CostText(nextStats.Cost) or "최대"))
+	slot.BuildPrompt.ObjectText = spec.Name .. " Lv" .. slot.Level
 	slot.RepairPrompt.Enabled = C.ActiveStage >= 3 and (phase == "Day" or phase == "Night") and stats ~= nil and slot.HP < stats.HP
 	local mult = phase == "Night" and C.NightRepairMultiplier or 1
 	slot.RepairPrompt.ActionText = "수리 · " .. (stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or "")
 	slot.RepairPrompt.ObjectText = spec.Name .. (stats and string.format(" %d/%d", slot.HP, stats.HP) or "")
-end
-
--- 방어 시설 Lv2 는 제작대 Lv2, Lv3 은 제작대 Lv3 이 있어야 강화할 수 있다. 필요하면 그 레벨, 아니면 nil
-function S:BenchNeeded(slot)
-	local want = slot.Level + 1
-	local have = self.ctx.Crafting and self.ctx.Crafting.BenchLevel or 3
-	if want >= 2 and have < want then return want end
-	return nil
+	slot.MovePrompt.Enabled = phase == "Day" and stats ~= nil and slot.HP >= stats.HP
+	slot.MovePrompt.ObjectText = spec.Name
 end
 
 function S:RefreshAll() for _, slot in pairs(self.Slots) do self:Refresh(slot) end end
 
+-- ===================================================================== 제작대 레벨
+function S:BenchLevel()
+	local best = 0
+	for _, slot in pairs(self.Slots) do
+		if slot.Kind == "Workbench" then best = math.max(best, slot.Level) end
+	end
+	return best
+end
+
+-- 놓인 제작대 중 이 위치에서 range 안에 있는 가장 높은 레벨 (없으면 0)
+function S:BenchNear(position, range)
+	local best = 0
+	for _, slot in pairs(self.Slots) do
+		if slot.Kind == "Workbench" and U.flat(slot.Pad.Position - position).Magnitude <= range then best = math.max(best, slot.Level) end
+	end
+	return best
+end
+
+function S:UpdateBench()
+	if self.ctx.Crafting then self.ctx.Crafting.BenchLevel = self:BenchLevel() end
+	workspace:SetAttribute("BenchLevel", self:BenchLevel())
+	for _, slot in pairs(self.Slots) do self:Refresh(slot) end
+end
+
+-- 방어 시설 Lv2 는 제작대 Lv2, Lv3 은 제작대 Lv3 이 있어야 강화할 수 있다. 필요하면 그 레벨, 아니면 nil (제작대 자신은 조건 없음)
+function S:BenchNeeded(slot)
+	if slot.Kind == "Workbench" then return nil end
+	local want = slot.Level + 1
+	if want >= 2 and self:BenchLevel() < want then return want end
+	return nil
+end
+
+-- ===================================================================== 플레이어 요청
+-- 설치: 설치 도구를 들고 공격 버튼 → 클라이언트가 미리보기 자리(CFrame)를 보낸다. 서버가 다시 검사한다.
+function S:Request(player, kit, frame)
+	if C.ActiveStage < 3 or type(kit) ~= "string" or typeof(frame) ~= "CFrame" or not self.ctx.Run:IsParticipant(player) then return false end
+	local kind = BC.Kits[kit]
+	if not kind then return false end
+	local phase = self.ctx.Clock.Phase
+	if phase ~= "Day" and phase ~= "Night" then return false end
+	local now = os.clock()
+	if now - (self.LastAction[player] or -math.huge) < C.InteractionCooldown then return false end
+	self.LastAction[player] = now
+	local items = self.ctx.Crafting.Items[player]
+	if not items or (items[kit] or 0) <= 0 then return false end
+	local root = U.aliveRoot(player)
+	if not root then return false end
+	local count = 0
+	for _ in pairs(self.Slots) do count = count + 1 end
+	if count >= BC.Limit then self.ctx.Notify(player, "구조물이 너무 많습니다 (" .. BC.Limit .. "개)"); return false end
+	-- 수평으로만 돌린다
+	local look = frame.LookVector
+	local flatLook = Vector3.new(look.X, 0, look.Z)
+	if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) end
+	local at = CFrame.lookAt(Vector3.new(frame.X, 0, frame.Z), Vector3.new(frame.X, 0, frame.Z) + flatLook.Unit)
+	local ok, reason = Placement.check(self:Rect(kind, at), self:Rects(), self.Blocked, BC, root.Position.X, root.Position.Z)
+	if not ok then self.ctx.Notify(player, "여기에는 놓을 수 없습니다 · " .. reason); return false end
+	self.ctx.Crafting:Use(player, kit)
+	local slot = self:Place(kind, at, 1, player)
+	if kind == "Workbench" then self:UpdateBench() end
+	self.ctx.FX:FireAllClients("Build", at.Position, kind, 1)
+	self.ctx.Notify(player, D[kind].Name .. " 설치!" .. (kind == "Workbench" and " · 가까이에서 [F] 로 벽·포탑 설치 도구를 만드세요" or ""))
+	self.ctx.Crafting:Sync(player)
+	return true, slot
+end
+
+function S:Rects()
+	local list = {}
+	for _, slot in pairs(self.Slots) do table.insert(list, slot.Rect) end
+	return list
+end
+
 function S:Interact(player, slot, action)
-	if C.ActiveStage < 3 or not self.ctx.Run:IsParticipant(player) then return end
-	if not U.near(player, slot.Pad.Position, C.InteractionRange) then return end
+	if C.ActiveStage < 3 or not self.ctx.Run:IsParticipant(player) or self.Slots[slot.Id] ~= slot then return end
+	if not U.near(player, slot.Pad.Position, C.InteractionRange + math.max(0, slot.Width / 2 - 4)) then return end
 	local now = os.clock()
 	if now - (self.LastAction[player] or -math.huge) < C.InteractionCooldown then return end
 	self.LastAction[player] = now
@@ -104,71 +226,106 @@ function S:Interact(player, slot, action)
 		local nextStats = spec.Levels[slot.Level + 1]
 		if not nextStats then return end
 		local bench = self:BenchNeeded(slot)
-		if bench then self.ctx.Notify(player, "제작대 Lv" .. bench .. "가 필요합니다 · 제작대를 업그레이드하세요"); return end
-		if not self.ctx.Resources:Spend(nextStats.Cost) then self.ctx.Notify(player, "공용 창고의 자원이 부족합니다 · " .. self:CostText(nextStats.Cost)); return end
+		if bench then self.ctx.Notify(player, "제작대 Lv" .. bench .. "가 필요합니다 · 제작대를 강화하세요"); return end
+		if not self.ctx.Resources:SpendFor(player, nextStats.Cost) then self.ctx.Notify(player, "재료가 부족합니다 · " .. self:CostText(nextStats.Cost)); return end
 		-- No yielding in validation, spend, mutation: simultaneous requests serialize.
-		local oldHP = slot.Level > 0 and spec.Levels[slot.Level].HP or 0
+		local oldHP = spec.Levels[slot.Level].HP
 		slot.HP = Rules.upgradeHP(slot.HP, oldHP, nextStats.HP)
 		slot.Level = slot.Level + 1
 		slot.LastMutation = now
 		self:Render(slot)
 		self.ctx.FX:FireAllClients("Build", slot.CFrame.Position, slot.Kind, slot.Level)
-		self.ctx.Notify(player, spec.Name .. " Lv" .. slot.Level .. " 완성!")
+		if slot.Kind == "Workbench" then
+			self:UpdateBench()
+			self.ctx.Notify(nil, "🔨 제작대 Lv" .. slot.Level .. " 달성! 새 제작법과 방어 시설 강화가 풀렸습니다")
+		else
+			self.ctx.Notify(player, spec.Name .. " Lv" .. slot.Level .. " 완성!")
+		end
 	elseif action == "Repair" then
 		if phase ~= "Day" and phase ~= "Night" then return end
 		local stats = spec.Levels[slot.Level]
 		if not stats or slot.HP >= stats.HP then return end
 		local cost = Rules.repairCost(stats.Repair, phase == "Night" and C.NightRepairMultiplier or 1)
-		if not self.ctx.Resources:Spend(cost) then self.ctx.Notify(player, "수리 자원이 부족합니다"); return end
+		if not self.ctx.Resources:SpendFor(player, cost) then self.ctx.Notify(player, "수리 재료가 부족합니다"); return end
 		slot.HP = math.min(stats.HP, slot.HP + math.ceil(stats.HP * C.RepairFraction))
 		slot.LastMutation = now
 		self.ctx.FX:FireAllClients("Repair", slot.CFrame.Position, slot.Kind, slot.Level)
 		self:Refresh(slot)
+	elseif action == "Move" then
+		-- 다친 데 없는 구조물은 낮에 설치 도구로 돌려받는다 (강화한 레벨은 사라진다)
+		local stats = spec.Levels[slot.Level]
+		if phase ~= "Day" or not stats or slot.HP < stats.HP then return end
+		local items = self.ctx.Crafting.Items[player]
+		local kit = KIT_OF[slot.Kind]
+		if not items or not kit or (items[kit] or 0) >= I.Limit then return end
+		items[kit] = (items[kit] or 0) + 1
+		self.ctx.FX:FireAllClients("Break", slot.CFrame.Position, slot.Kind, slot.Level)
+		self:Remove(slot)
+		self.ctx.Crafting:Sync(player)
+		self.ctx.Notify(player, I.Items[kit].Icon .. " " .. spec.Name .. " 을(를) 돌려받았습니다 · 다시 들고 놓으세요")
 	end
 end
 
 function S:Damage(slot, amount)
-	if slot.Level == 0 or slot.HP <= 0 then return end
+	if self.Slots[slot.Id] ~= slot or slot.HP <= 0 then return end
 	slot.HP = math.max(0, slot.HP - amount)
 	if slot.HP == 0 then
 		self.ctx.FX:FireAllClients("Break", slot.CFrame.Position, slot.Kind, slot.Level)
-		slot.Level = 0
-		self:Render(slot)
+		self:Remove(slot)
+		if self.ctx.Pets then
+			for _, rec in pairs(self.ctx.Pets.Active) do
+				if rec.Stand == slot.Id then rec.Stand, rec.Mode = nil, "Follow" end
+			end
+		end
 	else
 		self:Refresh(slot)
 	end
 end
 
-function S:Barrier(laneId, position)
-	local closest, distance = nil, math.huge
-	local dir = self.ctx.Map.Lanes[laneId].Dir
-	local radius = U.flat(position):Dot(dir)
+-- ===================================================================== 괴물이 보는 것
+-- 지금 위치에서 goal 쪽으로 look 만큼 가는 길을 막는 벽·문. 반환: 구조물, 부딪히는 점
+function S:Barrier(position, goal, radius, look)
+	local dir = Vector3.new(goal.X - position.X, 0, goal.Z - position.Z)
+	local distance = dir.Magnitude
+	if distance < 0.01 then return nil end
+	dir = dir / distance
+	local reach = math.min(distance, look or 8)
+	local best, bestT = nil, math.huge
 	for _, slot in pairs(self.Slots) do
-		if slot.LaneId == laneId and slot.Level > 0 and D[slot.Kind].Blocks then
-			local r = U.flat(slot.Pad.Position):Dot(dir)
-			local delta = radius - r
-			if delta >= -2 and delta < distance then closest, distance = slot, delta end
+		if BC.Blocks[slot.Kind] then
+			local t = 0
+			while t <= reach do
+				local x, z = position.X + dir.X * t, position.Z + dir.Z * t
+				if Placement.contains(slot.Rect, x, z, radius) then
+					if t < bestT then best, bestT = slot, t end
+					break
+				end
+				t = t + 1
+			end
 		end
 	end
-	return closest
+	if not best then return nil end
+	local x, z = Placement.closest(best.Rect, position.X, position.Z)
+	return best, Vector3.new(x, position.Y, z)
 end
 
 function S:Nearest(position, radius)
-	local closest, distance = nil, radius
+	local closest, distance, point = nil, radius, nil
 	for _, slot in pairs(self.Slots) do
-		if slot.Level > 0 and slot.Kind ~= "SpikeTrap" then
-			local d = U.flat(slot.Pad.Position - position).Magnitude
-			if d < distance then closest, distance = slot, d end
+		if slot.Kind ~= "SpikeTrap" and slot.Kind ~= "TorchPost" then
+			local x, z = Placement.closest(slot.Rect, position.X, position.Z)
+			local d = Vector3.new(x - position.X, 0, z - position.Z).Magnitude
+			if d < distance then closest, distance, point = slot, d, Vector3.new(x, position.Y, z) end
 		end
 	end
-	return closest
+	return closest, point
 end
 
--- 사선을 막는 장애물: 지어진 벽·문·포탑의 Hitbox
+-- 사선을 막는 장애물: 지어진 벽·문·포탑·제작대의 Hitbox
 function S:Obstacles(ignored)
 	local list = {}
 	for _, slot in pairs(self.Slots) do
-		if slot.Hitbox and slot.Visual ~= ignored and slot.Kind ~= "SpikeTrap" then
+		if slot.Hitbox and slot.Visual ~= ignored and slot.Kind ~= "SpikeTrap" and slot.Kind ~= "TorchPost" and slot.Kind ~= "PetStand" then
 			table.insert(list, slot.Hitbox)
 		end
 	end

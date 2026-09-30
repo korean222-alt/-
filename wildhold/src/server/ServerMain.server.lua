@@ -20,7 +20,7 @@ local hasMap,hasLobby=mode~="Lobby",mode~="Expedition"
 
 local folder=Instance.new("Folder");folder.Name,folder.Parent="Remotes",RS
 local remotes={}
-for _,name in ipairs({"State","AttackRequest","Notice","FX","PetAction","CraftAction","CaptureAction","PetFX","Lobby","LobbyAction"}) do
+for _,name in ipairs({"State","AttackRequest","Notice","FX","PetAction","CraftAction","CaptureAction","PetFX","Lobby","LobbyAction","BuildRequest"}) do
     local event=Instance.new("RemoteEvent");event.Name,event.Parent=name,folder;remotes[name]=event
 end
 local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=remotes.PetFX,LobbyEvent=remotes.Lobby,LobbyAction=remotes.LobbyAction,
@@ -51,21 +51,10 @@ if hasMap then
     remotes.CraftAction.OnServerEvent:Connect(function(player,item) ctx.Crafting:Craft(player,item) end)
     remotes.CaptureAction.OnServerEvent:Connect(function(player,uid,trap,bait) ctx.Capture:Attempt(player,uid,trap,bait) end)
     ctx.Map.CagePrompt.Triggered:Connect(function(player) ctx.Pets:Action(player,"Register") end)
-    ctx.Map.CraftPrompt.Triggered:Connect(function(player)
-        if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Workbench.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Workbench") end
-    end)
     ctx.Map.CookPrompt.Triggered:Connect(function(player)
         if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Campfire.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Campfire") end
     end)
-    for _,slot in ipairs(ctx.Map.Slots) do
-        if slot.Kind=="PetStand" then
-            local prompt=U.prompt(slot.Pad,"PlacePet","펫 올려두기 (공격·사거리 강화)",Enum.KeyCode.E,Vector3.new(0,3,0))
-            prompt.ObjectText="펫 배치대"
-            prompt.Triggered:Connect(function(player)
-                if C.ActiveStage>=5 then ctx.Pets:AssignStand(player,slot) end
-            end)
-        end
-    end
+    remotes.BuildRequest.OnServerEvent:Connect(function(player,kit,frame) ctx.Defenses:Request(player,kit,frame) end)
 end
 if hasLobby then
     local origin=mode=="Both" and Vector3.new(table.unpack(LC.StudioOrigin)) or Vector3.zero

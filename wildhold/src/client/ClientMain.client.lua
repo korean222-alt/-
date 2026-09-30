@@ -1,7 +1,7 @@
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local remotes = RS:WaitForChild("Remotes")
-for _, name in ipairs({"State", "AttackRequest", "Notice", "FX", "PetAction", "CraftAction", "CaptureAction", "PetFX", "Lobby", "LobbyAction"}) do remotes:WaitForChild(name) end
+for _, name in ipairs({"State", "AttackRequest", "Notice", "FX", "PetAction", "CraftAction", "CaptureAction", "PetFX", "Lobby", "LobbyAction", "BuildRequest"}) do remotes:WaitForChild(name) end
 local Controllers = script.Parent:WaitForChild("Controllers")
 local player = Players.LocalPlayer
 local function start(name, ...)
@@ -31,6 +31,7 @@ if mode ~= "Lobby" then
 	local pets = start("PetController", remotes)
 	if ui and pets then ui.PetController = pets end
 	start("SwingController", remotes)
+	start("BuildController", remotes)
 	start("CombatController", remotes)
 	start("HotbarController", remotes)
 	start("CreatureController")
@@ -45,7 +46,7 @@ start("AudioController", remotes)
 if mode ~= "Expedition" then start("LobbyController", remotes) end
 
 -- 지금 있는 곳(서버가 정하는 Place 속성)에 맞는 화면만 켠다
-local EXPEDITION_GUIS = {"WildholdHUD", "Hotbar", "Minimap", "PetBook"}
+local EXPEDITION_GUIS = {"WildholdHUD", "Hotbar", "Minimap", "PetBook", "BuildHint"}
 local function apply()
 	local place = player:GetAttribute("Place") or (mode == "Lobby" and "Lobby" or "Expedition")
 	local gui = player:FindFirstChild("PlayerGui")

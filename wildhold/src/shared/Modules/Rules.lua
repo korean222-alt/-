@@ -12,6 +12,23 @@ function Rules.spend(wallet, cost)
     for kind, amount in pairs(cost) do wallet[kind] = wallet[kind] - amount end
     return true
 end
+-- 여러 주머니(가방 → 공용 창고 순)에서 모자람 없이 낼 수 있으면 앞 주머니부터 쓴다
+function Rules.spendMany(wallets, cost)
+    for kind, amount in pairs(cost) do
+        if type(amount) ~= "number" or amount < 0 or amount ~= amount then return false end
+        local have = 0
+        for _, wallet in ipairs(wallets) do have = have + (wallet[kind] or 0) end
+        if have < amount then return false end
+    end
+    for kind, amount in pairs(cost) do
+        local left = amount
+        for _, wallet in ipairs(wallets) do
+            local take = math.min(left, wallet[kind] or 0)
+            if take > 0 then wallet[kind] = wallet[kind] - take; left = left - take end
+        end
+    end
+    return true
+end
 function Rules.total(wallet)
     local total = 0
     for _, amount in pairs(wallet) do total = total + amount end

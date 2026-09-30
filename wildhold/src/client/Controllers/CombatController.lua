@@ -6,6 +6,7 @@ local C = require(RS.Shared.Config.GameConfig)
 local I = require(RS.Shared.Config.ItemConfig)
 local Inv = require(RS.Shared.Modules.Inventory)
 local Swing = require(script.Parent.SwingController)
+local Build = require(script.Parent.BuildController)
 
 local Controller = {}
 
@@ -16,6 +17,11 @@ function Controller:Init(remotes)
 		if player:GetAttribute("PetMenuOpen") then return Enum.ContextActionResult.Pass end
 		if state == Enum.UserInputState.Begin and os.clock() - last >= C.SpearCooldown then
 			last = os.clock()
+			-- 설치 도구를 들고 있으면 공격 대신 설치
+			if Build:TryPlace() then
+				Swing:Play(player.Character, "Give", true)
+				return Enum.ContextActionResult.Sink
+			end
 			remotes.AttackRequest:FireServer()
 			-- 팔 동작은 서버를 기다리지 않고 바로 (든 것에 맞게: 도끼 내려찍기, 창 찌르기, 음식 먹기 …)
 			local character = player.Character

@@ -62,7 +62,7 @@ function I.motion(spec)
 		return "Eat"
 	elseif spec.Kind == "Trap" then
 		return "Throw"
-	elseif spec.Kind == "PetFood" then
+	elseif spec.Kind == "PetFood" or spec.Kind == "Build" then
 		return "Give"
 	elseif spec.Family == "Spear" then
 		return "Stab"

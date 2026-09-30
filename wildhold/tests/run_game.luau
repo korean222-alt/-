@@ -500,7 +500,7 @@ end
 char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("OldAxe"))
 if not step(0.3) then fail("도끼 들기") end
 check("도끼 들기", char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):GetAttribute("ItemId") == "OldAxe")
-for _, kind in ipairs({"Wood", "Wood", "Stone", "Fiber", "Berry"}) do harvest(kind, 12) end
+for _, kind in ipairs({"Wood", "Wood", "Wood", "Stone", "Fiber", "Berry"}) do harvest(kind, 12) end
 local bagTotal = 0
 for _, v in pairs(latest.Bag) do bagTotal = bagTotal + v end
 check("가방에 자원", bagTotal > 0, bagTotal)
@@ -551,25 +551,59 @@ teleport(21 * 0.7, -12 * 0.7)
 if not step(1.5) then fail("입금") end
 local bank = latest.Bank
 check("공용 창고 입금", (bank.Wood or 0) > 0, "나무 " .. tostring(bank.Wood) .. " / 돌 " .. tostring(bank.Stone))
--- 벽 짓기: 길목 1 의 바깥 벽 자리
-local wallSlot
-for _, model in ipairs(root.Map.DefenseSlots:GetChildren()) do
-	local pad = model:FindFirstChild(model.Name)
-	if pad and pad:GetAttribute("SlotType") == "Wall" and pad:GetAttribute("Level") == 0 then wallSlot = pad; break end
+local lane2Dir = D.Vector3.new(math.sin(math.rad(120)), 0, -math.cos(math.rad(120)))
+-- ===================================================================== 설치형 건축: 제작대 → 벽
+local Def = serverRequire(SSS.Services.DefenseService)
+local function structureCount(kind)
+	local n = 0
+	for _, slot in pairs(Def.Slots) do if not kind or slot.Kind == kind then n = n + 1 end end
+	return n
 end
-check("빈 벽 자리", wallSlot ~= nil)
-teleport(wallSlot.Position.X, wallSlot.Position.Z + 4)
-if not step(0.5) then fail("벽 자리 이동") end
-local buildPrompt = wallSlot:FindFirstChildOfClass("Attachment"):FindFirstChildOfClass("ProximityPrompt")
-buildPrompt.Triggered:Fire(player)
-if not step(1) then fail("건설") end
-check("벽 건설", wallSlot:GetAttribute("Level") == 1, notices[#notices])
+check("시작 구조물 (길목 문·벽·포탑) · 제작대 없음", structureCount() == 4 and Def:BenchLevel() == 0, structureCount() .. "개")
+-- ① 제작대 설치 도구: 어디서나 (가방 + 기지 안에서는 공용 창고)
+RS.Remotes.CraftAction:FireServer("WorkbenchKit")
+if not step(0.6) then fail("제작대 도구") end
+check("제작대 설치 도구 (손 제작, 나무 8)", toolOf("WorkbenchKit") ~= nil, notices[#notices])
+char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("WorkbenchKit"))
+teleport(-21, -2)
+if not step(0.5) then fail("제작대 자리") end
+-- ② 들고 설치 (기지 영역 밖은 안 됨)
+RS.Remotes.BuildRequest:FireServer("WorkbenchKit", D.CFrame.new(300, 0, 5))
+if not step(0.6) then fail("영역 밖 설치") end
+check("기지 영역 밖에는 설치 불가", Def:BenchLevel() == 0 and string.find(notices[#notices] or "", "기지 영역 밖") ~= nil, notices[#notices])
+RS.Remotes.BuildRequest:FireServer("WorkbenchKit", D.CFrame.new(-21, 0, -12))
+if not step(1) then fail("제작대 설치") end
+check("제작대 설치 → 제작대 Lv1", Def:BenchLevel() == 1 and latest.Bench == 1 and toolOf("WorkbenchKit") == nil, notices[#notices])
+local ghost = workspace:FindFirstChild("BuildGhost")
+check("설치 미리보기 (들고 있을 때만)", ghost ~= nil and #ghost:GetChildren() == 0)
+-- ③ 제작대 근처에서 벽 설치 도구 → 길목 2 바깥에 설치
+teleport(-21, -5)
+if not step(0.4) then fail("제작대 근처") end
+RS.Remotes.CraftAction:FireServer("WallKit")
+if not step(0.6) then fail("벽 도구") end
+check("벽 설치 도구 (제작대 근처)", toolOf("WallKit") ~= nil, notices[#notices])
+char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("WallKit"))
+local wallAt = lane2Dir * 62
+teleport(wallAt.X - lane2Dir.X * 10, wallAt.Z - lane2Dir.Z * 10)
+if not step(0.5) then fail("벽 자리") end
+check("벽 미리보기 모델", ghost and #ghost:GetChildren() == 1)
+RS.Remotes.BuildRequest:FireServer("WallKit", D.CFrame.lookAt(wallAt, wallAt + lane2Dir))
+if not step(1) then fail("벽 설치") end
+local wallSlot
+for _, slot in pairs(Def.Slots) do
+	if slot.Kind == "Wall" and (slot.CFrame.Position - wallAt).Magnitude < 2 then wallSlot = slot end
+end
+check("벽 건설", wallSlot ~= nil and wallSlot.Level == 1, notices[#notices])
 -- 벽 Lv2 는 제작대 Lv2 가 있어야 한다
+local buildPrompt = wallSlot.Pad:FindFirstChildOfClass("Attachment"):FindFirstChildOfClass("ProximityPrompt")
 buildPrompt.Triggered:Fire(player)
 if not step(1) then fail("강화 시도") end
-check("강화는 제작대 레벨 필요", wallSlot:GetAttribute("Level") == 1 and string.find(notices[#notices] or "", "제작대 Lv2") ~= nil, notices[#notices])
--- 제작: 횃불 → 핫바에 새 칸
-teleport(-21 * 0.75, -12 * 0.75)
+check("강화는 제작대 레벨 필요", wallSlot.Level == 1 and string.find(notices[#notices] or "", "제작대 Lv2") ~= nil, notices[#notices])
+-- 괴물이 오는 길을 막은 벽을 알아본다
+local blocker = Def:Barrier(lane2Dir * 80, lane2Dir * 40, 1.5, 30)
+check("괴물 길을 막은 벽 찾기", blocker == wallSlot, blocker and blocker.Kind)
+-- 제작: 횃불 → 핫바에 새 칸 (제작대 근처)
+teleport(-21, -5)
 if not step(0.5) then fail("제작대 이동") end
 RS.Remotes.CraftAction:FireServer("Torch")
 if not step(1.2) then fail("제작") end
@@ -658,7 +692,8 @@ if not step(1) then fail("등록") end
 local registered = false
 for _, pet in ipairs(latest.Pets) do if pet.Status == "밤 생존 대기" then registered = true end end
 check("펫 등록", registered, notices[#notices])
--- 펫 배치대
+-- 펫 배치대 (설치형: 여기서는 바로 놓는다)
+Def:Place("PetStand", D.CFrame.new(-14, 0, -32), 1, player)
 for _, model in ipairs(root.Map.DefenseSlots:GetChildren()) do
 	local pad = model:FindFirstChild(model.Name)
 	if pad and pad:GetAttribute("SlotType") == "PetStand" then

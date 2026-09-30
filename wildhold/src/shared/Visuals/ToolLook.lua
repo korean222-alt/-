@@ -129,6 +129,19 @@ local function trap(tool, handle, id, spec)
 	tool.Grip = grip(Vector3.new(0, 1.0, 0), 0)
 end
 
+-- 설치 도구: 끈으로 묶은 널빤지 꾸러미 + 종류 표시 (벽 = 돌색, 포탑 = 화살, 제작대 = 망치 …)
+local function kit(tool, handle, id)
+	handle.Size = Vector3.new(1.3, 0.5, 0.9)
+	handle.Color = hex("#9a7a52")
+	handle.Material = MAT.WoodPlanks
+	piece(tool, handle, Vector3.new(1.3, 0.4, 0.9), CFrame.new(0, 0.45, 0) * CFrame.Angles(0, math.rad(8), 0), hex("#8a6a44"), MAT.WoodPlanks)
+	piece(tool, handle, Vector3.new(0.14, 1.0, 0.95), CFrame.new(0.3, 0.2, 0), hex("#c9b07a"), MAT.Fabric)
+	piece(tool, handle, Vector3.new(0.14, 1.0, 0.95), CFrame.new(-0.3, 0.2, 0), hex("#c9b07a"), MAT.Fabric)
+	local marks = {WorkbenchKit = "#5d646b", WallKit = "#83878a", GateKit = "#6a5442", TowerKit = "#c0392b", SpikeKit = "#e2c79a", StandKit = "#8ff5e8", TorchKit = "#ffb347"}
+	piece(tool, handle, Vector3.new(0.5, 0.18, 0.5), CFrame.new(0, 0.74, 0), hex(marks[id] or "#ffffff"), id == "StandKit" and MAT.Neon or MAT.SmoothPlastic)
+	tool.Grip = grip(Vector3.new(0, 0.9, 0), 0)
+end
+
 local function food(tool, handle, id)
 	local colors = {Berry = "#c8304e", RoastMushroom = "#b07a4a", Stew = "#8a5a3a", Snack = "#d9a55c"}
 	if id == "Stew" then
@@ -176,6 +189,8 @@ function T.make(id)
 		torch(tool, handle, look)
 	elseif spec.Kind == "Trap" then
 		trap(tool, handle, id, spec)
+	elseif spec.Kind == "Build" then
+		kit(tool, handle, id)
 	else
 		food(tool, handle, id)
 	end

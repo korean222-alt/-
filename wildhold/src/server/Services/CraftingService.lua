@@ -1,5 +1,6 @@
--- 판 단위 소지품(도구·덫·먹이·음식·가방)과 제작.
---  제작대(팀 공용, Lv1~3)에서 재료로 도구·덫·가방을, 모닥불에서 음식을 만든다. 재료는 공용 창고에서 쓴다.
+-- 판 단위 소지품(도구·덫·먹이·음식·가방·설치 도구)과 제작.
+--  손 제작(어디서나): 🔨 제작대 설치 도구. 놓은 제작대 근처: 도구·덫·가방·벽/포탑 설치 도구 (제작대 레벨 조건). 모닥불: 음식.
+--  재료는 내 가방에서 먼저, 모자라면 공용 창고에서 (기지 영역 안일 때). BenchLevel = 놓인 제작대 중 가장 높은 레벨 (DefenseService 가 정한다)
 --  손에 드는 것은 전부 Roblox Tool 로 만들어 Backpack 에 넣는다 → 화면 아래 핫바(HotbarController)에서 골라 든다.
 --  Sync 가 0.5초마다 "가진 것 = 가방 속 Tool" 이 되도록 맞추므로, 캐릭터가 늦게 생겨도 도구가 빠지지 않는다.
 local RS = game:GetService("ReplicatedStorage")
@@ -15,7 +16,7 @@ local S = {}
 
 function S:Init(ctx)
 	self.ctx, self.Items, self.Last, self.AutoEquip, self.NextSync = ctx, {}, {}, {}, 0
-	self.BenchLevel = 1
+	self.BenchLevel = self.BenchLevel or 0
 end
 function S:AddPlayer(player)
 	local items = R.copy(I.Starter)
@@ -55,7 +56,6 @@ function S:RemovePlayer(player)
 	self.Items[player], self.Last[player], self.AutoEquip[player] = nil, nil, nil
 end
 function S:Reset()
-	self.BenchLevel = 1
 	for player in pairs(self.Items) do self:AddPlayer(player) end
 end
 
@@ -140,11 +140,17 @@ function S:OnSpawn(player)
 	self:Sync(player)
 end
 
--- 제작 가능 여부와 이유 (UI 도 같은 규칙을 보여준다)
+-- 제작 장소 조건. 반환: 되면 true, 안 되면 false 와 이유
 function S:Station(player, recipe)
-	local map = self.ctx.Map
-	local spot = recipe.Station == "Campfire" and map.Campfire or map.Workbench
-	return U.near(player, spot.Position, G.InteractionRange + 2)
+	if recipe.Station == "Hand" then return true end
+	if recipe.Station == "Campfire" then
+		return U.near(player, self.ctx.Map.Campfire.Position, G.InteractionRange + 2), "기지 모닥불 근처에서 요리할 수 있습니다."
+	end
+	local root = U.aliveRoot(player)
+	local level = root and self.ctx.Defenses:BenchNear(root.Position, G.InteractionRange + 6) or 0
+	if level == 0 then return false, "제작대 근처에서 만들 수 있습니다 · 먼저 🔨 제작대를 만들어 설치하세요 (나무 8)" end
+	if level < recipe.Bench then return false, "제작대 Lv" .. recipe.Bench .. " 가 필요합니다 · 제작대에서 [E] 강화" end
+	return true
 end
 
 function S:Craft(player, id)
@@ -159,12 +165,9 @@ function S:Craft(player, id)
 	if phase ~= "Day" and phase ~= "Night" then return end
 	if os.clock() - (self.Last[player] or -100) < 0.4 then return end
 	self.Last[player] = os.clock()
-	if not self:Station(player, recipe) then
-		self.ctx.Notify(player, recipe.Station == "Campfire" and "기지 모닥불 근처에서 요리할 수 있습니다." or "기지 제작대 근처에서 제작할 수 있습니다.")
-		return
-	end
-	if recipe.Bench > self.BenchLevel then
-		self.ctx.Notify(player, "제작대 Lv" .. recipe.Bench .. "가 필요합니다. 제작대를 업그레이드하세요.")
+	local here, why = self:Station(player, recipe)
+	if not here then
+		self.ctx.Notify(player, why)
 		return
 	end
 	local items = self.Items[player]
@@ -175,39 +178,31 @@ function S:Craft(player, id)
 		self.ctx.Notify(player, "더 들 수 없습니다: " .. spec.Name)
 		return
 	end
-	if self.ctx.Resources:Spend(recipe.Cost) then
+	if self.ctx.Resources:SpendFor(player, recipe.Cost) then
 		items[id] = (items[id] or 0) + 1
-		self.ctx.Notify(player, spec.Icon .. " " .. spec.Name .. (recipe.Station == "Campfire" and " 요리 완료" or " 제작 완료"))
-		local station = recipe.Station == "Campfire" and self.ctx.Map.Campfire or self.ctx.Map.Workbench
-		self.ctx.FX:FireAllClients("Craft", station.Position, id)
+		self.ctx.Notify(player, spec.Icon .. " " .. spec.Name .. (recipe.Station == "Campfire" and " 요리 완료" or " 제작 완료")
+			.. (spec.Kind == "Build" and " · 화면 아래 칸에서 들고 공격 버튼으로 설치 (R: 돌리기)" or ""))
+		local root = U.aliveRoot(player)
+		if root then self.ctx.FX:FireAllClients("Craft", root.Position, id) end
 		self:Sync(player)
 	else
-		self.ctx.Notify(player, "공용 창고의 재료가 부족합니다.")
+		self.ctx.Notify(player, "재료가 부족합니다 (가방 + 기지 안에서는 공용 창고)")
 	end
 end
 
+-- 제작 창의 "제작대 강화" 버튼: 가장 가까운 내 제작대를 강화 (DefenseService 와 같은 규칙)
 function S:UpgradeBench(player)
-	if not self.ctx.Run:IsParticipant(player) or self.ctx.Clock.Phase ~= "Day" then
-		self.ctx.Notify(player, "제작대 업그레이드는 낮에만 할 수 있습니다.")
-		return
+	local root = U.aliveRoot(player)
+	if not root then return end
+	local best, distance = nil, G.InteractionRange + 6
+	for _, slot in pairs(self.ctx.Defenses.Slots) do
+		if slot.Kind == "Workbench" then
+			local d = U.flat(slot.Pad.Position - root.Position).Magnitude
+			if d < distance then best, distance = slot, d end
+		end
 	end
-	if os.clock() - (self.Last[player] or -100) < 0.4 then return end
-	self.Last[player] = os.clock()
-	local nextLevel = C.Bench[self.BenchLevel + 1]
-	if not nextLevel then return end
-	if not U.near(player, self.ctx.Map.Workbench.Position, G.InteractionRange + 2) then
-		self.ctx.Notify(player, "기지 제작대 근처에서 업그레이드할 수 있습니다.")
-		return
-	end
-	if not self.ctx.Resources:Spend(nextLevel.Cost) then
-		self.ctx.Notify(player, "공용 창고의 재료가 부족합니다.")
-		return
-	end
-	self.BenchLevel = self.BenchLevel + 1
-	self.ctx.Map.Workbench:SetAttribute("Level", self.BenchLevel)
-	self.ctx.FX:FireAllClients("Build", self.ctx.Map.Workbench.Position, "Workbench", self.BenchLevel)
-	self.ctx.Notify(nil, "🔨 " .. nextLevel.Name .. " 달성! 새 제작법과 방어 시설 강화가 풀렸습니다")
-	if self.ctx.Defenses then self.ctx.Defenses:RefreshAll() end
+	if not best then self.ctx.Notify(player, "제작대 가까이에서 강화할 수 있습니다."); return end
+	self.ctx.Defenses:Interact(player, best, "Build")
 end
 
 return S

@@ -10,6 +10,7 @@ local R = require(RS.Shared.Config.ResourceConfig)
 local I = require(RS.Shared.Config.ItemConfig)
 local PR = require(RS.Shared.Modules.PetRules)
 local Shop = require(RS.Shared.Config.ShopConfig)
+local Defense = require(RS.Shared.Config.DefenseConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local Controller = {}
@@ -72,11 +73,11 @@ function Controller:Init(remotes)
 	corner(self.OpenButton, 39)
 	self.SaveBadge = label(self.OpenButton, "", UDim2.new(0, -40, 1, 2), UDim2.new(1, 80, 0, 16), {TextSize = 11, TextColor3 = COL.Gold,
 		TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.4})
-	self.Quick = create("Frame", self.Gui, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.45, 0), Size = UDim2.fromOffset(92, 190),
+	self.Quick = create("Frame", self.Gui, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.47, 0), Size = UDim2.fromOffset(92, 240),
 		BackgroundTransparency = 1})
 	create("UIListLayout", self.Quick, {Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Right})
 	self.QuickButtons = {}
-	for _, spec in ipairs({{"Focus", "🎯 사냥", "#b0553a"}, {"Follow", "🐾 따라와", "#2f6f8f"}, {"Guard", "🛡 지켜", "#4f5f8f"}}) do
+	for _, spec in ipairs({{"Focus", "🎯 사냥", "#b0553a"}, {"Follow", "🐾 따라와", "#2f6f8f"}, {"Guard", "🛡 지켜", "#4f5f8f"}, {"Craft", "🔨 제작", "#8a5a2f"}}) do
 		local b = button(self.Quick, spec[2], UDim2.new(), UDim2.fromOffset(92, 52), function() self:QuickCommand(spec[1]) end, Color3.fromHex(spec[3]))
 		b.TextSize = 15
 		self.QuickButtons[spec[1]] = b
@@ -137,6 +138,9 @@ function Controller:QuickCommand(action)
 	if action == "Focus" then
 		local wild = self.Data and self.Data.Wild and self.Data.Wild[1]
 		if wild then self:Send("Focus", wild.Id) end
+	elseif action == "Craft" then
+		self.Station = nil
+		self:Open("Craft")
 	else
 		self:Send(action)
 	end
@@ -265,14 +269,15 @@ function Controller:Render()
 		self.Rows[#self.Rows + 1] = {}
 	elseif self.Tab == "Craft" then
 		-- 제작대 레벨 + 업그레이드 (팀 공용)
-		local level = d.Bench or 1
-		local nextBench = Recipes.Bench[level + 1]
-		local head = self:Row(nextBench and 100 or 56)
+		local level = d.Bench or 0
+		local nextBench = level > 0 and Defense.Workbench.Levels[level + 1]
+		local head = self:Row(nextBench and 100 or 64)
 		label(head, "🔨", UDim2.fromOffset(10, 6), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
-		label(head, string.format("제작대 Lv%d  ·  팀 공용\n%s", level, nextBench and ("다음: " .. nextBench.Name .. "  " .. costText(nextBench.Cost)) or "최고 레벨"),
-			UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+		label(head, level == 0 and "아직 제작대가 없어요\n① 🔨 제작대 설치 도구 만들기(나무 8) → ② 들고 공격 버튼으로 기지 안에 설치"
+			or string.format("제작대 Lv%d (놓인 것 중 최고)\n%s", level, nextBench and ("다음: Lv" .. (level + 1) .. "  " .. costText(nextBench.Cost)) or "최고 레벨"),
+			UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 54))
 		if nextBench then
-			button(head, "⬆ 제작대 업그레이드 (낮)", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
+			button(head, "⬆ 가까운 제작대 강화 (낮)", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
 				Color3.fromHex("#8a5a2f"))
 		end
 		self.Rows[#self.Rows + 1] = {}
@@ -286,7 +291,7 @@ function Controller:Render()
 			local row = self:Row(100)
 			label(row, spec.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
 			local info = label(row, "", UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
-			local verb = recipe.Station == "Campfire" and "🔥 요리하기" or "🔨 만들기"
+			local verb = recipe.Station == "Campfire" and "🔥 요리하기" or (spec.Kind == "Build" and "🔨 설치 도구 만들기" or "🔨 만들기")
 			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
 			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
@@ -398,10 +403,10 @@ function Controller:Refresh(skip)
 		elseif row.Info and self.Tab == "Craft" then
 			local recipe, spec = Recipes.Recipes[row.Key], I.Items[row.Key]
 			local have = (d.Items or {})[row.Key] or 0
-			local locked = recipe.Bench > (d.Bench or 1)
+			local locked = recipe.Station == "Workbench" and recipe.Bench > (d.Bench or 0)
 			local owned = (spec.Kind == "Tool" or spec.Kind == "Bag") and (have > 0 and "✅ 보유 중" or "") or ("보유 " .. have)
-			local place = recipe.Station == "Campfire" and "모닥불" or "제작대"
-			row.Info.Text = string.format("%s  %s\n%s%s · %s", spec.Name, owned, locked and ("🔒 제작대 Lv" .. recipe.Bench .. " 필요 · ") or "", place, row.Cost)
+			local place = recipe.Station == "Campfire" and "모닥불" or (recipe.Station == "Hand" and "어디서나" or "제작대 근처")
+			row.Info.Text = string.format("%s  %s\n%s%s · %s", spec.Name, owned, locked and ((d.Bench or 0) == 0 and "🔒 제작대부터 · " or ("🔒 제작대 Lv" .. recipe.Bench .. " 필요 · ")) or "", place, row.Cost)
 			row.Info.TextColor3 = locked and COL.Muted or COL.Text
 			row.Button.BackgroundColor3 = locked and COL.Card2 or Color3.fromHex("#2f8f83")
 		end
@@ -409,7 +414,7 @@ function Controller:Refresh(skip)
 	local items = d.Items or {}
 	self.Footer.Text = string.format("🧺 덫 %d · 🧺 강화 %d · 💠 수정 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.CrystalTrap or 0,
 		items.Bait or 0, items.Snack or 0,
-		self.Tab == "Craft" and "제작대·모닥불 근처에서 만들어요 (재료는 공용 창고) · 만든 도구는 화면 아래 칸에 생겨요" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
+		self.Tab == "Craft" and "재료: 내 가방 먼저, 기지 안에서는 공용 창고까지 · 만든 것은 화면 아래 칸에 생겨요 (설치 도구는 들고 공격 버튼)" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
 end
 
 return Controller

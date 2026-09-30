@@ -7,7 +7,9 @@
 -- Damage = 적·야생 펫에게 주는 피해, Gather = 맞는 도구로 채집할 때 배율 (ResourceConfig 의 Tool 참고)
 return {
 	-- 핫바 순서
-	Order = {"Spear", "Axe", "Pickaxe", "Torch", "Trap", "BetterTrap", "CrystalTrap", "Snack", "Berry", "RoastMushroom", "Stew"},
+	-- 설치 도구(Build)는 가지고 있을 때만 칸이 생긴다 (놓으면 없어짐). 한 번에 9칸까지
+	Order = {"Spear", "Axe", "Pickaxe", "Torch", "WorkbenchKit", "WallKit", "GateKit", "TowerKit", "SpikeKit", "StandKit", "TorchKit",
+		"Trap", "BetterTrap", "CrystalTrap", "Snack", "Berry", "RoastMushroom", "Stew"},
 	Families = {"Spear", "Axe", "Pickaxe", "Torch"},
 	HandDamage = 6,
 	HandGather = 0.3, -- 맨손으로 나무·돌을 칠 때
@@ -32,6 +34,14 @@ return {
 		Berry = {Name = "열매", Icon = "🍓", Kind = "Food", Hunger = 9, Heal = 2, FromBag = true},
 		RoastMushroom = {Name = "구운 버섯", Icon = "🍄", Kind = "Food", Hunger = 32, Heal = 15},
 		Stew = {Name = "열매 스튜", Icon = "🍲", Kind = "Food", Hunger = 65, Heal = 40},
+		-- 설치 도구: 들고 공격 버튼 = 설치 (BuildConfig.Kits)
+		WorkbenchKit = {Name = "제작대 (설치)", Icon = "🔨", Kind = "Build"},
+		WallKit = {Name = "나무 벽 (설치)", Icon = "🧱", Kind = "Build"},
+		GateKit = {Name = "문 (설치)", Icon = "🚪", Kind = "Build"},
+		TowerKit = {Name = "화살 포탑 (설치)", Icon = "🏹", Kind = "Build"},
+		SpikeKit = {Name = "가시 함정 (설치)", Icon = "⚠", Kind = "Build"},
+		StandKit = {Name = "펫 배치대 (설치)", Icon = "🐾", Kind = "Build"},
+		TorchKit = {Name = "횃불대 (설치)", Icon = "🕯", Kind = "Build"},
 		FiberBag = {Name = "섬유 가방", Icon = "🎒", Kind = "Bag", Capacity = 100},
 		SturdyBag = {Name = "튼튼한 가방", Icon = "🎒", Kind = "Bag", Capacity = 150},
 	},

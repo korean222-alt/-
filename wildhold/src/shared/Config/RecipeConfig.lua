@@ -1,13 +1,21 @@
--- 제작법. 재료는 공용 창고에서 쓴다. 만든 물건은 만든 사람이 갖는다 (가방·도구·소모품).
---  Station = "Workbench" : 기지 제작대. Bench = 필요한 제작대 레벨 (제작대는 팀 공용으로 업그레이드)
+-- 제작법. 재료는 내 가방에서 먼저, 모자라면 공용 창고에서 쓴다 (기지 영역 안에 있을 때). 만든 물건은 만든 사람이 갖는다.
+--  Station = "Hand"      : 어디서나 (🔨 제작대 설치 도구 — 나무 한 그루면 된다, 들어와서 1분 안에 첫 건축)
+--  Station = "Workbench" : 내가 놓은 제작대 근처. Bench = 필요한 제작대 레벨 (제작대에서 [E] 강화)
 --  Station = "Campfire"  : 기지 모닥불에서 요리
 return {
 	Order = {
-		"Torch", "StoneAxe", "StonePick", "StoneSpear", "Trap", "Bait", "Snack", "FiberBag", "RoastMushroom",
+		"WorkbenchKit", "WallKit", "GateKit", "TowerKit", "SpikeKit", "StandKit", "TorchKit", "Torch", "StoneAxe", "StonePick", "StoneSpear", "Trap", "Bait", "Snack", "FiberBag", "RoastMushroom",
 		"BetterTrap", "IronAxe", "IronPick", "IronSpear", "SturdyBag", "Stew",
 		"CrystalTrap", "CrystalSpear",
 	},
 	Recipes = {
+		WorkbenchKit = {Station = "Hand", Bench = 0, Cost = {Wood = 8}},
+		WallKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 10}},
+		GateKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 8}},
+		TowerKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 15, Stone = 5}},
+		SpikeKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 8, Stone = 4}},
+		StandKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 4, Stone = 6}},
+		TorchKit = {Station = "Workbench", Bench = 1, Cost = {Wood = 2, Fiber = 1}},
 		Torch = {Station = "Workbench", Bench = 1, Cost = {Wood = 2, Fiber = 2}},
 		StoneAxe = {Station = "Workbench", Bench = 1, Cost = {Wood = 5, Stone = 4, Fiber = 3}},
 		StonePick = {Station = "Workbench", Bench = 1, Cost = {Wood = 5, Stone = 4, Fiber = 3}},
@@ -26,10 +34,10 @@ return {
 		CrystalTrap = {Station = "Workbench", Bench = 3, Cost = {Crystal = 2, Scrap = 3, Fiber = 4}},
 		CrystalSpear = {Station = "Workbench", Bench = 3, Cost = {Crystal = 6, Scrap = 10, Wood = 4}},
 	},
-	-- 제작대 레벨 (팀 공용). 레벨이 오르면 새 제작법과 방어 시설 업그레이드가 풀린다.
+	-- 제작대 레벨 이름 (강화 비용은 DefenseConfig.Workbench). 레벨이 오르면 새 제작법과 방어 시설 강화가 풀린다.
 	Bench = {
 		{Name = "제작대 Lv1"},
-		{Name = "제작대 Lv2", Cost = {Wood = 40, Stone = 25, Fiber = 10}},
-		{Name = "제작대 Lv3", Cost = {Stone = 40, Scrap = 20, Crystal = 5}},
+		{Name = "제작대 Lv2"},
+		{Name = "제작대 Lv3"},
 	},
 }

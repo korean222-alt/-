@@ -106,17 +106,23 @@ function S.storehouse(parent, at)
 	return B.decorate(m)
 end
 
--- ===================================================================== 제작대
-function S.workbench(parent, at)
+-- ===================================================================== 제작대 (Lv1 나무 작업대 → Lv2 돌 받침·모루 → Lv3 쇠 틀·수정 등)
+function S.workbench(parent, at, level)
+	level = level or 1
 	local m = B.model(parent, "Workbench")
-	B.block(m, Vector3.new(8, 0.8, 4), at * CFrame.new(0, 3.2, 0), WOOD_L, M.WoodPlanks)
+	local top = level >= 3 and "#8c8f94" or WOOD_L
+	B.block(m, Vector3.new(8, 0.8, 4), at * CFrame.new(0, 3.2, 0), top, level >= 3 and M.DiamondPlate or M.WoodPlanks)
 	for _, x in ipairs({-3.4, 3.4}) do
 		for _, z in ipairs({-1.5, 1.5}) do
-			B.block(m, Vector3.new(0.7, 3.2, 0.7), at * CFrame.new(x, 1.6, z), WOOD, M.Wood)
+			if level >= 2 then
+				B.block(m, Vector3.new(1, 3.2, 1), at * CFrame.new(x, 1.6, z), STONE, M.Cobblestone)
+			else
+				B.block(m, Vector3.new(0.7, 3.2, 0.7), at * CFrame.new(x, 1.6, z), WOOD, M.Wood)
+			end
 		end
 	end
 	-- 모루 그루터기, 망치, 톱, 밧줄, 덫 견본
-	B.solid(B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true))
+	B.cyl(m, 2.4, 2.6, at * CFrame.new(6, 1.2, 0.5), WOOD, M.Wood, true)
 	B.block(m, Vector3.new(2, 0.9, 1), at * CFrame.new(6, 2.8, 0.5), "#5d646b", M.Metal)
 	B.cyl(m, 1.8, 0.25, at * CFrame.new(-1.8, 3.8, -0.6) * CFrame.Angles(0, math.rad(30), 0), WOOD_D, M.Wood)
 	B.block(m, Vector3.new(0.5, 0.5, 0.9), at * CFrame.new(-1.0, 3.8, -0.9) * CFrame.Angles(0, math.rad(30), 0), "#5d646b", M.Metal)
@@ -124,10 +130,29 @@ function S.workbench(parent, at)
 	local trap = B.model(m, "TrapSample")
 	S.trapIcon(trap, at * CFrame.new(-0.2, 3.6, 0.8), 0.7)
 	-- 뒤판 + 공구걸이
-	B.block(m, Vector3.new(8, 4, 0.3), at * CFrame.new(0, 5.6, 1.9), WOOD_D, M.WoodPlanks)
+	B.block(m, Vector3.new(8, 4, 0.3), at * CFrame.new(0, 5.6, 1.9), level >= 3 and "#5d646b" or WOOD_D, level >= 3 and M.Metal or M.WoodPlanks)
 	B.block(m, Vector3.new(0.3, 2, 0.2), at * CFrame.new(-2.5, 5.5, 1.6), "#5d646b", M.Metal)
 	B.block(m, Vector3.new(1.4, 0.2, 0.2), at * CFrame.new(1.5, 6.2, 1.6), "#5d646b", M.Metal)
-	Props.lantern(m, at * CFrame.new(3.6, 7.9, 1.5))
+	if level >= 2 then
+		-- 돌 화덕 + 풀무
+		B.block(m, Vector3.new(2.6, 2.4, 2.4), at * CFrame.new(-6, 1.2, 0.3), STONE_D, M.Cobblestone)
+		local ember = B.block(m, Vector3.new(1.4, 0.6, 1.2), at * CFrame.new(-6, 2.3, 0.1), "#ff8a3a", M.Neon)
+		B.light(ember, "PointLight", {Range = 9, Brightness = 1.2, Color = Color3.fromHex("#ff9a4a"), Shadows = false})
+		B.block(m, Vector3.new(0.3, 1.6, 0.3), at * CFrame.new(-6, 3.6, 1), STONE_D, M.Slate)
+	end
+	if level >= 3 then
+		-- 수정 등 + 쇠 테두리
+		local lamp = B.block(m, Vector3.new(0.7, 1.4, 0.7), at * CFrame.new(3.2, 8.1, 1.5) * CFrame.Angles(0, math.rad(45), 0), "#7ff0ff", M.Neon)
+		B.light(lamp, "PointLight", {Range = 16, Brightness = 1.5, Color = Color3.fromHex("#8ff5ff"), Shadows = false})
+		for _, x in ipairs({-4, 4}) do
+			B.block(m, Vector3.new(0.3, 7.6, 0.3), at * CFrame.new(x, 3.8, 1.9), "#5d646b", M.Metal)
+		end
+	else
+		Props.lantern(m, at * CFrame.new(3.6, 7.9, 1.5))
+	end
+	-- 레벨 깃발 (멀리서도 몇 레벨인지 보이게)
+	local flag = B.block(m, Vector3.new(1.4, 0.9, 0.1), at * CFrame.new(-3.6, 8, 1.95), ({"#8a6a3a", "#9aa1a6", "#7ff0ff"})[level] or "#8a6a3a", M.Fabric)
+	flag.Name = "LevelFlag"
 	B.hitbox(m, Vector3.new(8, 4, 4), at * CFrame.new(0, 2, 0), true)
 	return B.decorate(m)
 end
@@ -422,6 +447,19 @@ function S.defense(parent, kind, level, at, width)
 	end
 	B.decorate(m, kind ~= "SpikeTrap")
 	return m, muzzle
+end
+
+-- 설치형 구조물 하나 (DefenseService). 반환: 모델, 사격 높이
+function S.structure(parent, kind, level, at, width)
+	if kind == "Workbench" then
+		return S.workbench(parent, at, level), 3
+	elseif kind == "TorchPost" then
+		local m = B.model(parent, "TorchPost")
+		Props.torch(m, at, 6)
+		B.hitbox(m, Vector3.new(1.2, 7, 1.2), at * CFrame.new(0, 3.5, 0), true)
+		return B.decorate(m), 6
+	end
+	return S.defense(parent, kind, level, at, width)
 end
 
 return S

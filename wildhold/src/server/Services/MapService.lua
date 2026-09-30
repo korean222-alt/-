@@ -1,6 +1,7 @@
 -- 원정 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 모닥불, 펫 우리) + 3 길목 + 지역(초원·바위 협곡·고목의 숲·안개 늪)
 -- + 자원 노드 + 야생 펫 자리 + 숲. 놀 수 있는 곳은 지름 약 1500 (MapConfig).
--- 다른 서비스가 쓰는 값: Lanes, Slots, Nodes, WildSpawns, Core, Warehouse, Workbench, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CraftPrompt, CookPrompt
+-- 다른 서비스가 쓰는 값: Lanes, Nodes, WildSpawns, Core, Warehouse, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CookPrompt
+-- 제작대·벽·포탑은 고정 자리가 없다: 플레이어가 설치한다 (DefenseService, 시작 구조물은 BuildConfig.Starter)
 -- 맵 가장자리에는 보이지 않는 경계 벽(WallRadius)이 있고, 지도(미니맵)용 격자를 ReplicatedStorage.MapGrid 로 내보낸다.
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
@@ -70,7 +71,11 @@ function Map:Build()
 		end
 	end
 	self:BuildLanes()
-	self:BuildSlots()
+	-- 시작 구조물 자리 (길목 문·벽·포탑)는 나무·자원이 들어가지 않게 비워 둔다
+	for _, spec in ipairs(require(RS.Shared.Config.BuildConfig).Starter) do
+		local lane = self.Lanes[spec[2]]
+		self:Block(lane.Dir * spec[3] + lane.Side * spec[4], 8)
+	end
 	self:BuildNodes()
 	self:BuildWild()
 	self:BuildScenery()
@@ -190,7 +195,7 @@ function Map:BuildTerrain()
 		end
 	end
 	-- 건물 아래 흙 바닥
-	for _, spot in ipairs({C.Warehouse, C.Workbench, C.Cage}) do
+	for _, spot in ipairs({C.Warehouse, C.Cage}) do
 		T:FillCylinder(CFrame.new(spot[1], -2, spot[3]), 4, 9, MAT.Ground)
 	end
 	-- 연못: 기지 근처 1개 + 늪 여러 개 (모래·진흙 둘레 → 파기 → 물)
@@ -292,7 +297,7 @@ function Map:BuildBase()
 	self.Core.Name = "Core"
 	self:Mark(Vector3.zero, C.BaseRadius, "B")
 	self:Mark(Vector3.zero, 5, "Q")
-	for _, spot in ipairs({C.Warehouse, C.Workbench, C.Cage}) do
+	for _, spot in ipairs({C.Warehouse, C.Cage}) do
 		self:Mark(Vector3.new(spot[1], 0, spot[3]), 6, "K")
 	end
 
@@ -305,12 +310,6 @@ function Map:BuildBase()
 		ring.CFrame = CFrame.new(self.Warehouse.Position.X, 0.1, self.Warehouse.Position.Z) * CFrame.Angles(0, 0, math.rad(90))
 	end
 
-	S.workbench(base, toCore(C.Workbench[1], C.Workbench[3]))
-	self.Workbench = base.Workbench.Hitbox
-	self.Workbench.Name = "제작대"
-	self.CraftPrompt = U.prompt(self.Workbench, "Craft", "도구 · 덫 · 가방 만들기 / 업그레이드", Enum.KeyCode.E, Vector3.new(0, 1.5, -2.5))
-	self.Workbench:SetAttribute("Level", 1)
-	self.CraftPrompt.ObjectText = "제작대"
 
 	local _, penPad = S.pen(base, CFrame.new(C.Cage[1], 0, C.Cage[3]))
 	self.Cage = penPad
@@ -434,33 +433,6 @@ function Map:BuildLanes()
 		text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
 		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, tostring(lane.Id), Color3.fromHex("#2a2530")
 		text.Parent = gui
-	end
-end
-
--- ============================================================= 방어 자리
-function Map:BuildSlots()
-	for _, spec in ipairs(C.Slots) do
-		local kind, laneId, radius, side, initial = table.unpack(spec)
-		local lane = self.Lanes[math.max(1, laneId)]
-		local pos = lane.Dir * radius + lane.Side * side
-		local frame = CFrame.lookAt(pos, pos + lane.Dir)
-		local id = string.format("S%02d", #self.Slots + 1)
-		local model, pad, blueprint = S.slotBase(self.SlotsFolder, frame, kind)
-		model.Name = id
-		pad.Name = id
-		pad:SetAttribute("SlotId", id)
-		pad:SetAttribute("SlotType", kind)
-		pad:SetAttribute("LaneId", lane.Id)
-		local width = (radius == C.BaseRadius) and C.GapWidth or C.LaneWidth
-		table.insert(self.Slots, {Id = id, Kind = kind, LaneId = lane.Id, Pad = pad, CFrame = frame, Width = width,
-			Blueprint = blueprint, InitialLevel = initial})
-		self:Block(pos, 7)
-		if kind == "PetStand" then
-			local stand = S.defense(model, "PetStand", 1, frame)
-			stand.Name = "Stand"
-			blueprint:Destroy()
-			pad.Size = Vector3.new(5.6, 0.4, 5.6)
-		end
 	end
 end
 
