@@ -12,6 +12,7 @@ local U = require(RS.Shared.Modules.Utility)
 local Inv = require(RS.Shared.Modules.Inventory)
 local ToolLook = require(RS.Shared.Visuals.ToolLook)
 local Shop = require(RS.Shared.Config.ShopConfig)
+local L = require(RS.Shared.Modules.Locale)
 local S = {}
 
 function S:Init(ctx)
@@ -39,8 +40,8 @@ function S:BuyPerk(player, id)
 	if not perk or not profile or not self.Items[player] then return end
 	if os.clock() - (self.Last[player] or -100) < 0.4 then return end
 	self.Last[player] = os.clock()
-	if profile.Perks[id] then self.ctx.Notify(player, "이미 해금했습니다."); return end
-	if profile.Coins < perk.Cost then self.ctx.Notify(player, "코인이 부족합니다 · 밤을 버티면 코인을 받아요"); return end
+	if profile.Perks[id] then self.ctx.Notify(player, L.M("perk.owned")); return end
+	if profile.Coins < perk.Cost then self.ctx.Notify(player, L.M("perk.noCoins")); return end
 	local ok = self.ctx.Data:Mutate(player, function(data)
 		if data.Perks[id] or data.Coins < perk.Cost then return end
 		data.Coins = data.Coins - perk.Cost
@@ -48,7 +49,7 @@ function S:BuyPerk(player, id)
 	end)
 	if ok and profile.Perks[id] then
 		for item, n in pairs(perk.Give) do self.Items[player][item] = (self.Items[player][item] or 0) + n end
-		self.ctx.Notify(player, perk.Icon .. " 해금! " .. perk.Name .. " (이번 원정에도 지급)")
+		self.ctx.Notify(player, L.M("perk.unlockedNow", {icon = perk.Icon, name = L.M("perk." .. id)}))
 		self:Sync(player)
 	end
 end
@@ -144,12 +145,12 @@ end
 function S:Station(player, recipe)
 	if recipe.Station == "Hand" then return true end
 	if recipe.Station == "Campfire" then
-		return U.near(player, self.ctx.Map.Campfire.Position, G.InteractionRange + 2), "기지 모닥불 근처에서 요리할 수 있습니다."
+		return U.near(player, self.ctx.Map.Campfire.Position, G.InteractionRange + 2), L.M("craft.needFire")
 	end
 	local root = U.aliveRoot(player)
 	local level = root and self.ctx.Defenses:BenchNear(root.Position, G.InteractionRange + 6) or 0
-	if level == 0 then return false, "제작대 근처에서 만들 수 있습니다 · 먼저 🔨 제작대를 만들어 설치하세요 (나무 8)" end
-	if level < recipe.Bench then return false, "제작대 Lv" .. recipe.Bench .. " 가 필요합니다 · 제작대에서 [E] 강화" end
+	if level == 0 then return false, L.M("craft.needBenchFirst") end
+	if level < recipe.Bench then return false, L.M("craft.needBenchLv", {lv = recipe.Bench}) end
 	return true
 end
 
@@ -173,20 +174,20 @@ function S:Craft(player, id)
 	local items = self.Items[player]
 	if not items then return end
 	if spec.Kind == "Tool" or spec.Kind == "Bag" then
-		if (items[id] or 0) > 0 then self.ctx.Notify(player, "이미 가지고 있습니다: " .. spec.Name); return end
+		if (items[id] or 0) > 0 then self.ctx.Notify(player, L.M("craft.haveIt", {name = L.M("item." .. id)})); return end
 	elseif (items[id] or 0) >= I.Limit then
-		self.ctx.Notify(player, "더 들 수 없습니다: " .. spec.Name)
+		self.ctx.Notify(player, L.M("craft.full", {name = L.M("item." .. id)}))
 		return
 	end
 	if self.ctx.Resources:SpendFor(player, recipe.Cost) then
 		items[id] = (items[id] or 0) + 1
-		self.ctx.Notify(player, spec.Icon .. " " .. spec.Name .. (recipe.Station == "Campfire" and " 요리 완료" or " 제작 완료")
-			.. (spec.Kind == "Build" and " · 화면 아래 칸에서 들고 공격 버튼으로 설치 (R: 돌리기)" or ""))
+		self.ctx.Notify(player, L.M(recipe.Station == "Campfire" and "craft.cooked" or (spec.Kind == "Build" and "craft.madeKit" or "craft.made"),
+			{icon = spec.Icon, name = L.M("item." .. id)}))
 		local root = U.aliveRoot(player)
 		if root then self.ctx.FX:FireAllClients("Craft", root.Position, id) end
 		self:Sync(player)
 	else
-		self.ctx.Notify(player, "재료가 부족합니다 (가방 + 기지 안에서는 공용 창고)")
+		self.ctx.Notify(player, L.M("craft.noMats"))
 	end
 end
 
@@ -201,7 +202,7 @@ function S:UpgradeBench(player)
 			if d < distance then best, distance = slot, d end
 		end
 	end
-	if not best then self.ctx.Notify(player, "제작대 가까이에서 강화할 수 있습니다."); return end
+	if not best then self.ctx.Notify(player, L.M("craft.nearBench")); return end
 	self.ctx.Defenses:Interact(player, best, "Build")
 end
 

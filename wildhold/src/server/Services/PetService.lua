@@ -6,6 +6,7 @@ local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local Shop=require(RS.Shared.Config.ShopConfig)
 local TextService=game:GetService("TextService")
+local L=require(RS.Shared.Modules.Locale)
 local S={}
 -- 값이 바뀔 때만 속성을 복제한다 (0.2초마다 같은 값을 보내지 않도록)
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
@@ -49,8 +50,8 @@ function S:SetTeam(player,ids,initial)
     ids=R.party(ids,roster,P.ActiveLimit); if not ids then return false end
     local phase=self.ctx.Clock.Phase
     if not initial then
-        if phase~="Day" and phase~="Waiting" then self.ctx.Notify(player,"편성은 낮과 출발 대기에 가능합니다.");return false end
-        for _,rec in pairs(roster) do if os.clock()-rec.LastCombat<P.SwapCooldown then self.ctx.Notify(player,"전투가 끝난 뒤 6초 후 교체할 수 있습니다.");return false end end
+        if phase~="Day" and phase~="Waiting" then self.ctx.Notify(player,L.M("pet.teamWhen"));return false end
+        for _,rec in pairs(roster) do if os.clock()-rec.LastCombat<P.SwapCooldown then self.ctx.Notify(player,L.M("pet.teamCooldown",{s=P.SwapCooldown}));return false end end
     end
     local occupied=R.count(self.Active)-#(self.Teams[player] or {})
     if occupied+#ids>P.ServerLimit then return false end
@@ -96,7 +97,7 @@ function S:Award(player,amount)
         rec.HP=rec.MaxHP
         if rec.Part then rec.Part:SetAttribute("Stage",2);self.ctx.FX:FireAllClients("Evolve",rec.Part.Position,rec.Data.SpeciesId) end
         local name=R.name(rec.Data.SpeciesId,2,P)
-        self.ctx.Notify(player,"✨ "..P.Species[rec.Data.SpeciesId].Name.." 이(가) "..name.." (으)로 진화했습니다!")
+        self.ctx.Notify(player,L.M("pet.evolved",{from=R.name(rec.Data.SpeciesId,1,P),to=name}))
         self.ctx.PetFX:FireClient(player,"Evolve",name)
     end
 end
@@ -104,7 +105,7 @@ function S:Saved(player,snapshot)
     for uid,rec in pairs(self.Rosters[player] or {}) do
         if rec.PendingSave and snapshot.Pets[uid] then
             rec.PendingSave,rec.Secured=false,true
-            self.ctx.Notify(player,"영구 확정: "..R.name(rec.Data.SpeciesId,R.stage(rec.Data),P)..(self.ctx.Data.Memory and " (연습 모드)" or ""))
+            self.ctx.Notify(player,L.M(self.ctx.Data.Memory and "pet.securedPractice" or "pet.secured",{name=R.name(rec.Data.SpeciesId,R.stage(rec.Data),P)}))
             self.ctx.PetFX:FireClient(player,"Secured")
         end
     end
@@ -138,7 +139,7 @@ function S:NightSurvived(night,cleared)
             end)
             if granted then
                 self:Award(player,P.NightXP);self.ctx.Data:Save(player)
-                for _,id in ipairs(newSpecies) do self.ctx.Notify(player,"📖 도감 새 종! "..P.Species[id].Name.." · 🪙 +"..Shop.DexReward) end
+                for _,id in ipairs(newSpecies) do self.ctx.Notify(player,L.M("pet.newDex",{name=R.name(id,1,P),coins=Shop.DexReward})) end
             end
         end
     end
@@ -183,7 +184,7 @@ function S:Action(player,action,value)
         local slot=tostring(value)
         if action=="SaveTeam" then
             self.ctx.Data:Mutate(player,function(data) data.Loadouts[slot]=R.copy(data.Party) end)
-            self.ctx.Notify(player,"팀 "..slot.." 저장 · 영구 펫만 포함됩니다.")
+            self.ctx.Notify(player,L.M("pet.teamSaved",{n=slot}))
         elseif profile.Loadouts[slot] then self:SetTeam(player,profile.Loadouts[slot]) end
     elseif action=="Follow" or action=="Stay" or action=="Guard" then self:Command(player,action)
     elseif action=="Focus" and type(value)=="string" then
@@ -191,7 +192,7 @@ function S:Action(player,action,value)
         if wild and self.ctx.Clock.Phase=="Day" and U.near(player,wild.Part.Position,80) and self.ctx.Capture:CanFight(player,wild) then self:Command(player,"Focus",value) end
     elseif action=="Register" and U.near(player,self.ctx.Map.Cage.Position,G.InteractionRange) then
         local n=0;for _,rec in pairs(roster) do if not rec.Secured and not rec.PendingSave then rec.Registered=true;n=n+1 end end
-        self.ctx.Notify(player,n.."마리 등록 · 다음 밤을 버티면 저장됩니다.")
+        self.ctx.Notify(player,L.M("pet.registered",{n=n}))
     elseif action=="Rename" and type(value)=="table" and type(value.Uid)=="string" and roster[value.Uid] and type(value.Name)=="string" then
         self:Rename(player,roster[value.Uid],value.Name)
     elseif action=="Heal" and type(value)=="string" and roster[value] then
@@ -217,7 +218,7 @@ function S.FilterName(player,text,ctx)
     local ok,filtered=pcall(function()
         return TextService:FilterStringAsync(text,player.UserId):GetNonChatStringForBroadcastAsync()
     end)
-    if not ok or type(filtered)~="string" then ctx.Notify(player,"이름을 확인하지 못했습니다. 잠시 후 다시 해 주세요.");return nil end
+    if not ok or type(filtered)~="string" then ctx.Notify(player,L.M("pet.nameFailed"));return nil end
     return filtered
 end
 function S:Rename(player,rec,text)
@@ -225,7 +226,7 @@ function S:Rename(player,rec,text)
     if not text or not self.ctx.Data:Ready(player) then return end
     self.ctx.Data:Mutate(player,function() rec.Data.Nickname=text~="" and text or nil end)
     if rec.Part then rec.Part:SetAttribute("Nickname",text) end
-    self.ctx.Notify(player,text~="" and ("이름을 지었습니다: "..text) or "이름을 지웠습니다")
+    self.ctx.Notify(player,text~="" and L.M("pet.named",{name=text}) or L.M("pet.nameCleared"))
 end
 -- 간식을 들고 공격 버튼: 가까이 있는 내 펫 중 가장 많이 다친 펫을 회복
 function S:FeedNearest(player)
@@ -233,7 +234,7 @@ function S:FeedNearest(player)
     for _,rec in pairs(self.Rosters[player] or {}) do
         if rec.Part and rec.HP>0 and rec.HP<rec.MaxHP and U.near(player,rec.Part.Position,G.SnackRange) and rec.HP/rec.MaxHP<ratio then best,ratio=rec,rec.HP/rec.MaxHP end
     end
-    if not best then self.ctx.Notify(player,"가까이에 다친 펫이 없습니다.");return end
+    if not best then self.ctx.Notify(player,L.M("pet.noHurt"));return end
     if self.ctx.Crafting:Use(player,"Snack") then
         best.HP=math.min(best.MaxHP,best.HP+best.MaxHP*0.5)
         self.ctx.FX:FireAllClients("Eat",best.Part.Position,"Snack")
@@ -315,7 +316,7 @@ function S:Tick(dt)
             attr(rec.Part,"Fainted",rec.HP<=0)
             attr(rec.Part,"Level",stats.Level);attr(rec.Part,"HP",math.ceil(rec.HP));attr(rec.Part,"MaxHP",rec.MaxHP)
             attr(rec.Part,"Mode",rec.Mode);attr(rec.Part,"Standing",rec.Stand~=nil)
-            attr(rec.Part,"Status",rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "등록됨" or "미등록")))
+            attr(rec.Part,"Status",rec.Secured and "Secured" or (rec.PendingSave and "Saving" or (rec.Registered and "Registered" or "Unregistered")))
         end
     end
 end
@@ -325,13 +326,13 @@ function S:AssignStand(player,slot)
     if os.clock()-(self.LastAction[player] or -100)<0.35 then return end
     self.LastAction[player]=os.clock()
     if not self.ctx.Data:Ready(player) or not U.near(player,slot.Pad.Position,G.InteractionRange) then return end
-    for _,other in pairs(self.Active) do if other.Stand==slot.Id then self.ctx.Notify(player,"이미 펫이 지키고 있습니다.");return end end
+    for _,other in pairs(self.Active) do if other.Stand==slot.Id then self.ctx.Notify(player,L.M("pet.standTaken"));return end end
     for _,uid in ipairs(self.Teams[player] or {}) do
         local rec=self.Rosters[player][uid]
         if rec.HP>0 and not rec.Stand then
             rec.Mode,rec.Stand,rec.Target="Guard",slot.Id,nil
             rec.Part.Position=slot.Pad.Position+Vector3.new(0,3,0)
-            self.ctx.Notify(player,"배치 완료 · 공격력/사거리 보정");return
+            self.ctx.Notify(player,L.M("pet.standDone"));return
         end
     end
 end
@@ -340,7 +341,8 @@ function S:Snapshot(player)
     for uid,rec in pairs(self.Rosters[player] or {}) do
         list[#list+1]={Uid=uid,SpeciesId=rec.Data.SpeciesId,Stage=R.stage(rec.Data),Level=rec.Data.Level,EffectiveLevel=math.min(rec.Data.Level,P.RegionCap),
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
-            Status=rec.Secured and "영구" or (rec.PendingSave and "저장 중" or (rec.Registered and "밤 생존 대기" or "미등록")),Mode=rec.Mode,
+            -- 상태 코드 (화면 글자는 Locale "status.<코드>")
+            Status=rec.Secured and "Secured" or (rec.PendingSave and "Saving" or (rec.Registered and "Registered" or "Unregistered")),Mode=rec.Mode,
             Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P)}
     end
     table.sort(list,function(a,b) if a.Active~=b.Active then return a.Active end;if a.Favorite~=b.Favorite then return a.Favorite end;return a.Uid<b.Uid end)

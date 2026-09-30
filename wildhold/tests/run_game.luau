@@ -258,6 +258,7 @@ local player = R.newInstance("Player")
 player.Name = "Tester"
 rawget(player, "_props").UserId = 1001
 rawget(player, "_props").DisplayName = "테스터"
+rawget(player, "_props").LocaleId = "ko-kr" -- 기기 언어 = 한국어 (설정에서 고르지 않으면 이 언어)
 E.decorate(player)
 rawset(player, "_custom", {Kick = function(_, msg) table.insert(R.Kicks, msg) end})
 local playerGui = R.newInstance("PlayerGui", player)
@@ -301,15 +302,20 @@ for _, child in ipairs(SPS:GetChildren()) do
 end
 local latest
 RS.Remotes.State.OnClientEvent:Connect(function(data) latest = data end)
+-- 서버 알림은 번역 메시지 → 검사하기 쉽게 한국어 글자로 바꿔 모은다
+local Loc = serverRequire(shared.Modules.Locale)
 local notices = {}
-RS.Remotes.Notice.OnClientEvent:Connect(function(msg) table.insert(notices, msg) end)
+RS.Remotes.Notice.OnClientEvent:Connect(function(msg) table.insert(notices, Loc.text(msg, "ko")) end)
 local fxCount = {}
 RS.Remotes.FX.OnClientEvent:Connect(function(kind) fxCount[kind] = (fxCount[kind] or 0) + 1 end)
+-- 배경음악 목록이 있으면 트는지 보려고 (클라이언트 설정 모듈만)
+clientRequire(shared.Config.AudioConfig).Music.Lobby = {"rbxassetid://1"}
+clientRequire(shared.Config.AudioConfig).Music.Day = {"rbxassetid://2", "rbxassetid://3"}
 print("▶ 클라이언트 시작")
 run(playerScripts.ClientMain, clientGlobals, clientRequire)
 if not step(2) then fail("클라이언트 시작") end
 for _, w in ipairs(R.Warnings) do
-	if w:find("시작 실패") then fail("컨트롤러 시작 실패: " .. w) end
+	if w:find("failed to start") then fail("컨트롤러 시작 실패: " .. w) end
 end
 -- ===================================================================== 로비 → 혼자 바로 출발
 local lobbyState
@@ -324,6 +330,35 @@ check("로비 화면 · 상태", playerGui:FindFirstChild("Lobby") ~= nil and pl
 local lobbyPets = 0
 for _, a in ipairs(root.Pets:GetChildren()) do if string.sub(a.Name, 1, 6) == "Lobby_" then lobbyPets = lobbyPets + 1 end end
 check("로비에서 출전 펫이 따라다님", lobbyPets == 1, lobbyPets)
+-- 번역: 기기 언어(ko-kr) → 한국어. ⚙ 설정에서 영어로 바꾸면 내 화면과 서버가 만든 간판이 영어로, 저장된다
+do
+	local LocC = clientRequire(shared.Modules.Locale)
+	local Data = serverRequire(SSS.Services.DataService)
+	local function findText(where, text)
+		for _, d in ipairs(where:GetDescendants()) do
+			if (d._class == "TextLabel" or d._class == "TextButton") and d.Text == text then return d end
+		end
+		return nil
+	end
+	check("기기 언어로 시작 (ko-kr → 한국어)", LocC.lang == "ko" and findText(playerGui.Lobby, "▶ 혼자 바로 출발") ~= nil
+		and findText(root, "🥚 부화장") ~= nil, LocC.lang)
+	check("배경음악 (로비)", game:GetService("SoundService"):FindFirstChild("Music_Lobby") ~= nil)
+	RS.Remotes.Settings:FireServer("Lang", "en")
+	RS.Remotes.Settings:FireServer("Music", 0.3)
+	step(0.6)
+	check("⚙ 설정: 영어로 → 화면·간판·프롬프트 영어", LocC.lang == "en" and findText(playerGui.Lobby, "▶ Play solo now") ~= nil
+		and findText(root, "🥚 Incubator") ~= nil and player:GetAttribute("Lang") == "en", LocC.lang)
+	local profile = Data:Get(player)
+	check("설정 저장 (언어 · 음악 크기)", profile.Settings and profile.Settings.Lang == "en" and profile.Settings.Music == 0.3
+		and player:GetAttribute("MusicVolume") == 0.3)
+	RS.Remotes.Settings:FireServer("Lang", "xx")
+	RS.Remotes.Settings:FireServer("Music", 5)
+	step(0.3)
+	check("이상한 설정 값은 무시", profile.Settings.Lang == "en" and profile.Settings.Music == 0.3)
+	RS.Remotes.Settings:FireServer("Lang", nil)
+	step(0.6)
+	check("⚙ 자동 → 다시 기기 언어(한국어)", LocC.lang == "ko" and player:GetAttribute("Lang") == nil and findText(playerGui.Lobby, "▶ 혼자 바로 출발") ~= nil, LocC.lang)
+end
 RS.Remotes.LobbyAction:FireServer("Solo")
 if not step(2.5) then fail("혼자 출발") end
 check("혼자 바로 출발 → 원정", player:GetAttribute("Place") == "Expedition" and (hrp.Position - lobbyOrigin).Magnitude > 500 and playerGui.WildholdHUD.Enabled
@@ -413,7 +448,7 @@ check("펫 키 맞춤 (2.9 stud)", math.abs(meshPart.Size.Y - 2.9) < 0.05, strin
 print("▶ 출발 대기 → 낮")
 if not step(15.5) then fail("출발 대기") end
 check("낮 시작", latest and latest.Phase == "Day", latest and latest.Phase)
-check("목표 표시 (첫 판: 야생 모슬링)", latest.GoalAt ~= nil and latest.GoalName == "야생 모슬링", latest.GoalName)
+check("목표 표시 (첫 판: 야생 모슬링)", latest.GoalAt ~= nil and Loc.text(latest.GoalName, "ko") == "야생 모슬링", Loc.text(latest.GoalName, "ko"))
 local function teleport(x, z)
 	hrp.CFrame = D.CFrame.new(x, 3, z)
 end
@@ -448,7 +483,7 @@ check("잡은 펫 즉시 출전", #root.Pets:GetChildren() == 2, #root.Pets:GetC
 -- 개체 차이: 재능 별 · 특성 · 빛나는 변종 · 이름 짓기
 do
 	local caught
-	for _, pet in ipairs(latest.Pets) do if pet.Status == "미등록" then caught = pet end end
+	for _, pet in ipairs(latest.Pets) do if pet.Status == "Unregistered" then caught = pet end end
 	check("잡은 펫의 재능 별·특성", caught ~= nil and caught.Stars >= 1 and caught.Stars <= 5 and caught.Trait ~= nil and caught.Power > 0,
 		caught and string.format("★%d · %s · 전투력 %d", caught.Stars, tostring(caught.Trait), caught.Power))
 	local withStars, shiny = 0, 0
@@ -729,11 +764,11 @@ exportScene()
 print("▶ 등록 · 배치 · 밤")
 teleport(0, 29 - 7)
 if not step(0.5) then fail("우리 이동") end
-local cage = root.Base:FindFirstChild("펫 우리", true)
+local cage = root.Base:FindFirstChild("Cage", true)
 cage:FindFirstChildOfClass("Attachment"):FindFirstChildOfClass("ProximityPrompt").Triggered:Fire(player)
 if not step(1) then fail("등록") end
 local registered = false
-for _, pet in ipairs(latest.Pets) do if pet.Status == "밤 생존 대기" then registered = true end end
+for _, pet in ipairs(latest.Pets) do if pet.Status == "Registered" then registered = true end end
 check("펫 등록", registered, notices[#notices])
 -- 펫 배치대 (설치형: 여기서는 바로 놓는다)
 Def:Place("PetStand", D.CFrame.new(-14, 0, -32), 1, player)
@@ -777,7 +812,7 @@ for _, m in ipairs(visuals:GetChildren()) do if m.Name == "Crawler" or m.Name ==
 check("포탑 사격", (fxCount.Arrow or 0) > 0, fxCount.Arrow)
 check("펫 공격", (fxCount.Pet or 0) > 0, fxCount.Pet)
 local secured = 0
-for _, pet in ipairs(latest.Pets) do if pet.Status == "영구" then secured = secured + 1 end end
+for _, pet in ipairs(latest.Pets) do if pet.Status == "Secured" then secured = secured + 1 end end
 check("밤 생존 → 영구 확정", secured == 2, secured)
 check("2일차 낮", latest.Phase == "Day" and latest.Night == 2, latest.Phase .. " " .. latest.Night)
 

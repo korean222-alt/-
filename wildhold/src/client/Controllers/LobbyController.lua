@@ -10,6 +10,7 @@ local LC = require(RS.Shared.Config.LobbyConfig)
 local Shop = require(RS.Shared.Config.ShopConfig)
 local PR = require(RS.Shared.Modules.PetRules)
 local Portrait = require(script.Parent.Portrait)
+local T = require(RS.Shared.Modules.Locale) -- 번역 (이 파일의 L 은 컨트롤러)
 
 local L = {}
 local player = Players.LocalPlayer
@@ -17,7 +18,7 @@ local TITLE, BODY = Enum.Font.FredokaOne, Enum.Font.GothamBold
 local COL = {Panel = Color3.fromHex("#16202e"), Card = Color3.fromHex("#1f2b3b"), Card2 = Color3.fromHex("#273548"), Text = Color3.fromHex("#f1f5fa"),
 	Muted = Color3.fromHex("#aab6c6"), Mint = Color3.fromHex("#7be0b6"), Gold = Color3.fromHex("#ffd36b"), Green = Color3.fromHex("#3fae6a"),
 	Purple = Color3.fromHex("#5a4a8a"), Red = Color3.fromHex("#b0553a")}
-local ELEMENT = {Leaf = "🌿 풀", Ember = "🔥 불", Tide = "💧 물"}
+local ELEMENT = {Leaf = "element.Leaf", Ember = "element.Ember", Tide = "element.Tide"}
 
 local function new(className, parent, props)
 	local o = Instance.new(className)
@@ -74,16 +75,17 @@ function L:Init(remotes)
 
 	-- 위: 캠프 이름 + 코인
 	local top = panel(gui, {AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 6), Size = UDim2.fromOffset(360, 56)})
-	label(top, "🏕 WILDHOLD 캠프", {Size = UDim2.new(1, 0, 0, 30), Font = TITLE, TextSize = 22})
+	T.bind(label(top, "", {Size = UDim2.new(1, 0, 0, 30), Font = TITLE, TextSize = 22}), "lobby.title")
 	self.TopInfo = label(top, "", {Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 0, 22), TextSize = 13, TextColor3 = COL.Muted})
 
 	-- 아래 가운데: 혼자 바로 출발 (1분 안에 놀기)
-	self.SoloButton = button(gui, "▶ 혼자 바로 출발", {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -64), Size = UDim2.fromOffset(300, 64),
-		TextSize = 26, BackgroundColor3 = COL.Green}, function()
+	self.SoloButton = button(gui, T.t("lobby.solo"), {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -64), Size = UDim2.fromOffset(300, 64),
+		TextSize = 26, TextScaled = true, BackgroundColor3 = COL.Green}, function()
 		if self.Data and self.Data.Solo then self:Send("CancelSolo") else self:Send("Solo") end
 	end)
-	self.SoloHint = label(gui, "친구와 가려면 북쪽의 🚚 원정 수레에 올라타세요", {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -38),
+	self.SoloHint = label(gui, "", {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -38),
 		Size = UDim2.fromOffset(460, 22), TextSize = 14, TextStrokeTransparency = 0.4})
+	T.bind(self.SoloHint, "lobby.soloHint")
 	self.Pulse = 0
 
 	-- 방 카드 (수레에 타 있을 때)
@@ -94,17 +96,18 @@ function L:Init(remotes)
 		TextXAlignment = Enum.TextXAlignment.Left})
 	self.SizeRow = new("Frame", self.RoomCard, {Position = UDim2.fromOffset(12, 56), Size = UDim2.new(1, -24, 0, 30), BackgroundTransparency = 1})
 	new("UIListLayout", self.SizeRow, {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6)})
-	label(self.SizeRow, "인원", {Size = UDim2.fromOffset(40, 30), TextSize = 14, LayoutOrder = 0})
+	T.bind(label(self.SizeRow, "", {Size = UDim2.fromOffset(40, 30), TextSize = 14, LayoutOrder = 0, TextScaled = true}), "lobby.size")
 	self.SizeButtons = {}
 	for n = 1, LC.MaxSize do
 		self.SizeButtons[n] = button(self.SizeRow, tostring(n), {Size = UDim2.fromOffset(40, 30), LayoutOrder = n, TextSize = 15}, function() self:Send("Size", n) end)
 	end
-	self.GoButton = button(self.RoomCard, "▶ 지금 출발", {Position = UDim2.new(0, 12, 1, -40), Size = UDim2.new(1, -24, 0, 34), BackgroundColor3 = COL.Green, TextSize = 18},
+	self.GoButton = button(self.RoomCard, "", {Position = UDim2.new(0, 12, 1, -40), Size = UDim2.new(1, -24, 0, 34), BackgroundColor3 = COL.Green, TextSize = 18},
 		function() self:Send("Go") end)
+	T.bind(self.GoButton, "lobby.goNow")
 
 	-- 왼쪽: 수레 목록
 	self.RoomList = panel(gui, {Position = UDim2.fromOffset(12, 72), Size = UDim2.fromOffset(230, 44 + LC.Wagons * 26)})
-	label(self.RoomList, "🚚 원정 수레", {Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -20, 0, 24), Font = TITLE, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left})
+	T.bind(label(self.RoomList, "", {Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -20, 0, 24), Font = TITLE, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Left}), "lobby.wagons")
 	self.RoomRows = {}
 	for i = 1, LC.Wagons do
 		self.RoomRows[i] = label(self.RoomList, "", {Position = UDim2.fromOffset(12, 32 + (i - 1) * 26), Size = UDim2.new(1, -24, 0, 24), TextSize = 13,
@@ -114,9 +117,11 @@ function L:Init(remotes)
 	-- 오른쪽: 부화장 · 내 펫 · 상점
 	local side = new("Frame", gui, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.45, 0), Size = UDim2.fromOffset(120, 3 * 62), BackgroundTransparency = 1})
 	new("UIListLayout", side, {Padding = UDim.new(0, 8)})
-	self.EggButton = button(side, "🥚 부화장", {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#8a6a2a")}, function() self:Open("Eggs") end)
-	button(side, "🐾 내 펫", {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#2f8f83")}, function() self:Open("Pets") end)
-	button(side, "🪙 보급", {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#5a4a8a")}, function() self:Open("Shop") end)
+	self.EggButton = button(side, T.t("lobby.eggsButton", {n = 0}), {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#8a6a2a"), TextScaled = true}, function() self:Open("Eggs") end)
+	T.bind(button(side, "", {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#2f8f83"), TextScaled = true}, function() self:Open("Pets") end), "lobby.petsButton")
+	T.bind(button(side, "", {Size = UDim2.fromOffset(120, 54), BackgroundColor3 = Color3.fromHex("#5a4a8a"), TextScaled = true}, function() self:Open("Shop") end), "lobby.shopButton")
+	-- 언어를 바꾸면 열린 창을 다시 그린다
+	T.onChanged(function() self:Refresh(); if self.Panel.Visible then self:Render() end end)
 
 	-- 패널
 	self.Panel = panel(gui, {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(560, 470), Visible = false, ZIndex = 5})
@@ -153,7 +158,7 @@ function L:Init(remotes)
 		end
 	end)
 	remotes.Notice.OnClientEvent:Connect(function(message)
-		if self.Gui.Enabled then self:Notify(message) end
+		if self.Gui.Enabled then self:Notify(T.text(message)) end
 	end)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, pet, newSpecies)
 		if kind == "Hatched" and type(pet) == "table" then self:PlayHatch(pet, newSpecies) end
@@ -182,26 +187,27 @@ function L:Refresh()
 	for _, egg in ipairs(d.Eggs) do
 		if egg.HatchAt and egg.HatchAt - (d.Now + elapsed) <= 0 then ready = ready + 1 end
 	end
-	self.EggButton.Text = ready > 0 and ("🐣 부화장 (" .. ready .. ")") or ("🥚 부화장 " .. #d.Eggs)
-	self.TopInfo.Text = string.format("🪙 %d  ·  🐾 펫 %d마리  ·  🥚 알 %d개%s", d.Coins or 0, #d.Pets, #d.Eggs, d.Practice and "  ·  연습 모드(저장 안 됨)" or "")
+	self.EggButton.Text = ready > 0 and T.t("lobby.eggsReady", {n = ready}) or T.t("lobby.eggsButton", {n = #d.Eggs})
+	self.TopInfo.Text = T.t("lobby.topInfo", {coins = d.Coins or 0, pets = #d.Pets, eggs = #d.Eggs, practice = d.Practice and T.t("lobby.practice") or ""})
 	-- 혼자 출발 버튼
 	local inRoom = d.MyRoom ~= nil
 	self.SoloButton.Visible = not inRoom and not d.Launching
-	self.SoloButton.Text = d.Solo and string.format("출발 준비 %.0f… (취소)", math.ceil(d.Solo)) or "▶ 혼자 바로 출발"
+	self.SoloButton.Text = d.Solo and T.t("lobby.soloWait", {s = math.ceil(d.Solo)}) or T.t("lobby.solo")
 	self.SoloHint.Visible = not inRoom
 	-- 방 카드
 	self.RoomCard.Visible = inRoom
 	for i, room in ipairs(d.Rooms) do
 		local row = self.RoomRows[i]
 		if row then
-			row.Text = room.Count == 0 and string.format("수레 %d · 비어 있음", room.Id)
-				or string.format("수레 %d · 👥 %d/%d · %s", room.Id, room.Count, room.Size, room.Launching and "출발!" or (math.ceil(room.LaunchIn or 0) .. "초"))
+			row.Text = room.Count == 0 and T.t("lobby.rowEmpty", {n = room.Id})
+				or T.t("lobby.row", {n = room.Id, have = room.Count, size = room.Size,
+					time = room.Launching and T.t("lobby.go") or T.t("fmt.seconds", {s = math.ceil(room.LaunchIn or 0)})})
 			row.TextColor3 = room.Id == d.MyRoom and COL.Mint or (room.Count > 0 and COL.Text or COL.Muted)
 		end
 		if room.Id == d.MyRoom then
-			self.RoomTitle.Text = string.format("🚚 원정 수레 %d · 👥 %d/%d · %s", room.Id, room.Count, room.Size,
-				room.Launching and "출발!" or (math.ceil(room.LaunchIn or 0) .. "초 뒤 출발"))
-			self.RoomNames.Text = table.concat(room.Names, ", ") .. (d.Host and "  ·  👑 방장" or "")
+			self.RoomTitle.Text = T.t("lobby.roomTitle", {n = room.Id, have = room.Count, size = room.Size,
+				time = room.Launching and T.t("lobby.go") or T.t("lobby.leavesIn", {s = math.ceil(room.LaunchIn or 0)})})
+			self.RoomNames.Text = table.concat(room.Names, ", ") .. (d.Host and T.t("lobby.hostTag") or "")
 			for n, b in ipairs(self.SizeButtons) do
 				b.BackgroundColor3 = n == room.Size and COL.Green or COL.Card2
 				b.Active, b.AutoButtonColor = d.Host, d.Host
@@ -265,7 +271,7 @@ function L:Render()
 	if self.Tab == "Eggs" then
 		local incubating = 0
 		for _, egg in ipairs(d.Eggs) do if egg.HatchAt then incubating = incubating + 1 end end
-		self.PanelTitle.Text = string.format("🥚 부화장  ·  부화 중 %d/%d", incubating, d.Slots)
+		self.PanelTitle.Text = T.t("eggs.title", {n = incubating, slots = d.Slots})
 		for _, egg in ipairs(d.Eggs) do
 			local spec = EC.Kinds[egg.Kind]
 			local row = self:Row(76)
@@ -282,12 +288,12 @@ function L:Render()
 		end
 		if #d.Eggs == 0 then
 			local row = self:Row(90)
-			label(row, "알이 없습니다.\n원정에서 " .. EC.CommonNights .. "밤을 버티면 🥚 보통 알, 5밤을 모두 버티면 🌟 희귀한 알!", {Position = UDim2.fromOffset(12, 6),
+			label(row, T.t("eggs.none", {n = EC.CommonNights}), {Position = UDim2.fromOffset(12, 6),
 				Size = UDim2.new(1, -24, 1, -12), TextColor3 = COL.Muted})
 		end
 		self:Tick()
 	elseif self.Tab == "Pets" then
-		self.PanelTitle.Text = string.format("🐾 내 펫 %d마리  ·  출전 팀 %d/%d (다음 원정에 데려감)", #d.Pets, #d.Party, P.ActiveLimit)
+		self.PanelTitle.Text = T.t("lobbypets.title", {n = #d.Pets, party = #d.Party, max = P.ActiveLimit})
 		for _, pet in ipairs(d.Pets) do
 			local spec = P.Species[pet.SpeciesId]
 			local trait = pet.Trait and P.Traits[pet.Trait]
@@ -296,38 +302,39 @@ function L:Render()
 			corner(face, 42)
 			Portrait.make(face, pet.SpeciesId, {Size = UDim2.fromScale(1.2, 1.2), Position = UDim2.fromScale(-0.1, -0.15)})
 			local nick = (pet.Nickname and pet.Nickname ~= "") and (pet.Nickname .. " · ") or ""
-			label(row, string.format("%s%s%s%s  Lv%d\n%s  %s\n%s · %s · ⚔ 전투력 %d", pet.InParty and "⚔ " or "", pet.Shiny and "✨빛나는 " or "", nick,
-				PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, PR.starText(pet.Stars), trait and (trait.Icon .. " " .. trait.Name .. " (" .. trait.Desc .. ")") or "",
-				ELEMENT[spec.Element], spec.Role, pet.Power), {Position = UDim2.fromOffset(100, 6), Size = UDim2.new(1, -108, 0, 84), TextXAlignment = Enum.TextXAlignment.Left,
+			label(row, T.t("lobbypets.info", {party = pet.InParty and "⚔ " or "", shiny = pet.Shiny and T.t("pets.shiny") or "", nick = nick,
+				name = T.text(PR.name(pet.SpeciesId, pet.Stage, P)), lv = pet.Level, stars = PR.starText(pet.Stars),
+				trait = trait and (trait.Icon .. " " .. T.t("trait." .. pet.Trait) .. " (" .. T.t("traitDesc." .. pet.Trait) .. ")") or "",
+				element = T.t(ELEMENT[spec.Element]), role = T.t("role." .. spec.Role), power = pet.Power}), {Position = UDim2.fromOffset(100, 6), Size = UDim2.new(1, -108, 0, 84), TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = pet.Shiny and COL.Gold or COL.Text})
-			button(row, pet.InParty and "출전 해제" or "⚔ 출전 팀에", {Position = UDim2.new(0, 8, 1, -48), Size = UDim2.new(0.3, -8, 0, 40),
+			button(row, T.t(pet.InParty and "pets.bench" or "lobbypets.deploy"), {Position = UDim2.new(0, 8, 1, -48), Size = UDim2.new(0.3, -8, 0, 40),
 				BackgroundColor3 = pet.InParty and COL.Card2 or COL.Green, TextSize = 14}, function()
 				local party = table.clone(d.Party)
 				local at = table.find(party, pet.Uid)
-				if at then table.remove(party, at) elseif #party < P.ActiveLimit then table.insert(party, pet.Uid) else self:Notify("출전 팀은 " .. P.ActiveLimit .. "마리까지 · 먼저 한 마리를 빼세요") return end
+				if at then table.remove(party, at) elseif #party < P.ActiveLimit then table.insert(party, pet.Uid) else self:Notify(T.t("lobbypets.partyFull", {n = P.ActiveLimit})) return end
 				self:Send("Party", party)
 			end)
-			local box = new("TextBox", row, {Position = UDim2.new(0.3, 4, 1, -48), Size = UDim2.new(0.44, -8, 0, 40), Text = "", PlaceholderText = "✏ 이름 (최대 " .. P.NicknameMax .. "자)",
+			local box = new("TextBox", row, {Position = UDim2.new(0.3, 4, 1, -48), Size = UDim2.new(0.44, -8, 0, 40), Text = "", PlaceholderText = T.t("pets.namePlaceholder", {n = P.NicknameMax}),
 				ClearTextOnFocus = false, Font = BODY, TextSize = 14, TextColor3 = COL.Text, PlaceholderColor3 = COL.Muted, BackgroundColor3 = COL.Card2, BorderSizePixel = 0})
 			corner(box, 10)
-			button(row, "✔ 이름", {Position = UDim2.new(0.74, 0, 1, -48), Size = UDim2.new(0.26, -8, 0, 40), BackgroundColor3 = COL.Purple, TextSize = 14}, function()
+			button(row, T.t("lobbypets.saveName"), {Position = UDim2.new(0.74, 0, 1, -48), Size = UDim2.new(0.26, -8, 0, 40), BackgroundColor3 = COL.Purple, TextSize = 14}, function()
 				self:Send("Rename", {Uid = pet.Uid, Name = box.Text})
 			end)
 		end
 	else
-		self.PanelTitle.Text = string.format("🪙 보급 상점  ·  🪙 %d", d.Coins or 0)
+		self.PanelTitle.Text = T.t("lobbyshop.title", {coins = d.Coins or 0})
 		local intro = self:Row(50)
-		label(intro, "해금한 보급은 다음 원정부터 매번 받아요 · 코인은 원정에서 밤을 버티면 받아요", {Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -24, 1, -8),
+		label(intro, T.t("lobbyshop.intro"), {Position = UDim2.fromOffset(12, 4), Size = UDim2.new(1, -24, 1, -8),
 			TextColor3 = COL.Muted, TextSize = 13})
 		for _, id in ipairs(Shop.Order) do
 			local perk = Shop.Perks[id]
 			local owned = d.Perks and d.Perks[id]
 			local row = self:Row(64)
 			label(row, perk.Icon, {Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(48, 48), TextSize = 30})
-			label(row, perk.Name .. "\n" .. (owned and "✅ 해금 완료" or ("🪙 " .. perk.Cost)), {Position = UDim2.fromOffset(64, 6), Size = UDim2.new(1, -240, 1, -12),
+			label(row, T.t("perk." .. id) .. "\n" .. (owned and T.t("shop.owned") or ("🪙 " .. perk.Cost)), {Position = UDim2.fromOffset(64, 6), Size = UDim2.new(1, -240, 1, -12),
 				TextXAlignment = Enum.TextXAlignment.Left})
 			if not owned then
-				button(row, "🪙 해금", {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(150, 44),
+				button(row, T.t("shop.unlock"), {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(150, 44),
 					BackgroundColor3 = (d.Coins or 0) >= perk.Cost and Color3.fromHex("#8a6a2a") or COL.Card2}, function() self:Send("Perk", id) end)
 			end
 		end
@@ -344,17 +351,18 @@ function L:Tick()
 	for _, egg in ipairs(d.Eggs) do if egg.HatchAt then incubating = incubating + 1 end end
 	for _, row in ipairs(self.EggRows) do
 		local egg, spec = row.Egg, row.Spec
+		local name = T.t("egg." .. egg.Kind)
 		if not egg.HatchAt then
-			row.Info.Text = spec.Name .. "\n부화장에 넣으면 " .. clock(spec.HatchSeconds) .. " 뒤 깨어나요"
-			row.Button.Text = incubating < d.Slots and "🪺 부화장에 넣기" or "부화장 가득"
+			row.Info.Text = T.t("eggs.idle", {name = name, time = clock(spec.HatchSeconds)})
+			row.Button.Text = T.t(incubating < d.Slots and "eggs.put" or "eggs.full")
 			row.Button.BackgroundColor3 = incubating < d.Slots and Color3.fromHex("#8a6a2a") or COL.Card2
 		elseif egg.HatchAt > now then
-			row.Info.Text = spec.Name .. "\n🔥 따뜻하게 품는 중… 원정에 나가 있어도 시간이 흘러요"
+			row.Info.Text = T.t("eggs.warming", {name = name})
 			row.Button.Text = "⏳ " .. clock(egg.HatchAt - now)
 			row.Button.BackgroundColor3 = COL.Card2
 		else
-			row.Info.Text = spec.Name .. "\n✨ 알이 흔들려요! 깨워 보세요"
-			row.Button.Text = "🐣 깨우기!"
+			row.Info.Text = T.t("eggs.ready", {name = name})
+			row.Button.Text = T.t("eggs.hatch")
 			row.Button.BackgroundColor3 = COL.Green
 		end
 	end
@@ -366,7 +374,7 @@ function L:PlayHatch(pet, newSpecies)
 	self.Reveal.Visible, self.RevealDone = true, false
 	local egg = EC.Kinds[pet.HatchedFrom] or EC.Kinds.Common
 	self.RevealEgg.Text, self.RevealEgg.Visible, self.RevealFace.Visible = egg.Icon, true, false
-	self.RevealText.Text = egg.Name .. " 이(가) 흔들려요…"
+	self.RevealText.Text = T.t("hatch.shaking", {name = T.t("egg." .. (EC.Kinds[pet.HatchedFrom] and pet.HatchedFrom or "Common"))})
 	self.RevealText.TextColor3 = COL.Text
 	task.spawn(function()
 		for i = 1, 14 do
@@ -383,9 +391,9 @@ function L:PlayHatch(pet, newSpecies)
 		self.RevealFace.Size = UDim2.fromOffset(40, 40)
 		TweenService:Create(self.RevealFace, TweenInfo.new(0.35, Enum.EasingStyle.Back), {Size = UDim2.fromOffset(240, 240)}):Play()
 		local trait = pet.Trait and P.Traits[pet.Trait]
-		self.RevealText.Text = string.format("%s%s 이(가) 태어났어요!\n%s  ·  %s%s\n\n(누르면 닫기 · 🐾 내 펫에서 이름을 지어 주세요)",
-			pet.Shiny and "✨ 빛나는 " or "", PR.name(pet.SpeciesId, 1, P), PR.starText(pet.Stars), trait and (trait.Icon .. " " .. trait.Name) or "",
-			newSpecies and "  ·  📖 도감 새 종!" or "")
+		self.RevealText.Text = T.t("hatch.born", {shiny = pet.Shiny and T.t("hatch.shiny") or "", name = T.text(PR.name(pet.SpeciesId, 1, P)),
+			stars = PR.starText(pet.Stars), trait = trait and (trait.Icon .. " " .. T.t("trait." .. pet.Trait)) or "",
+			new = newSpecies and T.t("hatch.newDex") or ""})
 		self.RevealText.TextColor3 = pet.Shiny and COL.Gold or ((pet.Stars or 0) >= 4 and COL.Mint or COL.Text)
 		self.RevealDone = true
 	end)

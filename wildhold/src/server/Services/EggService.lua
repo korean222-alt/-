@@ -6,6 +6,7 @@ local EC = require(RS.Shared.Config.EggConfig)
 local P = require(RS.Shared.Config.PetConfig)
 local R = require(RS.Shared.Modules.PetRules)
 local Eggs = require(RS.Shared.Modules.Eggs)
+local L = require(RS.Shared.Modules.Locale)
 local S = {}
 
 function S:Init(ctx)
@@ -32,9 +33,9 @@ function S:Grant(player, kind, reason)
 		end
 	end)
 	if overflow then
-		self.ctx.Notify(player, "알이 가득 찼습니다 · 대신 🪙 +" .. EC.OverflowCoins)
+		self.ctx.Notify(player, L.M("egg.overflow", {coins = EC.OverflowCoins}))
 	else
-		self.ctx.Notify(player, spec.Icon .. " " .. spec.Name .. " 획득! " .. (reason or "") .. " · 로비 부화장에서 깨우세요")
+		self.ctx.Notify(player, L.M("egg.got", {icon = spec.Icon, name = L.M("egg." .. kind), why = reason or ""}))
 		self.ctx.PetFX:FireClient(player, "Egg", kind)
 	end
 	self.ctx.Data:Save(player)
@@ -54,12 +55,12 @@ function S:Incubate(player, id)
 	local egg = profile.Eggs and profile.Eggs[id]
 	if not egg or egg.HatchAt then return false end
 	if Eggs.incubating(profile.Eggs) >= EC.IncubatorSlots then
-		self.ctx.Notify(player, "부화장이 가득 찼습니다 · 먼저 깨어난 알을 깨우세요")
+		self.ctx.Notify(player, L.M("egg.incubatorFull"))
 		return false
 	end
 	local seconds = math.max(1, math.floor(EC.Kinds[egg.Kind].HatchSeconds / self:Scale()))
 	self.ctx.Data:Mutate(player, function() egg.HatchAt = os.time() + seconds end)
-	self.ctx.Notify(player, EC.Kinds[egg.Kind].Icon .. " 부화장에 넣었습니다 · " .. seconds .. "초 뒤 부화")
+	self.ctx.Notify(player, L.M("egg.incubated", {icon = EC.Kinds[egg.Kind].Icon, s = seconds}))
 	return true
 end
 
@@ -70,7 +71,7 @@ function S:Hatch(player, id)
 	local egg = profile.Eggs and profile.Eggs[id]
 	if not egg or not egg.HatchAt or os.time() < egg.HatchAt then return nil end
 	if R.count(profile.Pets) >= P.CollectionLimit then
-		self.ctx.Notify(player, "펫 보관함이 가득 찼습니다 (" .. P.CollectionLimit .. "마리)")
+		self.ctx.Notify(player, L.M("egg.petsFull", {n = P.CollectionLimit}))
 		return nil
 	end
 	local pet = Eggs.hatch(egg.Kind, self.Rng, EC, P, R)

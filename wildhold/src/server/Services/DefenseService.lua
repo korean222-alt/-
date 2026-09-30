@@ -14,6 +14,7 @@ local BC = require(RS.Shared.Config.BuildConfig)
 local M = require(RS.Shared.Config.MapConfig)
 local I = require(RS.Shared.Config.ItemConfig)
 local Structures = require(RS.Shared.Visuals.Structures)
+local L = require(RS.Shared.Modules.Locale)
 local S = {}
 
 local KIT_OF = {}
@@ -25,12 +26,17 @@ function S:Init(ctx)
 	self:Reset()
 end
 
+-- 비용 = 번역 메시지 ("나무 10 · 돌 5")
 function S:CostText(cost)
 	local parts = {}
 	for _, kind in ipairs(R.Order) do
-		if cost[kind] then table.insert(parts, R.Labels[kind] .. " " .. cost[kind]) end
+		if cost[kind] then
+			if #parts > 0 then table.insert(parts, " · ") end
+			table.insert(parts, L.M("res." .. kind))
+			table.insert(parts, " " .. cost[kind])
+		end
 	end
-	return table.concat(parts, " · ")
+	return L.C(table.unpack(parts))
 end
 
 -- 판이 시작될 때: 모두 치우고 시작 구조물(길목 문·벽·포탑)만 둔다
@@ -71,22 +77,22 @@ function S:Place(kind, frame, level, owner)
 	local slot = {Id = id, Kind = kind, Level = level, CFrame = frame, Width = size[1], Pad = pad, Holder = holder, Owner = owner,
 		Rect = self:Rect(kind, frame), NextAttack = 0, LastMutation = -math.huge}
 	slot.HP = D[kind].Levels[level].HP
-	slot.BuildPrompt = U.prompt(pad, "Build", "강화", Enum.KeyCode.E, Vector3.new(0, 2.5, 0))
-	slot.RepairPrompt = U.prompt(pad, "Repair", "수리", Enum.KeyCode.R, Vector3.new(0, 4.5, 0))
-	slot.MovePrompt = U.prompt(pad, "Move", "옮기기 (설치 도구로 돌려받기)", Enum.KeyCode.G, Vector3.new(0, 6.5, 0))
+	slot.BuildPrompt = U.prompt(pad, "Build", L.M("prompt.upgrade"), Enum.KeyCode.E, Vector3.new(0, 2.5, 0))
+	slot.RepairPrompt = U.prompt(pad, "Repair", L.M("prompt.repair"), Enum.KeyCode.R, Vector3.new(0, 4.5, 0))
+	slot.MovePrompt = U.prompt(pad, "Move", L.M("prompt.move"), Enum.KeyCode.G, Vector3.new(0, 6.5, 0))
 	slot.MovePrompt.HoldDuration = 0.6
 	slot.BuildPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Build") end)
 	slot.RepairPrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Repair") end)
 	slot.MovePrompt.Triggered:Connect(function(player) self:Interact(player, slot, "Move") end)
 	if kind == "Workbench" then
-		slot.CraftPrompt = U.prompt(pad, "Craft", "도구 · 설치 도구 · 덫 만들기", Enum.KeyCode.F, Vector3.new(0, 1, -2.5))
-		slot.CraftPrompt.ObjectText = "제작대"
+		slot.CraftPrompt = U.prompt(pad, "Craft", L.M("prompt.craft"), Enum.KeyCode.F, Vector3.new(0, 1, -2.5))
+		L.tag(slot.CraftPrompt, "ObjectText", L.M("defense.Workbench"))
 		slot.CraftPrompt.Triggered:Connect(function(player)
 			if self.ctx.Data:Ready(player) and U.near(player, pad.Position, C.InteractionRange + 2) then self.ctx.PetFX:FireClient(player, "OpenCraft", "Workbench") end
 		end)
 	elseif kind == "PetStand" then
-		local prompt = U.prompt(pad, "PlacePet", "펫 올려두기 (공격·사거리 강화)", Enum.KeyCode.F, Vector3.new(0, 3, 0))
-		prompt.ObjectText = "펫 배치대"
+		local prompt = U.prompt(pad, "PlacePet", L.M("prompt.placePet"), Enum.KeyCode.F, Vector3.new(0, 3, 0))
+		L.tag(prompt, "ObjectText", L.M("defense.PetStand"))
 		prompt.Triggered:Connect(function(player) if C.ActiveStage >= 5 then self.ctx.Pets:AssignStand(player, slot) end end)
 	end
 	self.Slots[id] = slot
@@ -122,21 +128,23 @@ function S:Refresh(slot)
 	slot.Pad:SetAttribute("Level", slot.Level)
 	slot.Pad:SetAttribute("CurrentHealth", slot.HP)
 	slot.Pad:SetAttribute("MaxHealth", stats and stats.HP or 0)
-	slot.Pad:SetAttribute("DisplayName", spec.Name)
+	slot.Pad:SetAttribute("DisplayName", "defense." .. slot.Kind) -- 번역 키
 	if slot.Visual then
 		slot.Visual:SetAttribute("CurrentHealth", slot.HP)
 		slot.Visual:SetAttribute("MaxHealth", stats and stats.HP or 0)
 	end
 	slot.BuildPrompt.Enabled = C.ActiveStage >= 3 and phase == "Day" and nextStats ~= nil
 	local bench = nextStats and self:BenchNeeded(slot)
-	slot.BuildPrompt.ActionText = "강화 · " .. (bench and ("🔒 제작대 Lv" .. bench .. " 필요") or (nextStats and self:CostText(nextStats.Cost) or "최대"))
-	slot.BuildPrompt.ObjectText = spec.Name .. " Lv" .. slot.Level
+	local name = L.M("defense." .. slot.Kind)
+	L.tag(slot.BuildPrompt, "ActionText", L.M("prompt.upgradeCost", {cost = bench and L.M("prompt.needBench", {lv = bench})
+		or (nextStats and self:CostText(nextStats.Cost) or L.M("prompt.max"))}))
+	L.tag(slot.BuildPrompt, "ObjectText", L.M("fmt.nameLv", {name = name, lv = slot.Level}))
 	slot.RepairPrompt.Enabled = C.ActiveStage >= 3 and (phase == "Day" or phase == "Night") and stats ~= nil and slot.HP < stats.HP
 	local mult = phase == "Night" and C.NightRepairMultiplier or 1
-	slot.RepairPrompt.ActionText = "수리 · " .. (stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or "")
-	slot.RepairPrompt.ObjectText = spec.Name .. (stats and string.format(" %d/%d", slot.HP, stats.HP) or "")
+	L.tag(slot.RepairPrompt, "ActionText", L.M("prompt.repairCost", {cost = stats and self:CostText(Rules.repairCost(stats.Repair, mult)) or ""}))
+	L.tag(slot.RepairPrompt, "ObjectText", L.C(name, stats and string.format(" %d/%d", slot.HP, stats.HP) or ""))
 	slot.MovePrompt.Enabled = phase == "Day" and stats ~= nil and slot.HP >= stats.HP
-	slot.MovePrompt.ObjectText = spec.Name
+	L.tag(slot.MovePrompt, "ObjectText", name)
 end
 
 function S:RefreshAll() for _, slot in pairs(self.Slots) do self:Refresh(slot) end end
@@ -190,19 +198,19 @@ function S:Request(player, kit, frame)
 	if not root then return false end
 	local count = 0
 	for _ in pairs(self.Slots) do count = count + 1 end
-	if count >= BC.Limit then self.ctx.Notify(player, "구조물이 너무 많습니다 (" .. BC.Limit .. "개)"); return false end
+	if count >= BC.Limit then self.ctx.Notify(player, L.M("build.limit", {n = BC.Limit})); return false end
 	-- 수평으로만 돌린다
 	local look = frame.LookVector
 	local flatLook = Vector3.new(look.X, 0, look.Z)
 	if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) end
 	local at = CFrame.lookAt(Vector3.new(frame.X, 0, frame.Z), Vector3.new(frame.X, 0, frame.Z) + flatLook.Unit)
 	local ok, reason = Placement.check(self:Rect(kind, at), self:Rects(), self.Blocked, BC, root.Position.X, root.Position.Z)
-	if not ok then self.ctx.Notify(player, "여기에는 놓을 수 없습니다 · " .. reason); return false end
+	if not ok then self.ctx.Notify(player, L.M("build.cantPlace", {why = reason})); return false end
 	self.ctx.Crafting:Use(player, kit)
 	local slot = self:Place(kind, at, 1, player)
 	if kind == "Workbench" then self:UpdateBench() end
 	self.ctx.FX:FireAllClients("Build", at.Position, kind, 1)
-	self.ctx.Notify(player, D[kind].Name .. " 설치!" .. (kind == "Workbench" and " · 가까이에서 [F] 로 벽·포탑 설치 도구를 만드세요" or ""))
+	self.ctx.Notify(player, L.M(kind == "Workbench" and "build.placedBench" or "build.placed", {name = L.M("defense." .. kind)}))
 	self.ctx.Crafting:Sync(player)
 	return true, slot
 end
@@ -226,8 +234,8 @@ function S:Interact(player, slot, action)
 		local nextStats = spec.Levels[slot.Level + 1]
 		if not nextStats then return end
 		local bench = self:BenchNeeded(slot)
-		if bench then self.ctx.Notify(player, "제작대 Lv" .. bench .. "가 필요합니다 · 제작대를 강화하세요"); return end
-		if not self.ctx.Resources:SpendFor(player, nextStats.Cost) then self.ctx.Notify(player, "재료가 부족합니다 · " .. self:CostText(nextStats.Cost)); return end
+		if bench then self.ctx.Notify(player, L.M("build.needBench", {lv = bench})); return end
+		if not self.ctx.Resources:SpendFor(player, nextStats.Cost) then self.ctx.Notify(player, L.M("build.needCost", {cost = self:CostText(nextStats.Cost)})); return end
 		-- No yielding in validation, spend, mutation: simultaneous requests serialize.
 		local oldHP = spec.Levels[slot.Level].HP
 		slot.HP = Rules.upgradeHP(slot.HP, oldHP, nextStats.HP)
@@ -237,16 +245,16 @@ function S:Interact(player, slot, action)
 		self.ctx.FX:FireAllClients("Build", slot.CFrame.Position, slot.Kind, slot.Level)
 		if slot.Kind == "Workbench" then
 			self:UpdateBench()
-			self.ctx.Notify(nil, "🔨 제작대 Lv" .. slot.Level .. " 달성! 새 제작법과 방어 시설 강화가 풀렸습니다")
+			self.ctx.Notify(nil, L.M("build.benchUp", {lv = slot.Level}))
 		else
-			self.ctx.Notify(player, spec.Name .. " Lv" .. slot.Level .. " 완성!")
+			self.ctx.Notify(player, L.M("build.upgraded", {name = L.M("defense." .. slot.Kind), lv = slot.Level}))
 		end
 	elseif action == "Repair" then
 		if phase ~= "Day" and phase ~= "Night" then return end
 		local stats = spec.Levels[slot.Level]
 		if not stats or slot.HP >= stats.HP then return end
 		local cost = Rules.repairCost(stats.Repair, phase == "Night" and C.NightRepairMultiplier or 1)
-		if not self.ctx.Resources:SpendFor(player, cost) then self.ctx.Notify(player, "수리 재료가 부족합니다"); return end
+		if not self.ctx.Resources:SpendFor(player, cost) then self.ctx.Notify(player, L.M("build.needRepair")); return end
 		slot.HP = math.min(stats.HP, slot.HP + math.ceil(stats.HP * C.RepairFraction))
 		slot.LastMutation = now
 		self.ctx.FX:FireAllClients("Repair", slot.CFrame.Position, slot.Kind, slot.Level)
@@ -262,7 +270,7 @@ function S:Interact(player, slot, action)
 		self.ctx.FX:FireAllClients("Break", slot.CFrame.Position, slot.Kind, slot.Level)
 		self:Remove(slot)
 		self.ctx.Crafting:Sync(player)
-		self.ctx.Notify(player, I.Items[kit].Icon .. " " .. spec.Name .. " 을(를) 돌려받았습니다 · 다시 들고 놓으세요")
+		self.ctx.Notify(player, L.M("build.moved", {icon = I.Items[kit].Icon, name = L.M("defense." .. slot.Kind)}))
 	end
 end
 

@@ -14,6 +14,7 @@ local Shop = require(RS.Shared.Config.ShopConfig)
 local R = require(RS.Shared.Modules.PetRules)
 local U = require(RS.Shared.Modules.Utility)
 local LobbyLook = require(RS.Shared.Visuals.Lobby)
+local L = require(RS.Shared.Modules.Locale)
 local S = {}
 
 local function flatDistance(a, b)
@@ -27,11 +28,11 @@ function S:Init(ctx, origin)
 	for i, pad in ipairs(self.Scene.Pads) do
 		self.Rooms[i] = {Id = i, Pad = pad, Sign = self.Scene.Signs[i], Members = {}, Size = LC.DefaultSize}
 	end
-	local eggs = U.prompt(self.Scene.Incubator, "Eggs", "알 부화장 열기", Enum.KeyCode.E, Vector3.new(0, 1, 0))
-	eggs.ObjectText = "부화장"
+	local eggs = U.prompt(self.Scene.Incubator, "Eggs", L.M("lobby.openEggs"), Enum.KeyCode.E, Vector3.new(0, 1, 0))
+	L.tag(eggs, "ObjectText", L.M("lobby.incubator"))
 	eggs.Triggered:Connect(function(player) if self.Players[player] then ctx.LobbyEvent:FireClient(player, "Open", "Eggs") end end)
-	local shop = U.prompt(self.Scene.Shop, "Shop", "보급 상점 · 도감", Enum.KeyCode.E, Vector3.new(0, -1, -1))
-	shop.ObjectText = "게시판"
+	local shop = U.prompt(self.Scene.Shop, "Shop", L.M("lobby.openShop"), Enum.KeyCode.E, Vector3.new(0, -1, -1))
+	L.tag(shop, "ObjectText", L.M("lobby.board"))
 	shop.Triggered:Connect(function(player) if self.Players[player] then ctx.LobbyEvent:FireClient(player, "Open", "Shop") end end)
 	ctx.LobbyAction.OnServerEvent:Connect(function(player, action, value) self:Action(player, action, value) end)
 end
@@ -90,7 +91,7 @@ function S:SpawnPets(player)
 			part.Transparency, part.CanCollide, part.CanTouch, part.CanQuery = 1, false, false, false
 			for key, value in pairs({SpeciesId = pet.SpeciesId, OwnerId = player.UserId, OwnerName = player.DisplayName, Uid = uid, Stage = R.stage(pet),
 				Stars = pet.Stars or 2, Shiny = pet.Shiny == true, Trait = pet.Trait or "", Nickname = pet.Nickname or "", Level = pet.Level,
-				HP = stats.HP, MaxHP = stats.HP, Status = "영구", Mode = "Follow"}) do
+				HP = stats.HP, MaxHP = stats.HP, Status = "Secured", Mode = "Follow"}) do
 				part:SetAttribute(key, value)
 			end
 			table.insert(list, {Part = part, Index = i})
@@ -145,9 +146,9 @@ function S:UpdateRooms(now)
 					table.insert(candidate.Members, player)
 					if #candidate.Members == 1 then
 						candidate.LaunchAt = now + LC.RoomWait
-						self.ctx.Notify(player, "🚚 원정 수레 " .. candidate.Id .. " 방장! 인원을 정하거나 [지금 출발] · 내리면 방에서 나가요")
+						self.ctx.Notify(player, L.M("lobby.host", {n = candidate.Id}))
 					else
-						self.ctx.Notify(player, "🚚 원정 수레 " .. candidate.Id .. " 에 탔습니다 · 출발을 기다려요")
+						self.ctx.Notify(player, L.M("lobby.joined", {n = candidate.Id}))
 					end
 					break
 				end
@@ -163,10 +164,11 @@ function S:UpdateRooms(now)
 			if #room.Members >= room.Size then room.LaunchAt = math.min(room.LaunchAt, now + LC.FullWait) end
 			if now >= room.LaunchAt then self:Launch(table.clone(room.Members), room) end
 		end
-		local text = #room.Members == 0 and ("원정 수레 " .. room.Id .. "\n타면 방이 생겨요")
-			or string.format("원정 수레 %d\n👥 %d/%d · %s", room.Id, #room.Members, room.Size,
-				room.Launching and "출발!" or (math.ceil(math.max(0, room.LaunchAt - now)) .. "초"))
-		if room.Sign.Text ~= text then room.Sign.Text = text end
+		local text = #room.Members == 0 and L.M("lobby.signEmpty", {n = room.Id})
+			or L.M("lobby.signRoom", {n = room.Id, have = #room.Members, size = room.Size,
+				time = room.Launching and L.M("lobby.go") or L.M("fmt.seconds", {s = math.ceil(math.max(0, room.LaunchAt - now))})})
+		local encoded = L.encode(text)
+		if room.SignText ~= encoded then room.SignText = encoded; L.tag(room.Sign, "Text", text) end
 	end
 end
 
@@ -178,7 +180,7 @@ function S:Launch(members, room)
 		if info and player.Parent and self.ctx.Data:Ready(player) then
 			info.Launching, info.SoloAt = true, nil
 			table.insert(list, player)
-			self.ctx.Notify(player, "🚚 출발! 숲으로 들어갑니다")
+			self.ctx.Notify(player, L.M("lobby.leaving"))
 		end
 	end
 	if room then room.Launching = true end
@@ -229,7 +231,7 @@ function S:Teleport(list, roomId)
 				local info = self.Players[player]
 				if info then info.Launching = false end
 				if not self.ctx.Data.Sessions[player] then self.ctx.Data:Load(player) end
-				self.ctx.Notify(player, "출발하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+				self.ctx.Notify(player, L.M("lobby.launchFailed"))
 			end
 		end
 	end
@@ -271,7 +273,7 @@ function S:Action(player, action, value)
 		if name and self.ctx.Data:Ready(player) and profile.Pets[value.Uid] then
 			self.ctx.Data:Mutate(player, function(data) data.Pets[value.Uid].Nickname = name ~= "" and name or nil end)
 			self:SpawnPets(player)
-			self.ctx.Notify(player, name ~= "" and ("이름을 지었습니다: " .. name) or "이름을 지웠습니다")
+			self.ctx.Notify(player, name ~= "" and L.M("pet.named", {name = name}) or L.M("pet.nameCleared"))
 		end
 	elseif action == "Perk" and type(value) == "string" then
 		self:BuyPerk(player, value)
@@ -282,14 +284,14 @@ function S:BuyPerk(player, id)
 	local perk = Shop.Perks[id]
 	local profile = self.ctx.Data:Get(player)
 	if not perk or not profile then return end
-	if profile.Perks[id] then self.ctx.Notify(player, "이미 해금했습니다."); return end
-	if profile.Coins < perk.Cost then self.ctx.Notify(player, "코인이 부족합니다 · 원정에서 밤을 버티면 코인을 받아요"); return end
+	if profile.Perks[id] then self.ctx.Notify(player, L.M("perk.owned")); return end
+	if profile.Coins < perk.Cost then self.ctx.Notify(player, L.M("perk.noCoinsLobby")); return end
 	self.ctx.Data:Mutate(player, function(data)
 		if data.Perks[id] or data.Coins < perk.Cost then return end
 		data.Coins = data.Coins - perk.Cost
 		data.Perks[id] = true
 	end)
-	self.ctx.Notify(player, perk.Icon .. " 해금! " .. perk.Name .. " (다음 원정부터 지급)")
+	self.ctx.Notify(player, L.M("perk.unlocked", {icon = perk.Icon, name = L.M("perk." .. id)}))
 end
 
 -- ===================================================================== 화면에 보낼 것

@@ -16,6 +16,7 @@ local Zones = require(RS.Shared.Modules.Zones)
 local PR = require(RS.Shared.Modules.PetRules)
 local EC = require(RS.Shared.Config.EggConfig)
 local Portrait = require(script.Parent.Portrait)
+local L = require(RS.Shared.Modules.Locale)
 
 local UI = {}
 local player = Players.LocalPlayer
@@ -27,11 +28,11 @@ local MUTED = Color3.fromHex("#b9c4d4")
 local PANEL = Color3.fromHex("#16202e")
 local ICON = R.Icons
 local PHASE = {
-	Waiting = {"🧭", "출발 준비", "#2f8f83", "#47b8a6"},
-	Day = {"☀️", "낮", "#e29a2e", "#f6c453"},
-	Night = {"🌙", "밤", "#3b3f8f", "#6a5acd"},
-	Dawn = {"🌅", "새벽", "#c46b8a", "#f2a07b"},
-	Result = {"🏁", "결과", "#5b6474", "#8792a6"},
+	Waiting = {"🧭", "phase.Waiting", "#2f8f83", "#47b8a6"},
+	Day = {"☀️", "phase.Day", "#e29a2e", "#f6c453"},
+	Night = {"🌙", "phase.Night", "#3b3f8f", "#6a5acd"},
+	Dawn = {"🌅", "phase.Dawn", "#c46b8a", "#f2a07b"},
+	Result = {"🏁", "phase.Result", "#5b6474", "#8792a6"},
 }
 
 local function new(className, parent, props)
@@ -87,7 +88,7 @@ function UI:Init(remotes)
 	stroke(pill, Color3.fromHex("#0b1018"), 2.5, 0.25)
 	self.PillGradient = gradient(pill, "#e29a2e", "#f6c453", 0)
 	self.PhaseIcon = text(pill, {Position = UDim2.fromOffset(8, 0), Size = UDim2.fromOffset(40, 46), Text = "☀️", TextSize = 26, Font = TITLE})
-	self.PhaseText = text(pill, {Position = UDim2.fromOffset(46, 0), Size = UDim2.new(1, -120, 1, 0), Text = "연결 중", TextSize = 20, Font = TITLE,
+	self.PhaseText = text(pill, {Position = UDim2.fromOffset(46, 0), Size = UDim2.new(1, -120, 1, 0), Text = L.t("ui.connecting"), TextSize = 20, Font = TITLE,
 		TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.6})
 	self.Timer = text(pill, {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(74, 32), Text = "00:00",
 		TextSize = 20, Font = TITLE, BackgroundTransparency = 0.55, BackgroundColor3 = Color3.fromHex("#0b1018")})
@@ -103,7 +104,7 @@ function UI:Init(remotes)
 		TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right})
 	-- 지역 이름 + 기지까지 거리·방향 (넓은 맵에서 길을 잃지 않게)
 	self.Compass = panel(gui, {Name = "Compass", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 92), Size = UDim2.fromOffset(250, 26)})
-	self.ZoneText = text(self.Compass, {Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -110, 1, 0), Text = "🌿 초원", TextSize = 13,
+	self.ZoneText = text(self.Compass, {Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -110, 1, 0), Text = "🌿", TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left})
 	self.HomeText = text(self.Compass, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -30, 0, 0), Size = UDim2.fromOffset(80, 26), Text = "🏠 0m",
 		TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right})
@@ -125,9 +126,10 @@ function UI:Init(remotes)
 	local goal = panel(gui, {Name = "Goal", Position = UDim2.fromOffset(12, 64), Size = UDim2.fromOffset(300, 64)})
 	self.GoalCard = goal
 	local chip = new("TextLabel", goal, {Position = UDim2.fromOffset(10, 8), Size = UDim2.fromOffset(46, 20), BackgroundColor3 = Color3.fromHex("#7be0b6"),
-		Text = "목표", Font = TITLE, TextSize = 13, TextColor3 = Color3.fromHex("#10302a"), BorderSizePixel = 0})
+		Font = TITLE, TextSize = 13, TextColor3 = Color3.fromHex("#10302a"), BorderSizePixel = 0, TextScaled = true})
+	L.bind(chip, "ui.goalChip")
 	round(chip, 10)
-	self.Goal = text(goal, {Position = UDim2.fromOffset(10, 30), Size = UDim2.new(1, -20, 1, -34), Text = "맵을 준비하고 있습니다", TextSize = 14,
+	self.Goal = text(goal, {Position = UDim2.fromOffset(10, 30), Size = UDim2.new(1, -20, 1, -34), Text = L.t("ui.preparing"), TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top})
 	self.Practice = text(goal, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(120, 20), Text = "",
 		TextSize = 12, TextColor3 = Color3.fromHex("#ffd36b"), TextXAlignment = Enum.TextXAlignment.Right})
@@ -160,7 +162,7 @@ function UI:Init(remotes)
 	round(capBack, 3)
 	self.CapFill = new("Frame", capBack, {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromHex("#f6c453"), BorderSizePixel = 0})
 	round(self.CapFill, 3)
-	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -3), Size = UDim2.fromOffset(100, 16), Text = "가방 0/60",
+	self.CapText = text(bag, {AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -10, 1, -3), Size = UDim2.fromOffset(100, 16), Text = "🎒 0/60",
 		TextSize = 11, TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Right})
 
 	-- 알림 (위에서 내려옴)
@@ -195,17 +197,17 @@ function UI:Init(remotes)
 		self.Data = data
 		self:Update(previous)
 	end)
-	remotes.Notice.OnClientEvent:Connect(function(message) self:Notify(message) end)
+	remotes.Notice.OnClientEvent:Connect(function(message) self:Notify(L.text(message)) end)
 	remotes.PetFX.OnClientEvent:Connect(function(kind, name)
 		if kind == "Capture" then
-			self:ShowBanner("🎉 포획 성공!", (name or "") .. " 이(가) 동료가 되었어요 · 펫 우리에 등록하세요", Color3.fromHex("#b6ff8a"))
+			self:ShowBanner(L.t("banner.capture"), L.t("banner.captureSub", {name = name or ""}), Color3.fromHex("#b6ff8a"))
 		elseif kind == "Evolve" then
-			self:ShowBanner("✨ 진화!", (name or "") .. " (으)로 성장했어요 · 더 크고 강해졌습니다", Color3.fromHex("#ffe066"))
+			self:ShowBanner(L.t("banner.evolve"), L.t("banner.evolveSub", {name = name or ""}), Color3.fromHex("#ffe066"))
 		elseif kind == "Secured" then
-			self:ShowBanner("💾 영구 확정!", "이제 원정이 끝나도 내 펫이에요", Color3.fromHex("#8ff5e8"))
+			self:ShowBanner(L.t("banner.secured"), L.t("banner.securedSub"), Color3.fromHex("#8ff5e8"))
 		elseif kind == "Egg" then
 			local egg = EC.Kinds[name]
-			if egg then self:ShowBanner(egg.Icon .. " " .. egg.Name .. " 획득!", "로비의 부화장에서 깨워 보세요 · 무엇이 나올까요?", Color3.fromHex(egg.Color)) end
+			if egg then self:ShowBanner(L.t("banner.egg", {icon = egg.Icon, name = L.t("egg." .. name)}), L.t("banner.eggSub"), Color3.fromHex(egg.Color)) end
 		end
 	end)
 	local acc = 0
@@ -225,13 +227,13 @@ function UI:MakeCard(i)
 	local face = new("Frame", card, {Position = UDim2.fromOffset(6, 6), Size = UDim2.fromOffset(48, 48), BackgroundColor3 = Color3.fromHex("#2a3a4f"), BorderSizePixel = 0})
 	round(face, 24)
 	local faceStroke = stroke(face, Color3.fromHex("#7be0b6"), 2, 0)
-	local name = text(card, {Position = UDim2.fromOffset(60, 5), Size = UDim2.new(1, -66, 0, 18), Text = "빈 자리", TextSize = 14, Font = TITLE,
+	local name = text(card, {Position = UDim2.fromOffset(60, 5), Size = UDim2.new(1, -66, 0, 18), Text = L.t("team.empty"), TextSize = 14, Font = TITLE,
 		TextXAlignment = Enum.TextXAlignment.Left})
 	local back = new("Frame", card, {Position = UDim2.fromOffset(60, 26), Size = UDim2.new(1, -70, 0, 8), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
 	round(back, 4)
 	local fill = new("Frame", back, {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromHex("#7be08a"), BorderSizePixel = 0})
 	round(fill, 4)
-	local status = text(card, {Position = UDim2.fromOffset(60, 37), Size = UDim2.new(1, -66, 0, 16), Text = "야생 펫을 잡아 채우세요", TextSize = 11,
+	local status = text(card, {Position = UDim2.fromOffset(60, 37), Size = UDim2.new(1, -66, 0, 16), Text = L.t("team.emptySub"), TextSize = 11,
 		TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Left})
 	local button = new("TextButton", card, {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 5})
 	button.Activated:Connect(function()
@@ -256,15 +258,14 @@ function UI:UpdateTeam(pets)
 				end
 				Portrait.make(card.Face, pet.SpeciesId, {Size = UDim2.fromScale(1.25, 1.25), Position = UDim2.fromScale(-0.125, -0.2)})
 			end
-			local name = (pet.Nickname and pet.Nickname ~= "") and pet.Nickname or PR.name(pet.SpeciesId, pet.Stage, P)
+			local name = (pet.Nickname and pet.Nickname ~= "") and pet.Nickname or L.text(PR.name(pet.SpeciesId, pet.Stage, P))
 			card.Name.Text = string.format("%s%s  Lv%d %s", pet.Shiny and "✨" or "", name, pet.Level, string.rep("★", pet.Stars or 2))
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio > 0.5 and Color3.fromHex("#7be08a") or (ratio > 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
-			local statusText = {["영구"] = "💾 영구 확정", ["저장 중"] = "⏳ 저장 중", ["밤 생존 대기"] = "🏠 등록됨 · 밤을 버티면 확정", ["미등록"] = "⚠ 미등록 · 펫 우리로!"}
-			card.Status.Text = pet.HP <= 0 and "💤 기절 · 곧 회복" or (statusText[pet.Status] or pet.Status)
-			card.Status.TextColor3 = pet.Status == "영구" and Color3.fromHex("#8ff5e8") or (pet.Status == "미등록" and Color3.fromHex("#ffd36b") or MUTED)
-			card.FaceStroke.Color = pet.Status == "영구" and Color3.fromHex("#7be0b6") or Color3.fromHex("#ffd36b")
+			card.Status.Text = pet.HP <= 0 and L.t("team.fainted") or L.t("team.status." .. tostring(pet.Status))
+			card.Status.TextColor3 = pet.Status == "Secured" and Color3.fromHex("#8ff5e8") or (pet.Status == "Unregistered" and Color3.fromHex("#ffd36b") or MUTED)
+			card.FaceStroke.Color = pet.Status == "Secured" and Color3.fromHex("#7be0b6") or Color3.fromHex("#ffd36b")
 			card.Frame.BackgroundTransparency = 0.12
 		else
 			if card.Species then
@@ -273,9 +274,9 @@ function UI:UpdateTeam(pets)
 					if child:IsA("ViewportFrame") then child:Destroy() end
 				end
 			end
-			card.Name.Text = "빈 자리"
+			card.Name.Text = L.t("team.empty")
 			card.Fill.Size = UDim2.fromScale(0, 1)
-			card.Status.Text = "야생 펫을 잡아 채우세요"
+			card.Status.Text = L.t("team.emptySub")
 			card.Status.TextColor3 = MUTED
 			card.Frame.BackgroundTransparency = 0.45
 		end
@@ -291,7 +292,7 @@ function UI:UpdateCompass()
 	local pos = root.Position
 	local zoneId = Zones.id(pos, M)
 	local zone = M.Zones[zoneId]
-	self.ZoneText.Text = zone.Icon .. " " .. zone.Name .. string.rep("★", zone.Danger)
+	self.ZoneText.Text = zone.Icon .. " " .. L.t("zone." .. zoneId) .. string.rep("★", zone.Danger)
 	-- 목표가 있으면 화살표가 목표를, 없으면 기지를 가리킨다
 	local goal = self.Data and self.Data.GoalAt
 	local toHome = goal and Vector3.new(goal.X - pos.X, 0, goal.Z - pos.Z) or Vector3.new(-pos.X, 0, -pos.Z)
@@ -301,7 +302,7 @@ function UI:UpdateCompass()
 	self.GoalGui.Enabled = goal ~= nil and distance > 6
 	if goal then
 		self.GoalPart.CFrame = CFrame.new(goal + Vector3.new(0, 5 + math.sin(os.clock() * 4) * 0.6, 0))
-		self.GoalLabel.Text = string.format("%s · %dm", self.Data.GoalName or "목표", math.floor(distance))
+		self.GoalLabel.Text = string.format("%s · %dm", self.Data.GoalName and L.text(self.Data.GoalName) or L.t("ui.goalChip"), math.floor(distance))
 	end
 	-- 화살표: 카메라가 보는 방향 기준으로 기지 쪽
 	local look = camera.CFrame.LookVector
@@ -312,7 +313,7 @@ function UI:UpdateCompass()
 	-- 새 지역에 들어서면 한 번 알려준다
 	if self.Zone ~= zoneId then
 		if self.Zone ~= nil then
-			self:ShowBanner(zone.Icon .. " " .. zone.Name, zoneId == "Meadow" and "기지 근처 초원 · 비교적 안전" or ("위험도 " .. string.rep("★", zone.Danger) .. " · 더 강한 야생 펫과 귀한 재료"),
+			self:ShowBanner(zone.Icon .. " " .. L.t("zone." .. zoneId), zoneId == "Meadow" and L.t("zone.safeSub") or L.t("zone.dangerSub", {stars = string.rep("★", zone.Danger)}),
 				Color3.fromHex("#e9f2d0"))
 		end
 		self.Zone = zoneId
@@ -367,9 +368,9 @@ function UI:UpdateTimer()
 	end
 	if d.Phase == "Result" and d.Result then
 		local egg = d.Result.Egg and EC.Kinds[d.Result.Egg]
-		self.ResultBody.Text = string.format("%s\n\n🌙 버틴 밤  %d / %d\n👥 함께한 대원  %d명\n%s\n\n%d초 뒤 로비 캠프로 돌아갑니다.\n(확정된 펫·알·코인은 유지)",
-			d.Result.Reason, d.Result.Nights, d.Target, d.Players,
-			egg and ("🎁 보상: " .. egg.Icon .. " " .. egg.Name .. " (로비 부화장에서 깨우기)") or ("🎁 " .. EC.CommonNights .. "밤을 버티면 알을 받아요"), remaining)
+		self.ResultBody.Text = L.t("result.body", {why = L.text(d.Result.Reason), nights = d.Result.Nights, target = d.Target, players = d.Players,
+			reward = egg and L.t("result.reward", {icon = egg.Icon, name = L.t("egg." .. d.Result.Egg)}) or L.t("result.noReward", {n = EC.CommonNights}),
+			s = remaining})
 	end
 end
 
@@ -378,9 +379,9 @@ function UI:Update(previous)
 	local look = PHASE[d.Phase] or PHASE.Waiting
 	self.PhaseIcon.Text = look[1]
 	if d.Phase == "Day" or d.Phase == "Night" or d.Phase == "Dawn" then
-		self.PhaseText.Text = string.format("%s %d / %d", look[2], d.Night, d.Target)
+		self.PhaseText.Text = string.format("%s %d / %d", L.t(look[2]), d.Night, d.Target)
 	else
-		self.PhaseText.Text = look[2]
+		self.PhaseText.Text = L.t(look[2])
 	end
 	self.PillGradient.Color = ColorSequence.new(Color3.fromHex(look[3]), Color3.fromHex(look[4]))
 	local ratio = math.clamp(d.CoreHP / math.max(1, d.CoreMaxHP), 0, 1)
@@ -388,7 +389,7 @@ function UI:Update(previous)
 		BackgroundColor3 = ratio > 0.35 and Color3.fromHex("#6ff3e0") or Color3.fromHex("#ff6b6b")}):Play()
 	self.CoreText.Text = tostring(math.floor(d.CoreHP))
 	self.EnemyChip.Visible = d.Phase == "Night"
-	self.EnemyText.Text = string.format("👾 괴물 %d · 등장 %d/%d", d.Enemies, d.Spawned, d.Total)
+	self.EnemyText.Text = L.t("ui.enemies", {n = d.Enemies, spawned = d.Spawned, total = d.Total})
 
 	-- 자원
 	local total = 0
@@ -407,16 +408,16 @@ function UI:Update(previous)
 	-- 목표
 	local goal
 	if d.Phase == "Waiting" then
-		goal = string.format("원정대 %d명 모이는 중 · 곧 출발 · 화면 아래 칸(1~9)에서 창·도끼를 골라 들고 클릭 / F / 공격 버튼", d.Players)
+		goal = L.t("goal.waiting", {n = d.Players})
 	elseif total >= capacity and d.Phase == "Day" then
-		goal = "가방이 가득! 기지의 공용 창고 앞으로 가면 자동으로 넣어요"
+		goal = L.t("goal.bagFull")
 	elseif d.Phase == "Result" then
-		goal = "원정 종료 · 잠시 뒤 로비 캠프로 돌아갑니다"
+		goal = L.t("goal.result")
 	else
-		goal = d.Objective or "야생 펫을 잡고, 자원을 모아 기지를 지키세요"
+		goal = d.Objective and L.text(d.Objective) or L.t("goal.default")
 	end
 	self.Goal.Text = goal
-	self.Practice.Text = d.Practice and "연습 모드 · 저장 안 됨" or ""
+	self.Practice.Text = d.Practice and L.t("ui.practice") or ""
 	self:UpdateTeam(d.Pets)
 	-- 우리 팀 전투력 (출전 펫 합): 야생 이름표가 "해볼 만함 / 너무 강함" 을 보여줄 때 쓴다
 	local power = 0
@@ -429,15 +430,15 @@ function UI:Update(previous)
 	local was = previous and previous.Phase
 	if was ~= d.Phase then
 		if d.Phase == "Day" and d.Night == 1 and was == "Waiting" then
-			self:ShowBanner("🌿 원정 시작!", "문 밖 초원의 야생 모슬링부터 잡아 동료를 늘리세요", Color3.fromHex("#b6ff8a"))
+			self:ShowBanner(L.t("banner.start"), L.t("banner.startSub"), Color3.fromHex("#b6ff8a"))
 		elseif d.Phase == "Night" then
-			self:ShowBanner(string.format("🌙 밤 %d", d.Night), "괴물들이 굴에서 나온다! Core 를 지키세요", Color3.fromHex("#c9b8ff"))
+			self:ShowBanner(L.t("banner.night", {n = d.Night}), L.t("banner.nightSub"), Color3.fromHex("#c9b8ff"))
 			self:SetVignette(0.35)
 		elseif d.Phase == "Dawn" then
-			self:ShowBanner("🌅 밤을 버텼다!", "등록한 펫이 영구 저장됩니다", Color3.fromHex("#ffd0c2"))
+			self:ShowBanner(L.t("banner.dawn"), L.t("banner.dawnSub"), Color3.fromHex("#ffd0c2"))
 			self:SetVignette(1)
 		elseif d.Phase == "Day" then
-			self:ShowBanner(string.format("☀️ %d일차", d.Night), "기지를 강화하고 더 강한 펫에 도전하세요", Color3.fromHex("#ffe9a8"))
+			self:ShowBanner(L.t("banner.day", {n = d.Night}), L.t("banner.daySub"), Color3.fromHex("#ffe9a8"))
 			self:SetVignette(1)
 		end
 	end
@@ -445,7 +446,7 @@ function UI:Update(previous)
 		local left = d.EndsAt - workspace:GetServerTimeNow()
 		if left <= C.WarningSeconds and not self.Warned then
 			self.Warned = true
-			self:ShowBanner("⚠ 곧 밤이 옵니다", "기지로 돌아와 펫을 배치하세요", Color3.fromHex("#ffb38a"))
+			self:ShowBanner(L.t("banner.dusk"), L.t("banner.duskSub"), Color3.fromHex("#ffb38a"))
 			self:SetVignette(0.7)
 		end
 	end
@@ -455,7 +456,7 @@ function UI:Update(previous)
 
 	self.Result.Visible = d.Result ~= nil and d.Phase == "Result"
 	if d.Result then
-		self.ResultTitle.Text = d.Result.Won and "🏆 방어 성공!" or "💥 원정 실패"
+		self.ResultTitle.Text = L.t(d.Result.Won and "result.won" or "result.lost")
 		self.ResultTitle.TextColor3 = d.Result.Won and Color3.fromHex("#ffe066") or Color3.fromHex("#ff8a8a")
 	end
 	self:UpdateTimer()

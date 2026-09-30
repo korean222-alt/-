@@ -3,6 +3,7 @@ local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
 local EC = require(RS.Shared.Config.EggConfig)
 local Eggs = require(RS.Shared.Modules.Eggs)
+local L = require(RS.Shared.Modules.Locale)
 local S = {}
 function S:Init(ctx)
     self.ctx, self.Participants, self.StartAt, self.Result, self.RoundId = ctx, {}, nil, nil, 0
@@ -13,13 +14,13 @@ function S:Count() local n = 0; for _ in pairs(self.Participants) do n = n + 1 e
 -- 혼자 들어온 첫 사람은 StartDelay(몇 초) 뒤 바로 출발한다.
 function S:Join(player)
     if self:Count() >= C.MaxPlayers then
-        player:Kick("이 서버는 인원이 가득 찼습니다. 다시 들어오면 다른 서버로 연결됩니다.")
+        player:Kick(L.t("run.serverFull", nil, L.of(player)))
         return false
     end
     self.Participants[player] = true
     if self.ctx.Clock.Phase == "Waiting" and not self.StartAt then self.StartAt = workspace:GetServerTimeNow() + C.StartDelay end
     if self.ctx.Clock.Phase == "Day" or self.ctx.Clock.Phase == "Night" then
-        task.defer(function() if player.Parent then self.ctx.Notify(player, "진행 중인 원정에 합류했습니다! 목표 카드를 따라가세요") end end)
+        task.defer(function() if player.Parent then self.ctx.Notify(player, L.M("run.joinedLate")) end end)
     end
     return true
 end
@@ -38,7 +39,7 @@ function S:Start()
     self.RoundId = self.RoundId + 1
     self.LockedPlayerCount, self.Result, self.Warned = self:Count(), nil, false
     self:Change("Day", 1, C.FirstDaySeconds)
-    self.ctx.Notify(nil, "원정 시작! 펫 포획 · 재료 모으기 · 제작대에서 더 좋은 도구 · 밤에는 기지 방어")
+    self.ctx.Notify(nil, L.M("run.start"))
 end
 function S:Finish(won, reason)
     if self.ctx.Clock.Phase == "Result" or self.ctx.Clock.Phase == "Waiting" then return end
@@ -47,13 +48,13 @@ function S:Finish(won, reason)
     self.Result.Egg = Eggs.reward(won, self.Result.Nights, EC)
     if self.Result.Egg and self.ctx.Eggs then
         for player in pairs(self.Participants) do
-            self.ctx.Eggs:Grant(player, self.Result.Egg, won and "원정 클리어!" or (self.Result.Nights .. "밤 생존"))
+            self.ctx.Eggs:Grant(player, self.Result.Egg, won and L.M("run.clearReason") or L.M("run.nightsReason", {n = self.Result.Nights}))
         end
     end
     self:Change("Result", self.ctx.Clock.Night, C.ResultSeconds * self.ctx.Clock:Scale())
     self.ctx.Enemies:Reset()
     self.ctx.Waves:Reset()
-    self.ctx.Notify(nil, (won and "방어 성공! " or "원정 실패: ") .. reason)
+    self.ctx.Notify(nil, L.M(won and "run.won" or "run.lost", {why = reason}))
 end
 function S:Reset()
     self:Change("Waiting", 0, 0)
@@ -82,14 +83,14 @@ function S:Tick()
         if self.StartAt and workspace:GetServerTimeNow() >= self.StartAt then self:Start() end
     elseif phase == "Day" then
         if not self.Warned and clock:Remaining() <= C.WarningSeconds / clock:Scale() then
-            self.Warned = true; self.ctx.Notify(nil, "곧 밤입니다! 기지로 돌아오세요")
+            self.Warned = true; self.ctx.Notify(nil, L.M("run.duskWarning"))
         end
         if clock:Expired() then
             self:Change("Night", clock.Night, C.NightSeconds)
             -- 중간에 들어온 사람도 세도록 밤마다 지금 인원으로 웨이브 크기를 정한다
             self.LockedPlayerCount = math.max(1, self:Count())
             if C.ActiveStage >= 4 then self.ctx.Waves:Start(clock.Night, self.LockedPlayerCount) end
-            self.ctx.Notify(nil, "밤 " .. clock.Night .. " 시작 · 밤에는 수리만 가능합니다")
+            self.ctx.Notify(nil, L.M("run.nightStart", {n = clock.Night}))
         end
     elseif phase == "Night" then
         if clock:Expired() or self.ctx.Waves.BossDefeated then
@@ -97,11 +98,11 @@ function S:Tick()
             self.ctx.Enemies:Reset()
             self.ctx.Waves:Reset()
             self:Change("Dawn", clock.Night, C.DawnSeconds * clock:Scale())
-            self.ctx.Notify(nil, "밤 생존! 다음 방어를 준비하세요")
+            self.ctx.Notify(nil, L.M("run.nightSurvived"))
         end
     elseif phase == "Dawn" and clock:Expired() then
         if clock.Night >= C.TargetNights then
-            self:Finish(true, C.ActiveStage >= 4 and "초원 3밤 생존" or "단계 테스트 완료 (적 없음)")
+            self:Finish(true, L.M(C.ActiveStage >= 4 and "run.clearNights" or "run.stageTest", {n = C.TargetNights}))
         else
             self.Warned = false
             self:Change("Day", clock.Night + 1, C.DaySeconds)

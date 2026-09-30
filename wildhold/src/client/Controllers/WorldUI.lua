@@ -3,6 +3,7 @@
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local R = require(RS.Shared.Config.ResourceConfig)
+local L = require(RS.Shared.Modules.Locale)
 
 local W = {}
 local player = Players.LocalPlayer
@@ -68,7 +69,7 @@ function W:NodeTag(hit)
 	local gui = new("BillboardGui", self.Gui, {Adornee = hit, Size = UDim2.fromOffset(120, 34), StudsOffset = Vector3.new(0, hit.Size.Y / 2 + 1, 0),
 		LightInfluence = 0, MaxDistance = 40, Enabled = false})
 	new("TextLabel", gui, {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, Font = FONT, TextSize = 16,
-		TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.3, Text = (ICON[kind] or "") .. " " .. (R.Labels[kind] or kind)})
+		TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.3, Text = (ICON[kind] or "") .. " " .. L.t("res." .. tostring(kind))})
 	local fill = bar(gui, 21, 70, 7, Color3.fromHex("#f4d35e"))
 	tag = {Gui = gui, Fill = fill}
 	self.NodeTags[hit] = tag
@@ -111,7 +112,7 @@ function W:Refresh()
 					self.SlotTags[pad] = tag
 				end
 				tag.Gui.Enabled = true
-				tag.Label.Text = string.format("%s Lv%d", pad:GetAttribute("DisplayName") or "", pad:GetAttribute("Level") or 0)
+				tag.Label.Text = string.format("%s Lv%d", L.t(pad:GetAttribute("DisplayName") or ""), pad:GetAttribute("Level") or 0)
 				tag.Fill.Size = UDim2.fromScale(math.clamp(hp / maxHP, 0, 1), 1)
 			elseif tag then
 				tag.Gui.Enabled = false

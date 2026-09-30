@@ -5,10 +5,10 @@
 return {
 	Order = {"Rare", "Common"},
 	Kinds = {
-		Common = {Name = "보통 알", Icon = "🥚", Color = "#e8dcc0", Spots = "#a8916a", HatchSeconds = 90, Level = 1,
+		Common = {Icon = "🥚", Color = "#e8dcc0", Spots = "#a8916a", HatchSeconds = 90, Level = 1,
 			Pool = {{"Mossling", 30}, {"Emberpup", 25}, {"Shellbub", 25}, {"Mossdeer", 8}, {"Ashlizard", 6}, {"Bogtoad", 6}},
 			Stars = {20, 34, 28, 13, 5}, MinStars = 1, ShinyChance = 1 / 60},
-		Rare = {Name = "희귀한 알", Icon = "🌟", Color = "#bfe8ff", Spots = "#7a5cff", HatchSeconds = 180, Level = 3,
+		Rare = {Icon = "🌟", Color = "#bfe8ff", Spots = "#7a5cff", HatchSeconds = 180, Level = 3,
 			Pool = {{"Mossdeer", 22}, {"Ashlizard", 22}, {"Bogtoad", 22}, {"Emberpup", 12}, {"Shellbub", 12}, {"Briarhorn", 10}},
 			Stars = {0, 0, 45, 35, 20}, MinStars = 3, ShinyChance = 1 / 25},
 	},

@@ -21,10 +21,10 @@ return {
 	Cage = {0, 0, 29},
 	-- 지역. Angle 이 있는 지역은 그 방향 ±60° 부채꼴, MeadowRadius 바깥.
 	Zones = {
-		Meadow = {Name = "초원", Icon = "🌿", Danger = 1},
-		Crags = {Name = "잿빛 바위 협곡", Icon = "🌋", Danger = 2, Angle = 0},
-		Ancient = {Name = "고목의 숲", Icon = "🌲", Danger = 3, Angle = 120},
-		Swamp = {Name = "안개 늪", Icon = "💧", Danger = 2, Angle = 240},
+		Meadow = {Icon = "🌿", Danger = 1},
+		Crags = {Icon = "🌋", Danger = 2, Angle = 0},
+		Ancient = {Icon = "🌲", Danger = 3, Angle = 120},
+		Swamp = {Icon = "💧", Danger = 2, Angle = 240},
 	},
 	ZoneOrder = {"Meadow", "Crags", "Ancient", "Swamp"},
 	-- 지역별 채집 노드 개수 (위치는 맵을 만들 때 고정 시드로 흩뿌린다)

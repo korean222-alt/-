@@ -5,6 +5,7 @@ local CollectionService = game:GetService("CollectionService")
 local B = require(script.Parent.Build)
 local Props = require(script.Parent.Props)
 local Kit = require(script.Parent.Kit)
+local Locale = require(script.Parent.Parent.Modules.Locale)
 
 local L = {}
 local M = Enum.Material
@@ -16,7 +17,9 @@ local function sign(parent, size, at, title, face)
 	gui.Parent = board
 	local text = Instance.new("TextLabel")
 	text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
-	text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, title, Color3.fromHex("#f2e6cf")
+	text.Font, text.TextColor3 = Enum.Font.FredokaOne, Color3.fromHex("#f2e6cf")
+	-- 글자는 번역 메시지 (각 플레이어 언어로 보인다)
+	if type(title) == "table" then Locale.tag(text, "Text", title) else text.Text = title end
 	text.Parent = gui
 	return board, text
 end
@@ -29,7 +32,7 @@ local function wagon(parent, at, index)
 		B.hitbox(m, Vector3.new(7.4, 3.2, 11), at * CFrame.new(0, 2.4, 0), true)
 		Props.lantern(m, at * CFrame.new(3.8, 6.2, -5))
 		local post = B.solid(B.block(m, Vector3.new(0.4, 5.4, 0.4), at * CFrame.new(-4.6, 2.7, -6.2), "#5a4535", M.Wood))
-		local _, text = sign(m, Vector3.new(5, 2.2, 0.3), post.CFrame * CFrame.new(0, 2, -0.3), "원정 수레 " .. index)
+		local _, text = sign(m, Vector3.new(5, 2.2, 0.3), post.CFrame * CFrame.new(0, 2, -0.3), Locale.M("lobby.wagonSign", {n = index}))
 		local pad = B.cyl(m, 0.12, 13, at * CFrame.new(0, 0.1, -8.5), "#8ff5e8", M.Neon, true, {Transparency = 0.7, CanQuery = true})
 		pad.Name = "WagonPad"
 		pad:SetAttribute("Room", index)
@@ -61,7 +64,7 @@ local function wagon(parent, at, index)
 	Props.lantern(m, at * CFrame.new(3.8, 6.2, -5))
 	-- 표지판: 방 번호 + 인원 (서버가 글자를 바꾼다)
 	local post = B.solid(B.block(m, Vector3.new(0.4, 5.4, 0.4), at * CFrame.new(-4.6, 2.7, -6.2), "#5a4535", M.Wood))
-	local _, text = sign(m, Vector3.new(5, 2.2, 0.3), post.CFrame * CFrame.new(0, 2, -0.3), "원정 수레 " .. index)
+	local _, text = sign(m, Vector3.new(5, 2.2, 0.3), post.CFrame * CFrame.new(0, 2, -0.3), Locale.M("lobby.wagonSign", {n = index}))
 	-- 올라타는 자리: 바닥의 빛나는 원
 	local pad = B.cyl(m, 0.12, 13, at * CFrame.new(0, 0.1, -8.5), "#8ff5e8", M.Neon, true, {Transparency = 0.7, CanQuery = true})
 	pad.Name = "WagonPad"
@@ -161,20 +164,20 @@ function L.build(parent, origin, config)
 	B.light(lamp, "PointLight", {Range = 18, Brightness = 1.6, Color = Color3.fromHex("#ffcf8a"), Shadows = false})
 	CollectionService:AddTag(hut, "NightLight")
 	local incubator = B.hitbox(hut, Vector3.new(8, 4, 6), hat * CFrame.new(0, 2, 0), false)
-	incubator.Name = "부화장"
-	sign(hut, Vector3.new(6, 1.6, 0.3), hat * CFrame.new(0, 5.6, -4.3), "🥚 부화장")
+	incubator.Name = "Incubator"
+	sign(hut, Vector3.new(6, 1.6, 0.3), hat * CFrame.new(0, 5.6, -4.3), Locale.M("lobby.incubatorSign"))
 	-- 보급 게시판 (서쪽)
 	local shop = B.model(root, "ShopBoard")
 	local sat = CFrame.lookAt((base * CFrame.new(-40, 0, 6)).Position, origin)
 	for _, x in ipairs({-3, 3}) do
 		B.solid(B.block(shop, Vector3.new(0.6, 6, 0.6), sat * CFrame.new(x, 3, 0), "#5a4535", M.Wood))
 	end
-	local board = sign(shop, Vector3.new(7, 3.4, 0.4), sat * CFrame.new(0, 4, 0), "🪙 보급 상점\n펫 도감")
-	board.Name = "보급 상점"
+	local board = sign(shop, Vector3.new(7, 3.4, 0.4), sat * CFrame.new(0, 4, 0), Locale.M("lobby.shopSign"))
+	board.Name = "ShopBoard"
 	Props.crate(shop, sat * CFrame.new(-4.5, 0, 1.5), 2.2)
 	Props.barrel(shop, sat * CFrame.new(4.5, 0, 1.2))
 	-- 환영 표지 (스폰 앞)
-	sign(root, Vector3.new(10, 2.4, 0.4), base * CFrame.new(0, 5, 36) * CFrame.Angles(0, math.pi, 0), "WILDHOLD 캠프")
+	sign(root, Vector3.new(10, 2.4, 0.4), base * CFrame.new(0, 5, 36) * CFrame.Angles(0, math.pi, 0), Locale.M("lobby.campSign"))
 	B.solid(B.block(root, Vector3.new(0.5, 5, 0.5), base * CFrame.new(-4.6, 2.5, 36), "#5a4535", M.Wood),
 		B.block(root, Vector3.new(0.5, 5, 0.5), base * CFrame.new(4.6, 2.5, 36), "#5a4535", M.Wood))
 	-- 둘레 소품

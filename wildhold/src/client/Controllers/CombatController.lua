@@ -5,6 +5,7 @@ local RS = game:GetService("ReplicatedStorage")
 local C = require(RS.Shared.Config.GameConfig)
 local I = require(RS.Shared.Config.ItemConfig)
 local Inv = require(RS.Shared.Modules.Inventory)
+local L = require(RS.Shared.Modules.Locale)
 local Swing = require(script.Parent.SwingController)
 local Build = require(script.Parent.BuildController)
 
@@ -14,7 +15,7 @@ function Controller:Init(remotes)
 	local last = 0
 	local player = Players.LocalPlayer
 	local function handler(_, state)
-		if player:GetAttribute("PetMenuOpen") then return Enum.ContextActionResult.Pass end
+		if player:GetAttribute("PetMenuOpen") or player:GetAttribute("SettingsOpen") then return Enum.ContextActionResult.Pass end
 		if state == Enum.UserInputState.Begin and os.clock() - last >= C.SpearCooldown then
 			last = os.clock()
 			-- 설치 도구를 들고 있으면 공격 대신 설치
@@ -38,7 +39,7 @@ function Controller:Init(remotes)
 		bound = want
 		if want then
 			CAS:BindAction("WildholdAttack", handler, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
-			CAS:SetTitle("WildholdAttack", "공격")
+			CAS:SetTitle("WildholdAttack", L.t("action.Tool"))
 			CAS:SetPosition("WildholdAttack", UDim2.new(1, -150, 1, -150))
 			local button = CAS:GetButton("WildholdAttack")
 			if button then

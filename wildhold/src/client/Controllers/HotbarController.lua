@@ -10,6 +10,7 @@ local RS = game:GetService("ReplicatedStorage")
 local G = require(RS.Shared.Config.GameConfig)
 local I = require(RS.Shared.Config.ItemConfig)
 local Inv = require(RS.Shared.Modules.Inventory)
+local L = require(RS.Shared.Modules.Locale)
 
 local H = {}
 local player = Players.LocalPlayer
@@ -19,7 +20,6 @@ local SLOT = 58
 local GAP = 6
 local KEYS = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five,
 	Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine}
-local ACTION = {Tool = "공격", Food = "먹기", Trap = "덫 던지기", PetFood = "간식 주기"}
 
 local function new(className, parent, props)
 	local o = Instance.new(className)
@@ -160,7 +160,7 @@ function H:Select(i)
 	local tool = self:Tool(id)
 	if tool then
 		human:EquipTool(tool)
-		self:ShowName(I.Items[id].Name)
+		self:ShowName(L.t("item." .. id))
 	end
 end
 
@@ -187,7 +187,7 @@ function H:Refresh()
 		if id then
 			local spec = I.Items[id]
 			slot.Icon.Text = spec.Icon
-			slot.Tier.Text = spec.Name
+			slot.Tier.Text = L.t("item." .. id)
 			local n = Inv.count(items, bag, id, I)
 			slot.Count.Text = spec.Kind == "Tool" and "" or tostring(n)
 			local selected = id == held
@@ -200,7 +200,7 @@ function H:Refresh()
 	self.Bar.Size = UDim2.fromOffset(math.max(1, #self.List) * (SLOT + GAP) - GAP, SLOT)
 	-- 공격 버튼 글자: 손에 든 것에 맞게
 	local spec = held and I.Items[held]
-	pcall(function() CAS:SetTitle("WildholdAttack", spec and ACTION[spec.Kind] or "공격") end)
+	pcall(function() CAS:SetTitle("WildholdAttack", L.t(spec and L.has("action." .. spec.Kind) and ("action." .. spec.Kind) or "action.Tool")) end)
 	self:Vitals()
 end
 
@@ -216,7 +216,7 @@ function H:Vitals()
 		local ratio = math.clamp(d.Hunger / G.HungerMax, 0, 1)
 		self.FoodFill.Size = UDim2.fromScale(ratio, 1)
 		self.FoodFill.BackgroundColor3 = ratio > 0.25 and Color3.fromHex("#e8a04a") or Color3.fromHex("#ef5b5b")
-		self.FoodText.Text = ratio <= 0 and "🍖 배고픔! 열매나 음식을 드세요" or string.format("🍖 %d", math.ceil(d.Hunger))
+		self.FoodText.Text = ratio <= 0 and L.t("hunger.starving") or string.format("🍖 %d", math.ceil(d.Hunger))
 	end
 end
 

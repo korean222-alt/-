@@ -34,10 +34,6 @@ return {
 		CrystalTrap = {Station = "Workbench", Bench = 3, Cost = {Crystal = 2, Scrap = 3, Fiber = 4}},
 		CrystalSpear = {Station = "Workbench", Bench = 3, Cost = {Crystal = 6, Scrap = 10, Wood = 4}},
 	},
-	-- 제작대 레벨 이름 (강화 비용은 DefenseConfig.Workbench). 레벨이 오르면 새 제작법과 방어 시설 강화가 풀린다.
-	Bench = {
-		{Name = "제작대 Lv1"},
-		{Name = "제작대 Lv2"},
-		{Name = "제작대 Lv3"},
-	},
+	-- 제작대 레벨 (강화 비용은 DefenseConfig.Workbench). 레벨이 오르면 새 제작법과 방어 시설 강화가 풀린다. 이름은 Locale "bench.lv"
+	Bench = {{}, {}, {}},
 }

@@ -12,12 +12,13 @@ local PR = require(RS.Shared.Modules.PetRules)
 local Shop = require(RS.Shared.Config.ShopConfig)
 local Defense = require(RS.Shared.Config.DefenseConfig)
 local Portrait = require(script.Parent.Portrait)
+local L = require(RS.Shared.Modules.Locale)
 
 local Controller = {}
 local TITLE, BODY = Enum.Font.FredokaOne, Enum.Font.GothamBold
 local COL = {Back = Color3.fromHex("#141d2a"), Card = Color3.fromHex("#1f2b3b"), Card2 = Color3.fromHex("#273548"), Text = Color3.fromHex("#f1f5fa"),
 	Muted = Color3.fromHex("#aab6c6"), Mint = Color3.fromHex("#7be0b6"), Gold = Color3.fromHex("#ffd36b"), Red = Color3.fromHex("#ff8a8a")}
-local ELEMENT = {Leaf = {"🌿 풀", "#7ed36a"}, Ember = {"🔥 불", "#ff9a4a"}, Tide = {"💧 물", "#6fc3ff"}}
+local ELEMENT = {Leaf = {"element.Leaf", "#7ed36a"}, Ember = {"element.Ember", "#ff9a4a"}, Tide = {"element.Tide", "#6fc3ff"}}
 local ICON = R.Icons
 
 local function create(kind, parent, props)
@@ -68,8 +69,9 @@ function Controller:Init(remotes)
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 
 	-- 오른쪽: 펫 버튼 + 빠른 명령
-	self.OpenButton = button(self.Gui, "🐾\n펫", UDim2.new(1, -96, 1, -270), UDim2.fromOffset(78, 78), function() self:Open("Pets") end, Color3.fromHex("#2f8f83"))
+	self.OpenButton = button(self.Gui, "", UDim2.new(1, -96, 1, -270), UDim2.fromOffset(78, 78), function() self:Open("Pets") end, Color3.fromHex("#2f8f83"))
 	self.OpenButton.TextSize = 18
+	L.bind(self.OpenButton, "pets.open")
 	corner(self.OpenButton, 39)
 	self.SaveBadge = label(self.OpenButton, "", UDim2.new(0, -40, 1, 2), UDim2.new(1, 80, 0, 16), {TextSize = 11, TextColor3 = COL.Gold,
 		TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.4})
@@ -77,9 +79,10 @@ function Controller:Init(remotes)
 		BackgroundTransparency = 1})
 	create("UIListLayout", self.Quick, {Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Right})
 	self.QuickButtons = {}
-	for _, spec in ipairs({{"Focus", "🎯 사냥", "#b0553a"}, {"Follow", "🐾 따라와", "#2f6f8f"}, {"Guard", "🛡 지켜", "#4f5f8f"}, {"Craft", "🔨 제작", "#8a5a2f"}}) do
-		local b = button(self.Quick, spec[2], UDim2.new(), UDim2.fromOffset(92, 52), function() self:QuickCommand(spec[1]) end, Color3.fromHex(spec[3]))
-		b.TextSize = 15
+	for _, spec in ipairs({{"Focus", "quick.Focus", "#b0553a"}, {"Follow", "quick.Follow", "#2f6f8f"}, {"Guard", "quick.Guard", "#4f5f8f"}, {"Craft", "quick.Craft", "#8a5a2f"}}) do
+		local b = button(self.Quick, "", UDim2.new(), UDim2.fromOffset(92, 52), function() self:QuickCommand(spec[1]) end, Color3.fromHex(spec[3]))
+		b.TextSize, b.TextWrapped = 15, true
+		L.bind(b, spec[2])
 		self.QuickButtons[spec[1]] = b
 	end
 
@@ -89,22 +92,29 @@ function Controller:Init(remotes)
 	create("UISizeConstraint", self.Panel, {MaxSize = Vector2.new(720, 640)})
 	corner(self.Panel, 18)
 	create("UIStroke", self.Panel, {Color = COL.Mint, Transparency = 0.6, Thickness = 2})
-	self.Status = label(self.Panel, "내 펫", UDim2.fromOffset(16, 8), UDim2.new(1, -90, 0, 44), {Font = TITLE, TextSize = 18})
+	self.Status = label(self.Panel, "", UDim2.fromOffset(16, 8), UDim2.new(1, -90, 0, 44), {Font = TITLE, TextSize = 18})
 	button(self.Panel, "✕", UDim2.new(1, -56, 0, 8), UDim2.fromOffset(46, 42), function() self:Close() end, Color3.fromHex("#5b2f3a"))
 	self.TabButtons = {}
-	local tabs = {{"Pets", "내 펫"}, {"Wild", "야생"}, {"Orders", "명령"}, {"Craft", "제작"}, {"Dex", "도감"}, {"Shop", "🪙 보급"}}
+	local tabs = {"Pets", "Wild", "Orders", "Craft", "Dex", "Shop"}
 	for index, tab in ipairs(tabs) do
 		local w = 1 / #tabs
-		self.TabButtons[tab[1]] = button(self.Panel, tab[2], UDim2.new((index - 1) * w, 6, 0, 58), UDim2.new(w, -8, 0, 42), function()
-			self.Tab = tab[1]
+		self.TabButtons[tab] = button(self.Panel, "", UDim2.new((index - 1) * w, 6, 0, 58), UDim2.new(w, -8, 0, 42), function()
+			self.Tab = tab
 			self:Render()
 		end)
+		self.TabButtons[tab].TextScaled = true
+		L.bind(self.TabButtons[tab], "tab." .. tab)
 	end
-	self.Search = create("TextBox", self.Panel, {PlaceholderText = "🔍 이름 / 역할 / 속성", Text = "", ClearTextOnFocus = false, Position = UDim2.new(0, 10, 0, 108),
+	self.Search = create("TextBox", self.Panel, {PlaceholderText = "", Text = "", ClearTextOnFocus = false, Position = UDim2.new(0, 10, 0, 108),
 		Size = UDim2.new(1, -120, 0, 40), BackgroundColor3 = COL.Card, TextColor3 = COL.Text, PlaceholderColor3 = COL.Muted, TextSize = 14, Font = BODY})
 	corner(self.Search, 10)
+	L.bind(self.Search, "pets.search", nil, "PlaceholderText")
 	self.Search:GetPropertyChangedSignal("Text"):Connect(function() self.Filter = string.lower(self.Search.Text); self:Render() end)
-	self.FavButton = button(self.Panel, "♡ 즐겨찾기", UDim2.new(1, -104, 0, 108), UDim2.fromOffset(94, 40), function() self.Favorites = not self.Favorites; self:Render() end)
+	self.FavButton = button(self.Panel, "", UDim2.new(1, -104, 0, 108), UDim2.fromOffset(94, 40), function() self.Favorites = not self.Favorites; self:Render() end)
+	self.FavButton.TextScaled = true
+	L.bind(self.FavButton, "pets.favFilter")
+	-- 언어를 바꾸면 열린 창을 다시 그린다
+	L.onChanged(function() if self.Panel.Visible then self:Render() end end)
 	self.Scroll = create("ScrollingFrame", self.Panel, {Position = UDim2.fromOffset(10, 156), Size = UDim2.new(1, -20, 1, -212), BackgroundTransparency = 1,
 		BorderSizePixel = 0, ScrollBarThickness = 6, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollBarImageColor3 = COL.Mint})
@@ -115,8 +125,7 @@ function Controller:Init(remotes)
 		self.Data = data
 		self.OpenButton.Visible = data.Stage >= 5
 		self.Quick.Visible = data.Stage >= 5 and not self.Panel.Visible
-		local short = {Practice = "연습 모드", Saved = "저장 완료", Unsaved = "저장 대기", Saving = "저장 중…", Retrying = "저장 재시도"}
-		self.SaveBadge.Text = short[data.SaveStatus] or "연결 중"
+		self.SaveBadge.Text = L.t(L.has("save.short." .. tostring(data.SaveStatus)) and ("save.short." .. data.SaveStatus) or "ui.connecting")
 		local wild = data.Wild and data.Wild[1]
 		self.QuickButtons.Focus.Visible = data.Phase == "Day" and wild ~= nil and wild.Distance < 60
 		if self.Panel.Visible then self:Refresh() end
@@ -127,9 +136,9 @@ function Controller:Init(remotes)
 			self:Open("Craft")
 		elseif kind == "Shake" then
 			self:Close()
-			self:CaptureCard(name, seconds)
+			self:CaptureCard(name and L.text(name), seconds)
 		elseif kind == "Capture" then
-			task.delay(1.2, function() self:Open("Pets"); self.Footer.Text = "🎉 " .. (name or "") .. " 포획! 기지의 펫 우리에서 등록하세요" end)
+			task.delay(1.2, function() self:Open("Pets"); self.Footer.Text = L.t("pets.caughtFooter", {name = name or ""}) end)
 		end
 	end)
 end
@@ -153,7 +162,7 @@ function Controller:CaptureCard(name, seconds)
 		BackgroundColor3 = COL.Back, BorderSizePixel = 0})
 	corner(overlay, 18)
 	create("UIStroke", overlay, {Color = COL.Gold, Thickness = 2, Transparency = 0.2})
-	label(overlay, (name or "야생 펫") .. " 포획 시도!", UDim2.fromOffset(0, 8), UDim2.new(1, 0, 0, 26), {Font = TITLE, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center})
+	label(overlay, L.t("capture.trying", {name = name or L.t("capture.wildPet")}), UDim2.fromOffset(0, 8), UDim2.new(1, 0, 0, 26), {Font = TITLE, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center})
 	local icon = label(overlay, "🧺", UDim2.new(0.5, -28, 0, 34), UDim2.fromOffset(56, 50), {TextSize = 40, TextXAlignment = Enum.TextXAlignment.Center})
 	local dots = label(overlay, "○ ○ ○", UDim2.new(0, 0, 1, -30), UDim2.new(1, 0, 0, 24), {Font = TITLE, TextSize = 18, TextColor3 = COL.Gold,
 		TextXAlignment = Enum.TextXAlignment.Center})
@@ -219,22 +228,23 @@ function Controller:Render()
 	if self.Tab == "Pets" then
 		for _, pet in ipairs(d.Pets or {}) do
 			local spec = P.Species[pet.SpeciesId]
-			if (not self.Favorites or pet.Favorite) and string.find(string.lower(spec.Name .. spec.Role .. spec.Element), self.Filter, 1, true) then
+			local searchable = (pet.Nickname or "") .. L.text(PR.name(pet.SpeciesId, pet.Stage, P)) .. L.t("role." .. spec.Role) .. L.t(ELEMENT[spec.Element][1])
+			if (not self.Favorites or pet.Favorite) and string.find(string.lower(searchable), self.Filter, 1, true) then
 				local row = self:Row(196)
 				self:Face(row, pet.SpeciesId, 84)
 				local info = label(row, "", UDim2.fromOffset(102, 6), UDim2.new(1, -110, 0, 100))
 				-- 이름 짓기 (서버가 Roblox 필터를 거친다)
 				local nameBox = create("TextBox", row, {Position = UDim2.new(0, 8, 1, -96), Size = UDim2.new(0.64, -10, 0, 38), Text = "",
-					PlaceholderText = "✏ 이름 짓기 (최대 " .. P.NicknameMax .. "자)", ClearTextOnFocus = false, Font = BODY, TextSize = 14,
+					PlaceholderText = L.t("pets.namePlaceholder", {n = P.NicknameMax}), ClearTextOnFocus = false, Font = BODY, TextSize = 14,
 					TextColor3 = COL.Text, PlaceholderColor3 = COL.Muted, BackgroundColor3 = COL.Card2, BorderSizePixel = 0})
 				corner(nameBox, 10)
-				button(row, "✔ 이름 저장", UDim2.new(0.64, 2, 1, -96), UDim2.new(0.36, -10, 0, 38), function()
+				button(row, L.t("pets.saveName"), UDim2.new(0.64, 2, 1, -96), UDim2.new(0.36, -10, 0, 38), function()
 					self:Send("Rename", {Uid = pet.Uid, Name = nameBox.Text})
 				end, Color3.fromHex("#5a4a8a"))
-				local toggle = button(row, pet.Active and "출전 해제" or "⚔ 출전", UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42),
+				local toggle = button(row, L.t(pet.Active and "pets.bench" or "pets.deploy"), UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42),
 					function() self:Send("Toggle", pet.Uid) end, pet.Active and COL.Card2 or Color3.fromHex("#2f8f83"))
-				button(row, pet.Favorite and "♥ 즐겨찾기" or "♡ 즐겨찾기", UDim2.new(0.36, 2, 1, -50), UDim2.new(0.32, -6, 0, 42), function() self:Send("Favorite", pet.Uid) end)
-				button(row, "🍪 간식", UDim2.new(0.68, 2, 1, -50), UDim2.new(0.32, -10, 0, 42), function() self:Send("Heal", pet.Uid) end)
+				button(row, L.t(pet.Favorite and "pets.faved" or "pets.fav"), UDim2.new(0.36, 2, 1, -50), UDim2.new(0.32, -6, 0, 42), function() self:Send("Favorite", pet.Uid) end)
+				button(row, L.t("pets.snack"), UDim2.new(0.68, 2, 1, -50), UDim2.new(0.32, -10, 0, 42), function() self:Send("Heal", pet.Uid) end)
 				self.Rows[#self.Rows + 1] = {Key = pet.Uid, Info = info, Toggle = toggle}
 			end
 		end
@@ -243,41 +253,35 @@ function Controller:Render()
 			local row = self:Row(168)
 			self:Face(row, wild.SpeciesId, 84)
 			local info = label(row, "", UDim2.fromOffset(102, 4), UDim2.new(1, -110, 0, 108))
-			button(row, "🎯 팀으로 약화", UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42), function() self:Send("Focus", wild.Id); self:Close() end, Color3.fromHex("#b0553a"))
-			button(row, "🧺 일반 덫", UDim2.new(0.36, 2, 1, -50), UDim2.new(0.3, -6, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "Trap", false) end)
-			button(row, "✨ 강화+먹이", UDim2.new(0.66, 2, 1, -50), UDim2.new(0.34, -10, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "BetterTrap", true) end,
+			button(row, L.t("wildtab.weaken"), UDim2.new(0, 8, 1, -50), UDim2.new(0.36, -10, 0, 42), function() self:Send("Focus", wild.Id); self:Close() end, Color3.fromHex("#b0553a"))
+			button(row, L.t("wildtab.trap"), UDim2.new(0.36, 2, 1, -50), UDim2.new(0.3, -6, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "Trap", false) end)
+			button(row, L.t("wildtab.better"), UDim2.new(0.66, 2, 1, -50), UDim2.new(0.34, -10, 0, 42), function() self.Remotes.CaptureAction:FireServer(wild.Id, "BetterTrap", true) end,
 				Color3.fromHex("#8a6a2a"))
 			self.Rows[#self.Rows + 1] = {Key = wild.Id, Info = info}
 		end
 	elseif self.Tab == "Orders" then
-		local actions = {{"Follow", "🐾 전원 따라와"}, {"Stay", "✋ 전원 대기"}, {"Guard", "🛡 지금 자리 방어"}, {"Best", "⚡ 공격력 순 자동 편성"}, {"Register", "🏠 펫 우리에서 일괄 등록"}}
-		for _, a in ipairs(actions) do
+		for _, a in ipairs({"Follow", "Stay", "Guard", "Best", "Register"}) do
 			local row = self:Row(52)
-			button(row, a[2], UDim2.fromOffset(4, 4), UDim2.new(1, -8, 0, 44), function() self:Send(a[1]) end)
+			button(row, L.t("order." .. a), UDim2.fromOffset(4, 4), UDim2.new(1, -8, 0, 44), function() self:Send(a) end)
 			self.Rows[#self.Rows + 1] = {}
 		end
 		for i = 1, 3 do
 			local row = self:Row(52)
-			button(row, "💾 팀 " .. i .. " 저장", UDim2.fromOffset(4, 4), UDim2.new(0.5, -8, 0, 44), function() self:Send("SaveTeam", i) end)
-			button(row, "📂 팀 " .. i .. " 불러오기", UDim2.new(0.5, 4, 0, 4), UDim2.new(0.5, -8, 0, 44), function() self:Send("LoadTeam", i) end)
+			button(row, L.t("order.saveTeam", {n = i}), UDim2.fromOffset(4, 4), UDim2.new(0.5, -8, 0, 44), function() self:Send("SaveTeam", i) end)
+			button(row, L.t("order.loadTeam", {n = i}), UDim2.new(0.5, 4, 0, 4), UDim2.new(0.5, -8, 0, 44), function() self:Send("LoadTeam", i) end)
 			self.Rows[#self.Rows + 1] = {}
 		end
-		local row = self:Row(52)
-		button(row, "🔈 효과음 켜기 / 끄기", UDim2.fromOffset(4, 4), UDim2.new(1, -8, 0, 44), function()
-			Players.LocalPlayer:SetAttribute("MutePets", not Players.LocalPlayer:GetAttribute("MutePets"))
-		end)
-		self.Rows[#self.Rows + 1] = {}
 	elseif self.Tab == "Craft" then
 		-- 제작대 레벨 + 업그레이드 (팀 공용)
 		local level = d.Bench or 0
 		local nextBench = level > 0 and Defense.Workbench.Levels[level + 1]
 		local head = self:Row(nextBench and 100 or 64)
 		label(head, "🔨", UDim2.fromOffset(10, 6), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
-		label(head, level == 0 and "아직 제작대가 없어요\n① 🔨 제작대 설치 도구 만들기(나무 8) → ② 들고 공격 버튼으로 기지 안에 설치"
-			or string.format("제작대 Lv%d (놓인 것 중 최고)\n%s", level, nextBench and ("다음: Lv" .. (level + 1) .. "  " .. costText(nextBench.Cost)) or "최고 레벨"),
+		label(head, level == 0 and L.t("craft.noBench")
+			or L.t("craft.benchLevel", {lv = level, next = nextBench and L.t("craft.benchNext", {lv = level + 1, cost = costText(nextBench.Cost)}) or L.t("craft.benchMax")}),
 			UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 54))
 		if nextBench then
-			button(head, "⬆ 가까운 제작대 강화 (낮)", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
+			button(head, L.t("craft.upgradeBench"), UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("BenchUpgrade") end,
 				Color3.fromHex("#8a5a2f"))
 		end
 		self.Rows[#self.Rows + 1] = {}
@@ -291,13 +295,13 @@ function Controller:Render()
 			local row = self:Row(100)
 			label(row, spec.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
 			local info = label(row, "", UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
-			local verb = recipe.Station == "Campfire" and "🔥 요리하기" or (spec.Kind == "Build" and "🔨 설치 도구 만들기" or "🔨 만들기")
+			local verb = L.t(recipe.Station == "Campfire" and "craft.cook" or (spec.Kind == "Build" and "craft.makeKit" or "craft.make"))
 			local makeButton = button(row, verb, UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer(id) end, Color3.fromHex("#2f8f83"))
 			self.Rows[#self.Rows + 1] = {Key = id, Info = info, Button = makeButton, Cost = costText(recipe.Cost)}
 		end
 	elseif self.Tab == "Shop" then
 		local intro = self:Row(56)
-		label(intro, string.format("🪙 %d 코인 · 밤을 버티면 코인, 새 종을 처음 확정하면 +%d\n해금한 보급은 다음 원정부터 매번 받아요", d.Coins or 0, Shop.DexReward),
+		label(intro, L.t("shop.intro", {coins = d.Coins or 0, dex = Shop.DexReward}),
 			UDim2.fromOffset(12, 4), UDim2.new(1, -24, 1, -8), {TextColor3 = COL.Muted})
 		self.Rows[#self.Rows + 1] = {}
 		for _, id in ipairs(Shop.Order) do
@@ -305,9 +309,9 @@ function Controller:Render()
 			local owned = d.Perks and d.Perks[id]
 			local row = self:Row(100)
 			label(row, perk.Icon, UDim2.fromOffset(10, 8), UDim2.fromOffset(60, 44), {TextSize = 30, TextXAlignment = Enum.TextXAlignment.Center})
-			label(row, string.format("%s\n%s", perk.Name, owned and "✅ 해금 완료" or ("🪙 " .. perk.Cost)), UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
+			label(row, string.format("%s\n%s", L.t("perk." .. id), owned and L.t("shop.owned") or ("🪙 " .. perk.Cost)), UDim2.fromOffset(76, 4), UDim2.new(1, -84, 0, 46))
 			if not owned then
-				button(row, "🪙 해금하기", UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("Perk:" .. id) end,
+				button(row, L.t("shop.unlock"), UDim2.new(0, 8, 1, -48), UDim2.new(1, -16, 0, 40), function() self.Remotes.CraftAction:FireServer("Perk:" .. id) end,
 					(d.Coins or 0) >= perk.Cost and Color3.fromHex("#8a6a2a") or COL.Card2)
 			end
 			self.Rows[#self.Rows + 1] = {}
@@ -319,18 +323,19 @@ function Controller:Render()
 			local entry = d.Dex[id]
 			local caught = entry and entry.Caught
 			self:Face(row, id, 86, not (entry and entry.Seen))
-			local state = caught and "✅ 수집 완료" or (entry and entry.Seen and "👀 발견 · 아직 미확정" or "❔ 미발견")
+			local state = L.t(caught and "dex.caught" or (entry and entry.Seen and "dex.seen" or "dex.unknown"))
 			local element = ELEMENT[spec.Element]
 			local seen = entry and entry.Seen
-			local grows = spec.Adult and ("  →  🌟 " .. spec.Adult.Name .. " (Lv" .. P.EvolveLevel .. ")") or ""
-			label(row, string.format("%s%s\n%s · %s\n%s\n기본 HP %d · 공격 %d", seen and spec.Name or "???", seen and grows or "", element[1], spec.Role, state, spec.HP, spec.Damage),
+			local grows = spec.Adult and ("  →  🌟 " .. L.t("adult." .. id) .. " (Lv" .. P.EvolveLevel .. ")") or ""
+			label(row, string.format("%s%s\n%s · %s\n%s\n%s", seen and L.t("species." .. id) or "???", seen and grows or "", L.t(element[1]), L.t("role." .. spec.Role), state,
+				L.t("dex.stats", {hp = spec.HP, dmg = spec.Damage})),
 				UDim2.fromOffset(104, 6), UDim2.new(1, -112, 1, -12))
 			self.Rows[#self.Rows + 1] = {}
 		end
 	end
 	if #self.Rows == 0 then
 		local row = self:Row(90)
-		label(row, self.Tab == "Wild" and "근처에 야생 펫이 없습니다.\n기지 밖 초원·바위지대·연못으로 가 보세요." or "표시할 펫이 없습니다.",
+		label(row, L.t(self.Tab == "Wild" and "wildtab.none" or "pets.none"),
 			UDim2.fromOffset(14, 6), UDim2.new(1, -28, 1, -12), {TextColor3 = COL.Muted})
 	end
 	self.Structure = self:Signature()
@@ -365,56 +370,55 @@ function Controller:Refresh(skip)
 	local d = self.Data
 	local equipped = 0
 	for _, pet in ipairs(d.Pets or {}) do if pet.Active then equipped = equipped + 1 end end
-	local status = {Practice = "연습 모드 · 영구 저장 안 됨", Saved = "💾 저장 완료", Unsaved = "저장 대기", Saving = "저장 중…", Retrying = "저장 재시도", LockLost = "연결 종료"}
-	self.Status.Text = string.format("🐾 출전 %d/3   🪙 %d   ·  %s", equipped, d.Coins or 0, status[d.SaveStatus] or "연결 중")
+	local saveKey = "save.long." .. tostring(d.SaveStatus)
+	self.Status.Text = L.t("pets.header", {n = equipped, max = P.ActiveLimit, coins = d.Coins or 0, save = L.t(L.has(saveKey) and saveKey or "ui.connecting")})
 	for _, row in ipairs(self.Rows) do
 		if row.Info and self.Tab == "Pets" then
 			for _, pet in ipairs(d.Pets) do
 				if pet.Uid == row.Key then
 					local spec = P.Species[pet.SpeciesId]
 					local element = ELEMENT[spec.Element]
-					local statusIcon = {["영구"] = "💾 영구", ["저장 중"] = "⏳ 저장 중", ["밤 생존 대기"] = "🏠 등록 · 밤 생존 대기", ["미등록"] = "⚠ 미등록 (우리에 등록!)"}
-					local growth = pet.Stage == 2 and "🌟 성체" or (spec.Adult and ("🐣 새끼 · Lv" .. P.EvolveLevel .. " 진화") or "")
+					local growth = pet.Stage == 2 and L.t("pets.adult") or (spec.Adult and L.t("pets.baby", {lv = P.EvolveLevel}) or "")
 					local trait = pet.Trait and P.Traits[pet.Trait]
 					local nick = (pet.Nickname and pet.Nickname ~= "") and (pet.Nickname .. " · ") or ""
-					row.Info.Text = string.format("%s%s%s%s  Lv%d  %s\n%s  %s · ⚔ 전투력 %d\n%s · %s · %s\nHP %d/%d  ·  %s\n%s",
-						pet.Favorite and "♥ " or "", pet.Shiny and "✨빛나는 " or "", nick, PR.name(pet.SpeciesId, pet.Stage, P), pet.Level, growth,
-						PR.starText(pet.Stars), trait and (trait.Icon .. " " .. trait.Name .. "(" .. trait.Desc .. ")") or "특성 없음", pet.Power or 0,
-						element[1], spec.Role, "초원 적용 Lv" .. pet.EffectiveLevel, pet.HP, pet.MaxHP,
-						pet.HP == 0 and "💤 기절" or ({Follow = "따라가는 중", Stay = "대기", Guard = "방어 중", Focus = "사냥 중"})[pet.Mode] or pet.Mode,
-						statusIcon[pet.Status] or pet.Status)
+					row.Info.Text = L.t("pets.info", {fav = pet.Favorite and "♥ " or "", shiny = pet.Shiny and L.t("pets.shiny") or "", nick = nick,
+						name = L.text(PR.name(pet.SpeciesId, pet.Stage, P)), lv = pet.Level, growth = growth, stars = PR.starText(pet.Stars),
+						trait = trait and (trait.Icon .. " " .. L.t("trait." .. pet.Trait) .. " (" .. L.t("traitDesc." .. pet.Trait) .. ")") or L.t("pets.noTrait"),
+						power = pet.Power or 0, element = L.t(element[1]), role = L.t("role." .. spec.Role), cap = pet.EffectiveLevel, hp = pet.HP, maxhp = pet.MaxHP,
+						mode = pet.HP == 0 and L.t("pets.fainted") or L.t("mode." .. tostring(pet.Mode)), status = L.t("pets.status." .. tostring(pet.Status))})
 				end
 			end
 		elseif row.Info and self.Tab == "Wild" then
 			for _, wild in ipairs(d.Wild) do
 				if wild.Id == row.Key then
 					local spec = P.Species[wild.SpeciesId]
-					local state = wild.Busy and "🧺 포획 진행 중" or (not wild.CanClaim and ("🏹 " .. wild.Owner .. "의 포획 우선권")
-						or (wild.Ready and "✨ 포획 가능! 16m 안에서 덫" or "HP 25% 이하로 약화하세요"))
+					local state = wild.Busy and L.t("wildtab.busy") or (not wild.CanClaim and L.t("wildtab.claimed", {name = wild.Owner})
+						or (wild.Ready and L.t("wildtab.ready", {m = P.CaptureRange}) or L.t("wildtab.weakenTo", {pct = math.floor(P.CaptureHP * 100)})))
 					local trait = wild.Trait and P.Traits[wild.Trait]
 					local ratio = (wild.Power or 0) > 0 and (wild.TeamPower or 0) / wild.Power or 1
-					local verdict = ratio < P.PowerGate and "⚠ 너무 강함 · 펫을 키우거나 여러 마리로" or (ratio < 1 and "어려움 · 확률 낮음" or "해볼 만함")
-					row.Info.Text = string.format("%s%s Lv%d %s  ·  %dm\n%s · %s · %s\n⚔ 전투력 %d vs 우리 팀 %d · %s\n%s  ·  HP %d/%d\n성공 확률  일반 %.0f%%  /  강화+먹이 %.0f%%",
-						wild.Shiny and "✨" or "", PR.name(wild.SpeciesId, wild.Stage, P), wild.Level, PR.starText(wild.Stars), wild.Distance,
-						ELEMENT[spec.Element][1], spec.Role, trait and (trait.Icon .. " " .. trait.Name) or "",
-						wild.Power or 0, wild.TeamPower or 0, verdict, state, wild.HP, wild.MaxHP, wild.Ready and wild.Chance * 100 or 0, wild.Ready and wild.BetterChance * 100 or 0)
+					local verdict = L.t(ratio < P.PowerGate and "power.tooStrongLong" or (ratio < 1 and "power.hardLong" or "power.fair"))
+					row.Info.Text = L.t("wildtab.info", {shiny = wild.Shiny and "✨" or "", name = L.text(PR.name(wild.SpeciesId, wild.Stage, P)), lv = wild.Level,
+						stars = PR.starText(wild.Stars), m = wild.Distance, element = L.t(ELEMENT[spec.Element][1]), role = L.t("role." .. spec.Role),
+						trait = trait and (trait.Icon .. " " .. L.t("trait." .. wild.Trait)) or "", power = wild.Power or 0, team = wild.TeamPower or 0, verdict = verdict,
+						state = state, hp = wild.HP, maxhp = wild.MaxHP, chance = string.format("%.0f", wild.Ready and wild.Chance * 100 or 0),
+						better = string.format("%.0f", wild.Ready and wild.BetterChance * 100 or 0)})
 				end
 			end
 		elseif row.Info and self.Tab == "Craft" then
 			local recipe, spec = Recipes.Recipes[row.Key], I.Items[row.Key]
 			local have = (d.Items or {})[row.Key] or 0
 			local locked = recipe.Station == "Workbench" and recipe.Bench > (d.Bench or 0)
-			local owned = (spec.Kind == "Tool" or spec.Kind == "Bag") and (have > 0 and "✅ 보유 중" or "") or ("보유 " .. have)
-			local place = recipe.Station == "Campfire" and "모닥불" or (recipe.Station == "Hand" and "어디서나" or "제작대 근처")
-			row.Info.Text = string.format("%s  %s\n%s%s · %s", spec.Name, owned, locked and ((d.Bench or 0) == 0 and "🔒 제작대부터 · " or ("🔒 제작대 Lv" .. recipe.Bench .. " 필요 · ")) or "", place, row.Cost)
+			local owned = (spec.Kind == "Tool" or spec.Kind == "Bag") and (have > 0 and L.t("craft.owned") or "") or L.t("craft.have", {n = have})
+			local place = L.t("station." .. recipe.Station)
+			row.Info.Text = string.format("%s  %s\n%s%s · %s", L.t("item." .. row.Key), owned,
+				locked and ((d.Bench or 0) == 0 and L.t("craft.lockedNoBench") or L.t("craft.lockedLv", {lv = recipe.Bench})) or "", place, row.Cost)
 			row.Info.TextColor3 = locked and COL.Muted or COL.Text
 			row.Button.BackgroundColor3 = locked and COL.Card2 or Color3.fromHex("#2f8f83")
 		end
 	end
 	local items = d.Items or {}
-	self.Footer.Text = string.format("🧺 덫 %d · 🧺 강화 %d · 💠 수정 %d · 🍓 먹이 %d · 🍪 간식 %d\n%s", items.Trap or 0, items.BetterTrap or 0, items.CrystalTrap or 0,
-		items.Bait or 0, items.Snack or 0,
-		self.Tab == "Craft" and "재료: 내 가방 먼저, 기지 안에서는 공용 창고까지 · 만든 것은 화면 아래 칸에 생겨요 (설치 도구는 들고 공격 버튼)" or "잡은 펫: 펫 우리 등록 → 그 밤을 버티면 영구 확정")
+	self.Footer.Text = L.t("pets.footer", {trap = items.Trap or 0, better = items.BetterTrap or 0, crystal = items.CrystalTrap or 0,
+		bait = items.Bait or 0, snack = items.Snack or 0, hint = L.t(self.Tab == "Craft" and "pets.footerCraft" or "pets.footerPets")})
 end
 
 return Controller

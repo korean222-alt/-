@@ -12,6 +12,6 @@ function Core:Damage(amount)
     self.HP = math.max(0, self.HP - amount)
     self.ctx.Map.Core:SetAttribute("HitAt", workspace:GetServerTimeNow())
     self:Update()
-    if self.HP == 0 then self.ctx.Run:Finish(false, "Core가 파괴되었습니다") end
+    if self.HP == 0 then self.ctx.Run:Finish(false, {k = "run.coreDestroyed"}) end
 end
 return Core

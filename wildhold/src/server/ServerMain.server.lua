@@ -9,6 +9,7 @@ local TeleportService=game:GetService("TeleportService")
 local C=require(RS.Shared.Config.GameConfig)
 local LC=require(RS.Shared.Config.LobbyConfig)
 local U=require(RS.Shared.Modules.Utility)
+local L=require(RS.Shared.Modules.Locale)
 assert(C.ActiveStage>=1 and C.ActiveStage<=8,"ActiveStage must be 1..8")
 
 local mode
@@ -20,7 +21,7 @@ local hasMap,hasLobby=mode~="Lobby",mode~="Expedition"
 
 local folder=Instance.new("Folder");folder.Name,folder.Parent="Remotes",RS
 local remotes={}
-for _,name in ipairs({"State","AttackRequest","Notice","FX","PetAction","CraftAction","CaptureAction","PetFX","Lobby","LobbyAction","BuildRequest"}) do
+for _,name in ipairs({"State","AttackRequest","Notice","FX","PetAction","CraftAction","CaptureAction","PetFX","Lobby","LobbyAction","BuildRequest","Settings"}) do
     local event=Instance.new("RemoteEvent");event.Name,event.Parent=name,folder;remotes[name]=event
 end
 local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=remotes.PetFX,LobbyEvent=remotes.Lobby,LobbyAction=remotes.LobbyAction,
@@ -43,6 +44,8 @@ end
 -- ===================================================================== 만들기
 if hasMap then ctx.Map:Build() else ctx.Map:BuildShell() end
 ctx.Data:Init(ctx);ctx.Eggs:Init(ctx)
+-- ⚙ 설정 (언어·음악·효과음): 로비·원정 어디서나
+remotes.Settings.OnServerEvent:Connect(function(player,key,value) ctx.Data:SetSetting(player,key,value) end)
 local EXPEDITION={"Run","Core","Resources","Enemies","Waves","Defenses","Pets","Crafting","Capture","Tutorial","Survival","Combat"}
 if hasMap then
     for _,name in ipairs(EXPEDITION) do ctx[name]:Init(ctx) end
@@ -93,7 +96,7 @@ function ctx.ReturnToLobby()
                 if busy then task.wait(0.2) end
             until not busy or os.clock()>deadline
             local ok=pcall(function() TeleportService:TeleportAsync(game.PlaceId,list) end)
-            if not ok then for _,player in ipairs(list) do if player.Parent then player:Kick("로비로 돌아가지 못했습니다. 다시 접속해 주세요.") end end end
+            if not ok then for _,player in ipairs(list) do if player.Parent then player:Kick(L.t("run.returnFailed",nil,L.of(player))) end end end
         end)
     end
 end

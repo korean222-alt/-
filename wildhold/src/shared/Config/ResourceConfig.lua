@@ -2,7 +2,6 @@
 -- MinTier = 이 등급 이상의 맞는 도구가 있어야 캘 수 있다 (수정 = 고철 곡괭이부터).
 return {
 	Order = {"Wood", "Stone", "Fiber", "Berry", "Mushroom", "Scrap", "Crystal"},
-	Labels = {Wood = "나무", Stone = "돌", Fiber = "섬유", Berry = "열매", Mushroom = "버섯", Scrap = "고철", Crystal = "수정"},
 	Icons = {Wood = "🪵", Stone = "🪨", Fiber = "🌿", Berry = "🍓", Mushroom = "🍄", Scrap = "⚙️", Crystal = "💎"},
 	Types = {
 		Wood = {HP = 75, Yield = 8, Respawn = 45, Tool = "Axe", Color = {130, 102, 75}},

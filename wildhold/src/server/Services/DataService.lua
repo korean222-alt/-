@@ -6,6 +6,7 @@ local G=require(RS.Shared.Config.GameConfig)
 local P=require(RS.Shared.Config.PetConfig)
 local R=require(RS.Shared.Modules.PetRules)
 local EC=require(RS.Shared.Config.EggConfig)
+local L=require(RS.Shared.Modules.Locale)
 local S={}
 function S:Init(ctx)
     self.ctx,self.Sessions,self.MemoryRecords=ctx,{},{}
@@ -48,7 +49,15 @@ function S:Validate(data)
                 or (egg.HatchAt~=nil and type(egg.HatchAt)~="number") then return nil end
         end
     end
-    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks","Eggs"}) do
+    -- 설정 (언어 · 음악/효과음 크기). 이상한 값은 버린다 (저장 전체를 버리지 않음)
+    if output.Settings~=nil and type(output.Settings)~="table" then output.Settings=nil end
+    if output.Settings then
+        local s=output.Settings
+        output.Settings={Lang=type(s.Lang)=="string" and L.Tables[s.Lang] and s.Lang or nil,
+            Music=type(s.Music)=="number" and s.Music==s.Music and math.clamp(s.Music,0,1) or nil,
+            Sfx=type(s.Sfx)=="number" and s.Sfx==s.Sfx and math.clamp(s.Sfx,0,1) or nil}
+    end
+    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks","Eggs","Settings"}) do
         if output[key]~=nil and type(output[key])~="table" then return nil end
         output[key]=output[key] or {}
     end
@@ -91,12 +100,30 @@ function S:Load(player)
         task.wait(C.RetrySeconds)
     end
     if not ok or not record then
-        if player.Parent then player:Kick("저장 데이터가 사용 중이거나 불러오지 못했습니다. 잠시 후 다시 접속해 주세요.") end
+        if player.Parent then player:Kick(L.t("data.loadFailed",nil,L.of(player))) end
         return false
     end
     self.Sessions[player]={Key=key,Token=token,Profile=R.copy(record.Data),Ready=true,Revision=0,Ack=0,
         Status=self.Memory and "Practice" or "Saved",LeaseUntil=record.Lock.Expires,NextSave=os.clock()+C.SaveInterval}
+    self:ApplySettings(player)
     return true
+end
+-- 설정을 플레이어 속성으로 (클라이언트가 읽는다: Lang · MusicVolume · SfxVolume)
+function S:ApplySettings(player)
+    local profile=self:Get(player);if not profile then return end
+    local s=profile.Settings or {}
+    player:SetAttribute("Lang",s.Lang)
+    player:SetAttribute("MusicVolume",s.Music)
+    player:SetAttribute("SfxVolume",s.Sfx)
+end
+-- 설정 바꾸기 (화면의 ⚙ 설정). key = "Lang" | "Music" | "Sfx"
+function S:SetSetting(player,key,value)
+    if not self:Ready(player) then return end
+    local ok=(key=="Lang" and (value==nil or (type(value)=="string" and L.Tables[value]~=nil)))
+        or ((key=="Music" or key=="Sfx") and type(value)=="number" and value==value and value>=0 and value<=1)
+    if not ok then return end
+    self:Mutate(player,function(data) data.Settings=data.Settings or {};data.Settings[key]=value end)
+    self:ApplySettings(player)
 end
 function S:Ready(player) local s=self.Sessions[player]; return s and s.Ready and not s.Closing end
 function S:Get(player) local s=self.Sessions[player]; return s and s.Profile end
@@ -136,11 +163,11 @@ function S:Save(player,release)
             elseif ok then
                 s.Ready,s.Closing,s.Status=false,true,"LockLost"
                 self.Sessions[player]=nil
-                player:Kick("데이터 세션이 만료되었습니다. 안전한 재접속이 필요합니다.")
+                player:Kick(L.t("data.sessionLost",nil,L.of(player)))
                 break
             else
                 s.Status,s.NextSave="Retrying",os.clock()+C.RetrySeconds
-                if player.Parent then self.ctx.Notify(player,"저장 재시도 중입니다. 확정 표시를 확인해 주세요.") end
+                if player.Parent then self.ctx.Notify(player,L.M("data.retrying")) end
                 break
             end
         until not s.Again
@@ -150,7 +177,7 @@ end
 function S:Tick()
     for player,s in pairs(self.Sessions) do
         if s.Ready and os.time()>=s.LeaseUntil-C.LeaseSafety then
-            player:Kick("저장 연결을 복구하지 못했습니다. 잠시 후 다시 접속해 주세요."); self:Save(player,true)
+            player:Kick(L.t("data.connectionLost",nil,L.of(player))); self:Save(player,true)
         elseif not s.Busy and (s.Release or os.clock()>=s.NextSave) then self:Save(player,s.Release) end
     end
 end

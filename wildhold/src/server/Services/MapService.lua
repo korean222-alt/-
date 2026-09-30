@@ -12,6 +12,7 @@ local G = require(RS.Shared.Config.GameConfig)
 local B = require(RS.Shared.Visuals.Build)
 local Props = require(RS.Shared.Visuals.Props)
 local S = require(RS.Shared.Visuals.Structures)
+local L = require(RS.Shared.Modules.Locale)
 
 local Map = {}
 local MAT = Enum.Material
@@ -303,7 +304,7 @@ function Map:BuildBase()
 
 	S.storehouse(base, toCore(C.Warehouse[1], C.Warehouse[3]))
 	self.Warehouse = base.Storehouse.Hitbox
-	self.Warehouse.Name = "공용 창고"
+	self.Warehouse.Name = "Warehouse"
 	local ring = base.Storehouse:FindFirstChild("DepositRing")
 	if ring then
 		ring.Size = Vector3.new(0.08, G.DepositRadius * 2, G.DepositRadius * 2)
@@ -313,9 +314,9 @@ function Map:BuildBase()
 
 	local _, penPad = S.pen(base, CFrame.new(C.Cage[1], 0, C.Cage[3]))
 	self.Cage = penPad
-	self.Cage.Name = "펫 우리"
-	self.CagePrompt = U.prompt(self.Cage, "Register", "잡은 펫 등록", Enum.KeyCode.E, Vector3.new(0, 1.5, -5))
-	self.CagePrompt.ObjectText = "펫 우리"
+	self.Cage.Name = "Cage"
+	self.CagePrompt = U.prompt(self.Cage, "Register", L.M("prompt.register"), Enum.KeyCode.E, Vector3.new(0, 1.5, -5))
+	L.tag(self.CagePrompt, "ObjectText", L.M("place.cage"))
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name, spawn.Size, spawn.Position = "ExpeditionSpawn", Vector3.new(6, 1, 6), Vector3.new(table.unpack(C.Spawn))
@@ -390,10 +391,10 @@ function Map:BuildBase()
 	fx.Size, fx.Heat = 4, 9
 	fx.Parent = flame
 	B.light(flame, "PointLight", {Range = 20, Brightness = 1.8, Color = Color3.fromHex("#ffa860"), Shadows = true})
-	flame.Name = "모닥불"
+	flame.Name = "Campfire"
 	self.Campfire = flame
-	self.CookPrompt = U.prompt(flame, "Cook", "요리하기 · 구운 버섯 · 스튜", Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
-	self.CookPrompt.ObjectText = "모닥불"
+	self.CookPrompt = U.prompt(flame, "Cook", L.M("prompt.cook"), Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
+	L.tag(self.CookPrompt, "ObjectText", L.M("place.campfire"))
 	for i, off in ipairs({Vector3.new(-3.6, 0, 0.5), Vector3.new(3.4, 0, -0.6)}) do
 		B.solid(B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood))
 	end
@@ -688,7 +689,8 @@ function Map:BuildScenery()
 		gui.Parent = sign
 		local text = Instance.new("TextLabel")
 		text.Size, text.BackgroundTransparency, text.TextScaled = UDim2.fromScale(1, 1), 1, true
-		text.Font, text.Text, text.TextColor3 = Enum.Font.FredokaOne, zone.Icon .. " " .. zone.Name, Color3.fromHex("#f2e6cf")
+		text.Font, text.TextColor3 = Enum.Font.FredokaOne, Color3.fromHex("#f2e6cf")
+		L.tag(text, "Text", L.C(zone.Icon .. " ", L.M("zone." .. zoneId)))
 		text.Parent = gui
 	end
 end

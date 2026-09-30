@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
 local RS = game:GetService("ReplicatedStorage")
 local M = require(RS.Shared.Config.MapConfig)
+local L = require(RS.Shared.Modules.Locale)
 
 local Map = {}
 local player = Players.LocalPlayer
@@ -52,7 +53,7 @@ end
 
 function Map:Init(remotes)
 	local grid = RS:WaitForChild("MapGrid", 30)
-	assert(grid, "MapGrid 가 없습니다 (서버 MapService:BuildMapGrid)")
+	assert(grid, "MapGrid missing (server MapService:BuildMapGrid)")
 	self.Grid = grid.Value
 	self.Cell, self.N, self.Origin = grid:GetAttribute("Cell"), grid:GetAttribute("Size"), grid:GetAttribute("Origin")
 	self.Seen, self.Rows, self.Dirty, self.SeenCount = {}, {}, {}, 0
@@ -99,7 +100,7 @@ function Map:BuildGui()
 		BackgroundTransparency = 1, Font = TITLE, TextSize = 13, Text = "N", TextColor3 = Color3.fromHex("#3a2a18"), ZIndex = 5,
 		TextStrokeTransparency = 0.6, TextStrokeColor3 = PAPER})
 	new("TextLabel", holder, {Name = "Hint", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 1, 2), Size = UDim2.fromOffset(MINI + 10, 14),
-		BackgroundTransparency = 1, Font = BODY, TextSize = 11, Text = "🗺 누르면 큰 지도 (M)", TextColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1, Font = BODY, TextSize = 11, Text = L.t("map.hint"), TextColor3 = Color3.new(1, 1, 1),
 		TextStrokeTransparency = 0.4, TextXAlignment = Enum.TextXAlignment.Right})
 	local open = new("TextButton", holder, {Name = "Open", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 6})
 	open.Activated:Connect(function() self:Toggle() end)
@@ -143,7 +144,7 @@ function Map:BuildGui()
 	new("UICorner", self.Panel, {CornerRadius = UDim.new(0, 12)})
 	new("UIStroke", self.Panel, {Color = Color3.fromHex("#1c140c"), Thickness = 3, Transparency = 0.2})
 	new("TextLabel", self.Panel, {Position = UDim2.fromOffset(12, 6), Size = UDim2.new(1, -60, 0, 28), BackgroundTransparency = 1, Font = TITLE,
-		TextSize = 20, Text = "🗺 지도 · 가 본 곳만 그려집니다", TextColor3 = Color3.fromHex("#fff3d6"), TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 20, Text = L.t("map.title"), TextColor3 = Color3.fromHex("#fff3d6"), TextXAlignment = Enum.TextXAlignment.Left,
 		TextStrokeTransparency = 0.5})
 	local close = new("TextButton", self.Panel, {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 6), Size = UDim2.fromOffset(30, 28),
 		BackgroundColor3 = Color3.fromHex("#3a2a18"), Text = "✕", Font = TITLE, TextSize = 18, TextColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0})
@@ -153,7 +154,7 @@ function Map:BuildGui()
 		BackgroundColor3 = PAPER, BorderSizePixel = 0, ClipsDescendants = true})
 	self.Legend = new("TextLabel", self.Panel, {AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -4), Size = UDim2.new(1, -24, 0, 22),
 		BackgroundTransparency = 1, Font = BODY, TextSize = 13, TextColor3 = Color3.fromHex("#fff3d6"), TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "▲ 나   🏠 기지   ☠ 괴물 굴   👑 알파   ★ 목표   🔵 팀원", TextStrokeTransparency = 0.5})
+		Text = L.t("map.legend"), TextStrokeTransparency = 0.5})
 end
 
 -- 큰 지도 창 크기: 화면 짧은 쪽의 80% 쯤

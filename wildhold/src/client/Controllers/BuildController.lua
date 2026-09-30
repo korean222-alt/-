@@ -7,9 +7,9 @@ local RunService = game:GetService("RunService")
 local CAS = game:GetService("ContextActionService")
 local BC = require(RS.Shared.Config.BuildConfig)
 local M = require(RS.Shared.Config.MapConfig)
-local D = require(RS.Shared.Config.DefenseConfig)
 local Placement = require(RS.Shared.Modules.Placement)
 local Structures = require(RS.Shared.Visuals.Structures)
+local L = require(RS.Shared.Modules.Locale)
 
 local Build = {}
 local player = Players.LocalPlayer
@@ -129,7 +129,7 @@ function Build:Step()
 		self.Highlight.FillColor = ok and OK_COLOR or BAD_COLOR
 		self.Highlight.OutlineColor = ok and OK_COLOR or BAD_COLOR
 	end
-	self.Hint.Text = ok and (D[kind].Name .. " · 공격 버튼 = 설치 · R / ⟳ = 돌리기") or ("🚫 " .. tostring(reason))
+	self.Hint.Text = ok and L.t("build.hint", {name = L.t("defense." .. kind)}) or ("🚫 " .. L.text(reason))
 	self.Hint.TextColor3 = ok and Color3.new(1, 1, 1) or Color3.fromHex("#ffb3b3")
 end
 

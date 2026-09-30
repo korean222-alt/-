@@ -3,6 +3,7 @@ local CollectionService = game:GetService("CollectionService")
 local B = require(script.Parent.Build)
 local Props = require(script.Parent.Props)
 local Kit = require(script.Parent.Kit)
+local Locale = require(script.Parent.Parent.Modules.Locale)
 
 local S = {}
 local M = Enum.Material
@@ -96,7 +97,8 @@ function S.storehouse(parent, at)
 	gui.Parent = sign
 	sign.Size = Vector3.new(5, 1.6, 0.1)
 	local text = Instance.new("TextLabel")
-	text.Size, text.BackgroundTransparency, text.Text = UDim2.fromScale(1, 1), 1, "공용 창고"
+	text.Size, text.BackgroundTransparency = UDim2.fromScale(1, 1), 1
+	Locale.tag(text, "Text", Locale.M("sign.warehouse"))
 	text.Font, text.TextScaled, text.TextColor3 = Enum.Font.FredokaOne, true, Color3.fromHex("#5a3a1e")
 	text.Parent = gui
 	-- 자동 입금 범위 표시 (바닥 원)
@@ -238,7 +240,8 @@ function S.pen(parent, at)
 	gui.Face, gui.CanvasSize, gui.LightInfluence = Enum.NormalId.Front, Vector2.new(300, 180), 1
 	gui.Parent = post
 	local text = Instance.new("TextLabel")
-	text.Size, text.BackgroundTransparency, text.Text = UDim2.fromScale(1, 1), 1, "🐾\n펫 우리"
+	text.Size, text.BackgroundTransparency = UDim2.fromScale(1, 1), 1
+	Locale.tag(text, "Text", Locale.M("sign.cage"))
 	text.Font, text.TextScaled, text.TextColor3 = Enum.Font.FredokaOne, true, Color3.fromHex("#4b6b3a")
 	text.Parent = gui
 	B.solid(B.block(m, Vector3.new(0.4, 2.6, 0.4), at * CFrame.new(-4.6, 1.3, -d / 2 - 0.45), WOOD, M.Wood))

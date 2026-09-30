@@ -13,11 +13,12 @@ end
 function P.stage(pet)
     return pet.Stage==2 and 2 or 1
 end
+-- 종 이름 = 번역 메시지 (Locale "species.<종>" · 성체는 "adult.<종>"). 글자로 쓰려면 Locale.text(...)
 function P.name(speciesId,stage,config)
     local spec=config.Species[speciesId]
-    return (stage==2 and spec.Adult) and spec.Adult.Name or spec.Name
+    return {k=((stage==2 and spec and spec.Adult) and "adult." or "species.")..speciesId}
 end
--- 이름표에 보이는 이름: 지어 준 이름이 있으면 그것
+-- 이름표에 보이는 이름: 지어 준 이름이 있으면 그것 (문자열), 아니면 종 이름 (메시지)
 function P.display(pet,config)
     if type(pet.Nickname)=="string" and pet.Nickname~="" then return pet.Nickname end
     return P.name(pet.SpeciesId,P.stage(pet),config)

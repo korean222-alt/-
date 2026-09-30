@@ -12,12 +12,12 @@ local Anim = require(script.Parent.Anim)
 local Creatures = require(RS.Shared.Visuals.Creatures)
 local P = require(RS.Shared.Config.PetConfig)
 local PR = require(RS.Shared.Modules.PetRules)
+local L = require(RS.Shared.Modules.Locale)
 
 local CC = {}
 local player = Players.LocalPlayer
 local exp, clamp = math.exp, math.clamp
 
-local ENEMY_NAMES = {Crawler = "크롤러", Runner = "러너", Brute = "브루트", Howler = "울부짖는 자"}
 local ELEMENT_COLOR = {Leaf = Color3.fromHex("#7ed36a"), Ember = Color3.fromHex("#ff9a4a"), Tide = Color3.fromHex("#6fc3ff")}
 local FONT = Enum.Font.FredokaOne
 local BODY_FONT = Enum.Font.GothamBold
@@ -100,7 +100,7 @@ function CC:BuildRig(kind, category, stage)
 		if ok then
 			return result
 		end
-		warn("[WILDHOLD] 펫 모델을 쓰지 못해 대체 모델로 표시합니다: " .. kind .. " · " .. tostring(result))
+		warn("[WILDHOLD] pet model unusable, showing fallback: " .. kind .. " · " .. tostring(result))
 	end
 	local built = Creatures.build(kind) or Creatures.Mossling()
 	return Rig.fromParts(built, height / built.Height)
@@ -217,7 +217,7 @@ function CC:RefreshTag(v)
 		local hp = a:GetAttribute("CurrentHealth") or maxHP
 		local boss = a:GetAttribute("Boss")
 		v.Gui.Enabled = boss or hp < maxHP
-		v.NameLabel.Text = boss and ("👑 " .. (ENEMY_NAMES[v.Kind] or v.Kind)) or ""
+		v.NameLabel.Text = boss and ("👑 " .. L.t("enemy." .. tostring(v.Kind))) or ""
 		v.Fill.Size = UDim2.fromScale(clamp(hp / maxHP, 0, 1), 1)
 		if boss then
 			v.Gui.Size = UDim2.fromOffset(200, 36)
@@ -234,37 +234,38 @@ function CC:RefreshTag(v)
 	local level = a:GetAttribute("Level") or 1
 	if v.Category == "Pet" then
 		local status = a:GetAttribute("Status")
-		local temp = status ~= "영구"
+		local temp = status ~= "Secured"
 		local nick = a:GetAttribute("Nickname")
-		local name = (nick and nick ~= "") and nick or PR.name(v.Kind, v.Stage, P)
+		local name = (nick and nick ~= "") and nick or L.text(PR.name(v.Kind, v.Stage, P))
 		v.NameLabel.Text = string.format("%s%s Lv%d %s%s", a:GetAttribute("Shiny") and "✨" or "", name, level,
 			string.rep("★", a:GetAttribute("Stars") or 2), a:GetAttribute("Fainted") and " 💤" or "")
 		v.NameLabel.TextColor3 = v.Own and (temp and Color3.fromHex("#ffe58a") or Color3.fromHex("#b7f5c8")) or Color3.fromHex("#e8eef5")
 		if not v.Own then
-			v.NameLabel.Text = (a:GetAttribute("OwnerName") or "") .. "의 " .. v.NameLabel.Text
+			v.NameLabel.Text = L.t("tag.ownerPet", {owner = a:GetAttribute("OwnerName") or "", pet = v.NameLabel.Text})
 			v.NameLabel.TextSize = 13
 		end
 		return
 	end
 	-- 야생
-	v.NameLabel.Text = string.format("%s야생 %s Lv%d %s", a:GetAttribute("Shiny") and "✨" or "", PR.name(v.Kind, v.Stage, P), level,
-		PR.starText(a:GetAttribute("Stars")))
+	v.NameLabel.Text = L.t("tag.wild", {shiny = a:GetAttribute("Shiny") and "✨" or "", name = L.text(PR.name(v.Kind, v.Stage, P)), lv = level,
+		stars = PR.starText(a:GetAttribute("Stars"))})
 	v.NameLabel.TextColor3 = ELEMENT_COLOR[spec.Element] or Color3.new(1, 1, 1)
 	local hint = v.Gui:FindFirstChild("Hint")
 	local hunter = a:GetAttribute("Hunter") or ""
 	if a:GetAttribute("Busy") then
-		hint.Text = "🧺 포획 중…"
+		hint.Text = L.t("wild.capturing")
 	elseif a:GetAttribute("Exhausted") then
-		hint.Text = "✨ 포획 가능! 가까이 가서 E"
+		hint.Text = L.t("tag.ready")
 	elseif hunter ~= "" and hunter ~= player.DisplayName then
-		hint.Text = "🏹 " .. hunter .. " 사냥 중 · 도와주기"
+		hint.Text = L.t("tag.hunting", {name = hunter})
 	else
 		-- 전투력 비교: 우리 팀(출전 펫 합) 대 야생. 너무 강하면 빨강 (펫을 키우거나 여러 마리로)
 		local wildPower, team = a:GetAttribute("Power") or 0, player:GetAttribute("TeamPower") or 0
 		local ratio2 = wildPower > 0 and team / wildPower or 1
-		local verdict = ratio2 < P.PowerGate and "⚠ 너무 강함" or (ratio2 < 1 and "어려움" or "해볼 만함")
+		local verdict = L.t(ratio2 < P.PowerGate and "power.tooStrong" or (ratio2 < 1 and "power.hard" or "power.fair"))
 		hint.TextColor3 = ratio2 < P.PowerGate and Color3.fromHex("#ff8a8a") or (ratio2 < 1 and Color3.fromHex("#ffe9a8") or Color3.fromHex("#b7f5c8"))
-		hint.Text = string.format("⚔ %d vs 우리 %d · %s%s", wildPower, team, verdict, ratio < 1 and " · 펫으로 25%까지" or "")
+		hint.Text = L.t("tag.power", {wild = wildPower, team = team, verdict = verdict,
+			more = ratio < 1 and L.t("tag.petsTo", {pct = math.floor(P.CaptureHP * 100)}) or ""})
 		return
 	end
 	hint.TextColor3 = Color3.fromHex("#ffe9a8")

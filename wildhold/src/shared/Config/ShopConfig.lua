@@ -3,11 +3,11 @@
 return {
 	Order = {"StartTraps", "StartFood", "StartTorch", "StartStoneAxe", "StartBag"},
 	Perks = {
-		StartTraps = {Name = "덫 +3 개로 시작", Icon = "🧺", Cost = 80, Give = {Trap = 3}},
-		StartFood = {Name = "간식·먹이 +2 개로 시작", Icon = "🍪", Cost = 80, Give = {Snack = 2, Bait = 2}},
-		StartTorch = {Name = "횃불을 들고 시작", Icon = "🔥", Cost = 100, Give = {Torch = 1}},
-		StartStoneAxe = {Name = "돌 도끼로 시작", Icon = "🪓", Cost = 160, Give = {StoneAxe = 1}},
-		StartBag = {Name = "섬유 가방으로 시작", Icon = "🎒", Cost = 200, Give = {FiberBag = 1}},
+		StartTraps = {Icon = "🧺", Cost = 80, Give = {Trap = 3}},
+		StartFood = {Icon = "🍪", Cost = 80, Give = {Snack = 2, Bait = 2}},
+		StartTorch = {Icon = "🔥", Cost = 100, Give = {Torch = 1}},
+		StartStoneAxe = {Icon = "🪓", Cost = 160, Give = {StoneAxe = 1}},
+		StartBag = {Icon = "🎒", Cost = 200, Give = {FiberBag = 1}},
 	},
 	DexReward = 25, -- 새 종을 처음 영구 확정하면 받는 코인 (도감 보상)
 }

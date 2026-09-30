@@ -8,6 +8,7 @@
 local RS = game:GetService("ReplicatedStorage")
 local I = require(RS.Shared.Config.ItemConfig)
 local Kit = require(script.Parent.Kit)
+local Locale = require(script.Parent.Parent.Modules.Locale)
 local okSizes, KitSizes = pcall(function() return require(RS.Shared.Config.KitSizes) end)
 if not okSizes then KitSizes = {} end
 
@@ -18,12 +19,12 @@ local function hex(value)
 	return Color3.fromHex(value)
 end
 
-local function makeTool(id, spec)
+local function makeTool(id)
 	local tool = Instance.new("Tool")
-	tool.Name = spec.Name
+	tool.Name = id
 	tool.CanBeDropped = false
 	tool.RequiresHandle = true
-	tool.ToolTip = spec.Name
+	Locale.tag(tool, "ToolTip", Locale.M("item." .. id))
 	tool:SetAttribute("ItemId", id)
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
@@ -187,7 +188,8 @@ local function kitTool(id, spec)
 	local info = name and KitSizes[name]
 	if not src or not info then return nil end
 	local tool = Instance.new("Tool")
-	tool.Name, tool.CanBeDropped, tool.RequiresHandle, tool.ToolTip = spec.Name, false, true, spec.Name
+	tool.Name, tool.CanBeDropped, tool.RequiresHandle = id, false, true
+	Locale.tag(tool, "ToolTip", Locale.M("item." .. id))
 	tool:SetAttribute("ItemId", id)
 	local handle = src:Clone()
 	local have = src.Size.X + src.Size.Y + src.Size.Z
@@ -216,7 +218,7 @@ function T.make(id)
 	if not spec then return nil end
 	local meshTool = kitTool(id, spec)
 	if meshTool then return meshTool end
-	local tool, handle = makeTool(id, spec)
+	local tool, handle = makeTool(id)
 	local look = I.TierLook[spec.Tier or 1]
 	local headColor, headMat = hex(look.Head), MAT[look.Material]
 	if spec.Family == "Spear" then

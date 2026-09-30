@@ -70,10 +70,10 @@ function S:GatherRate(kind, tool)
     local spec = R.Types[kind]
     if not spec.Tool then return 1, 1 end
     if tool and tool.Family == spec.Tool then
-        if spec.MinTier and (tool.Tier or 1) < spec.MinTier then return nil, "더 좋은 곡괭이가 필요합니다 (고철 곡괭이)" end
+        if spec.MinTier and (tool.Tier or 1) < spec.MinTier then return nil, {k = "gather.needBetterPick"} end
         return tool.Gather or 1, 1 + 0.25 * ((tool.Tier or 1) - 1)
     end
-    if spec.MinTier then return nil, "곡괭이가 필요합니다 (고철 곡괭이부터 캘 수 있음)" end
+    if spec.MinTier then return nil, {k = "gather.needPick"} end
     return tool and I.WrongToolGather or I.HandGather, 1
 end
 function S:Harvest(player, node, tool)
@@ -85,7 +85,7 @@ function S:Harvest(player, node, tool)
     end
     if rate < 0.5 and os.clock() >= (self.HintAt[player] or 0) then
         self.HintAt[player] = os.clock() + 8
-        self.ctx.Notify(player, (R.Types[node.Kind].Tool == "Axe" and "도끼" or "곡괭이") .. "를 들면 훨씬 빨리 캡니다 · 화면 아래 칸에서 골라 드세요")
+        self.ctx.Notify(player, {k = R.Types[node.Kind].Tool == "Axe" and "gather.useAxe" or "gather.usePick"})
     end
     node.HP = math.max(0, node.HP - C.HarvestDamage * rate)
     node.Part:SetAttribute("CurrentHealth", node.HP)

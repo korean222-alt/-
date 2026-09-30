@@ -53,16 +53,16 @@ function P.blocked(map)
 	return list
 end
 
--- 놓을 수 있는가. rect = 놓을 자리, others = 이미 놓인 것들의 사각형, blocked = P.blocked(...)
+-- 놓을 수 있는가 (안 되면 이유 = 번역 메시지). rect = 놓을 자리, others = 이미 놓인 것들의 사각형, blocked = P.blocked(...)
 function P.check(rect, others, blocked, build, playerX, playerZ)
 	local r = math.sqrt(rect.X * rect.X + rect.Z * rect.Z)
-	if r > build.Radius then return false, "기지 영역 밖입니다 (Core 에서 " .. build.Radius .. "m 안)" end
-	if playerX and math.sqrt((rect.X - playerX) ^ 2 + (rect.Z - playerZ) ^ 2) > build.Reach then return false, "너무 멉니다" end
+	if r > build.Radius then return false, {k = "build.outside", a = {r = build.Radius}} end
+	if playerX and math.sqrt((rect.X - playerX) ^ 2 + (rect.Z - playerZ) ^ 2) > build.Reach then return false, {k = "build.tooFar"} end
 	for _, other in ipairs(blocked) do
-		if P.overlap(rect, other) then return false, "기지 건물과 겹칩니다" end
+		if P.overlap(rect, other) then return false, {k = "build.overlapBase"} end
 	end
 	for _, other in ipairs(others) do
-		if P.overlap(rect, other) then return false, "다른 구조물과 겹칩니다" end
+		if P.overlap(rect, other) then return false, {k = "build.overlap"} end
 	end
 	return true
 end

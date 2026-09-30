@@ -6,6 +6,7 @@ local R=require(RS.Shared.Modules.PetRules)
 local U=require(RS.Shared.Modules.Utility)
 local I=require(RS.Shared.Config.ItemConfig)
 local M=require(RS.Shared.Config.MapConfig)
+local L=require(RS.Shared.Modules.Locale)
 local S={}
 local function attr(part,key,value) if part:GetAttribute(key)~=value then part:SetAttribute(key,value) end end
 function S:Init(ctx) self.ctx,self.Wild,self.Attempts,self.Last,self.Respawns,self.HintAt=ctx,{},{},{},{},{};self.Rng=Random.new();self:Reset() end
@@ -33,8 +34,9 @@ function S:SpawnWild(index)
     local wild={Id=uid,SpeciesId=data.SpeciesId,Level=data.Level,Stage=R.stage(data),Part=part,Home=pos,HP=stats.HP,MaxHP=stats.HP,
         Damage=stats.Damage,NextAttack=0,Failures=0,Contributors={},SpawnIndex=index,Data=data,Power=R.power(data,P)}
     self.Wild[uid]=wild
-    local prompt=U.prompt(part,"Hunt","펫들과 사냥 시작",Enum.KeyCode.E,Vector3.new(0,2,0))
-    prompt.ObjectText=(data.Shiny and "✨" or "")..R.name(data.SpeciesId,R.stage(data),P).." Lv"..data.Level.." "..R.starText(data.Stars)
+    local prompt=U.prompt(part,"Hunt",L.M("wild.hunt"),Enum.KeyCode.E,Vector3.new(0,2,0))
+    wild.PromptKey="wild.hunt"
+    L.tag(prompt,"ObjectText",L.C(data.Shiny and "✨" or "",R.name(data.SpeciesId,R.stage(data),P)," Lv"..data.Level.." "..R.starText(data.Stars)))
     prompt.MaxActivationDistance=P.CaptureRange
     wild.Prompt=prompt
     prompt.Triggered:Connect(function(player)
@@ -64,7 +66,7 @@ function S:Damage(wild,amount,player,byPet)
         if wild.HP<=floor then
             if os.clock()>=(self.HintAt[player] or 0) then
                 self.HintAt[player]=os.clock()+6
-                self.ctx.Notify(player,"도구로는 여기까지! 펫이 약하게 만들어야 합니다 · 🎯 사냥 버튼으로 펫들을 붙이세요")
+                self.ctx.Notify(player,L.M("wild.toolFloor"))
             end
             return false
         end
@@ -122,7 +124,7 @@ function S:Throw(player,trap)
         end
     end
     if not best then
-        self.ctx.Notify(player,weak and "먼저 사냥해서 HP를 25% 이하로 낮추세요 · 그다음 덫을 던지세요" or "덫을 던질 지친 야생 펫이 근처에 없습니다.")
+        self.ctx.Notify(player,L.M(weak and "wild.weakenFirst" or "wild.noneTired"))
         return
     end
     local items=self.ctx.Crafting.Items[player]
@@ -138,15 +140,15 @@ function S:Attempt(player,uid,trap,bait)
     if not wild or wild.Busy or wild.HP/wild.MaxHP>P.CaptureHP or not U.near(player,wild.Part.Position,P.CaptureRange) then return end
     -- First contributor has capture priority. Teammates may assist without stealing.
     if wild.Owner and wild.Owner~=player and wild.Owner.Parent and os.clock()<(wild.ClaimUntil or 0) then
-        self.ctx.Notify(player,"먼저 사냥을 시작한 동료에게 포획 우선권이 있습니다.");return
+        self.ctx.Notify(player,L.M("wild.claimed"));return
     end
-    if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,"보유 공간이나 임시 펫 공간이 가득 찼습니다.");return end
+    if not self.ctx.Pets:CanCapture(player) then self.ctx.Notify(player,L.M("wild.full"));return end
     if self:TooStrong(player,wild) then
-        self.ctx.Notify(player,string.format("너무 강합니다! 전투력 우리 팀 %d vs %d · 펫을 키우거나 여러 마리로 (동료 펫도 합쳐져요)",self:TeamPower(player,wild),wild.Power))
+        self.ctx.Notify(player,L.M("wild.tooStrong",{team=math.floor(self:TeamPower(player,wild)),wild=math.floor(wild.Power)}))
         return
     end
     local items=self.ctx.Crafting.Items[player]
-    if not items or (items[trap] or 0)<=0 or (bait and (items.Bait or 0)<=0) then self.ctx.Notify(player,"덫 또는 먹이가 부족합니다. 제작대를 이용하세요.");return end
+    if not items or (items[trap] or 0)<=0 or (bait and (items.Bait or 0)<=0) then self.ctx.Notify(player,L.M("wild.noTrap"));return end
     self.ctx.Crafting:Use(player,trap);if bait then self.ctx.Crafting:Use(player,"Bait") end
     wild.Busy=player
     self.Attempts[player]={Wild=wild,EndsAt=os.clock()+P.CaptureSeconds,Chance=self:Chance(player,wild,trapSpec.Catch or 1,bait)}
@@ -158,19 +160,19 @@ function S:Finish(player,attempt)
     self.Attempts[player]=nil;wild.Busy=nil
     if self.Wild[wild.Id]~=wild then return end
     if not self.ctx.Data:Ready(player) or self.ctx.Clock.Phase~="Day" or not U.near(player,wild.Part.Position,P.CaptureRange) then
-        if player.Parent then self.ctx.Notify(player,"포획 중단 · 사거리나 생존 상태를 확인하세요. 사용한 덫은 소모됩니다.") end;return
+        if player.Parent then self.ctx.Notify(player,L.M("wild.interrupted")) end;return
     end
     if math.random()<attempt.Chance and self.ctx.Pets:AddCapture(player,wild) then
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,true,wild.SpeciesId,wild.Id)
         self.Wild[wild.Id]=nil;wild.Part:Destroy()
         if wild.SpawnIndex then self.Respawns[wild.SpawnIndex]=os.clock()+M.WildRespawn end
         for helper in pairs(wild.Contributors) do if helper~=player then self.ctx.Pets:Award(helper,P.CaptureXP) end end
-        self.ctx.Notify(player,"포획 성공! 즉시 전투 가능 · 우리 등록 후 밤 생존으로 영구 확정")
+        self.ctx.Notify(player,L.M("wild.caught"))
         self.ctx.PetFX:FireClient(player,"Capture",R.name(wild.SpeciesId,wild.Stage,P))
     else
         self.ctx.FX:FireAllClients("TrapResult",wild.Part.Position,false,wild.SpeciesId,wild.Id)
         wild.Failures=wild.Failures+1;wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
-        self.ctx.Notify(player,"빠져나왔습니다! 다음 시도의 성공 확률이 올랐습니다.")
+        self.ctx.Notify(player,L.M("wild.escaped"))
         self.ctx.PetFX:FireClient(player,"Fail")
     end
 end
@@ -218,7 +220,8 @@ function S:Tick(dt)
         attr(wild.Part,"HP",math.ceil(wild.HP));attr(wild.Part,"Busy",wild.Busy~=nil)
         attr(wild.Part,"Hunter",wild.Owner and wild.Owner.DisplayName or "")
         local ready=wild.HP/wild.MaxHP<=P.CaptureHP
-        wild.Prompt.ActionText=wild.Busy and "포획 중…" or (ready and "덫 던지기 (포획)" or "펫들과 사냥 시작")
+        local key=wild.Busy and "wild.capturing" or (ready and "wild.throwTrap" or "wild.hunt")
+        if wild.PromptKey~=key then wild.PromptKey=key;L.tag(wild.Prompt,"ActionText",L.M(key)) end
         wild.Prompt.Enabled=self.ctx.Clock.Phase=="Day" and not wild.Busy
     end
 end

@@ -53,7 +53,7 @@ function S:Eat(player, id)
 	local now = os.clock()
 	if now - (self.LastEat[player] or -100) < G.EatCooldown then return false end
 	if self.Hunger[player] >= G.HungerMax - 1 and human.Health >= human.MaxHealth then
-		self.ctx.Notify(player, "배가 부릅니다.")
+		self.ctx.Notify(player, {k = "food.full"})
 		return false
 	end
 	local ok
