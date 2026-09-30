@@ -24,10 +24,14 @@ function S:Equip(player, character)
 	character:PivotTo(self.ctx.Map.Spawn.CFrame + Vector3.new(0, 4, 0))
 	if self.ctx.Survival then self.ctx.Survival:OnSpawn(player) end
 	self.ctx.Crafting:OnSpawn(player)
-	human.Died:Connect(function()
-		local root = character:FindFirstChild("HumanoidRootPart")
-		if root then self.ctx.Resources:OnDeath(player, root.Position) end
-	end)
+	-- 같은 캐릭터로 원정에 다시 들어와도(로비 → 원정) 한 번만 연결한다
+	if not character:GetAttribute("DeathHooked") then
+		character:SetAttribute("DeathHooked", true)
+		human.Died:Connect(function()
+			local root = character:FindFirstChild("HumanoidRootPart")
+			if root and self.ctx.Run:IsParticipant(player) then self.ctx.Resources:OnDeath(player, root.Position) end
+		end)
+	end
 end
 function S:Held(player)
 	local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")

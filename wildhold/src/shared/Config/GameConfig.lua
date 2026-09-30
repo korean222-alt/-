@@ -7,6 +7,9 @@ return {
     NightSeconds = 180,
     WarningSeconds = 75, -- 맵이 넓어서 멀리 나간 사람이 돌아올 시간
     StudioTimeScale = 1, -- Studio only: 5 = short functional test, not balance test
+    -- Studio 에서 어떻게 시작할지: "Both" = 로비 캠프에서 시작해 수레를 타면 같은 서버의 원정 맵으로 (실제 게임과 같은 흐름)
+    --                              "Expedition" = 로비 없이 바로 원정 (원정만 빨리 시험할 때)
+    StudioMode = "Both",
     StartDelay = 4, -- 들어와서 원정 시작까지 (30초 안에 놀기 시작)
     ResultSeconds = 20,
     DawnSeconds = 4,

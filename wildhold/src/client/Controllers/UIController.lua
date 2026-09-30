@@ -14,6 +14,7 @@ local P = require(RS.Shared.Config.PetConfig)
 local M = require(RS.Shared.Config.MapConfig)
 local Zones = require(RS.Shared.Modules.Zones)
 local PR = require(RS.Shared.Modules.PetRules)
+local EC = require(RS.Shared.Config.EggConfig)
 local Portrait = require(script.Parent.Portrait)
 
 local UI = {}
@@ -183,7 +184,7 @@ function UI:Init(remotes)
 	end
 
 	-- 결과 화면
-	self.Result = panel(gui, {Name = "Result", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(460, 250),
+	self.Result = panel(gui, {Name = "Result", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(480, 300),
 		Visible = false, ZIndex = 40})
 	self.ResultTitle = text(self.Result, {Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 50), Font = TITLE, TextSize = 40, Text = "", ZIndex = 41})
 	self.ResultBody = text(self.Result, {Position = UDim2.fromOffset(24, 80), Size = UDim2.new(1, -48, 1, -96), TextSize = 16, Text = "", TextColor3 = MUTED,
@@ -202,6 +203,9 @@ function UI:Init(remotes)
 			self:ShowBanner("✨ 진화!", (name or "") .. " (으)로 성장했어요 · 더 크고 강해졌습니다", Color3.fromHex("#ffe066"))
 		elseif kind == "Secured" then
 			self:ShowBanner("💾 영구 확정!", "이제 원정이 끝나도 내 펫이에요", Color3.fromHex("#8ff5e8"))
+		elseif kind == "Egg" then
+			local egg = EC.Kinds[name]
+			if egg then self:ShowBanner(egg.Icon .. " " .. egg.Name .. " 획득!", "로비의 부화장에서 깨워 보세요 · 무엇이 나올까요?", Color3.fromHex(egg.Color)) end
 		end
 	end)
 	local acc = 0
@@ -362,8 +366,10 @@ function UI:UpdateTimer()
 		self.Timer.TextColor3 = INK
 	end
 	if d.Phase == "Result" and d.Result then
-		self.ResultBody.Text = string.format("%s\n\n🌙 버틴 밤  %d / %d\n👥 함께한 대원  %d명\n\n%d초 뒤 같은 팀으로 새 원정을 준비합니다.\n(시설·자원은 판마다 초기화, 확정된 펫은 유지)",
-			d.Result.Reason, d.Result.Nights, d.Target, d.Players, remaining)
+		local egg = d.Result.Egg and EC.Kinds[d.Result.Egg]
+		self.ResultBody.Text = string.format("%s\n\n🌙 버틴 밤  %d / %d\n👥 함께한 대원  %d명\n%s\n\n%d초 뒤 로비 캠프로 돌아갑니다.\n(확정된 펫·알·코인은 유지)",
+			d.Result.Reason, d.Result.Nights, d.Target, d.Players,
+			egg and ("🎁 보상: " .. egg.Icon .. " " .. egg.Name .. " (로비 부화장에서 깨우기)") or ("🎁 " .. EC.CommonNights .. "밤을 버티면 알을 받아요"), remaining)
 	end
 end
 
@@ -405,7 +411,7 @@ function UI:Update(previous)
 	elseif total >= capacity and d.Phase == "Day" then
 		goal = "가방이 가득! 기지의 공용 창고 앞으로 가면 자동으로 넣어요"
 	elseif d.Phase == "Result" then
-		goal = "원정 종료 · 잠시 뒤 같은 팀으로 다시 시작합니다"
+		goal = "원정 종료 · 잠시 뒤 로비 캠프로 돌아갑니다"
 	else
 		goal = d.Objective or "야생 펫을 잡고, 자원을 모아 기지를 지키세요"
 	end

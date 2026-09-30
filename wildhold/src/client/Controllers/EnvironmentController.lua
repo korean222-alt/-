@@ -45,6 +45,7 @@ function Env:Init()
 	self.Look = nil
 	self:Apply("Day", 0)
 	workspace:GetAttributeChangedSignal("Phase"):Connect(function() self:PhaseChanged() end)
+	Players.LocalPlayer:GetAttributeChangedSignal("Place"):Connect(function() self:PhaseChanged() end)
 	self:PhaseChanged()
 	self.Drops = {}
 	self.Lanterns = {}
@@ -87,6 +88,11 @@ function Env:Apply(name, seconds)
 end
 
 function Env:PhaseChanged()
+	-- 로비 캠프는 해 질 녘 (모닥불이 따뜻해 보이게)
+	if (Players.LocalPlayer:GetAttribute("Place") or "") == "Lobby" then
+		self:Apply("Dusk", 1.5)
+		return
+	end
 	local phase = workspace:GetAttribute("Phase") or "Waiting"
 	if phase == "Night" then
 		self:Apply("Night", 4)

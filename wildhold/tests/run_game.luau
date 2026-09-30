@@ -295,6 +295,24 @@ if not step(2) then fail("클라이언트 시작") end
 for _, w in ipairs(R.Warnings) do
 	if w:find("시작 실패") then fail("컨트롤러 시작 실패: " .. w) end
 end
+-- ===================================================================== 로비 → 혼자 바로 출발
+local lobbyState
+RS.Remotes.Lobby.OnClientEvent:Connect(function(kind, value) if kind == "State" then lobbyState = value end end)
+if not step(1) then fail("로비 상태") end
+local LCfg = serverRequire(shared.Config.LobbyConfig)
+local lobbyOrigin = D.Vector3.new(table.unpack(LCfg.StudioOrigin))
+check("로비에서 시작 (Studio: 로비+원정)", workspace:GetAttribute("ServerMode") == "Both" and player:GetAttribute("Place") == "Lobby"
+	and (hrp.Position - lobbyOrigin).Magnitude < 90 and root:FindFirstChild("Lobby", true) ~= nil, player:GetAttribute("Place"))
+check("로비 화면 · 상태", playerGui:FindFirstChild("Lobby") ~= nil and playerGui.Lobby.Enabled and lobbyState ~= nil and #lobbyState.Rooms == LCfg.Wagons
+	and not playerGui.WildholdHUD.Enabled, lobbyState and (#lobbyState.Pets .. "마리 · 수레 " .. #lobbyState.Rooms))
+local lobbyPets = 0
+for _, a in ipairs(root.Pets:GetChildren()) do if string.sub(a.Name, 1, 6) == "Lobby_" then lobbyPets = lobbyPets + 1 end end
+check("로비에서 출전 펫이 따라다님", lobbyPets == 1, lobbyPets)
+RS.Remotes.LobbyAction:FireServer("Solo")
+if not step(2.5) then fail("혼자 출발") end
+check("혼자 바로 출발 → 원정", player:GetAttribute("Place") == "Expedition" and (hrp.Position - lobbyOrigin).Magnitude > 500 and playerGui.WildholdHUD.Enabled
+	and not playerGui.Lobby.Enabled, player:GetAttribute("Place"))
+if not step(0.6) then fail("원정 준비") end
 check("HUD 생성", playerGui:FindFirstChild("WildholdHUD") ~= nil)
 check("펫 패널 생성", playerGui:FindFirstChild("PetBook") ~= nil)
 local held = char:FindFirstChildOfClass("Tool")
@@ -722,10 +740,69 @@ do
 	end
 	check("지역 4곳에 자원", zones.Meadow and zones.Crags and zones.Ancient and zones.Swamp, nil)
 	check("야생 펫 (성체 포함)", #root.WildPets:GetChildren() > 40 and adults > 0, #root.WildPets:GetChildren() .. "마리 · 성체 " .. adults)
+end
+
+-- ===================================================================== 원정 끝 → 로비 · 알 · 부화
+print("▶ 로비로 돌아가기 · 알 · 부화")
+for _ = 1, 40 do
+	if player:GetAttribute("Place") == "Lobby" then break end
+	if not step(0.5) then fail("로비 복귀") end
+end
+if not step(1) then fail("로비 상태") end
+check("원정이 끝나면 로비로", player:GetAttribute("Place") == "Lobby" and (hrp.Position - lobbyOrigin).Magnitude < 90 and playerGui.Lobby.Enabled,
+	player:GetAttribute("Place"))
+do
+	local Eggs = serverRequire(SSS.Services.EggService)
+	local before = #lobbyState.Eggs
+	Eggs:Grant(player, "Rare", "테스트")
+	if not step(1) then fail("알 받기") end
+	local egg
+	for _, e in ipairs(lobbyState.Eggs) do if e.Kind == "Rare" and not e.HatchAt then egg = e end end
+	check("희귀한 알 받기", #lobbyState.Eggs == before + 1 and egg ~= nil, #lobbyState.Eggs .. "개")
+	RS.Remotes.LobbyAction:FireServer("Incubate", egg.Id)
+	if not step(1) then fail("부화장") end
+	local hatchAt
+	for _, e in ipairs(lobbyState.Eggs) do if e.Id == egg.Id then hatchAt = e.HatchAt end end
+	check("부화장에 넣기 (타이머)", hatchAt ~= nil and hatchAt > lobbyState.Now, hatchAt and (hatchAt - lobbyState.Now .. "초"))
+	RS.Remotes.LobbyAction:FireServer("Hatch", egg.Id)
+	if not step(0.6) then fail("이른 부화") end
+	check("시간 전에는 안 깨어남", #lobbyState.Eggs == before + 1)
+	local hatched
+	RS.Remotes.PetFX.OnClientEvent:Connect(function(kind, pet) if kind == "Hatched" then hatched = pet end end)
+	local petsBefore = #lobbyState.Pets
+	if not step((hatchAt or 0) - lobbyState.Now + 1, 0.25) then fail("부화 기다리기") end
+	RS.Remotes.LobbyAction:FireServer("Hatch", egg.Id)
+	if not step(1) then fail("부화") end
+	check("희귀한 알 부화 (별 3개 이상)", hatched ~= nil and hatched.Stars >= 3 and #lobbyState.Pets == petsBefore + 1,
+		hatched and string.format("%s ★%d%s", hatched.SpeciesId, hatched.Stars, hatched.Shiny and " 빛나는" or ""))
+	if not step(1.5) then fail("부화 연출") end
+	local LobbyUI = clientRequire(playerScripts.Controllers.LobbyController)
+	check("부화 연출 화면", LobbyUI.Reveal.Visible and LobbyUI.RevealFace.Visible, LobbyUI.RevealText.Text)
+	-- 출전 팀 바꾸기 (다음 원정에 데려감)
+	local party = {}
+	for _, pet in ipairs(lobbyState.Pets) do if #party < 2 then table.insert(party, pet.Uid) end end
+	RS.Remotes.LobbyAction:FireServer("Party", party)
+	if not step(0.6) then fail("출전 팀") end
+	check("로비에서 출전 팀 편성", #lobbyState.Party == 2, #lobbyState.Party)
 	-- 코인 보급: 코인이 모자라면 해금되지 않는다
-	RS.Remotes.CraftAction:FireServer("Perk:StartBag")
+	RS.Remotes.LobbyAction:FireServer("Perk", "StartBag")
 	if not step(0.6) then fail("보급 해금 시도") end
-	check("보급 해금은 코인 필요", not (latest.Perks and latest.Perks.StartBag) and string.find(notices[#notices] or "", "코인") ~= nil, notices[#notices])
+	check("보급 해금은 코인 필요", not (lobbyState.Perks and lobbyState.Perks.StartBag) and string.find(notices[#notices] or "", "코인") ~= nil, notices[#notices])
+end
+-- 원정 수레(방): 올라타면 방장, 내리면 나감, 인원 1명이면 곧 출발
+do
+	local pad = root.Lobby:FindFirstChild("Wagon1"):FindFirstChild("WagonPad")
+	teleport(pad.Position.X, pad.Position.Z)
+	if not step(0.8) then fail("수레 타기") end
+	check("원정 수레에 타면 방장", lobbyState.MyRoom == 1 and lobbyState.Host, lobbyState.MyRoom)
+	teleport(lobbyOrigin.X, lobbyOrigin.Z + 20)
+	if not step(0.8) then fail("수레 내리기") end
+	check("수레에서 내리면 방에서 나감", lobbyState.MyRoom == nil)
+	teleport(pad.Position.X, pad.Position.Z)
+	if not step(0.8) then fail("다시 타기") end
+	RS.Remotes.LobbyAction:FireServer("Size", 1)
+	if not step(LCfg.FullWait + 1.5) then fail("방 출발") end
+	check("정원이 차면 출발 → 원정", player:GetAttribute("Place") == "Expedition", player:GetAttribute("Place"))
 end
 
 -- ===================================================================== 결과

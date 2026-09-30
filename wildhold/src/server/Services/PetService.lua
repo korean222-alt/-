@@ -209,17 +209,20 @@ function S.cleanName(text,config)
     if count>config.NicknameMax then text=string.sub(text,1,utf8.offset(text,config.NicknameMax+1)-1) end
     return text
 end
-function S:Rename(player,rec,text)
+-- 걸러진 이름 (빈 글자 = 이름 지우기). 실패하면 nil. 로비(LobbyService)도 쓴다
+function S.FilterName(player,text,ctx)
     text=S.cleanName(text,P)
-    if not text then return end
-    if text~="" then
-        local ok,filtered=pcall(function()
-            return TextService:FilterStringAsync(text,player.UserId):GetNonChatStringForBroadcastAsync()
-        end)
-        if not ok or type(filtered)~="string" then self.ctx.Notify(player,"이름을 확인하지 못했습니다. 잠시 후 다시 해 주세요.");return end
-        text=filtered
-    end
-    if not self.ctx.Data:Ready(player) then return end
+    if not text then return nil end
+    if text=="" then return "" end
+    local ok,filtered=pcall(function()
+        return TextService:FilterStringAsync(text,player.UserId):GetNonChatStringForBroadcastAsync()
+    end)
+    if not ok or type(filtered)~="string" then ctx.Notify(player,"이름을 확인하지 못했습니다. 잠시 후 다시 해 주세요.");return nil end
+    return filtered
+end
+function S:Rename(player,rec,text)
+    text=S.FilterName(player,text,self.ctx)
+    if not text or not self.ctx.Data:Ready(player) then return end
     self.ctx.Data:Mutate(player,function() rec.Data.Nickname=text~="" and text or nil end)
     if rec.Part then rec.Part:SetAttribute("Nickname",text) end
     self.ctx.Notify(player,text~="" and ("이름을 지었습니다: "..text) or "이름을 지웠습니다")

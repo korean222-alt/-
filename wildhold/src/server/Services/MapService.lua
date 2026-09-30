@@ -20,7 +20,8 @@ local function flat(x, z)
 	return Vector3.new(x, 0, z)
 end
 
-function Map:Build()
+-- 폴더만 만든다. 로비 전용 서버는 원정 맵 없이 이것만 (클라이언트가 같은 자리에서 펫·로비를 찾는다)
+function Map:BuildShell()
 	local old = workspace:FindFirstChild("WILDHOLD")
 	if old then
 		old:Destroy()
@@ -40,6 +41,11 @@ function Map:Build()
 	self.Base = U.folder(self.Root, "Base")
 	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid, self.Marks = {}, {}, {}, {}, {}, {}
 	self.Rng = Random.new(20260928)
+	return self
+end
+
+function Map:Build()
+	self:BuildShell()
 
 	for i, angle in ipairs(C.LaneAngles) do
 		local rad = math.rad(angle)

@@ -5,6 +5,7 @@ local C=require(RS.Shared.Config.DataConfig)
 local G=require(RS.Shared.Config.GameConfig)
 local P=require(RS.Shared.Config.PetConfig)
 local R=require(RS.Shared.Modules.PetRules)
+local EC=require(RS.Shared.Config.EggConfig)
 local S={}
 function S:Init(ctx)
     self.ctx,self.Sessions,self.MemoryRecords=ctx,{},{}
@@ -16,7 +17,7 @@ function S:NewProfile()
     return {Version=C.Version,Coins=0,Pets={[uid]={Uid=uid,SpeciesId="Mossling",Level=1,Exp=0,Favorite=true,CaughtAt=os.time(),CaughtRegion="Grassland",
             Stars=3,Shiny=false,Trait="Loyal"}},
         Party={uid},Loadouts={},Dex={Mossling={Seen=true,Caught=true}},UnlockedRegions={Grassland=true},ClearedRegions={},
-        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={},Perks={}}
+        Stats={NightsSurvived=0,Clears=0},Tutorial={},Receipts={},Perks={},Eggs={}}
 end
 function S:Validate(data)
     if type(data)~="table" or type(data.Version)~="number" or data.Version<1 or data.Version>C.Version then return nil end
@@ -40,7 +41,14 @@ function S:Validate(data)
     local selected,seen={},{}
     for _,uid in ipairs(output.Party) do if output.Pets[uid] and not seen[uid] and #selected<P.ActiveLimit then selected[#selected+1]=uid;seen[uid]=true end end
     output.Party=selected
-    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks"}) do
+    if output.Eggs~=nil then
+        if type(output.Eggs)~="table" or R.count(output.Eggs)>EC.Limit then return nil end
+        for id,egg in pairs(output.Eggs) do
+            if type(id)~="string" or type(egg)~="table" or egg.Id~=id or not EC.Kinds[egg.Kind] or type(egg.GotAt)~="number"
+                or (egg.HatchAt~=nil and type(egg.HatchAt)~="number") then return nil end
+        end
+    end
+    for _,key in ipairs({"Loadouts","Tutorial","Receipts","Perks","Eggs"}) do
         if output[key]~=nil and type(output[key])~="table" then return nil end
         output[key]=output[key] or {}
     end
@@ -58,20 +66,34 @@ end
 function S:Load(player)
     if self.Sessions[player] then return false end
     local token,key,starter=Http:GenerateGUID(false),"u_"..player.UserId,self:NewProfile()
-    local ok,record
-    for attempt=1,C.Retries do
-        ok,record=pcall(function() return self:Transform(key,function(old)
+    local locked
+    local function acquire()
+        return pcall(function() return self:Transform(key,function(old)
+            locked=false
             if old~=nil and (type(old)~="table" or old.Schema~=1) then return nil end
-            if old and not R.canAcquire(old.Lock,token,os.time()) then return nil end
+            if old and not R.canAcquire(old.Lock,token,os.time()) then locked=true;return nil end
             local data
             if old then data=self:Validate(old.Data) else data=R.copy(starter) end
             if not data then return nil end
             return {Schema=1,Data=data,Lock={Token=token,Expires=os.time()+C.LeaseSeconds}}
         end) end)
+    end
+    local ok,record
+    local waitUntil=os.clock()+C.LockWait
+    for attempt=1,C.Retries do
+        ok,record=acquire()
+        -- 로비에서 막 넘어왔으면 로비 서버가 아직 저장을 푸는 중일 수 있다 → 잠깐 기다렸다 다시
+        while ok and not record and locked and os.clock()<waitUntil and player.Parent do
+            task.wait(C.RetrySeconds)
+            ok,record=acquire()
+        end
         if ok then break end
         task.wait(C.RetrySeconds)
     end
-    if not ok or not record then player:Kick("저장 데이터가 사용 중이거나 불러오지 못했습니다. 잠시 후 다시 접속해 주세요."); return false end
+    if not ok or not record then
+        if player.Parent then player:Kick("저장 데이터가 사용 중이거나 불러오지 못했습니다. 잠시 후 다시 접속해 주세요.") end
+        return false
+    end
     self.Sessions[player]={Key=key,Token=token,Profile=R.copy(record.Data),Ready=true,Revision=0,Ack=0,
         Status=self.Memory and "Practice" or "Saved",LeaseUntil=record.Lock.Expires,NextSave=os.clock()+C.SaveInterval}
     return true

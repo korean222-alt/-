@@ -1,6 +1,8 @@
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
 local C = require(RS.Shared.Config.GameConfig)
+local EC = require(RS.Shared.Config.EggConfig)
+local Eggs = require(RS.Shared.Modules.Eggs)
 local S = {}
 function S:Init(ctx)
     self.ctx, self.Participants, self.StartAt, self.Result, self.RoundId = ctx, {}, nil, nil, 0
@@ -41,6 +43,13 @@ end
 function S:Finish(won, reason)
     if self.ctx.Clock.Phase == "Result" or self.ctx.Clock.Phase == "Waiting" then return end
     self.Result = {Won = won, Reason = reason, Nights = won and C.TargetNights or math.max(0, self.ctx.Clock.Night - 1)}
+    -- 보상 알: 클리어 = 희귀한 알, 실패해도 CommonNights 밤 이상 버티면 보통 알
+    self.Result.Egg = Eggs.reward(won, self.Result.Nights, EC)
+    if self.Result.Egg and self.ctx.Eggs then
+        for player in pairs(self.Participants) do
+            self.ctx.Eggs:Grant(player, self.Result.Egg, won and "원정 클리어!" or (self.Result.Nights .. "밤 생존"))
+        end
+    end
     self:Change("Result", self.ctx.Clock.Night, C.ResultSeconds * self.ctx.Clock:Scale())
     self.ctx.Enemies:Reset()
     self.ctx.Waves:Reset()
@@ -97,6 +106,10 @@ function S:Tick()
             self.Warned = false
             self:Change("Day", clock.Night + 1, C.DaySeconds)
         end
-    elseif phase == "Result" and clock:Expired() then self:Reset() end
+    elseif phase == "Result" and clock:Expired() then
+        -- 결과 화면 뒤 로비로 (로비에서 알을 깨우고 다시 출발)
+        if self.ctx.ReturnToLobby then self.ctx.ReturnToLobby() end
+        self:Reset()
+    end
 end
 return S

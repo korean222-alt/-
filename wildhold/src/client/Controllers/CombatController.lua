@@ -12,7 +12,7 @@ local Controller = {}
 function Controller:Init(remotes)
 	local last = 0
 	local player = Players.LocalPlayer
-	CAS:BindAction("WildholdAttack", function(_, state)
+	local function handler(_, state)
 		if player:GetAttribute("PetMenuOpen") then return Enum.ContextActionResult.Pass end
 		if state == Enum.UserInputState.Begin and os.clock() - last >= C.SpearCooldown then
 			last = os.clock()
@@ -23,13 +23,27 @@ function Controller:Init(remotes)
 			Swing:Play(character, Inv.motion(tool and I.Items[tool:GetAttribute("ItemId")]), true)
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
-	CAS:SetTitle("WildholdAttack", "공격")
-	CAS:SetPosition("WildholdAttack", UDim2.new(1, -150, 1, -150))
-	local button = CAS:GetButton("WildholdAttack")
-	if button then
-		button.Size = UDim2.fromOffset(84, 84)
 	end
+	-- 공격 버튼은 원정 중에만 (로비에서는 휴대폰 화면에 버튼이 남지 않게 푼다)
+	local bound = false
+	local function refresh()
+		local want = (player:GetAttribute("Place") or "Expedition") == "Expedition"
+		if want == bound then return end
+		bound = want
+		if want then
+			CAS:BindAction("WildholdAttack", handler, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.F, Enum.KeyCode.ButtonR2)
+			CAS:SetTitle("WildholdAttack", "공격")
+			CAS:SetPosition("WildholdAttack", UDim2.new(1, -150, 1, -150))
+			local button = CAS:GetButton("WildholdAttack")
+			if button then
+				button.Size = UDim2.fromOffset(84, 84)
+			end
+		else
+			CAS:UnbindAction("WildholdAttack")
+		end
+	end
+	player:GetAttributeChangedSignal("Place"):Connect(refresh)
+	refresh()
 end
 
 return Controller
