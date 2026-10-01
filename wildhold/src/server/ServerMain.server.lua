@@ -8,7 +8,6 @@ local Engine=game:GetService("RunService")
 local TeleportService=game:GetService("TeleportService")
 local C=require(RS.Shared.Config.GameConfig)
 local LC=require(RS.Shared.Config.LobbyConfig)
-local U=require(RS.Shared.Modules.Utility)
 local L=require(RS.Shared.Modules.Locale)
 assert(C.ActiveStage>=1 and C.ActiveStage<=8,"ActiveStage must be 1..8")
 
@@ -29,7 +28,7 @@ local ctx={State=remotes.State,Attack=remotes.AttackRequest,FX=remotes.FX,PetFX=
 ctx.Notify=function(player,message) if player then remotes.Notice:FireClient(player,message) else remotes.Notice:FireAllClients(message) end end
 local names={Map="MapService",Clock="DayNightService",Core="CoreService",Resources="ResourceService",Defenses="DefenseService",
     Enemies="EnemyService",Waves="WaveService",Run="RunService",Combat="CombatService",Data="DataService",Pets="PetService",
-    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService",Survival="SurvivalService",Eggs="EggService",Lobby="LobbyService"}
+    Crafting="CraftingService",Capture="CaptureService",Tutorial="TutorialService",Survival="SurvivalService",Eggs="EggService",Lobby="LobbyService",Chests="ChestService"}
 for key,name in pairs(names) do ctx[key]=require(script.Parent.Services[name]) end
 -- Studio 에서 가져온 펫 모델(FBX)을 작업 공간에 그대로 두었으면 PetModels 로 옮긴다 (같은 이름이 있으면 새로 가져온 쪽으로 교체)
 local petModels=RS:FindFirstChild("PetModels") or Instance.new("Folder");petModels.Name,petModels.Parent="PetModels",RS
@@ -46,17 +45,14 @@ if hasMap then ctx.Map:Build() else ctx.Map:BuildShell() end
 ctx.Data:Init(ctx);ctx.Eggs:Init(ctx)
 -- ⚙ 설정 (언어·음악·효과음): 로비·원정 어디서나
 remotes.Settings.OnServerEvent:Connect(function(player,key,value) ctx.Data:SetSetting(player,key,value) end)
-local EXPEDITION={"Run","Core","Resources","Enemies","Waves","Defenses","Pets","Crafting","Capture","Tutorial","Survival","Combat"}
+local EXPEDITION={"Run","Core","Resources","Enemies","Waves","Defenses","Pets","Crafting","Capture","Tutorial","Survival","Combat","Chests"}
 if hasMap then
     for _,name in ipairs(EXPEDITION) do ctx[name]:Init(ctx) end
     ctx.Clock:Begin("Waiting",0,0)
     remotes.PetAction.OnServerEvent:Connect(function(player,action,value) ctx.Pets:Action(player,action,value) end)
     remotes.CraftAction.OnServerEvent:Connect(function(player,item) ctx.Crafting:Craft(player,item) end)
     remotes.CaptureAction.OnServerEvent:Connect(function(player,uid,trap,bait) ctx.Capture:Attempt(player,uid,trap,bait) end)
-    ctx.Map.CagePrompt.Triggered:Connect(function(player) ctx.Pets:Action(player,"Register") end)
-    ctx.Map.CookPrompt.Triggered:Connect(function(player)
-        if C.ActiveStage>=6 and ctx.Data:Ready(player) and U.near(player,ctx.Map.Campfire.Position,C.InteractionRange) then ctx.PetFX:FireClient(player,"OpenCraft","Campfire") end
-    end)
+    -- v2: 펫 우리·요리 메뉴 없음 (잡으면 바로 등록, 모닥불 근처에 서면 자동 요리). 보물상자 열기는 ChestService
     remotes.BuildRequest.OnServerEvent:Connect(function(player,kit,frame) ctx.Defenses:Request(player,kit,frame) end)
 end
 if hasLobby then
@@ -136,7 +132,7 @@ Engine.Heartbeat:Connect(function(dt)
         if hasMap then
             ctx.Run:Tick();ctx.Resources:Tick();ctx.Waves:Tick()
             ctx.Pets:Tick(step);ctx.Capture:Tick(step);ctx.Defenses:Tick();ctx.Enemies:Tick(step)
-            ctx.Crafting:Tick();ctx.Survival:Tick(step)
+            ctx.Crafting:Tick();ctx.Survival:Tick(step);ctx.Chests:Tick();ctx.Tutorial:Tick()
             for player in pairs(ctx.Run.Participants) do ctx.Map:Contain(player) end
         end
         if hasLobby then ctx.Lobby:Tick(step) end

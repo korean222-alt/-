@@ -73,7 +73,9 @@ function S:AddCapture(player,wild)
     local uid=Http:GenerateGUID(false)
     local data={Uid=uid,SpeciesId=wild.SpeciesId,Level=wild.Level,Exp=0,CaughtAt=os.time(),CaughtRegion="Grassland",Stage=wild.Stage,
         Stars=wild.Data and wild.Data.Stars or 2,Shiny=wild.Data and wild.Data.Shiny or false,Trait=wild.Data and wild.Data.Trait or nil}
-    self:Record(player,data,false)
+    local rec=self:Record(player,data,false)
+    -- v2: 펫 우리에 데려갈 필요 없이 잡는 순간 등록된다 (밤을 버티면 영구 확정)
+    rec.Registered=true
     if #self.Teams[player]<P.ActiveLimit then
         -- A catch joins an open slot without dismissing/rehealing existing companions.
         table.insert(self.Teams[player],uid);self:Spawn(self.Rosters[player][uid],#self.Teams[player])

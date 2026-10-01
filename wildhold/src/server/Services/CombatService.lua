@@ -1,5 +1,6 @@
 -- 공격 버튼 하나로 "손에 든 것" 을 쓴다. 클라이언트는 의도만 보내고, 대상·피해·결과는 서버가 정한다.
 --  도구(창·도끼·곡괭이·횃불)·맨손 : 가까운 괴물 → 야생 펫(낮) → 자원 노드 순으로 친다. 도구마다 피해·채집 배율이 다르다.
+--  v2: 자원 노드는 손에 든 것과 상관없이 가진 것 중 맞는 가장 좋은 도구로 캔다 (ResourceService:ToolFor) → 동작도 내려찍기
 --  음식 : 먹는다 (배고픔·체력)   덫 : 가까운 지친 야생 펫에게 던진다   간식 : 가까운 다친 내 펫을 회복
 local RS = game:GetService("ReplicatedStorage")
 local U = require(RS.Shared.Modules.Utility)
@@ -51,7 +52,8 @@ function S:Attack(player)
 	if now - (self.LastAttack[player] or -math.huge) < C.SpearCooldown then return end
 	self.LastAttack[player] = now
 	-- 팔 동작: 모든 클라이언트가 이 캐릭터의 팔을 휘두르게 한다 (내 화면은 누르는 즉시 먼저 재생)
-	self.ctx.FX:FireAllClients("Swing", player, Inv.motion(spec))
+	local function swing(motion) self.ctx.FX:FireAllClients("Swing", player, motion or Inv.motion(spec)) end
+	if spec and (spec.Kind == "Food" or spec.Kind == "Trap" or spec.Kind == "PetFood") then swing() end
 	if spec and spec.Kind == "Food" then
 		if self.ctx.Survival then self.ctx.Survival:Eat(player, id) end
 		return
@@ -65,6 +67,7 @@ function S:Attack(player)
 	local damage = spec and spec.Damage or I.HandDamage
 	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
 	if enemy then
+		swing()
 		local killed = self.ctx.Enemies:Damage(enemy, damage)
 		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position, {D = damage, O = player.UserId, K = killed})
 		return
@@ -72,6 +75,7 @@ function S:Attack(player)
 	if C.ActiveStage >= 6 and phase == "Day" then
 		local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
 		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) and self.ctx.Capture:Damage(wild, damage, player) then
+			swing()
 			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position, {D = damage, O = player.UserId})
 			return
 		end
@@ -81,8 +85,12 @@ function S:Attack(player)
 		local d = (node.Part.Position - root.Position).Magnitude
 		if node.HP > 0 and d < distance and self.ctx.Enemies:ClearShot(root.Position, node.Part.Position) then best, distance = node, d end
 	end
-	if best and self.ctx.Resources:Harvest(player, best, spec) then
-		self.ctx.FX:FireAllClients("Harvest", root.Position, best.Part.Position, best.Kind)
+	-- 채집은 늘 내려찍기 동작 (창을 들고 있어도 도끼를 꺼낸 것처럼). 흔들림·쓰러짐·FX 는 ResourceService:Harvest 가 보낸다
+	if best then
+		swing("Chop")
+		self.ctx.Resources:Harvest(player, best, spec)
+	else
+		swing()
 	end
 end
 return S

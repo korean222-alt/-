@@ -3,8 +3,10 @@
 -- 쥐는 법: 도구를 들면 기본 Animate 가 오른팔을 앞으로 뻗는다(toolnone). 그때 손(RightGripAttachment) 기준으로
 --   +Y = 위, -Z = 앞 이다. Tool.Grip 을 CFrame.new(쥐는 점) * 기울기 로 주면 Handle 의 그 점을 손이 쥔다.
 --   · 도끼·곡괭이·횃불 : 자루를 Handle 의 Y 축으로 만들고 날/머리를 위(+Y)에 둔다 → 자루를 세워서 쥐고 날은 앞(-Z)을 본다
---   · 창                : 자루를 Z 축으로 만들고 창날을 앞(-Z)에 둔다 → 앞으로 겨누어 쥔다
--- 예전에는 도끼·곡괭이도 창처럼 앞으로 눕혀 들어서 "막대 끝에 돌덩이" 처럼 보였다.
+--   · 창                : 자루를 Z 축으로 만들고 창날을 앞(-Z)에 둔다 → Grip 을 -62° 기울여 도끼처럼 비스듬히 세워 쥔다
+--                         (창끝이 위·조금 앞을 본다. 찌를 때 팔을 내리면 창이 앞으로 눕는다 — SwingController "Stab")
+-- 예전에는 도끼·곡괭이도 창처럼 앞으로 눕혀 들어서 "막대 끝에 돌덩이" 처럼 보였고,
+-- 창은 팔 앞으로 수평으로 뻗어서 "막대를 내밀고 걷는" 이상한 모습이었다 (v2 에서 고침).
 local RS = game:GetService("ReplicatedStorage")
 local I = require(RS.Shared.Config.ItemConfig)
 local Kit = require(script.Parent.Kit)
@@ -18,6 +20,10 @@ local MAT = Enum.Material
 local function hex(value)
 	return Color3.fromHex(value)
 end
+
+-- 창을 세우는 각도 (도). 0 = 앞으로 수평, -90 = 똑바로 위. 도끼는 +20 (위로 서서 앞으로 20° 기욺)
+local SPEAR_LEAN = -62
+T.SpearLean = SPEAR_LEAN
 
 local function makeTool(id)
 	local tool = Instance.new("Tool")
@@ -102,8 +108,8 @@ local function spear(tool, handle, look, headColor, headMat)
 	piece(tool, handle, Vector3.new(0.1, 0.36, 0.36), CFrame.new(0, 0, -3.62) * CFrame.Angles(math.rad(45), 0, 0), headColor, headMat)
 	piece(tool, handle, Vector3.new(0.3, 0.3, 0.5), CFrame.new(0, 0, -2.6), hex("#3a5a50"), MAT.Fabric)
 	piece(tool, handle, Vector3.new(0.3, 0.3, 0.6), CFrame.new(0, 0, 0.9), hex("#784e2c"), MAT.Fabric)
-	-- 가운데보다 조금 뒤를 쥐고 창끝을 살짝 위로
-	tool.Grip = grip(Vector3.new(0, 0, 0.9), -8)
+	-- 가운데보다 조금 뒤를 쥐고, 도끼처럼 비스듬히 세운다 (창끝이 위로 28° 앞으로 기운다)
+	tool.Grip = grip(Vector3.new(0, 0, 1.2), SPEAR_LEAN)
 end
 
 local function torch(tool, handle, look)
@@ -178,9 +184,9 @@ local function food(tool, handle, id)
 end
 
 -- 블렌더 건축 키트의 도구 메쉬 (있을 때). 메쉬 원점 = 손이 쥐는 곳 → Grip 은 상자 중심에서 원점까지
-local TOOL_KIT = {OldAxe = "Axe1", StoneAxe = "Axe2", IronAxe = "Axe3", StonePick = "Pick2", IronPick = "Pick3",
+local TOOL_KIT = {OldAxe = "Axe1", StoneAxe = "Axe2", IronAxe = "Axe3", OldPick = "Pick2", StonePick = "Pick2", IronPick = "Pick3",
 	OldSpear = "Spear1", StoneSpear = "Spear2", IronSpear = "Spear3", CrystalSpear = "Spear4", Torch = "TorchTool"}
-local LEAN = {Axe = 20, Pickaxe = 20, Torch = 12, Spear = -8}
+local LEAN = {Axe = 20, Pickaxe = 20, Torch = 12, Spear = SPEAR_LEAN}
 
 local function kitTool(id, spec)
 	local name = TOOL_KIT[id]

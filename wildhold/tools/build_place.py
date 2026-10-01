@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """src/ 폴더의 Luau 소스를 Roblox Studio에서 바로 여는 .rbxlx 로 묶는다.
 
-사용법:  python3 wildhold/tools/build_place.py
-결과:    wildhold/WILDHOLD.rbxlx
+사용법:  python3 wildhold/tools/build_place.py [파일이름.rbxlx]
+결과:    wildhold/WILDHOLD.rbxlx (이름을 주면 그 이름으로. 예: WILDHOLD_v2.rbxlx — Studio 에서 열어 둔 파일을 덮어쓰지 않게)
 
 Rojo 를 쓰는 경우에는 default.project.json 으로 같은 구조를 동기화할 수 있다.
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import sys
 from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -20,6 +21,7 @@ OUT = ROOT / "WILDHOLD.rbxlx"
 ENV_MODELS = ROOT / "assets" / "env" / "EnvModels.rbxmx"    # Model "EnvModels" (숲 키트 14개) → ReplicatedStorage
 PET_MODELS = ROOT / "assets" / "pets" / "PetModels.rbxmx"   # 펫 Model 들 → ReplicatedStorage/PetModels
 BUILD_MODELS = ROOT / "assets" / "build" / "BuildModels.rbxmx"  # Model "BuildModels" (건축 키트) → ReplicatedStorage (있을 때만)
+RUIN_MODELS = ROOT / "assets" / "ruins" / "RuinModels.rbxmx"  # Model "RuinModels" (유적 키트, v2) → ReplicatedStorage (있을 때만)
 
 _ref = 0
 
@@ -113,7 +115,9 @@ def main() -> None:
     env_items, env_shared = saved_models(ENV_MODELS)
     pet_items, pet_shared = saved_models(PET_MODELS)
     build_items, build_shared = saved_models(BUILD_MODELS)
-    shared = list(dict.fromkeys(env_shared + pet_shared + build_shared))
+    ruin_items, ruin_shared = saved_models(RUIN_MODELS)
+    shared = list(dict.fromkeys(env_shared + pet_shared + build_shared + ruin_shared))
+    out = ROOT / sys.argv[1] if len(sys.argv) > 1 else OUT
     server_children = [script_item(SRC / "server" / "ServerMain.server.lua"), folder_item(SRC / "server" / "Services")]
     client_children = [script_item(SRC / "client" / "ClientMain.client.lua"), folder_item(SRC / "client" / "Controllers")]
     parts = [
@@ -138,6 +142,7 @@ def main() -> None:
             lambda indent: item("Folder", "PetModels", pet_items, indent=indent),
             *env_items,
             *build_items,
+            *ruin_items,
         ]),
         item("ServerScriptService", "ServerScriptService", server_children),
         item("StarterPlayer", "StarterPlayer", [
@@ -149,8 +154,8 @@ def main() -> None:
         "</roblox>",
         "",
     ]
-    OUT.write_text("\n".join(parts), encoding="utf-8")
-    print(f"wrote {OUT.relative_to(ROOT.parent)} ({OUT.stat().st_size // 1024} KB)")
+    out.write_text("\n".join(parts), encoding="utf-8")
+    print(f"wrote {out.relative_to(ROOT.parent)} ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

@@ -40,6 +40,13 @@ local BUILTIN = {
 	Crit = {"rbxasset://sounds/swordslash.wav", 0.8, 0.45},
 	Skill = {"rbxasset://sounds/electronicpingshort.wav", 0.6, 0.55},
 	KO = {"rbxasset://sounds/splat.wav", 0.7, 0.5},
+	-- v2: 채집·보물상자·목표
+	Thud = {"rbxasset://sounds/collide.wav", 0.6, 0.6},
+	Pickup = {"rbxasset://sounds/electronicpingshort.wav", 1.8, 0.18},
+	Cook = {"rbxasset://sounds/splat.wav", 1.8, 0.2},
+	ChestShake = {"rbxasset://sounds/clickfast.wav", 0.5, 0.5},
+	ChestOpen = {"rbxasset://sounds/victory.wav", 1.3, 0.45},
+	Goal = {"rbxasset://sounds/electronicpingshort.wav", 1.1, 0.55},
 	LevelUp = {"rbxasset://sounds/victory.wav", 1.3, 0.45},
 	Combo = {"rbxasset://sounds/electronicpingshort.wav", 1.5, 0.45},
 	WildReady = {"rbxasset://sounds/electronicpingshort.wav", 1.2, 0.55},

@@ -162,16 +162,26 @@ function Env:Step()
 			end
 		end
 	end
-	-- 떨어진 자원: 둥실둥실 돈다 (로컬에서만 움직이는 연출)
+	-- 떨어진 자원: 둥실둥실 돈다 (로컬에서만 움직이는 연출). PopFrom 이 있으면(보물상자·황금 노드) 그 자리에서 포물선으로 튀어나온다
 	local drops = root and root:FindFirstChild("Drops")
 	if drops then
+		local now = os.clock()
 		for _, part in ipairs(drops:GetChildren()) do
-			local home = self.Drops[part]
-			if not home then
-				home = part.CFrame
-				self.Drops[part] = home
+			local entry = self.Drops[part]
+			if not entry then
+				entry = {part.CFrame, now}
+				self.Drops[part] = entry
 			end
-			part.CFrame = CFrame.new(home.Position + Vector3.new(0, 0.4 + math.sin(t * 3 + home.Position.X) * 0.25, 0)) * CFrame.Angles(0, t * 2, 0) * home.Rotation
+			local home = entry[1]
+			local bob = CFrame.new(home.Position + Vector3.new(0, 0.4 + math.sin(t * 3 + home.Position.X) * 0.25, 0)) * CFrame.Angles(0, t * 2, 0) * home.Rotation
+			local from = part:GetAttribute("PopFrom")
+			local k = (now - entry[2]) / 0.55
+			if typeof(from) == "Vector3" and k < 1 then
+				local pos = from:Lerp(bob.Position, k) + Vector3.new(0, math.sin(k * math.pi) * 6, 0)
+				part.CFrame = CFrame.new(pos) * CFrame.Angles(k * 9, k * 7, 0)
+			else
+				part.CFrame = bob
+			end
 		end
 		for part in pairs(self.Drops) do
 			if not part.Parent then self.Drops[part] = nil end

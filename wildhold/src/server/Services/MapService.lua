@@ -1,6 +1,7 @@
--- 원정 맵 생성: 지형(Terrain) + 기지(말뚝 울타리, Core, 창고, 제작대, 모닥불, 펫 우리) + 3 길목 + 지역(초원·바위 협곡·고목의 숲·안개 늪)
--- + 자원 노드 + 야생 펫 자리 + 숲. 놀 수 있는 곳은 지름 약 1500 (MapConfig).
--- 다른 서비스가 쓰는 값: Lanes, Nodes, WildSpawns, Core, Warehouse, Campfire, Cage, Spawn, 각 폴더, CagePrompt, CookPrompt
+-- 원정 맵 생성: 지형(Terrain) + 기지(Core 모닥불, 요리 모닥불 — v2 는 울타리·창고·펫 우리 없이 빈 기지) + 3 길목
+-- + 지역(초원·바위 협곡·고목의 숲·안개 늪) + 자원 노드 + 야생 펫 자리 + 숲 + 지역 소품·유적·보물상자(BuildRuins). 놀 수 있는 곳은 지름 약 1500 (MapConfig).
+-- 다른 서비스가 쓰는 값: Lanes, Nodes, WildSpawns, Core, Warehouse, Campfire, Cage, Spawn, Chests, 각 폴더
+--  (Warehouse·Cage 는 v2 에서 보이지 않는 기준 파트만 남았다: 예전 코드·테스트가 위치를 참조해도 깨지지 않게)
 -- 제작대·벽·포탑은 고정 자리가 없다: 플레이어가 설치한다 (DefenseService, 시작 구조물은 BuildConfig.Starter)
 -- 맵 가장자리에는 보이지 않는 경계 벽(WallRadius)이 있고, 지도(미니맵)용 격자를 ReplicatedStorage.MapGrid 로 내보낸다.
 local RS = game:GetService("ReplicatedStorage")
@@ -12,6 +13,8 @@ local G = require(RS.Shared.Config.GameConfig)
 local B = require(RS.Shared.Visuals.Build)
 local Props = require(RS.Shared.Visuals.Props)
 local S = require(RS.Shared.Visuals.Structures)
+local Ruins = require(RS.Shared.Visuals.Ruins)
+local ChestC = require(RS.Shared.Config.ChestConfig)
 local L = require(RS.Shared.Modules.Locale)
 
 local Map = {}
@@ -41,7 +44,8 @@ function Map:BuildShell()
 	self.PetsFolder = U.folder(self.Root, "Pets")
 	self.WildFolder = U.folder(self.Root, "WildPets")
 	self.Base = U.folder(self.Root, "Base")
-	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid, self.Marks = {}, {}, {}, {}, {}, {}
+	self.RuinsFolder = U.folder(self.Map, "Ruins")
+	self.Lanes, self.Slots, self.Nodes, self.WildSpawns, self.Grid, self.Marks, self.Chests = {}, {}, {}, {}, {}, {}, {}
 	self.Rng = Random.new(20260928)
 	return self
 end
@@ -77,9 +81,12 @@ function Map:Build()
 		local lane = self.Lanes[spec[2]]
 		self:Block(lane.Dir * spec[3] + lane.Side * spec[4], 8)
 	end
+	-- 유적·보물상자는 나무·자원보다 먼저 자리를 잡는다 (유적 안이 비어 있게)
+	self:BuildRuins()
 	self:BuildNodes()
 	self:BuildWild()
 	self:BuildScenery()
+	self:BuildRegionProps()
 	self:BuildBoundary()
 	self:BuildMapGrid()
 	return self
@@ -195,10 +202,6 @@ function Map:BuildTerrain()
 			self:Mark(pos, 4.5, "P")
 		end
 	end
-	-- 건물 아래 흙 바닥
-	for _, spot in ipairs({C.Warehouse, C.Cage}) do
-		T:FillCylinder(CFrame.new(spot[1], -2, spot[3]), 4, 9, MAT.Ground)
-	end
 	-- 연못: 기지 근처 1개 + 늪 여러 개 (모래·진흙 둘레 → 파기 → 물)
 	self.Ponds = {{flat(C.Pond[1], C.Pond[2]), C.Pond[3]}}
 	for _ = 1, C.SwampPonds do
@@ -290,33 +293,19 @@ end
 -- ============================================================= 기지
 function Map:BuildBase()
 	local base = self.Base
-	local toCore = function(x, z)
-		return CFrame.lookAt(flat(x, z), Vector3.zero)
-	end
 	local _, coreHit = S.core(base, CFrame.new())
 	self.Core = coreHit
 	self.Core.Name = "Core"
 	self:Mark(Vector3.zero, C.BaseRadius, "B")
 	self:Mark(Vector3.zero, 5, "Q")
-	for _, spot in ipairs({C.Warehouse, C.Cage}) do
-		self:Mark(Vector3.new(spot[1], 0, spot[3]), 6, "K")
+	-- 창고·펫 우리는 v2 에서 없앴다 (가방으로 어디서나 쓰고, 잡은 펫은 바로 등록). 위치 기준 파트만 남긴다.
+	local function marker(name, spot)
+		local p = U.part(base, name, Vector3.new(1, 1, 1), Vector3.new(spot[1], 0.5, spot[3]))
+		p.Transparency, p.CanCollide, p.CanQuery, p.CanTouch = 1, false, false, false
+		return p
 	end
-
-	S.storehouse(base, toCore(C.Warehouse[1], C.Warehouse[3]))
-	self.Warehouse = base.Storehouse.Hitbox
-	self.Warehouse.Name = "Warehouse"
-	local ring = base.Storehouse:FindFirstChild("DepositRing")
-	if ring then
-		ring.Size = Vector3.new(0.08, G.DepositRadius * 2, G.DepositRadius * 2)
-		ring.CFrame = CFrame.new(self.Warehouse.Position.X, 0.1, self.Warehouse.Position.Z) * CFrame.Angles(0, 0, math.rad(90))
-	end
-
-
-	local _, penPad = S.pen(base, CFrame.new(C.Cage[1], 0, C.Cage[3]))
-	self.Cage = penPad
-	self.Cage.Name = "Cage"
-	self.CagePrompt = U.prompt(self.Cage, "Register", L.M("prompt.register"), Enum.KeyCode.E, Vector3.new(0, 1.5, -5))
-	L.tag(self.CagePrompt, "ObjectText", L.M("place.cage"))
+	self.Warehouse = marker("Warehouse", C.Warehouse)
+	self.Cage = marker("Cage", C.Cage)
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name, spawn.Size, spawn.Position = "ExpeditionSpawn", Vector3.new(6, 1, 6), Vector3.new(table.unpack(C.Spawn))
@@ -325,51 +314,6 @@ function Map:BuildBase()
 	self.Spawn = spawn
 	B.cyl(base, 0.3, 7, CFrame.new(spawn.Position.X, 0.15, spawn.Position.Z), "#7d776c", MAT.Slate, true)
 	B.cyl(base, 0.32, 5.4, CFrame.new(spawn.Position.X, 0.17, spawn.Position.Z), "#8ff5e8", MAT.Neon, true, {Transparency = 0.8})
-
-	-- 말뚝 울타리 (길목 구멍 3개)
-	local palisade = B.model(base, "Palisade")
-	local rng = Random.new(5)
-	local step = 1.65 / C.BaseRadius
-	local gapHalf = (C.GapWidth / 2 + 0.8) / C.BaseRadius
-	local a = 0
-	while a < math.pi * 2 do
-		local open = false
-		for _, lane in ipairs(self.Lanes) do
-			local la = math.atan2(lane.Dir.Z, lane.Dir.X)
-			local d = math.abs((a - la + math.pi) % (math.pi * 2) - math.pi)
-			if d < gapHalf then
-				open = true
-			end
-		end
-		if not open then
-			local pos = Vector3.new(math.cos(a) * C.BaseRadius, 0, math.sin(a) * C.BaseRadius)
-			local h = 7.2 + rng:NextNumber() * 1.3
-			Props.stake(palisade, CFrame.lookAt(pos, Vector3.zero) * CFrame.Angles(math.rad(rng:NextInteger(-3, 3)), 0, math.rad(rng:NextInteger(-3, 3))), h, rng)
-		end
-		a = a + step
-	end
-	for _, d in ipairs(palisade:GetDescendants()) do
-		if d:IsA("BasePart") and math.max(d.Size.X, d.Size.Y) > 5 then
-			d.CanCollide, d.CanQuery = true, true
-		end
-	end
-	-- 안쪽 가로대 (걷는 발판처럼 보이게)
-	for i = 0, 35 do
-		local ang = i / 36 * math.pi * 2
-		local blocked = false
-		for _, lane in ipairs(self.Lanes) do
-			local la = math.atan2(lane.Dir.Z, lane.Dir.X)
-			if math.abs((ang - la + math.pi) % (math.pi * 2) - math.pi) < gapHalf + 0.08 then
-				blocked = true
-			end
-		end
-		if not blocked then
-			local pos = Vector3.new(math.cos(ang), 0, math.sin(ang)) * (C.BaseRadius - 1.1)
-			local len = 2 * math.pi * (C.BaseRadius - 1.1) / 36 + 0.3
-			B.block(palisade, Vector3.new(len, 0.5, 0.5), CFrame.lookAt(pos, Vector3.zero) + Vector3.new(0, 5.2, 0), "#6b4423", MAT.Wood)
-			B.block(palisade, Vector3.new(len, 0.5, 0.5), CFrame.lookAt(pos, Vector3.zero) + Vector3.new(0, 2.2, 0), "#6b4423", MAT.Wood)
-		end
-	end
 
 	-- 광장 소품: 횃불, 깃발, 모닥불
 	for i = 0, 5 do
@@ -393,14 +337,22 @@ function Map:BuildBase()
 	B.light(flame, "PointLight", {Range = 20, Brightness = 1.8, Color = Color3.fromHex("#ffa860"), Shadows = true})
 	flame.Name = "Campfire"
 	self.Campfire = flame
-	self.CookPrompt = U.prompt(flame, "Cook", L.M("prompt.cook"), Enum.KeyCode.E, Vector3.new(0, 1.5, 0))
-	L.tag(self.CookPrompt, "ObjectText", L.M("place.campfire"))
+	-- 요리 메뉴는 없다: 가까이 서 있으면 버섯이 저절로 구워진다 (CraftingService:AutoCook). 바닥에 따뜻한 원 + 머리 위 안내
+	B.cyl(fire, 0.06, G.CookRadius * 2, fpos * CFrame.new(0, 0.08, 0), "#ffb347", MAT.Neon, true, {Transparency = 0.86, CanQuery = false})
+	local sign = Instance.new("BillboardGui")
+	sign.Name, sign.Size, sign.StudsOffset, sign.MaxDistance, sign.LightInfluence = "CookSign", UDim2.fromOffset(220, 40), Vector3.new(0, 5, 0), 60, 0
+	sign.Parent = flame
+	local label = Instance.new("TextLabel")
+	label.Size, label.BackgroundTransparency, label.TextScaled, label.Font = UDim2.fromScale(1, 1), 1, true, Enum.Font.FredokaOne
+	label.TextColor3, label.TextStrokeTransparency = Color3.fromHex("#ffe2a8"), 0.3
+	L.tag(label, "Text", L.M("sign.autoCook"))
+	label.Parent = sign
 	for i, off in ipairs({Vector3.new(-3.6, 0, 0.5), Vector3.new(3.4, 0, -0.6)}) do
 		B.solid(B.cyl(fire, 3.4, 1, fpos * CFrame.new(off) * CFrame.Angles(0, math.rad(80 + i * 20), 0) + Vector3.new(0, 0.5, 0), "#8a5d36", MAT.Wood))
 	end
 end
 
--- ============================================================= 길목, 굴, 날개 울타리
+-- ============================================================= 길목, 굴
 function Map:BuildLanes()
 	for _, lane in ipairs(self.Lanes) do
 		local folder = self.LanesFolder["Lane" .. lane.Id]
@@ -408,22 +360,6 @@ function Map:BuildLanes()
 		Props.burrow(folder, CFrame.lookAt(mouth, Vector3.zero), self.Rng)
 		self:Block(mouth, 14)
 		self:Mark(mouth, 7, "U")
-		-- 바깥 벽 자리 옆 울타리 날개: 길목이 "막히는 곳" 으로 읽히게 한다
-		for _, radius in ipairs({57, 78}) do
-			for _, s in ipairs({-1, 1}) do
-				local center = lane.Dir * radius + lane.Side * s * (C.LaneWidth / 2 + 5)
-				local frame = CFrame.lookAt(center, center + lane.Side)
-				for k = -1, 1 do
-					B.solid(B.cyl(folder, 3.4, 0.7, frame * CFrame.new(0, 1.7, k * 3.4), "#5e4b3b", MAT.Wood, true))
-				end
-				B.new("Part", folder, {Name = "FenceWall", Size = Vector3.new(0.5, 3.4, 7.4), CFrame = frame * CFrame.new(0, 1.7, 0), Transparency = 1,
-					CanCollide = true, CastShadow = false})
-				for _, y in ipairs({1.2, 2.7}) do
-					B.block(folder, Vector3.new(0.4, 0.4, 7.4), frame * CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(4 * s)), "#54432f", MAT.Wood)
-				end
-				Props.rock(folder, frame * CFrame.new(0, 0, 6.5), self.Rng, 0.55)
-			end
-		end
 		-- 길 표지 돌 (길목 번호)
 		local marker = lane.Dir * 46 + lane.Side * (C.LaneWidth / 2 + 2.5)
 		local stone = B.solid(B.block(folder, Vector3.new(1.6, 2.6, 0.9), CFrame.lookAt(marker, marker - lane.Dir) + Vector3.new(0, 1.3, 0), "#6f7376", MAT.Slate))
@@ -695,6 +631,236 @@ function Map:BuildScenery()
 	end
 end
 
+-- ============================================================= 유적 · 보물상자 (v2)
+-- 스폰 근처 빛기둥 보물상자 작은 유적 1곳 + 지역마다 유적 2~3곳 (무너진 신전·아치·반쯤 잠긴 탑·선돌 원). 가운데에 보물상자.
+-- 유적의 앞(-Z)은 기지 쪽을 본다 (기지에서 걸어오면 입구가 보이게).
+local FLOOR = {
+	Meadow = {MAT.Cobblestone, MAT.Cobblestone, MAT.Ground},
+	Crags = {MAT.Slate, MAT.Basalt, MAT.Cobblestone},
+	Ancient = {MAT.Cobblestone, MAT.LeafyGrass, MAT.Ground},
+	Swamp = {MAT.Mud, MAT.Cobblestone, MAT.Mud},
+}
+
+function Map:AddChest(at, tier, zone, perPlayer)
+	local color = ChestC.Colors[tier]
+	local model, hit = Ruins.chest(self.RuinsFolder, at, tier, color, self.Rng)
+	local id = "Chest" .. (#self.Chests + 1)
+	model.Name = id
+	model:SetAttribute("PerPlayer", perPlayer == true)
+	pcall(function() model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent end)
+	table.insert(self.Chests, {Id = id, Model = model, Hit = hit, Tier = tier, PerPlayer = perPlayer == true, Pos = at.Position, Zone = zone})
+	self:Mark(at.Position, 3, "J")
+	return model
+end
+
+-- 유적 바닥: 깨진 돌바닥 조각을 여러 개 겹쳐 칠한다
+function Map:RuinFloor(center, radius, zone)
+	local T, rng = workspace.Terrain, self.Rng
+	local mats = FLOOR[zone] or FLOOR.Meadow
+	T:FillCylinder(CFrame.new(center + Vector3.new(0, -2, 0)), 4, radius * 0.7, mats[1])
+	for _ = 1, 9 do
+		local a = rng:NextNumber() * math.pi * 2
+		local r = rng:NextNumber() * radius * 0.8
+		T:FillCylinder(CFrame.new(center + Vector3.new(math.cos(a) * r, -2, math.sin(a) * r)), 4, 2 + rng:NextNumber() * radius * 0.35,
+			mats[rng:NextInteger(1, #mats)])
+	end
+end
+
+-- 유적 한 곳. kind = Temple · Arch · Tower · Circle, frame = 가운데 바닥 (-Z = 기지 쪽)
+function Map:BuildRuinSite(kind, frame, zone, tier, perPlayer)
+	local rng, folder = self.Rng, self.RuinsFolder
+	local function put(name, x, z, yawDeg, scale, light, sink)
+		return Ruins.build(folder, name, frame * CFrame.new(x, -(sink or 0), z) * CFrame.Angles(0, math.rad(yawDeg or 0), 0), rng, scale, light)
+	end
+	local chestAt = frame * CFrame.new(0, 0, -1)
+	if kind == "Temple" then
+		for k = 0, 5 do
+			local a = math.rad(k * 60 + 30)
+			local x, z = math.cos(a) * 10, math.sin(a) * 10
+			local roll = rng:NextNumber()
+			if roll < 0.4 then
+				put("RuinPillar", x, z, rng:NextNumber() * 90)
+			elseif roll < 0.8 then
+				put("RuinPillarBroken", x, z, rng:NextNumber() * 90)
+			else
+				put("RuinPillarFallen", x * 1.25, z * 1.25, math.deg(a) + 90 + B.jitter(rng, 20))
+			end
+		end
+		put("RuinAltar", 0, 5, 0)
+		put("RuinStatueHead", 9, 9, -140 + B.jitter(rng, 30), 1 + rng:NextNumber() * 0.25, false, 1.2)
+	elseif kind == "Arch" then
+		put("RuinArch", 0, -7, 0)
+		put("RuinWall", -9, 1, 70)
+		put("RuinWall", 9.5, 2, -64, 0.9)
+		put("RuinObelisk", 0, 8, 0, 1, true)
+		put("RuinPillarBroken", -6, -12, 20)
+		put("RuinPillarBroken", 6, -12, 50)
+		chestAt = frame * CFrame.new(0, 0, 1)
+	elseif kind == "Tower" then
+		-- 늪의 탑은 반쯤 잠겨 있다
+		local sunk = zone == "Swamp" and 4 or 0
+		put("RuinTower", 0, 7, rng:NextNumber() * 360, 1, false, sunk)
+		put("RuinWall", -9, 0, 80)
+		put("RuinWall", 8, -4, -30, 0.85)
+		put("RuinStatueHead", -7, -9, 30, 0.9, false, 1.5)
+		put("RuinPillarFallen", 9, 7, 40)
+		chestAt = frame * CFrame.new(0, 0, -3)
+	else -- Circle: 선돌 원
+		for k = 0, 8 do
+			local a = k / 9 * math.pi * 2
+			if k ~= 4 or rng:NextNumber() < 0.5 then
+				local stoneAt = frame * CFrame.new(math.cos(a) * 9, 0, math.sin(a) * 9)
+				Ruins.build(folder, "StandingStone", CFrame.lookAt(stoneAt.Position, frame.Position) * CFrame.Angles(0, math.pi, 0), rng, 0.9 + rng:NextNumber() * 0.35)
+			end
+		end
+		put("RuinAltar", 0, 3, 0, 0.7)
+		chestAt = frame * CFrame.new(0, 0, -3)
+	end
+	self:AddChest(chestAt, tier, zone, perPlayer)
+end
+
+function Map:BuildRuins()
+	-- ① 스폰 근처 첫 보물상자: 기지에서 북동쪽으로 조금 걸어가면 빛기둥이 보인다 (대원마다 한 번씩)
+	local a = math.rad(62)
+	local dir = Vector3.new(math.sin(a), 0, -math.cos(a))
+	local pos = dir * ChestC.Starter.Distance
+	local frame = CFrame.lookAt(pos, Vector3.zero)
+	self:RuinFloor(pos, 10, "Meadow")
+	local rng, folder = self.Rng, self.RuinsFolder
+	Ruins.build(folder, "RuinPillarBroken", frame * CFrame.new(-5.5, 0, 3), rng)
+	Ruins.build(folder, "RuinPillar", frame * CFrame.new(5, 0, 3.5), rng, 0.8)
+	Ruins.build(folder, "RuinPillarFallen", frame * CFrame.new(7, 0, -4) * CFrame.Angles(0, math.rad(60), 0), rng, 0.8)
+	Ruins.build(folder, "StandingStone", frame * CFrame.new(-6, 0, -5) * CFrame.Angles(0, math.rad(20), 0), rng, 0.8)
+	self.StarterChest = self:AddChest(frame, ChestC.Starter.Tier, "Meadow", true)
+	self:Block(pos, 13)
+	self:Mark(pos, 8, "J")
+	-- ② 지역 유적: 지역 안 무작위 자리. 가장 멀리 있는 유적의 상자는 한 단계 좋은 등급
+	for _, zone in ipairs(C.ZoneOrder) do
+		local spec = ChestC.Ruins[zone]
+		local sites = {}
+		for i = 1, spec.Count do
+			for _ = 1, 80 do
+				local p = self:RandomPoint(zone, 30)
+				local okDistance = zone ~= "Meadow" or (p.Magnitude > 110 and (p - pos).Magnitude > 80)
+				if okDistance and self:Free(p, 24) then
+					local apart = true
+					for _, other in ipairs(sites) do
+						if (other.Pos - p).Magnitude < 140 then apart = false end
+					end
+					if apart then
+						table.insert(sites, {Pos = p, Kind = spec.Kinds[(i - 1) % #spec.Kinds + 1]})
+						self:Block(p, 24)
+						break
+					end
+				end
+			end
+		end
+		local far = 0
+		for _, site in ipairs(sites) do far = math.max(far, site.Pos.Magnitude) end
+		for _, site in ipairs(sites) do
+			local tier = (site.Pos.Magnitude >= far and spec.Far) or spec.Tier
+			self:RuinFloor(site.Pos, 16, zone)
+			self:BuildRuinSite(site.Kind, CFrame.lookAt(site.Pos, Vector3.zero), zone, tier, false)
+			self:Mark(site.Pos, 12, "J")
+		end
+	end
+end
+
+-- ============================================================= 지역 소품 (v2)
+-- 협곡: 흑요석 첨탑·용암 균열·수정 무리 / 고목의 숲: 거대 버섯·거대 뿌리·빛나는 식물 / 늪: 이끼 늘어진 나무·수련·반딧불 / 초원: 선돌 원
+function Map:Scatter(zone, n, radius, build)
+	local placed, tries = 0, 0
+	while placed < n and tries < n * 25 do
+		tries = tries + 1
+		local pos = self:RandomPoint(zone)
+		if self:Free(pos, radius) then
+			build(CFrame.new(pos) * CFrame.Angles(0, self.Rng:NextNumber() * math.pi * 2, 0), pos, placed + 1)
+			self:Block(pos, radius)
+			placed = placed + 1
+		end
+	end
+	return placed
+end
+
+function Map:BuildRegionProps()
+	local folder, rng = U.folder(self.Map, "RegionProps"), self.Rng
+	-- 🌋 잿빛 바위 협곡
+	self:Scatter("Crags", 36, 5, function(at, pos)
+		Ruins.build(folder, "ObsidianSpire", at, rng, 0.7 + rng:NextNumber() * 0.7)
+		self:Mark(pos, 3, "H")
+	end)
+	self:Scatter("Crags", 28, 3.5, function(at, _, i)
+		Ruins.build(folder, "CrystalCluster", at, rng, 0.8 + rng:NextNumber() * 0.5, i % 3 == 0)
+	end)
+	self:Scatter("Crags", 24, 6, function(at, _, i)
+		-- 용암 균열: 땅에 붙은 주황 빛 갈라진 틈 (지그재그 조각) + 가끔 빛
+		local crack = B.model(folder, "LavaCrack")
+		local p = at
+		for _ = 1, 5 do
+			local len = 1.6 + rng:NextNumber() * 2.4
+			B.block(crack, Vector3.new(0.5 + rng:NextNumber() * 0.4, 0.12, len), p * CFrame.new(0, 0.04, -len / 2), "#ff7a2a", MAT.Neon)
+			B.block(crack, Vector3.new(1.4, 0.1, len + 0.3), p * CFrame.new(0, 0.02, -len / 2), "#2a2422", MAT.Basalt)
+			p = p * CFrame.new(0, 0, -len) * CFrame.Angles(0, math.rad(B.jitter(rng, 45)), 0)
+		end
+		if i % 3 == 0 then
+			B.light(B.block(crack, Vector3.new(0.2, 0.2, 0.2), at * CFrame.new(0, 1, -4), "#ffffff", MAT.SmoothPlastic, {Transparency = 1}), "PointLight",
+				{Range = 14, Brightness = 1.3, Color = Color3.fromHex("#ff7a2a"), Shadows = false})
+		end
+	end)
+	-- 🌲 고목의 숲
+	self:Scatter("Ancient", 22, 8, function(at, pos)
+		Ruins.build(folder, "GiantMushroom", at, rng, 0.75 + rng:NextNumber() * 0.5, true)
+		self:Mark(pos, 5, "T")
+	end)
+	self:Scatter("Ancient", 24, 9, function(at)
+		Ruins.build(folder, "GiantRoot", at, rng, 0.8 + rng:NextNumber() * 0.5)
+	end)
+	self:Scatter("Ancient", 60, 2, function(at, _, i)
+		Ruins.build(folder, "GlowPlant", at, rng, 0.8 + rng:NextNumber() * 0.6, i % 5 == 0)
+	end)
+	-- 💧 안개 늪: 이끼 늘어진 나무, 반딧불, 연못마다 수련 더
+	self:Scatter("Swamp", 42, 4, function(at, pos)
+		Ruins.build(folder, "MossTree", at, rng, 0.8 + rng:NextNumber() * 0.5)
+		self:Mark(pos, 2, "D")
+	end)
+	self:Scatter("Swamp", 28, 3, function(at)
+		local holder = B.new("Part", folder, {Name = "Fireflies", Size = Vector3.new(10, 4, 10), CFrame = at * CFrame.new(0, 3, 0), Transparency = 1})
+		local e = Instance.new("ParticleEmitter")
+		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		e.Color = ColorSequence.new(Color3.fromHex("#e9ff8a"))
+		e.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0.35), NumberSequenceKeypoint.new(1, 0)})
+		e.Rate, e.Lifetime, e.Speed = 4, NumberRange.new(3, 6), NumberRange.new(0.3, 1)
+		e.LightEmission, e.Drag, e.RotSpeed = 1, 1, NumberRange.new(-40, 40)
+		e.SpreadAngle, e.Acceleration = Vector2.new(180, 180), Vector3.new(0, 0.2, 0)
+		e.Parent = holder
+	end)
+	for n, pond in ipairs(self.Ponds) do
+		if n > 1 then
+			local center, pr = pond[1], pond[2]
+			for _ = 1, 5 do
+				local a, r = rng:NextNumber() * math.pi * 2, rng:NextNumber() * (pr - 2)
+				local pad = B.cyl(folder, 0.15, 1.8 + rng:NextNumber() * 1.4, CFrame.new(center.X + math.cos(a) * r, -1.95, center.Z + math.sin(a) * r),
+					"#4f7a3c", MAT.SmoothPlastic, true)
+				pad.Name = "LilyPad"
+				if rng:NextNumber() < 0.4 then
+					B.ball(folder, 0.6, pad.Position + Vector3.new(0.2, 0.25, 0), "#ffd1e8", MAT.SmoothPlastic)
+				end
+			end
+		end
+	end
+	-- 🌿 초원: 작은 선돌 원 (가운데에 빛나는 버섯)
+	self:Scatter("Meadow", 5, 10, function(at, pos)
+		local count = rng:NextInteger(6, 8)
+		for k = 1, count do
+			local a = k / count * math.pi * 2
+			local stoneAt = at * CFrame.new(math.cos(a) * 6.5, 0, math.sin(a) * 6.5)
+			Ruins.build(folder, "StandingStone", CFrame.lookAt(stoneAt.Position, pos) * CFrame.Angles(0, math.pi, 0), rng, 0.6 + rng:NextNumber() * 0.3)
+		end
+		Props.mushrooms(folder, at, rng)
+		self:Mark(pos, 6, "J")
+	end)
+end
+
 -- ============================================================= 경계
 -- 숲 벽 첫 줄 바로 뒤를 두르는 보이지 않는 벽. 언덕을 타고 넘거나 나무 사이로 빠져나가 맵 밖으로 떨어지지 않게 한다.
 function Map:BuildBoundary()
@@ -740,9 +906,9 @@ end
 -- ============================================================= 지도 격자
 -- 미니맵(클라이언트 MapController)이 그릴 격자. 한 칸 = MapCell stud, 한 글자 = 그 칸의 모습. 북쪽(-Z)이 첫 줄.
 --  G 초원 · A 고목의 숲 바닥 · C 협곡 · S 늪 · O 경계 숲 · N 맵 밖 (안 그림)
---  H 바위 언덕 · D 고사목 · R 바위 · T 나무 · Q 수정/Core · P 길 · W 물 · B 기지 바닥 · U 괴물 굴 · K 건물 · X 말뚝 울타리
+--  H 바위 언덕 · D 고사목 · R 바위 · T 나무 · Q 수정/Core · P 길 · W 물 · B 기지 바닥 · U 괴물 굴 · K 건물 · X 말뚝 울타리 · J 유적
 local GROUND = {Meadow = "G", Ancient = "A", Crags = "C", Swamp = "S"}
-local PRIORITY = {N = 0, G = 0, A = 0, C = 0, S = 0, O = 0, H = 1, D = 2, R = 3, T = 4, Q = 5, P = 6, W = 7, B = 8, U = 9, K = 10, X = 11}
+local PRIORITY = {N = 0, G = 0, A = 0, C = 0, S = 0, O = 0, H = 1, D = 2, R = 3, T = 4, Q = 5, P = 6, W = 7, B = 8, U = 9, K = 10, X = 11, J = 12}
 
 function Map:BuildMapGrid()
 	local cell = C.MapCell
@@ -787,23 +953,6 @@ function Map:BuildMapGrid()
 						stamp(ix, iz, class)
 					end
 				end
-			end
-		end
-	end
-	-- 말뚝 울타리 고리 (길목 자리는 뚫린 길)
-	for iz = 0, n - 1 do
-		for ix = 0, n - 1 do
-			local cx, cz = center(ix), center(iz)
-			local r = math.sqrt(cx * cx + cz * cz)
-			if math.abs(r - C.BaseRadius) < cell * 0.55 then
-				local open = false
-				for _, lane in ipairs(self.Lanes) do
-					local d = Vector3.new(cx, 0, cz).Unit:Dot(lane.Dir)
-					if d > math.cos((C.GapWidth / 2 + cell * 0.5) / C.BaseRadius) then
-						open = true
-					end
-				end
-				grid[iz * n + ix + 1] = open and "P" or "X"
 			end
 		end
 	end

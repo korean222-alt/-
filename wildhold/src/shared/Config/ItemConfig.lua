@@ -5,6 +5,7 @@
 --  Food    : 먹으면 배고픔(+Hunger)과 체력(+Heal)을 채운다.
 --  Bag     : 가방. 들고 다니는 게 아니라 가진 것 중 가장 큰 용량이 적용된다 (핫바에 안 보임).
 -- Damage = 적·야생 펫에게 주는 피해, Gather = 맞는 도구로 채집할 때 배율 (ResourceConfig 의 Tool 참고)
+-- 음식 중 구운 버섯은 모닥불 근처에 서 있으면 저절로 만들어진다 (CraftingService:AutoCook)
 return {
 	-- 핫바 순서
 	-- 설치 도구(Build)는 가지고 있을 때만 칸이 생긴다 (놓으면 없어짐). 한 번에 9칸까지
@@ -22,6 +23,7 @@ return {
 		OldAxe = {Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 1, Damage = 14, Gather = 1.0},
 		StoneAxe = {Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 2, Damage = 20, Gather = 1.6},
 		IronAxe = {Icon = "🪓", Kind = "Tool", Family = "Axe", Tier = 3, Damage = 28, Gather = 2.4},
+		OldPick = {Icon = "⛏️", Kind = "Tool", Family = "Pickaxe", Tier = 1, Damage = 10, Gather = 1.0},
 		StonePick = {Icon = "⛏️", Kind = "Tool", Family = "Pickaxe", Tier = 2, Damage = 12, Gather = 1.3},
 		IronPick = {Icon = "⛏️", Kind = "Tool", Family = "Pickaxe", Tier = 3, Damage = 18, Gather = 2.2},
 		Torch = {Icon = "🔥", Kind = "Tool", Family = "Torch", Tier = 1, Damage = 8},
@@ -42,13 +44,14 @@ return {
 		SpikeKit = {Icon = "⚠", Kind = "Build"},
 		StandKit = {Icon = "🐾", Kind = "Build"},
 		TorchKit = {Icon = "🕯", Kind = "Build"},
-		FiberBag = {Icon = "🎒", Kind = "Bag", Capacity = 100},
-		SturdyBag = {Icon = "🎒", Kind = "Bag", Capacity = 150},
+		FiberBag = {Icon = "🎒", Kind = "Bag", Capacity = 400},
+		SturdyBag = {Icon = "🎒", Kind = "Bag", Capacity = 600},
 	},
 	-- 원정 시작 때 받는 것
-	Starter = {OldSpear = 1, OldAxe = 1, Trap = 5, Bait = 1, Snack = 1},
+	-- v2: 낡은 곡괭이도 준다. 채집은 손에 든 것과 상관없이 가진 것 중 맞는 가장 좋은 도구로 한다
+	Starter = {OldSpear = 1, OldAxe = 1, OldPick = 1, Trap = 5, Bait = 1, Snack = 1},
 	Limit = 30, -- 소모품 최대 보유
-	BaseCapacity = 60, -- 가방 없을 때
+	BaseCapacity = 250, -- 가방 없을 때 (v2: 창고 없이 가방 하나로 다닌다)
 	-- 도구 등급별 모양 색 (낡은 → 돌 → 고철 → 수정)
 	TierLook = {
 		{Head = "#8a7f72", Material = "Slate", Wood = "#7a5a3c"},

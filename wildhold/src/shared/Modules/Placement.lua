@@ -46,8 +46,6 @@ end
 function P.blocked(map)
 	local list = {P.rect(0, 0, 1, 0, {20, 20})}
 	local function add(spot, size) table.insert(list, P.rect(spot[1], spot[3], 1, 0, size)) end
-	add(map.Warehouse, {15, 15})
-	add(map.Cage, {16, 12})
 	add({-12, 0, 20}, {8, 8}) -- 모닥불
 	add(map.Spawn, {9, 9})
 	return list

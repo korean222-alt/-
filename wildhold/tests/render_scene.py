@@ -156,6 +156,7 @@ def place_asset(name, x, y, z, rot, size, blend="env/EnvModels.blend"):
 
 
 count, assets, lights = 0, 0, []
+CHESTS = []  # 보물상자 위치 (Roblox x, z) — "ruin" 사진이 쓴다
 for line in open(os.path.join(HERE, ".scene_parts.txt")):
     t = line.split()
     if t and t[0] == "Light":
@@ -177,6 +178,13 @@ for line in open(os.path.join(HERE, ".scene_parts.txt")):
     if shape == "Kit":
         # 건축 키트 (blender/build_kit.py)
         place_asset(matname, x, y, z, rot, (sx, sy, sz), "build/BuildModels.blend")
+        assets += 1
+        continue
+    if shape == "Ruin":
+        # 유적 키트 (blender/ruin_kit.py, v2)
+        if matname == "ChestBase":
+            CHESTS.append((x, z))
+        place_asset(matname, x, y, z, rot, (sx, sy, sz), "ruins/RuinModels.blend")
         assets += 1
         continue
     if shape == "Ball" or shape == "Sphere":
@@ -323,6 +331,17 @@ def shoot(name, eye_r, target_r, lens=35, size=(1600, 900), kind="day", fog=1.0)
     bpy.ops.render.render(write_still=True)
 
 
+def ruin_shot():
+    near = sorted((math.hypot(x, z), x, z) for x, z in CHESTS if 95 < math.hypot(x, z) < 225)
+    if not near:
+        print("유적 상자를 찾지 못함 (ruin 사진 건너뜀)")
+        return
+    _, x, z = near[0]
+    d = math.hypot(x, z)
+    ux, uz = x / d, z / d
+    shoot("map_ruin.png", (x - ux * 30 - uz * 10, 14, z - uz * 30 + ux * 10), (x, 4, z), lens=30)
+
+
 # --shots=base,lobby 처럼 골라 찍을 수 있다 (기본: 전체 4장)
 SHOTS = {
     "overview": lambda: shoot("map_overview.png", (0, 260, 250), (0, 0, 10), lens=30, fog=0.35),
@@ -331,6 +350,10 @@ SHOTS = {
     "night": lambda: shoot("map_night.png", (46, 26, 60), (0, 4, 0), lens=30, kind="night"),
     # 설치형 건축 가까이: 제작대(-21,-12)·길목 2 벽·시작 문
     "build": lambda: shoot("map_build.png", (-44, 22, 20), (-8, 3, -10), lens=30),
+    # v2: 스폰 근처 빛기둥 보물상자 유적 (북동쪽 70)
+    "chest": lambda: shoot("map_chest.png", (30, 12, -8), (62, 4, -33), lens=30),
+    # v2: 기지에서 가장 가까운 지역 유적 (초원, 100~220)
+    "ruin": lambda: ruin_shot(),
     # 로비 캠프 (Studio 에서는 z 2400)
     "lobby": lambda: shoot("lobby.png", (0, 34, 2472), (0, 2, 2390), lens=30),
 }

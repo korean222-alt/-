@@ -67,6 +67,8 @@ function S:Reset()
     if self.ctx.Capture then self.ctx.Capture:Reset() end
     if self.ctx.Crafting then self.ctx.Crafting:Reset() end
     if self.ctx.Survival then self.ctx.Survival:Reset() end
+    if self.ctx.Chests then self.ctx.Chests:Reset() end
+    if self.ctx.Tutorial then self.ctx.Tutorial:Reset() end
     self.Result, self.Warned = nil, false
     self.StartAt = self:Count() > 0 and workspace:GetServerTimeNow() + C.StartDelay or nil
     for player in pairs(self.Participants) do

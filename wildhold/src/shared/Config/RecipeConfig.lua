@@ -1,11 +1,11 @@
 -- 제작법. 재료는 내 가방에서 먼저, 모자라면 공용 창고에서 쓴다 (기지 영역 안에 있을 때). 만든 물건은 만든 사람이 갖는다.
 --  Station = "Hand"      : 어디서나 (🔨 제작대 설치 도구 — 나무 한 그루면 된다, 들어와서 1분 안에 첫 건축)
 --  Station = "Workbench" : 내가 놓은 제작대 근처. Bench = 필요한 제작대 레벨 (제작대에서 [E] 강화)
---  Station = "Campfire"  : 기지 모닥불에서 요리
+--  요리는 메뉴가 없다: 모닥불 근처에 서 있으면 버섯 → 구운 버섯 (CraftingService:AutoCook)
 return {
 	Order = {
-		"WorkbenchKit", "WallKit", "GateKit", "TowerKit", "SpikeKit", "StandKit", "TorchKit", "Torch", "StoneAxe", "StonePick", "StoneSpear", "Trap", "Bait", "Snack", "FiberBag", "RoastMushroom",
-		"BetterTrap", "IronAxe", "IronPick", "IronSpear", "SturdyBag", "Stew",
+		"WorkbenchKit", "WallKit", "GateKit", "TowerKit", "SpikeKit", "StandKit", "TorchKit", "Torch", "StoneAxe", "StonePick", "StoneSpear", "Trap", "Bait", "Snack", "FiberBag",
+		"BetterTrap", "IronAxe", "IronPick", "IronSpear", "SturdyBag",
 		"CrystalTrap", "CrystalSpear",
 	},
 	Recipes = {
@@ -24,13 +24,11 @@ return {
 		Bait = {Station = "Workbench", Bench = 1, Cost = {Berry = 3}},
 		Snack = {Station = "Workbench", Bench = 1, Cost = {Berry = 2, Fiber = 1}},
 		FiberBag = {Station = "Workbench", Bench = 1, Cost = {Fiber = 18, Wood = 6}},
-		RoastMushroom = {Station = "Campfire", Bench = 1, Cost = {Mushroom = 2}},
 		BetterTrap = {Station = "Workbench", Bench = 2, Cost = {Wood = 2, Fiber = 3, Scrap = 2}},
 		IronAxe = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Stone = 4}},
 		IronPick = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Stone = 4}},
 		IronSpear = {Station = "Workbench", Bench = 2, Cost = {Wood = 6, Scrap = 8, Fiber = 4}},
 		SturdyBag = {Station = "Workbench", Bench = 2, Cost = {Fiber = 25, Scrap = 8}},
-		Stew = {Station = "Campfire", Bench = 2, Cost = {Berry = 4, Mushroom = 3}},
 		CrystalTrap = {Station = "Workbench", Bench = 3, Cost = {Crystal = 2, Scrap = 3, Fiber = 4}},
 		CrystalSpear = {Station = "Workbench", Bench = 3, Cost = {Crystal = 6, Scrap = 10, Wood = 4}},
 	},

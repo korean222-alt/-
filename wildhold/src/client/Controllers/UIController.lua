@@ -404,8 +404,16 @@ function UI:Update(previous)
 		local row = self.ResourceRows[kind]
 		local amount = d.Bag and d.Bag[kind] or 0
 		total = total + amount
+		-- 늘어나면 숫자가 잠깐 금빛으로 커진다 (v2)
+		if row.Last and amount > row.Last then
+			row.Count.TextColor3, row.Count.TextSize = Color3.fromHex("#ffe066"), 18
+			TweenService:Create(row.Count, TweenInfo.new(0.45), {TextColor3 = Color3.new(1, 1, 1), TextSize = 14}):Play()
+		end
+		row.Last = amount
 		row.Count.Text = tostring(amount)
-		row.Bank.Text = "🏠" .. tostring(d.Bank and d.Bank[kind] or 0)
+		-- v2: 창고 건물이 없어서 공용 창고(Bank)는 보통 비어 있다 → 있을 때만 보인다
+		local banked = d.Bank and d.Bank[kind] or 0
+		row.Bank.Text = banked > 0 and ("🏠" .. tostring(banked)) or ""
 	end
 	local capacity = d.Capacity or C.CarryCapacity
 	self.CapFill.Size = UDim2.fromScale(math.clamp(total / capacity, 0, 1), 1)

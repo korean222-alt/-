@@ -75,6 +75,22 @@ do
 	end
 	kit.Parent = workspace
 end
+-- 유적 키트 (v2): blender/ruin_kit.py 가 만든 RuinSizes 로 같은 구조의 가짜 RuinModels (작업 공간에 둔다)
+local RUIN_SIZES = loadsource(readfile(ROOT .. "/src/shared/Config/RuinSizes.lua"), "ruin")()
+do
+	local ruin = E.Instance.new("Model")
+	ruin.Name = "RuinModels"
+	local x = 0
+	for name, info in pairs(RUIN_SIZES) do
+		local mp = E.Instance.new("MeshPart")
+		mp.Name = name
+		mp.Size = D.Vector3.new(info.Size[1], info.Size[2], info.Size[3])
+		mp.CFrame = D.CFrame.new(x, info.Size[2] / 2, 120)
+		mp.Parent = ruin
+		x = x + info.Size[1] + 2
+	end
+	ruin.Parent = workspace
+end
 local SSS = svc("ServerScriptService")
 local SPS = svc("StarterPlayer").StarterPlayerScripts
 for line in readfile(ROOT .. "/tests/.manifest"):gmatch("[^\n]+") do
@@ -417,9 +433,9 @@ do
 	end
 	local axeTop = extremes("OldAxe")
 	local pickTop = extremes("StonePick")
-	local _, spearFront = extremes("OldSpear")
-	check("도구 쥐는 법 (도끼·곡괭이는 세워서, 창은 앞으로)", axeTop > 1.5 and pickTop > 1.5 and spearFront < -3,
-		string.format("도끼 머리 %.1f · 곡괭이 머리 %.1f · 창끝 %.1f", axeTop, pickTop, spearFront))
+	local spearTop, spearFront = extremes("OldSpear")
+	check("도구 쥐는 법 (도끼·곡괭이·창 모두 비스듬히 세워서)", axeTop > 1.5 and pickTop > 1.5 and spearTop > 3 and spearFront < -1.2 and spearFront > -3.5,
+		string.format("도끼 머리 %.1f · 곡괭이 머리 %.1f · 창끝 높이 %.1f 앞 %.1f", axeTop, pickTop, spearTop, spearFront))
 end
 -- 휘두르기 동작: 어깨 관절에 내려찍기를 덧입히고 끝나면 원래대로
 do
@@ -460,9 +476,70 @@ check("펫 키 맞춤 (2.9 stud)", math.abs(meshPart.Size.Y - 2.9) < 0.05, strin
 print("▶ 출발 대기 → 낮")
 if not step(15.5) then fail("출발 대기") end
 check("낮 시작", latest and latest.Phase == "Day", latest and latest.Phase)
-check("목표 표시 (첫 판: 야생 모슬링)", latest.GoalAt ~= nil and Loc.text(latest.GoalName, "ko") == "야생 모슬링", Loc.text(latest.GoalName, "ko"))
 local function teleport(x, z)
 	hrp.CFrame = D.CFrame.new(x, 3, z)
+end
+-- v2: 빈 기지 (울타리·창고·펫 우리 없음) · 첫 목표는 빛기둥 보물상자
+check("빈 기지 (울타리·창고·펫 우리·시작 구조물 없음)", root.Base:FindFirstChild("Palisade") == nil and root.Base:FindFirstChild("Storehouse") == nil
+	and root.Base:FindFirstChild("Pen") == nil and #root.Map.DefenseSlots:GetChildren() == 0 and root.Base:FindFirstChild("Warehouse") ~= nil)
+check("목표 표시 (첫 판: 빛기둥 보물상자)", latest.GoalAt ~= nil and Loc.text(latest.GoalName, "ko") == "✨ 보물상자", Loc.text(latest.GoalName, "ko"))
+do
+	local Map = serverRequire(SSS.Services.MapService)
+	local Chests = serverRequire(SSS.Services.ChestService)
+	local ruinMeshes, ruinNames = 0, {}
+	for _, d in ipairs(root.Map.Ruins:GetDescendants()) do
+		local name = d._class == "MeshPart" and d:GetAttribute("RuinAsset")
+		if name then ruinMeshes = ruinMeshes + 1; ruinNames[name] = true end
+	end
+	local props = root.Map:FindFirstChild("RegionProps")
+	local propKinds = {}
+	for _, m in ipairs(props and props:GetChildren() or {}) do propKinds[m.Name] = (propKinds[m.Name] or 0) + 1 end
+	check("유적·보물상자 (스폰 근처 1 + 지역마다 2~3)", #Map.Chests >= 10 and Map.StarterChest ~= nil and ruinMeshes > 50
+		and ruinNames.RuinArch and ruinNames.RuinTower and ruinNames.ChestLid and RS:FindFirstChild("RuinModels") ~= nil,
+		#Map.Chests .. "개 상자 · 유적 메쉬 " .. ruinMeshes)
+	check("지역 소품 (흑요석·수정·용암·거대 버섯·뿌리·빛 식물·이끼 나무·반딧불)", (propKinds.ObsidianSpire or 0) > 10 and (propKinds.CrystalCluster or 0) > 10
+		and (propKinds.LavaCrack or 0) > 5 and (propKinds.GiantMushroom or 0) > 5 and (propKinds.GiantRoot or 0) > 5 and (propKinds.GlowPlant or 0) > 20
+		and (propKinds.MossTree or 0) > 10 and (propKinds.Fireflies or 0) > 5,
+		string.format("첨탑 %d · 수정 %d · 버섯 %d · 이끼나무 %d", propKinds.ObsidianSpire or 0, propKinds.CrystalCluster or 0, propKinds.GiantMushroom or 0, propKinds.MossTree or 0))
+	local golden, nearGold = 0, 0
+	for _, model in ipairs(root.ResourceNodes:GetChildren()) do
+		local hit = model:IsA("Model") and model.PrimaryPart
+		if hit and hit:GetAttribute("Golden") then
+			golden = golden + 1
+			if hit.Position.Magnitude < 175 then nearGold = nearGold + 1 end
+		end
+	end
+	check("반짝이는 황금 노드 (기지 근처 포함)", golden >= 8 and nearGold >= 2, golden .. "개 · 기지 근처 " .. nearGold)
+	-- 스폰 근처 상자 열기: 덜컹 → 자원이 튀어나오고 아이템은 소지품으로
+	local chest = Map.Chests[1]
+	local dist = (chest.Pos - hrp.Position).Magnitude
+	check("첫 보물상자는 스폰에서 60~80", chest.PerPlayer and dist > 55 and dist < 85, string.format("%.0f", dist))
+	local before = {}
+	for k, v in pairs(latest.Bag) do before[k] = v end
+	local itemsBefore = 0
+	for _, n in pairs(latest.Items) do itemsBefore = itemsBefore + n end
+	teleport(chest.Pos.X, chest.Pos.Z - 5)
+	if not step(0.3) then fail("상자 이동") end
+	chest.Prompt.Triggered:Fire(player)
+	if not step(2.5) then fail("상자 열기") end
+	local gained = 0
+	for k, v in pairs(latest.Bag) do gained = gained + v - (before[k] or 0) end
+	local itemsAfter = 0
+	for _, n in pairs(latest.Items) do itemsAfter = itemsAfter + n end
+	check("보물상자 열기 → 자원이 튀어나와 저절로 주움 · 아이템", (fxCount.Chest or 0) >= 1 and (fxCount.Loot or 0) >= 1 and gained >= 20 and itemsAfter > itemsBefore
+		and (fxCount.Pickup or 0) >= 3, "자원 +" .. gained .. " · 아이템 " .. itemsBefore .. " → " .. itemsAfter)
+	check("상자 열림 표시 (대원별)", string.find(chest.Model:GetAttribute("OpenedBy") or "", tostring(player.UserId), 1, true) ~= nil)
+	chest.Prompt.Triggered:Fire(player)
+	if not step(0.5) then fail("상자 다시") end
+	check("같은 상자는 한 번만", string.find(notices[#notices] or "", "이미 열었어요") ~= nil, notices[#notices])
+	check("목표 달성 보상 → 다음 목표 (야생 모슬링)", (fxCount.Goal or 0) >= 1 and Loc.text(latest.GoalName, "ko") == "야생 모슬링", Loc.text(latest.GoalName, "ko"))
+	-- 유적 상자 (공용): 열리면 프롬프트가 꺼지고 Refill 뒤 다시
+	local ruinChest = Map.Chests[2]
+	teleport(ruinChest.Pos.X, ruinChest.Pos.Z - 5)
+	if not step(0.3) then fail("유적 이동") end
+	ruinChest.Prompt.Triggered:Fire(player)
+	if not step(1.2) then fail("유적 상자") end
+	check("유적 상자 열기 (공용 · 다시 채워짐 대기)", ruinChest.Model:GetAttribute("Open") == true and not ruinChest.Prompt.Enabled and Chests:HasOpened(player, ruinChest))
 end
 local function nearestWild(species)
 	local best, bd
@@ -492,10 +569,15 @@ if not step(3.5) then fail("포획") end
 check("포획 성공 (첫 모슬링 보장)", latest and #latest.Pets == 2, latest and #latest.Pets)
 check("포획 FX", (fxCount.TrapStart or 0) >= 1 and (fxCount.TrapResult or 0) >= 1)
 check("잡은 펫 즉시 출전", #root.Pets:GetChildren() == 2, #root.Pets:GetChildren())
+do
+	local auto = false
+	for _, pet in ipairs(latest.Pets) do if pet.Status == "Registered" then auto = true end end
+	check("잡으면 바로 등록 (펫 우리 없이)", auto)
+end
 -- 개체 차이: 재능 별 · 특성 · 빛나는 변종 · 이름 짓기
 do
 	local caught
-	for _, pet in ipairs(latest.Pets) do if pet.Status == "Unregistered" then caught = pet end end
+	for _, pet in ipairs(latest.Pets) do if pet.Status ~= "Secured" then caught = pet end end
 	check("잡은 펫의 재능 별·특성", caught ~= nil and caught.Stars >= 1 and caught.Stars <= 5 and caught.Trait ~= nil and caught.Power > 0,
 		caught and string.format("★%d · %s · 전투력 %d", caught.Stars, tostring(caught.Trait), caught.Power))
 	local withStars, shiny = 0, 0
@@ -567,6 +649,25 @@ local function harvest(kind, times)
 		end
 	end
 end
+-- v2: 창을 들고 있어도 나무는 가진 도끼로 (같은 속도) · 흔들림/쓰러짐 FX 에 모델이 같이 온다
+do
+	char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("OldSpear"))
+	if not step(0.3) then fail("창 들기") end
+	local tree
+	for _, model in ipairs(root.ResourceNodes:GetChildren()) do
+		local hit = model:IsA("Model") and model.PrimaryPart
+		if hit and hit:GetAttribute("ResourceType") == "Wood" and hit:GetAttribute("CurrentHealth") == hit:GetAttribute("MaxHealth") then tree = hit; break end
+	end
+	teleport(tree.Position.X, tree.Position.Z - 5)
+	if not step(0.3) then fail("나무 이동") end
+	local hp = tree:GetAttribute("CurrentHealth")
+	local harvests = fxCount.Harvest or 0
+	RS.Remotes.AttackRequest:FireServer()
+	if not step(0.7) then fail("창으로 나무") end
+	check("창을 들어도 도끼로 채집 (가진 것 중 최고 도구)", hp - tree:GetAttribute("CurrentHealth") >= 24 and (fxCount.Harvest or 0) > harvests,
+		string.format("%d → %d", hp, tree:GetAttribute("CurrentHealth")))
+	check("곡괭이 시작 지급", toolOf("OldPick") ~= nil)
+end
 -- 나무는 도끼로 (창으로 치면 느리다)
 char:FindFirstChildOfClass("Humanoid"):EquipTool(toolOf("OldAxe"))
 if not step(0.3) then fail("도끼 들기") end
@@ -618,10 +719,18 @@ do
 	check("큰 지도 열기", playerGui.WorldMap.Enabled and MapC.Canvas.Parent == MapC.BigWindow)
 	MapC:Toggle(false)
 end
-teleport(21 * 0.7, -12 * 0.7)
-if not step(1.5) then fail("입금") end
-local bank = latest.Bank
-check("공용 창고 입금", (bank.Wood or 0) > 0, "나무 " .. tostring(bank.Wood) .. " / 돌 " .. tostring(bank.Stone))
+-- v2: 창고 없이 큰 가방 하나 · 자동 요리 (모닥불 곁에 서 있으면 버섯 → 구운 버섯)
+check("큰 가방 (창고 없음)", (latest.Capacity or 0) >= 250, latest.Capacity)
+do
+	local Res = serverRequire(SSS.Services.ResourceService)
+	Res.Bags[player].Mushroom = 3
+	local roastBefore = latest.Items.RoastMushroom or 0
+	teleport(-12 + 6, 20)
+	if not step(2.2) then fail("자동 요리") end
+	check("자동 요리 (모닥불 곁 → 구운 버섯)", (latest.Items.RoastMushroom or 0) == roastBefore + 3 and (latest.Bag.Mushroom or 0) == 0 and (fxCount.Cook or 0) >= 3,
+		roastBefore .. " → " .. tostring(latest.Items.RoastMushroom))
+	check("요리 메뉴 없음 (프롬프트 대신 안내판)", root.Base.Campfire:FindFirstChild("CookSign", true) ~= nil)
+end
 local lane2Dir = D.Vector3.new(math.sin(math.rad(120)), 0, -math.cos(math.rad(120)))
 -- ===================================================================== 설치형 건축: 제작대 → 벽
 local Def = serverRequire(SSS.Services.DefenseService)
@@ -630,15 +739,8 @@ local function structureCount(kind)
 	for _, slot in pairs(Def.Slots) do if not kind or slot.Kind == kind then n = n + 1 end end
 	return n
 end
-check("시작 구조물 (길목 문·벽·포탑) · 제작대 없음", structureCount() == 4 and Def:BenchLevel() == 0, structureCount() .. "개")
+check("시작 구조물 없음 · 제작대 없음", structureCount() == 0 and Def:BenchLevel() == 0, structureCount() .. "개")
 do
-	local kitParts, names = 0, {}
-	for _, d in ipairs(root.Defenses:GetDescendants()) do
-		local name = R.isA(d._class, "BasePart") and d:GetAttribute("KitAsset")
-		if name then kitParts = kitParts + 1; names[name] = true end
-	end
-	check("건축 키트 메쉬 사용 (구조물)", kitParts >= 4 and names.Gate1 and names.Wall1 and names.Tower1 and RS:FindFirstChild("BuildModels") ~= nil
-		and workspace:FindFirstChild("BuildModels") == nil, kitParts .. "개")
 	local axeTool = toolOf("OldAxe")
 	local axeHandle = axeTool and axeTool:FindFirstChild("Handle")
 	check("건축 키트 메쉬 사용 (도구)", axeHandle ~= nil and axeHandle._class == "MeshPart" and axeHandle:GetAttribute("KitAsset") == nil, axeHandle and axeHandle._class)
@@ -677,6 +779,15 @@ for _, slot in pairs(Def.Slots) do
 	if slot.Kind == "Wall" and (slot.CFrame.Position - wallAt).Magnitude < 2 then wallSlot = slot end
 end
 check("벽 건설", wallSlot ~= nil and wallSlot.Level == 1, notices[#notices])
+do
+	local kitParts, names = 0, {}
+	for _, d in ipairs(root.Defenses:GetDescendants()) do
+		local name = R.isA(d._class, "BasePart") and d:GetAttribute("KitAsset")
+		if name then kitParts = kitParts + 1; names[name] = true end
+	end
+	check("건축 키트 메쉬 사용 (구조물)", kitParts >= 2 and names.Workbench1 and names.Wall1 and RS:FindFirstChild("BuildModels") ~= nil
+		and workspace:FindFirstChild("BuildModels") == nil, kitParts .. "개")
+end
 -- 벽 Lv2 는 제작대 Lv2 가 있어야 한다
 local buildPrompt = wallSlot.Pad:FindFirstChildOfClass("Attachment"):FindFirstChildOfClass("ProximityPrompt")
 buildPrompt.Triggered:Fire(player)
@@ -715,7 +826,14 @@ local function exportScene()
 		-- 그 밖의 MeshPart 는 테스트가 넣은 가짜 블렌더 펫(회색 상자)이라 뺀다
 		local asset = d._class == "MeshPart" and d:GetAttribute("EnvAsset")
 		local kitAsset = d._class == "MeshPart" and d:GetAttribute("KitAsset")
-		if kitAsset then
+		local ruinAsset = d._class == "MeshPart" and d:GetAttribute("RuinAsset")
+		if ruinAsset then
+			local c = d._props.CFrame
+			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
+			local s = d._props.Size
+			table.insert(out, string.format("Ruin %s %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.3f %.3f %.3f 0 0 0 0",
+				ruinAsset, x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22, s.X, s.Y, s.Z))
+		elseif kitAsset then
 			local c = d._props.CFrame
 			local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = c:GetComponents()
 			local s = d._props.Size
@@ -774,16 +892,21 @@ exportScene()
 
 -- ===================================================================== 등록 → 배치 → 밤
 print("▶ 등록 · 배치 · 밤")
-teleport(0, 29 - 7)
-if not step(0.5) then fail("우리 이동") end
-local cage = root.Base:FindFirstChild("Cage", true)
-cage:FindFirstChildOfClass("Attachment"):FindFirstChildOfClass("ProximityPrompt").Triggered:Fire(player)
-if not step(1) then fail("등록") end
+teleport(0, 22)
+if not step(0.5) then fail("기지 이동") end
 local registered = false
 for _, pet in ipairs(latest.Pets) do if pet.Status == "Registered" then registered = true end end
-check("펫 등록", registered, notices[#notices])
+check("펫 등록 (잡을 때 자동)", registered, notices[#notices])
 -- 펫 배치대 (설치형: 여기서는 바로 놓는다)
 Def:Place("PetStand", D.CFrame.new(-14, 0, -32), 1, player)
+-- v2: 시작 포탑이 없으므로 길목마다 화살 포탑 하나씩 (플레이어가 지었다고 치고 바로 놓는다)
+for i = 1, 3 do
+	local a = math.rad((i - 1) * 120)
+	local dir = D.Vector3.new(math.sin(a), 0, -math.cos(a))
+	local side = D.Vector3.new(-dir.Z, 0, dir.X)
+	local at = dir * 34 + side * 10
+	Def:Place("ArrowTower", D.CFrame.lookAt(at, at + dir), 1, player)
+end
 for _, model in ipairs(root.Map.DefenseSlots:GetChildren()) do
 	local pad = model:FindFirstChild(model.Name)
 	if pad and pad:GetAttribute("SlotType") == "PetStand" then

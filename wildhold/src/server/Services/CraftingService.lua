@@ -1,6 +1,7 @@
 -- 판 단위 소지품(도구·덫·먹이·음식·가방·설치 도구)과 제작.
---  손 제작(어디서나): 🔨 제작대 설치 도구. 놓은 제작대 근처: 도구·덫·가방·벽/포탑 설치 도구 (제작대 레벨 조건). 모닥불: 음식.
---  재료는 내 가방에서 먼저, 모자라면 공용 창고에서 (기지 영역 안일 때). BenchLevel = 놓인 제작대 중 가장 높은 레벨 (DefenseService 가 정한다)
+--  손 제작(어디서나): 🔨 제작대 설치 도구. 놓은 제작대 근처: 도구·덫·가방·벽/포탑 설치 도구 (제작대 레벨 조건).
+--  요리(v2): 메뉴 없음. 기지 모닥불 근처(GameConfig.CookRadius)에 서 있으면 가방의 버섯이 0.5초마다 하나씩 구운 버섯이 된다 (AutoCook).
+--  재료는 내 가방에서 (v2 는 창고 건물이 없다). BenchLevel = 놓인 제작대 중 가장 높은 레벨 (DefenseService 가 정한다)
 --  손에 드는 것은 전부 Roblox Tool 로 만들어 Backpack 에 넣는다 → 화면 아래 핫바(HotbarController)에서 골라 든다.
 --  Sync 가 0.5초마다 "가진 것 = 가방 속 Tool" 이 되도록 맞추므로, 캐릭터가 늦게 생겨도 도구가 빠지지 않는다.
 local RS = game:GetService("ReplicatedStorage")
@@ -16,7 +17,7 @@ local L = require(RS.Shared.Modules.Locale)
 local S = {}
 
 function S:Init(ctx)
-	self.ctx, self.Items, self.Last, self.AutoEquip, self.NextSync = ctx, {}, {}, {}, 0
+	self.ctx, self.Items, self.Last, self.AutoEquip, self.NextSync, self.NextCook = ctx, {}, {}, {}, 0, 0
 	self.BenchLevel = self.BenchLevel or 0
 end
 function S:AddPlayer(player)
@@ -128,7 +129,32 @@ function S:Sync(player)
 	return created
 end
 
+-- 자동 요리: 모닥불 근처의 모든 대원. 버섯 1개 → 구운 버섯 1개 (0.5초마다 하나씩, 구워질 때마다 불꽃·"+1")
+function S:AutoCook()
+	local fire = self.ctx.Map.Campfire
+	if not fire then return end
+	local spec = I.Items.RoastMushroom
+	for player, items in pairs(self.Items) do
+		local bag = self.ctx.Resources.Bags[player]
+		if bag and (bag.Mushroom or 0) > 0 and (items.RoastMushroom or 0) < I.Limit and player.Parent
+			and U.near(player, fire.Position, G.CookRadius) then
+			bag.Mushroom = bag.Mushroom - 1
+			items.RoastMushroom = (items.RoastMushroom or 0) + 1
+			self.ctx.FX:FireAllClients("Cook", fire.Position, player, "RoastMushroom", items.RoastMushroom)
+			if items.RoastMushroom == 1 then
+				self.ctx.Notify(player, L.M("cook.first", {icon = spec.Icon}))
+			end
+			self:Sync(player)
+		end
+	end
+end
+
 function S:Tick()
+	local phase = self.ctx.Clock and self.ctx.Clock.Phase
+	if os.clock() >= self.NextCook and (phase == "Day" or phase == "Night") then
+		self.NextCook = os.clock() + G.CookInterval
+		self:AutoCook()
+	end
 	if os.clock() < self.NextSync then return end
 	self.NextSync = os.clock() + 0.5
 	for player in pairs(self.Items) do
@@ -144,9 +170,6 @@ end
 -- 제작 장소 조건. 반환: 되면 true, 안 되면 false 와 이유
 function S:Station(player, recipe)
 	if recipe.Station == "Hand" then return true end
-	if recipe.Station == "Campfire" then
-		return U.near(player, self.ctx.Map.Campfire.Position, G.InteractionRange + 2), L.M("craft.needFire")
-	end
 	local root = U.aliveRoot(player)
 	local level = root and self.ctx.Defenses:BenchNear(root.Position, G.InteractionRange + 6) or 0
 	if level == 0 then return false, L.M("craft.needBenchFirst") end

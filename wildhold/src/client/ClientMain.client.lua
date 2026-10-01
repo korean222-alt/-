@@ -48,6 +48,8 @@ if mode ~= "Lobby" then
 	start("CreatureController")
 	start("FXController", remotes)
 	start("BattleFeelController", remotes)
+	start("GatherController", remotes)
+	start("ChestController", remotes)
 	start("WorldUI")
 	start("MapController", remotes)
 else

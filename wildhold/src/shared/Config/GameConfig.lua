@@ -25,10 +25,11 @@ return {
     HarvestDamage = 25, -- 채집 기본 피해 (도구 배율을 곱한다, ItemConfig)
     EatCooldown = 0.8,
     SnackRange = 26, -- 간식을 들고 쓰면 이 거리 안의 다친 내 펫을 회복
-    PickupRadius = 5,
-    DepositRadius = 11,
-    KeepBerries = 5, -- 창고에 넣을 때 가방에 남기는 열매 (먹을 것)
-    CarryCapacity = 60, -- 가방 없을 때 (가방은 ItemConfig)
+    PickupRadius = 14, -- 떨어진 자원을 이 거리 안이면 자동으로 빨아들인다
+    -- 자동 요리: 모닥불 이 거리 안에 서 있으면 버섯이 하나씩 구운 버섯이 된다
+    CookRadius = 15,
+    CookInterval = 0.5,
+    CarryCapacity = 250, -- 가방 없을 때 (가방은 ItemConfig)
     DeathDropFraction = 0.3,
     RespawnSeconds = 4,
     EnemyLimit = 35,
