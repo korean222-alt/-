@@ -65,14 +65,14 @@ function S:Attack(player)
 	local damage = spec and spec.Damage or I.HandDamage
 	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
 	if enemy then
-		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position)
-		self.ctx.Enemies:Damage(enemy, damage)
+		local killed = self.ctx.Enemies:Damage(enemy, damage)
+		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position, {D = damage, O = player.UserId, K = killed})
 		return
 	end
 	if C.ActiveStage >= 6 and phase == "Day" then
 		local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
 		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) and self.ctx.Capture:Damage(wild, damage, player) then
-			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
+			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position, {D = damage, O = player.UserId})
 			return
 		end
 	end

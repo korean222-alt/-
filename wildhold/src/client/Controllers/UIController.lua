@@ -233,6 +233,9 @@ function UI:MakeCard(i)
 	round(back, 4)
 	local fill = new("Frame", back, {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromHex("#7be08a"), BorderSizePixel = 0})
 	round(fill, 4)
+	-- 필살기 게이지 (가득 차면 다음 공격이 필살기) — 차오르는 걸 보는 기대감
+	local energyBack = new("Frame", card, {Position = UDim2.fromOffset(60, 35), Size = UDim2.new(1, -70, 0, 3), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
+	local energy = new("Frame", energyBack, {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromHex("#b18cff"), BorderSizePixel = 0})
 	local status = text(card, {Position = UDim2.fromOffset(60, 37), Size = UDim2.new(1, -66, 0, 16), Text = L.t("team.emptySub"), TextSize = 11,
 		TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Left})
 	local button = new("TextButton", card, {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 5})
@@ -240,7 +243,7 @@ function UI:MakeCard(i)
 		local controller = self.PetController
 		if controller then controller:Open("Pets") end
 	end)
-	return {Frame = card, Face = face, FaceStroke = faceStroke, Name = name, Fill = fill, Status = status, Species = nil}
+	return {Frame = card, Face = face, FaceStroke = faceStroke, Name = name, Fill = fill, Status = status, Species = nil, Energy = energy}
 end
 
 function UI:UpdateTeam(pets)
@@ -263,6 +266,9 @@ function UI:UpdateTeam(pets)
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio > 0.5 and Color3.fromHex("#7be08a") or (ratio > 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
+			local charge = math.clamp((pet.Energy or 0) / P.Energy.Max, 0, 1)
+			TweenService:Create(card.Energy, TweenInfo.new(0.25), {Size = UDim2.fromScale(charge, 1)}):Play()
+			card.Energy.BackgroundColor3 = charge >= 0.99 and Color3.fromHex("#ffe066") or Color3.fromHex("#b18cff")
 			card.Status.Text = pet.HP <= 0 and L.t("team.fainted") or L.t("team.status." .. tostring(pet.Status))
 			card.Status.TextColor3 = pet.Status == "Secured" and Color3.fromHex("#8ff5e8") or (pet.Status == "Unregistered" and Color3.fromHex("#ffd36b") or MUTED)
 			card.FaceStroke.Color = pet.Status == "Secured" and Color3.fromHex("#7be0b6") or Color3.fromHex("#ffd36b")
@@ -276,6 +282,7 @@ function UI:UpdateTeam(pets)
 			end
 			card.Name.Text = L.t("team.empty")
 			card.Fill.Size = UDim2.fromScale(0, 1)
+			card.Energy.Size = UDim2.fromScale(0, 1)
 			card.Status.Text = L.t("team.emptySub")
 			card.Status.TextColor3 = MUTED
 			card.Frame.BackgroundTransparency = 0.45

@@ -307,7 +307,19 @@ local Loc = serverRequire(shared.Modules.Locale)
 local notices = {}
 RS.Remotes.Notice.OnClientEvent:Connect(function(msg) table.insert(notices, Loc.text(msg, "ko")) end)
 local fxCount = {}
-RS.Remotes.FX.OnClientEvent:Connect(function(kind) fxCount[kind] = (fxCount[kind] or 0) + 1 end)
+-- 전투 손맛 정보 (치명타·필살기·KO·상성)
+local battle = {Hits = 0, Crits = 0, Skills = 0, KOs = 0, Effective = 0, MaxEnergy = 0}
+RS.Remotes.FX.OnClientEvent:Connect(function(kind, a, b, c, d)
+	fxCount[kind] = (fxCount[kind] or 0) + 1
+	if kind == "Pet" and type(d) == "table" then
+		battle.Hits = battle.Hits + 1
+		if d.C then battle.Crits = battle.Crits + 1 end
+		if d.S then battle.Skills = battle.Skills + 1 end
+		if d.K then battle.KOs = battle.KOs + 1 end
+		if (d.E or 1) > 1 then battle.Effective = battle.Effective + 1 end
+		battle.MaxEnergy = math.max(battle.MaxEnergy, d.N or 0)
+	end
+end)
 -- 배경음악 목록이 있으면 트는지 보려고 (클라이언트 설정 모듈만)
 clientRequire(shared.Config.AudioConfig).Music.Lobby = {"rbxassetid://1"}
 clientRequire(shared.Config.AudioConfig).Music.Day = {"rbxassetid://2", "rbxassetid://3"}
@@ -823,6 +835,12 @@ for _ = 1, 1200 do
 	if not step(0.5) then fail("원정 진행") end
 	if latest.Result then result = latest.Result break end
 end
+check("펫 전투: 피해 정보 · 치명타 · 필살기", battle.Hits > 20 and battle.Crits > 0 and battle.Skills > 0,
+	string.format("타격 %d · 치명타 %d · 필살기 %d · KO %d · 상성 %d", battle.Hits, battle.Crits, battle.Skills, battle.KOs, battle.Effective))
+check("펫이 괴물 쓰러뜨림 (KO!)", battle.KOs > 0, battle.KOs)
+check("포획 가능 순간 · 레벨 업 연출", (fxCount.WildReady or 0) > 0 and (fxCount.LevelUp or 0) > 0,
+	tostring(fxCount.WildReady) .. " · " .. tostring(fxCount.LevelUp))
+check("떠오르는 피해 숫자 (클라이언트)", workspace:FindFirstChild("BattlePopups") ~= nil and playerGui:FindFirstChild("BattleFeel") ~= nil)
 check("원정 결과", result ~= nil, result and (tostring(result.Won) .. " · " .. Loc.text(result.Reason, "ko")))
 if not step(3) then fail("결과 화면") end
 

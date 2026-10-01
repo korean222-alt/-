@@ -24,6 +24,23 @@ return {
         Hunter = {Icon = "🎯", WildDamage = 1.25},
     },
     NicknameMax = 12, -- 이름 짓기 최대 글자 수
+    -- 전투 재미 (도파민 포인트): 치명타 · 필살기 게이지 · 속성 상성 표시 · 콤보 · KO · 레벨 업 연출
+    --  치명타: 확률 = Chance + (별 - 1) × StarBonus. 피해 × Mult, 큰 노란 숫자 + 화면 흔들림
+    Crit = {Chance = 0.12, StarBonus = 0.02, Mult = 1.75},
+    --  필살기 게이지: 때릴 때 PerHit (치명타면 + Crit), 맞을 때 Hurt. Max 가 되면 다음 공격이 종별 필살기
+    Energy = {PerHit = 17, Crit = 10, Hurt = 6, Max = 100},
+    --  필살기: 피해 × Mult, Radius > 0 이면 밤 괴물에게 범위 피해(× Splash). 성체는 × AdultBonus. 이름은 Locale "skill.<종>"
+    SkillAdultBonus = 1.2,
+    Skills = {
+        Mossling = {Mult = 2.6, Radius = 0, Splash = 0},
+        Emberpup = {Mult = 2.2, Radius = 10, Splash = 0.6},
+        Shellbub = {Mult = 2.0, Radius = 11, Splash = 0.7},
+        Mossdeer = {Mult = 3.2, Radius = 0, Splash = 0},
+        Ashlizard = {Mult = 2.2, Radius = 12, Splash = 0.6},
+        Bogtoad = {Mult = 2.5, Radius = 7, Splash = 0.6},
+        Briarhorn = {Mult = 2.6, Radius = 14, Splash = 0.7},
+    },
+    ComboWindow = 2.5, -- 이 시간 안에 다음 타격이 이어지면 콤보 (화면 표시만)
     -- 포획 전투력 (Palworld 레벨 차이 · ARK 기절시키기 참고): 강한 야생 펫은 도구만으로 못 잡는다.
     --  사람 도구로는 HP 를 HuntFloor 아래로 못 깎는다 → 펫이 약화시켜야 한다 (약한 여러 마리 또는 강한 한 마리)
     --  포획 확률 × (우리 팀 전투력 / 야생 전투력)^PowerExponent (PowerMin~PowerMax), PowerGate 미만이면 포획 불가

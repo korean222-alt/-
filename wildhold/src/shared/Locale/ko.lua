@@ -450,4 +450,21 @@ return {
 	["settings.auto"] = "자동 (기기 언어)",
 	["settings.music"] = "🎵 배경음악",
 	["settings.sfx"] = "🔊 효과음",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 {n} 콤보!",
+	["battle.superEffective"] = "효과 굉장!",
+	["battle.notEffective"] = "효과가 별로…",
+	["battle.ko"] = "KO!",
+	["battle.levelUp"] = "LEVEL UP! Lv{lv}",
+	["battle.ready"] = "포획 가능!",
+	["battle.readyBig"] = "🧺 지금 덫을 던지세요!",
+	["skill.Mossling"] = "🌿 덩굴 채찍!",
+	["skill.Emberpup"] = "🔥 화염 폭풍!",
+	["skill.Shellbub"] = "🌊 파도 내려찍기!",
+	["skill.Mossdeer"] = "🦌 뿔 돌진!",
+	["skill.Ashlizard"] = "🌋 용암 분출!",
+	["skill.Bogtoad"] = "🫧 거품 난사!",
+	["skill.Briarhorn"] = "🌹 가시 폭풍!",
 }

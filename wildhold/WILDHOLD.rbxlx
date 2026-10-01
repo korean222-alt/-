@@ -96,6 +96,13 @@ return {
 	Victory = "", -- 원정 클리어 팡파르
 	Defeat = "", -- 원정 실패
 	Click = "", -- UI 버튼
+	-- 전투 손맛 (BattleFeelController)
+	Crit = "", -- 치명타
+	Skill = "", -- 펫 필살기
+	KO = "", -- 괴물을 쓰러뜨림
+	LevelUp = "", -- 펫 레벨 업
+	Combo = "", -- 콤보 10·20·30…
+	WildReady = "", -- 야생 펫이 지쳐서 포획 가능!
 }
 </ProtectedString>
           </Properties>
@@ -487,6 +494,23 @@ return {
         Hunter = {Icon = "🎯", WildDamage = 1.25},
     },
     NicknameMax = 12, -- 이름 짓기 최대 글자 수
+    -- 전투 재미 (도파민 포인트): 치명타 · 필살기 게이지 · 속성 상성 표시 · 콤보 · KO · 레벨 업 연출
+    --  치명타: 확률 = Chance + (별 - 1) × StarBonus. 피해 × Mult, 큰 노란 숫자 + 화면 흔들림
+    Crit = {Chance = 0.12, StarBonus = 0.02, Mult = 1.75},
+    --  필살기 게이지: 때릴 때 PerHit (치명타면 + Crit), 맞을 때 Hurt. Max 가 되면 다음 공격이 종별 필살기
+    Energy = {PerHit = 17, Crit = 10, Hurt = 6, Max = 100},
+    --  필살기: 피해 × Mult, Radius &gt; 0 이면 밤 괴물에게 범위 피해(× Splash). 성체는 × AdultBonus. 이름은 Locale "skill.&lt;종&gt;"
+    SkillAdultBonus = 1.2,
+    Skills = {
+        Mossling = {Mult = 2.6, Radius = 0, Splash = 0},
+        Emberpup = {Mult = 2.2, Radius = 10, Splash = 0.6},
+        Shellbub = {Mult = 2.0, Radius = 11, Splash = 0.7},
+        Mossdeer = {Mult = 3.2, Radius = 0, Splash = 0},
+        Ashlizard = {Mult = 2.2, Radius = 12, Splash = 0.6},
+        Bogtoad = {Mult = 2.5, Radius = 7, Splash = 0.6},
+        Briarhorn = {Mult = 2.6, Radius = 14, Splash = 0.7},
+    },
+    ComboWindow = 2.5, -- 이 시간 안에 다음 타격이 이어지면 콤보 (화면 표시만)
     -- 포획 전투력 (Palworld 레벨 차이 · ARK 기절시키기 참고): 강한 야생 펫은 도구만으로 못 잡는다.
     --  사람 도구로는 HP 를 HuntFloor 아래로 못 깎는다 → 펫이 약화시켜야 한다 (약한 여러 마리 또는 강한 한 마리)
     --  포획 확률 × (우리 팀 전투력 / 야생 전투력)^PowerExponent (PowerMin~PowerMax), PowerGate 미만이면 포획 불가
@@ -1075,6 +1099,23 @@ return {
 	["settings.auto"] = "Auto (device)",
 	["settings.music"] = "🎵 Music",
 	["settings.sfx"] = "🔊 Sound effects",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 {n} combo!",
+	["battle.superEffective"] = "Super effective!",
+	["battle.notEffective"] = "Not very effective…",
+	["battle.ko"] = "KO!",
+	["battle.levelUp"] = "LEVEL UP! Lv{lv}",
+	["battle.ready"] = "Ready to capture!",
+	["battle.readyBig"] = "🧺 Throw a trap now!",
+	["skill.Mossling"] = "🌿 Vine Whip!",
+	["skill.Emberpup"] = "🔥 Flame Storm!",
+	["skill.Shellbub"] = "🌊 Tidal Slam!",
+	["skill.Mossdeer"] = "🦌 Antler Charge!",
+	["skill.Ashlizard"] = "🌋 Lava Burst!",
+	["skill.Bogtoad"] = "🫧 Bubble Barrage!",
+	["skill.Briarhorn"] = "🌹 Thorn Storm!",
 }
 </ProtectedString>
           </Properties>
@@ -1534,6 +1575,23 @@ return {
 	["settings.auto"] = "Automático (dispositivo)",
 	["settings.music"] = "🎵 Música",
 	["settings.sfx"] = "🔊 Efectos de sonido",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 ¡{n} de combo!",
+	["battle.superEffective"] = "¡Es muy eficaz!",
+	["battle.notEffective"] = "No es muy eficaz…",
+	["battle.ko"] = "¡KO!",
+	["battle.levelUp"] = "¡SUBE DE NIVEL! Nv{lv}",
+	["battle.ready"] = "¡Lista para capturar!",
+	["battle.readyBig"] = "🧺 ¡Lanza una trampa ya!",
+	["skill.Mossling"] = "🌿 ¡Látigo de lianas!",
+	["skill.Emberpup"] = "🔥 ¡Tormenta de fuego!",
+	["skill.Shellbub"] = "🌊 ¡Golpe de marea!",
+	["skill.Mossdeer"] = "🦌 ¡Embestida de astas!",
+	["skill.Ashlizard"] = "🌋 ¡Erupción de lava!",
+	["skill.Bogtoad"] = "🫧 ¡Ráfaga de burbujas!",
+	["skill.Briarhorn"] = "🌹 ¡Tormenta de espinas!",
 }
 </ProtectedString>
           </Properties>
@@ -1993,6 +2051,23 @@ return {
 	["settings.auto"] = "자동 (기기 언어)",
 	["settings.music"] = "🎵 배경음악",
 	["settings.sfx"] = "🔊 효과음",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 {n} 콤보!",
+	["battle.superEffective"] = "효과 굉장!",
+	["battle.notEffective"] = "효과가 별로…",
+	["battle.ko"] = "KO!",
+	["battle.levelUp"] = "LEVEL UP! Lv{lv}",
+	["battle.ready"] = "포획 가능!",
+	["battle.readyBig"] = "🧺 지금 덫을 던지세요!",
+	["skill.Mossling"] = "🌿 덩굴 채찍!",
+	["skill.Emberpup"] = "🔥 화염 폭풍!",
+	["skill.Shellbub"] = "🌊 파도 내려찍기!",
+	["skill.Mossdeer"] = "🦌 뿔 돌진!",
+	["skill.Ashlizard"] = "🌋 용암 분출!",
+	["skill.Bogtoad"] = "🫧 거품 난사!",
+	["skill.Briarhorn"] = "🌹 가시 폭풍!",
 }
 </ProtectedString>
           </Properties>
@@ -2452,6 +2527,23 @@ return {
 	["settings.auto"] = "Automático (aparelho)",
 	["settings.music"] = "🎵 Música",
 	["settings.sfx"] = "🔊 Efeitos sonoros",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 {n} de combo!",
+	["battle.superEffective"] = "É super eficaz!",
+	["battle.notEffective"] = "Não é muito eficaz…",
+	["battle.ko"] = "KO!",
+	["battle.levelUp"] = "SUBIU DE NÍVEL! Nv{lv}",
+	["battle.ready"] = "Pronto para capturar!",
+	["battle.readyBig"] = "🧺 Jogue uma armadilha agora!",
+	["skill.Mossling"] = "🌿 Chicote de cipó!",
+	["skill.Emberpup"] = "🔥 Tempestade de fogo!",
+	["skill.Shellbub"] = "🌊 Pancada de maré!",
+	["skill.Mossdeer"] = "🦌 Investida de chifres!",
+	["skill.Ashlizard"] = "🌋 Erupção de lava!",
+	["skill.Bogtoad"] = "🫧 Rajada de bolhas!",
+	["skill.Briarhorn"] = "🌹 Tempestade de espinhos!",
 }
 </ProtectedString>
           </Properties>
@@ -14041,7 +14133,11 @@ function S:Damage(wild,amount,player,byPet)
         amount=math.min(amount,wild.HP-floor)
     end
     wild.HP=math.max(1,wild.HP-amount) -- deliberate nonlethal hunt state
-    if wild.HP/wild.MaxHP&lt;=P.CaptureHP then wild.ExhaustUntil=os.clock()+P.ExhaustSeconds end
+    if wild.HP/wild.MaxHP&lt;=P.CaptureHP and not wild.ExhaustUntil then
+        wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
+        -- "포획 가능!" 순간: 큰 글자 + 소리 (사냥한 사람 화면에서 크게)
+        self.ctx.FX:FireAllClients("WildReady",wild.Part.Position,wild.Id,wild.Owner and wild.Owner.UserId or 0)
+    end
     return true
 end
 function S:Nearest(position,range)
@@ -14280,14 +14376,14 @@ function S:Attack(player)
 	local damage = spec and spec.Damage or I.HandDamage
 	local enemy = self.ctx.Enemies:Nearest(root.Position, C.SpearRange, true)
 	if enemy then
-		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position)
-		self.ctx.Enemies:Damage(enemy, damage)
+		local killed = self.ctx.Enemies:Damage(enemy, damage)
+		self.ctx.FX:FireAllClients("Spear", root.Position, enemy.Part.Position, {D = damage, O = player.UserId, K = killed})
 		return
 	end
 	if C.ActiveStage &gt;= 6 and phase == "Day" then
 		local wild = self.ctx.Capture:Nearest(root.Position, C.SpearRange)
 		if wild and self.ctx.Enemies:ClearShot(root.Position, wild.Part.Position) and self.ctx.Capture:Damage(wild, damage, player) then
-			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position)
+			self.ctx.FX:FireAllClients("Spear", root.Position, wild.Part.Position, {D = damage, O = player.UserId})
 			return
 		end
 	end
@@ -15286,8 +15382,9 @@ function S:Spawn(kind, laneId, night, boss)
     self.Units[unit.Id] = unit
     return true
 end
+-- 반환: 이 피해로 쓰러뜨렸으면 true (펫 "KO!" 연출)
 function S:Damage(unit, amount)
-    if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return end
+    if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return false end
     unit.HP = math.max(0, unit.HP - amount)
     unit.Part:SetAttribute("CurrentHealth", unit.HP)
     unit.Part:SetAttribute("HitAt", workspace:GetServerTimeNow())
@@ -15304,7 +15401,9 @@ function S:Damage(unit, amount)
             end
         end
         if unit.Boss then self.ctx.Waves.BossDefeated = true end
+        return true
     end
+    return false
 end
 function S:ClearShot(origin, destination, ignored)
     local params = RaycastParams.new()
@@ -16721,14 +16820,21 @@ function S:AddCapture(player,wild)
 end
 function S:Award(player,amount)
     if not self.ctx.Data:Ready(player) then return end
-    local evolved={}
+    local evolved,leveled={},{}
     self.ctx.Data:Mutate(player,function()
         for _,uid in ipairs(self.Teams[player] or {}) do
             local rec=self.Rosters[player][uid]
+            local before=rec.Data.Level
             if R.addXP(rec.Data,amount,P) then table.insert(evolved,rec) end
+            if rec.Data.Level&gt;before then table.insert(leveled,rec) end
             local stats=R.stats(rec.Data,P);rec.MaxHP=stats.HP
         end
     end)
+    -- 레벨 업: 체력이 가득 차고 "LEVEL UP!" 연출 (진화하면 진화 연출이 대신 크게 나온다)
+    for _,rec in ipairs(leveled) do
+        rec.HP=rec.MaxHP
+        if rec.Part then self.ctx.FX:FireAllClients("LevelUp",rec.Part.Position,rec.Data.Uid,rec.Data.Level,player.UserId) end
+    end
     -- 진화: 커지고 강해진 모습으로 바뀌고 체력이 가득 찬다
     for _,rec in ipairs(evolved) do
         rec.HP=rec.MaxHP
@@ -16880,10 +16986,43 @@ end
 function S:Damage(rec,amount)
     if not rec.Part or rec.HP&lt;=0 then return end
     rec.HP=math.max(0,rec.HP-amount);rec.LastCombat=os.clock()
+    rec.Energy=math.min(P.Energy.Max,(rec.Energy or 0)+P.Energy.Hurt) -- 맞아도 필살기 게이지가 찬다
     if rec.HP==0 then
         local trait=P.Traits[rec.Data.Trait]
         rec.RecoverAt=os.clock()+P.DayRecovery*(trait and trait.Recover or 1);rec.Target=nil
     end
+end
+-- 한 번 때리기: 치명타 · 필살기 게이지 · 속성 상성을 계산하고, 화면 연출용 정보(info)를 FX "Pet" 으로 보낸다
+--  info = {D = 피해, C = 치명타, E = 상성 배율, S = 필살기, U = 펫 uid, O = 주인 UserId, K = 쓰러뜨림, N = 게이지(0~100)}
+function S:Strike(rec,spec,stats,target,isWild,pos)
+    local crit=math.random()&lt;P.Crit.Chance+((rec.Data.Stars or 2)-1)*P.Crit.StarBonus
+    local skill=(rec.Energy or 0)&gt;=P.Energy.Max and P.Skills[rec.Data.SpeciesId]
+    local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)*(crit and P.Crit.Mult or 1)
+    if skill then
+        damage=damage*skill.Mult*(R.stage(rec.Data)==2 and P.SkillAdultBonus or 1)
+        rec.Energy=0
+    else
+        rec.Energy=math.min(P.Energy.Max,(rec.Energy or 0)+P.Energy.PerHit+(crit and P.Energy.Crit or 0))
+    end
+    local info={C=crit,S=skill and true or nil,U=rec.Data.Uid,O=rec.Owner.UserId,E=1}
+    if isWild then
+        local trait=P.Traits[rec.Data.Trait]
+        info.E=R.element(spec.Element,P.Species[target.SpeciesId].Element)
+        damage=damage*info.E*(trait and trait.WildDamage or 1)
+        if not self.ctx.Capture:Damage(target,damage,rec.Owner,true) then damage=0 end
+    else
+        info.K=self.ctx.Enemies:Damage(target,damage)
+        local radius,share=spec.Splash,0.45
+        if skill and skill.Radius&gt;0 then radius,share=skill.Radius,skill.Splash end
+        if radius then
+            local targets={};for _,enemy in pairs(self.ctx.Enemies.Units) do if enemy~=target and (enemy.Part.Position-pos).Magnitude&lt;radius then table.insert(targets,enemy) end end
+            for _,enemy in ipairs(targets) do if self.ctx.Enemies:Damage(enemy,damage*share) then info.K=true end end
+        end
+    end
+    info.D=math.floor(damage+0.5)
+    info.N=math.floor(rec.Energy)
+    if rec.Part then rec.Part:SetAttribute("Energy",info.N) end
+    self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId,info)
 end
 function S:Nearest(position,range)
     local best,distance=nil,range
@@ -16931,18 +17070,7 @@ function S:Tick(dt)
                             rec.NextAttack,rec.LastCombat=os.clock()+stats.Interval,os.clock()
                             face(rec.Part,pos)
                             rec.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
-                            self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId)
-                            local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)
-                            if isWild then
-                                local trait=P.Traits[rec.Data.Trait]
-                                self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element)*(trait and trait.WildDamage or 1),rec.Owner,true)
-                            else
-                                self.ctx.Enemies:Damage(target,damage)
-                                if spec.Splash then
-                                    local targets={};for _,enemy in pairs(self.ctx.Enemies.Units) do if enemy~=target and (enemy.Part.Position-pos).Magnitude&lt;spec.Splash then table.insert(targets,enemy) end end
-                                    for _,enemy in ipairs(targets) do self.ctx.Enemies:Damage(enemy,damage*0.45) end
-                                end
-                            end
+                            self:Strike(rec,spec,stats,target,isWild,pos)
                         end
                     elseif rec.Mode~="Guard" then self:Move(rec,Vector3.new(pos.X,2,pos.Z),dt) end
                 elseif rec.Mode=="Follow" or rec.Mode=="Focus" then
@@ -16980,7 +17108,8 @@ function S:Snapshot(player)
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
             -- 상태 코드 (화면 글자는 Locale "status.&lt;코드&gt;")
             Status=rec.Secured and "Secured" or (rec.PendingSave and "Saving" or (rec.Registered and "Registered" or "Unregistered")),Mode=rec.Mode,
-            Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P)}
+            Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P),
+            Energy=math.floor(rec.Energy or 0)}
     end
     table.sort(list,function(a,b) if a.Active~=b.Active then return a.Active end;if a.Favorite~=b.Favorite then return a.Favorite end;return a.Uid&lt;b.Uid end)
     return list
@@ -17517,6 +17646,7 @@ if mode ~= "Lobby" then
 	start("HotbarController", remotes)
 	start("CreatureController")
 	start("FXController", remotes)
+	start("BattleFeelController", remotes)
 	start("WorldUI")
 	start("MapController", remotes)
 else
@@ -17722,6 +17852,12 @@ local BUILTIN = {
 	Victory = {"rbxasset://sounds/victory.wav", 1, 0.6},
 	Defeat = {"rbxasset://sounds/uuhhh.mp3", 0.7, 0.5},
 	Click = {"rbxasset://sounds/button.wav", 1, 0.4},
+	Crit = {"rbxasset://sounds/swordslash.wav", 0.8, 0.45},
+	Skill = {"rbxasset://sounds/electronicpingshort.wav", 0.6, 0.55},
+	KO = {"rbxasset://sounds/splat.wav", 0.7, 0.5},
+	LevelUp = {"rbxasset://sounds/victory.wav", 1.3, 0.45},
+	Combo = {"rbxasset://sounds/electronicpingshort.wav", 1.5, 0.45},
+	WildReady = {"rbxasset://sounds/electronicpingshort.wav", 1.2, 0.55},
 }
 local RESOURCE_SOUND = {Wood = "Chop", Stone = "Mine", Scrap = "Mine", Crystal = "Mine"}
 
@@ -17732,7 +17868,8 @@ end
 
 -- 같은 소리가 한 프레임에 여러 번 겹치지 않게 (화살 여러 발 등)
 local lastPlayed = {}
-function S:Play(key, position, gap)
+-- pitch = 높낮이 배율 (콤보가 쌓일수록 높게)
+function S:Play(key, position, gap, pitchScale)
 	local now = os.clock()
 	if now - (lastPlayed[key] or -1) &lt; (gap or 0.05) then return end
 	lastPlayed[key] = now
@@ -17748,7 +17885,7 @@ function S:Play(key, position, gap)
 		return
 	end
 	local sound = Instance.new("Sound")
-	sound.SoundId, sound.Volume, sound.PlaybackSpeed = id, volume * scale, pitch * (0.95 + math.random() * 0.1)
+	sound.SoundId, sound.Volume, sound.PlaybackSpeed = id, volume * scale, pitch * (pitchScale or 1) * (0.95 + math.random() * 0.1)
 	if typeof(position) == "Vector3" then
 		local holder = Instance.new("Attachment")
 		holder.WorldPosition = position
@@ -17832,6 +17969,234 @@ return S
           </Properties>
         </Item>
         <Item class="ModuleScript" referent="RBX000071">
+          <Properties>
+            <string name="Name">BattleFeelController</string>
+            <ProtectedString name="Source">-- 전투 손맛 (도파민 포인트). 서버 FX 를 받아 화면에서만 그린다:
+--  · 피해 숫자 (보통 흰색 / 치명타 큰 노란 "!" / 상성 좋음 "효과 굉장!" / 상성 나쁨 회색)
+--  · 필살기: 펫 머리 위에 기술 이름 + 내 펫이면 화면 흔들림
+--  · 콤보: 내 펫·내 공격이 끊기지 않고 이어지면 "COMBO x12" (숫자가 클수록 크고 뜨겁게, 소리도 높아진다)
+--  · KO!: 내 펫이 괴물을 쓰러뜨리면 경험치 구슬이 나에게 날아온다
+--  · LEVEL UP!: 펫 위로 빛 기둥 + 큰 글자 / 포획 가능!: 야생 펫이 지치는 순간
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local P = require(RS.Shared.Config.PetConfig)
+local L = require(RS.Shared.Modules.Locale)
+local Audio = require(script.Parent.AudioController)
+
+local F = {}
+local player = Players.LocalPlayer
+local TITLE = Enum.Font.FredokaOne
+local ELEMENT_COLOR = {Leaf = Color3.fromHex("#9df07e"), Ember = Color3.fromHex("#ffb347"), Tide = Color3.fromHex("#8fe3ff")}
+local MAX_POPUPS = 40
+
+local function new(className, parent, props)
+	local o = Instance.new(className)
+	for k, v in pairs(props or {}) do o[k] = v end
+	o.Parent = parent
+	return o
+end
+
+function F:Init(remotes)
+	self.Folder = new("Folder", workspace, {Name = "BattlePopups"})
+	self.Popups, self.Combo, self.ComboAt, self.Shake = 0, 0, 0, 0
+	-- 콤보 표시 (화면 오른쪽 가운데 위)
+	local gui = new("ScreenGui", player:WaitForChild("PlayerGui"), {Name = "BattleFeel", ResetOnSpawn = false, DisplayOrder = 12, IgnoreGuiInset = true})
+	self.Gui = gui
+	self.ComboLabel = new("TextLabel", gui, {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.78, 0.3), Size = UDim2.fromOffset(260, 70),
+		BackgroundTransparency = 1, Font = TITLE, TextSize = 40, Text = "", TextColor3 = Color3.fromHex("#ffe066"), TextStrokeTransparency = 0.1,
+		TextStrokeColor3 = Color3.fromHex("#3a1500"), Visible = false, Rotation = -6})
+	self.ComboScale = new("UIScale", self.ComboLabel, {Scale = 1})
+	-- 큰 가운데 글자 (포획 가능! 등)
+	self.Big = new("TextLabel", gui, {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromOffset(600, 80),
+		BackgroundTransparency = 1, Font = TITLE, TextSize = 52, Text = "", TextColor3 = Color3.fromHex("#b6ff8a"),
+		TextStrokeColor3 = Color3.fromHex("#10131c"), TextTransparency = 1})
+	self.Big.TextStrokeTransparency = 1
+	self.BigScale = new("UIScale", self.Big, {Scale = 1})
+
+	remotes.FX.OnClientEvent:Connect(function(kind, a, b, c, d)
+		if kind == "Pet" then self:OnPet(a, b, c, d)
+		elseif kind == "Spear" then self:OnSpear(b, c)
+		elseif kind == "LevelUp" then self:OnLevelUp(a, b, c, d)
+		elseif kind == "WildReady" then self:OnWildReady(a, b, c) end
+	end)
+	-- 화면 흔들림: 카메라에 아주 짧게 덧입힌다
+	local function shake(dt)
+		if self.Shake &lt;= 0 then return end
+		local camera = workspace.CurrentCamera
+		local s = self.Shake
+		camera.CFrame = camera.CFrame * CFrame.new((math.random() - 0.5) * s, (math.random() - 0.5) * s, 0)
+			* CFrame.Angles(0, 0, (math.random() - 0.5) * s * 0.02)
+		self.Shake = math.max(0, self.Shake - dt * 6)
+	end
+	if not pcall(function() RunService:BindToRenderStep("WildholdShake", Enum.RenderPriority.Camera.Value + 1, shake) end) then
+		RunService.RenderStepped:Connect(shake)
+	end
+	RunService.Heartbeat:Connect(function()
+		if self.Combo &gt; 0 and os.clock() - self.ComboAt &gt; P.ComboWindow then self:EndCombo() end
+	end)
+end
+
+function F:Mine(ownerId) return ownerId == player.UserId end
+
+-- ===================================================================== 떠오르는 글자
+function F:Popup(position, text, color, size, rise, life)
+	if self.Popups &gt;= MAX_POPUPS then return end
+	self.Popups = self.Popups + 1
+	local anchor = new("Part", self.Folder, {Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Transparency = 1,
+		Size = Vector3.new(0.2, 0.2, 0.2), CFrame = CFrame.new(position + Vector3.new((math.random() - 0.5) * 1.6, 2.5, (math.random() - 0.5) * 1.6))})
+	local gui = new("BillboardGui", anchor, {Size = UDim2.fromOffset(220, 60), AlwaysOnTop = true, LightInfluence = 0, MaxDistance = 140,
+		StudsOffsetWorldSpace = Vector3.new(0, 0, 0)})
+	local label = new("TextLabel", gui, {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Font = TITLE, TextSize = size or 26, Text = text,
+		TextColor3 = color or Color3.new(1, 1, 1), TextStrokeTransparency = 0.15, TextStrokeColor3 = Color3.fromHex("#14100c")})
+	local scale = new("UIScale", label, {Scale = 0.4})
+	life = life or 0.9
+	TweenService:Create(scale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+	TweenService:Create(gui, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {StudsOffsetWorldSpace = Vector3.new(0, rise or 3, 0)}):Play()
+	task.delay(life * 0.55, function()
+		TweenService:Create(label, TweenInfo.new(life * 0.45), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+	end)
+	task.delay(life + 0.05, function() self.Popups = self.Popups - 1 end)
+	Debris:AddItem(anchor, life + 0.1)
+	return label
+end
+
+function F:BigText(text, color, hold)
+	self.Big.Text, self.Big.TextColor3 = text, color or Color3.fromHex("#b6ff8a")
+	self.Big.TextTransparency, self.Big.TextStrokeTransparency = 0, 0.1
+	self.BigScale.Scale = 1.6
+	TweenService:Create(self.BigScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Scale = 1}):Play()
+	self.BigToken = (self.BigToken or 0) + 1
+	local token = self.BigToken
+	task.delay(hold or 1.2, function()
+		if self.BigToken ~= token then return end
+		TweenService:Create(self.Big, TweenInfo.new(0.4), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+	end)
+end
+
+-- ===================================================================== 콤보
+function F:Hit()
+	local now = os.clock()
+	if now - self.ComboAt &gt; P.ComboWindow then self.Combo = 0 end
+	self.Combo, self.ComboAt = self.Combo + 1, now
+	if self.Combo &lt; 3 then return end
+	local n = self.Combo
+	local label = self.ComboLabel
+	label.Visible = true
+	label.Text = L.t("battle.combo", {n = n})
+	-- 콤보가 클수록 크고 뜨거운 색
+	local heat = math.clamp((n - 3) / 30, 0, 1)
+	label.TextColor3 = Color3.fromHex("#ffe066"):Lerp(Color3.fromHex("#ff4d2e"), heat)
+	label.TextSize = 36 + heat * 22
+	self.ComboScale.Scale = 1.35
+	TweenService:Create(self.ComboScale, TweenInfo.new(0.18, Enum.EasingStyle.Back), {Scale = 1}):Play()
+	if n % 10 == 0 then
+		Audio:Play("Combo", nil, 0.1, 1 + math.min(0.6, n / 100))
+		self:BigText(L.t("battle.comboMilestone", {n = n}), label.TextColor3, 0.8)
+	end
+end
+
+function F:EndCombo()
+	if self.Combo &gt;= 3 then
+		local label = self.ComboLabel
+		TweenService:Create(label, TweenInfo.new(0.35), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+		task.delay(0.4, function()
+			if self.Combo == 0 then label.Visible, label.TextTransparency, label.TextStrokeTransparency = false, 0, 0.1 end
+		end)
+	end
+	self.Combo = 0
+end
+
+-- ===================================================================== 이벤트
+function F:OnPet(from, to, species, info)
+	if type(info) ~= "table" then return end
+	local mine = self:Mine(info.O)
+	local spec = P.Species[species or ""]
+	local color = spec and ELEMENT_COLOR[spec.Element] or Color3.new(1, 1, 1)
+	if info.S then
+		-- 필살기: 펫 머리 위에 기술 이름
+		self:Popup(from + Vector3.new(0, 2, 0), L.t("skill." .. tostring(species)), color, mine and 34 or 26, 4, 1.4)
+		Audio:Play("Skill", from, 0.15)
+		if mine then self.Shake = math.max(self.Shake, 1.1) end
+	end
+	if (info.D or 0) &gt; 0 then
+		local text, numberColor, size = tostring(info.D), Color3.new(1, 1, 1), mine and 26 or 20
+		if info.C then
+			text, numberColor, size = text .. "!", Color3.fromHex("#ffe066"), size + 12
+			if mine then self.Shake = math.max(self.Shake, 0.45); Audio:Play("Crit", to, 0.08) end
+		end
+		if info.S then numberColor, size = color, size + 8 end
+		self:Popup(to, text, numberColor, size)
+		if info.E and info.E &gt; 1 then
+			self:Popup(to + Vector3.new(0, 1.2, 0), L.t("battle.superEffective"), Color3.fromHex("#7cff6b"), mine and 22 or 18, 3.6, 1.1)
+		elseif info.E and info.E &lt; 1 then
+			self:Popup(to + Vector3.new(0, 1.2, 0), L.t("battle.notEffective"), Color3.fromHex("#a7b0bd"), 16, 3, 1)
+		end
+		if mine then self:Hit() end
+	end
+	if info.K then self:OnKO(to, mine) end
+end
+
+function F:OnSpear(to, info)
+	if type(info) ~= "table" or typeof(to) ~= "Vector3" then return end
+	local mine = self:Mine(info.O)
+	if (info.D or 0) &gt; 0 then
+		self:Popup(to, tostring(info.D), Color3.fromHex("#e8fbff"), mine and 22 or 16)
+		if mine then self:Hit() end
+	end
+	if info.K then self:OnKO(to, mine) end
+end
+
+function F:OnKO(position, mine)
+	self:Popup(position + Vector3.new(0, 1.5, 0), L.t("battle.ko"), Color3.fromHex("#ff6b6b"), mine and 40 or 28, 4.5, 1.1)
+	if not mine then return end
+	Audio:Play("KO", position, 0.1)
+	-- 경험치 구슬이 나에게 날아온다
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	for i = 1, 6 do
+		local orb = new("Part", self.Folder, {Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Shape = Enum.PartType.Ball,
+			Material = Enum.Material.Neon, Color = Color3.fromHex("#8ff5e8"), Size = Vector3.new(0.5, 0.5, 0.5),
+			CFrame = CFrame.new(position + Vector3.new((math.random() - 0.5) * 3, 1 + math.random() * 2, (math.random() - 0.5) * 3))})
+		task.delay(0.15 + i * 0.05, function()
+			if not orb.Parent then return end
+			local target = (root.Parent and root.Position or position) + Vector3.new(0, 1, 0)
+			TweenService:Create(orb, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {CFrame = CFrame.new(target), Size = Vector3.new(0.2, 0.2, 0.2)}):Play()
+		end)
+		Debris:AddItem(orb, 0.8 + i * 0.05)
+	end
+end
+
+function F:OnLevelUp(position, _, level, ownerId)
+	if typeof(position) ~= "Vector3" then return end
+	local mine = self:Mine(ownerId)
+	self:Popup(position + Vector3.new(0, 1, 0), L.t("battle.levelUp", {lv = level or 0}), Color3.fromHex("#ffe066"), mine and 36 or 24, 5, 1.6)
+	-- 빛 기둥
+	local beam = new("Part", self.Folder, {Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, Shape = Enum.PartType.Cylinder,
+		Material = Enum.Material.Neon, Color = Color3.fromHex("#ffe9a8"), Transparency = 0.3, Size = Vector3.new(14, 3, 3),
+		CFrame = CFrame.new(position + Vector3.new(0, 6, 0)) * CFrame.Angles(0, 0, math.rad(90))})
+	TweenService:Create(beam, TweenInfo.new(0.8), {Transparency = 1, Size = Vector3.new(16, 0.3, 0.3)}):Play()
+	Debris:AddItem(beam, 0.9)
+	if mine then Audio:Play("LevelUp", position, 0.2) end
+end
+
+function F:OnWildReady(position, _, ownerId)
+	if typeof(position) ~= "Vector3" then return end
+	local mine = self:Mine(ownerId)
+	self:Popup(position + Vector3.new(0, 2, 0), L.t("battle.ready"), Color3.fromHex("#b6ff8a"), mine and 32 or 22, 4, 1.4)
+	if mine then
+		self:BigText(L.t("battle.readyBig"), Color3.fromHex("#b6ff8a"), 1.4)
+		Audio:Play("WildReady", position, 0.2)
+	end
+end
+
+return F
+</ProtectedString>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="RBX000072">
           <Properties>
             <string name="Name">BuildController</string>
             <ProtectedString name="Source">-- 설치 미리보기 (ARK 식): 설치 도구(🔨 제작대 · 🧱 벽 · 🏹 포탑 …)를 들면 캐릭터 앞에 반투명 구조물이 보인다.
@@ -17984,7 +18349,7 @@ return Build
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000072">
+        <Item class="ModuleScript" referent="RBX000073">
           <Properties>
             <string name="Name">CombatController</string>
             <ProtectedString name="Source">-- 공격/채집 입력. 클라이언트는 "공격하고 싶다"는 의도만 보낸다. 대상과 피해는 서버가 정한다.
@@ -18046,7 +18411,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000073">
+        <Item class="ModuleScript" referent="RBX000074">
           <Properties>
             <string name="Name">CreatureController</string>
             <ProtectedString name="Source">-- 펫·야생 펫·밤의 괴물을 화면에 그린다.
@@ -18484,7 +18849,7 @@ return CC
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000074">
+        <Item class="ModuleScript" referent="RBX000075">
           <Properties>
             <string name="Name">EnvironmentController</string>
             <ProtectedString name="Source">-- 하늘·조명·안개를 낮 → 노을 → 밤 → 새벽으로 부드럽게 바꾸고, 기지 소품(수정, 횃불, 떨어진 자원)을 살아 움직이게 한다.
@@ -18698,7 +19063,7 @@ return Env
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000075">
+        <Item class="ModuleScript" referent="RBX000076">
           <Properties>
             <string name="Name">FXController</string>
             <ProtectedString name="Source">-- 전투·채집·건설·포획 효과. 서버 FX 리모트를 받아 로컬에서만 그린다 (서버 부하 없음).
@@ -18821,10 +19186,63 @@ function FX:OnArrow(from, to)
 end
 
 -- ===================================================================== 펫 공격 (속성별)
-function FX:OnPet(from, to, species)
+local SKILL_COLOR = {Leaf = {"#b6ff8a", "#2f9e44"}, Ember = {"#ffd36b", "#ff4d1f"}, Tide = {"#c9f6ff", "#2f8fd8"}}
+
+-- 필살기: 원소 색 충격파 + 빛 기둥 + 큰 입자 (반경 = PetConfig.Skills 의 Radius, 단일 공격은 작은 원)
+function FX:Skill(from, to, species)
+	local spec = P.Species[species or ""]
+	local skill = P.Skills and P.Skills[species or ""]
+	local colors = SKILL_COLOR[spec and spec.Element or "Leaf"]
+	local a, b = Color3.fromHex(colors[1]), Color3.fromHex(colors[2])
+	local radius = skill and skill.Radius &gt; 0 and skill.Radius or 5
+	-- 펫 위 빛 기둥 (기 모으기)
+	local pillar = B.cyl(self.Folder, 10, 2.2, CFrame.new(from + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90)), colors[1], M.Neon, false, {Transparency = 0.25})
+	TweenService:Create(pillar, TweenInfo.new(0.5), {Transparency = 1, Size = Vector3.new(14, 0.2, 0.2)}):Play()
+	Debris:AddItem(pillar, 0.55)
+	-- 돌진형(단일 대상)은 펫에서 대상까지 빛 줄기
+	if not skill or skill.Radius == 0 then
+		local dir = to - from
+		if dir.Magnitude &gt; 0.5 then
+			local streak = B.block(self.Folder, Vector3.new(0.6, 0.6, dir.Magnitude), CFrame.lookAt(from:Lerp(to, 0.5) + Vector3.new(0, 1.2, 0), to + Vector3.new(0, 1.2, 0)),
+				colors[1], M.Neon, {Transparency = 0.1})
+			TweenService:Create(streak, TweenInfo.new(0.25), {Transparency = 1, Size = Vector3.new(0.05, 0.05, dir.Magnitude)}):Play()
+			Debris:AddItem(streak, 0.3)
+		end
+	end
+	-- 대상 자리 충격파 (두 겹)
+	for i, delay in ipairs({0, 0.12}) do
+		task.delay(delay, function()
+			local ring = B.cyl(self.Folder, 0.15, 1, CFrame.new(to + Vector3.new(0, 0.3 + i * 0.1, 0)), i == 1 and colors[1] or colors[2], M.Neon, true, {Transparency = 0.15})
+			TweenService:Create(ring, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Vector3.new(0.15, radius * 2, radius * 2), Transparency = 1}):Play()
+			Debris:AddItem(ring, 0.5)
+		end)
+	end
+	self:Burst(to + Vector3.new(0, 1, 0), 40, {Color = ColorSequence.new(a, b), Size = NumberSequence.new(1.2, 0), Speed = NumberRange.new(10, 22),
+		Lifetime = NumberRange.new(0.4, 0.9), Acceleration = Vector3.new(0, -10, 0), LightEmission = 1})
+	if spec and spec.Element == "Ember" then
+		self:Burst(to + Vector3.new(0, 1, 0), 24, {Texture = FIRE, Color = ColorSequence.new(a, b), Size = NumberSequence.new(3, 0.4), Speed = NumberRange.new(4, 12),
+			Acceleration = Vector3.new(0, 10, 0), LightEmission = 1})
+	end
+	local flash = Instance.new("PointLight")
+	flash.Range, flash.Brightness, flash.Color = radius * 2 + 8, 4, a
+	local h = B.new("Part", self.Folder, {Name = "FX", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = CFrame.new(to + Vector3.new(0, 2, 0)), Transparency = 1, CastShadow = false})
+	flash.Parent = h
+	TweenService:Create(flash, TweenInfo.new(0.5), {Brightness = 0}):Play()
+	Debris:AddItem(h, 0.55)
+end
+
+function FX:OnPet(from, to, species, info)
 	local spec = P.Species[species or ""]
 	local element = spec and spec.Element or "Leaf"
 	local target = to + Vector3.new(0, 1, 0)
+	if type(info) == "table" then
+		if info.S then self:Skill(from, to, species) end
+		-- 치명타: 하얀 별빛
+		if info.C then
+			self:Burst(target, 14, {Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHex("#ffe066")), Size = NumberSequence.new(1, 0),
+				Speed = NumberRange.new(12, 20), Acceleration = Vector3.zero, Lifetime = NumberRange.new(0.15, 0.3), LightEmission = 1})
+		end
+	end
 	if species == "Emberpup" then
 		local ball = B.ball(self.Folder, 1.1, CFrame.new(from), "#ffb347", M.Neon)
 		local att = Instance.new("Attachment")
@@ -19015,7 +19433,7 @@ return FX
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000076">
+        <Item class="ModuleScript" referent="RBX000077">
           <Properties>
             <string name="Name">HotbarController</string>
             <ProtectedString name="Source">-- 화면 아래 핫바 (마인크래프트처럼). 손에 든 것을 보여주고 1~9 키·마우스 휠·터치로 바꾼다.
@@ -19244,7 +19662,7 @@ return H
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000077">
+        <Item class="ModuleScript" referent="RBX000078">
           <Properties>
             <string name="Name">LobbyController</string>
             <ProtectedString name="Source">-- 로비 화면: 혼자 바로 출발 · 원정 수레(방) 카드 · 부화장 · 내 펫(출전 팀·이름) · 보급 상점 · 부화 연출.
@@ -19652,7 +20070,7 @@ return L
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000078">
+        <Item class="ModuleScript" referent="RBX000079">
           <Properties>
             <string name="Name">MapController</string>
             <ProtectedString name="Source">-- 지도 (마인크래프트 지도처럼): 오른쪽 위 미니맵 + 누르면(또는 M 키) 큰 지도.
@@ -19970,7 +20388,7 @@ return Map
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000079">
+        <Item class="ModuleScript" referent="RBX000080">
           <Properties>
             <string name="Name">MusicController</string>
             <ProtectedString name="Source">-- 배경음악 + 주변 소리. 지금 상황(로비 / 낮 / 해 질 녘 / 밤 / 마지막 밤 / 클리어 / 실패)에 맞는 곡을 겹쳐 바꾼다.
@@ -20102,7 +20520,7 @@ return M
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000080">
+        <Item class="ModuleScript" referent="RBX000081">
           <Properties>
             <string name="Name">PetController</string>
             <ProtectedString name="Source">-- 펫 패널 (내 펫 / 야생 / 명령 / 제작 / 도감) + 빠른 명령 버튼 + 포획 카드.
@@ -20532,7 +20950,7 @@ return Controller
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000081">
+        <Item class="ModuleScript" referent="RBX000082">
           <Properties>
             <string name="Name">Portrait</string>
             <ProtectedString name="Source">-- 펫 얼굴 사진 (ViewportFrame). 팀 카드, 펫 목록, 도감에서 쓴다.
@@ -20584,7 +21002,7 @@ return Portrait
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000082">
+        <Item class="ModuleScript" referent="RBX000083">
           <Properties>
             <string name="Name">Rig</string>
             <ProtectedString name="Source">-- 크리처 리그 두 종류를 같은 방식으로 움직인다.
@@ -20728,7 +21146,7 @@ return Rig
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000083">
+        <Item class="ModuleScript" referent="RBX000084">
           <Properties>
             <string name="Name">SettingsController</string>
             <ProtectedString name="Source">-- ⚙ 설정: 언어 (자동 = Roblox 계정 언어) · 음악 크기 · 효과음 크기. 로비와 원정 어디서나 왼쪽 위 ⚙ 버튼.
@@ -20864,7 +21282,7 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000084">
+        <Item class="ModuleScript" referent="RBX000085">
           <Properties>
             <string name="Name">SwingController</string>
             <ProtectedString name="Source">-- 공격 버튼을 눌렀을 때의 팔 동작 (코드로 만든 절차적 애니메이션).
@@ -20995,7 +21413,7 @@ return S
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000085">
+        <Item class="ModuleScript" referent="RBX000086">
           <Properties>
             <string name="Name">UIController</string>
             <ProtectedString name="Source">-- 메인 HUD (모바일 우선).
@@ -21233,6 +21651,9 @@ function UI:MakeCard(i)
 	round(back, 4)
 	local fill = new("Frame", back, {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromHex("#7be08a"), BorderSizePixel = 0})
 	round(fill, 4)
+	-- 필살기 게이지 (가득 차면 다음 공격이 필살기) — 차오르는 걸 보는 기대감
+	local energyBack = new("Frame", card, {Position = UDim2.fromOffset(60, 35), Size = UDim2.new(1, -70, 0, 3), BackgroundColor3 = Color3.fromHex("#2a3446"), BorderSizePixel = 0})
+	local energy = new("Frame", energyBack, {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromHex("#b18cff"), BorderSizePixel = 0})
 	local status = text(card, {Position = UDim2.fromOffset(60, 37), Size = UDim2.new(1, -66, 0, 16), Text = L.t("team.emptySub"), TextSize = 11,
 		TextColor3 = MUTED, TextXAlignment = Enum.TextXAlignment.Left})
 	local button = new("TextButton", card, {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 5})
@@ -21240,7 +21661,7 @@ function UI:MakeCard(i)
 		local controller = self.PetController
 		if controller then controller:Open("Pets") end
 	end)
-	return {Frame = card, Face = face, FaceStroke = faceStroke, Name = name, Fill = fill, Status = status, Species = nil}
+	return {Frame = card, Face = face, FaceStroke = faceStroke, Name = name, Fill = fill, Status = status, Species = nil, Energy = energy}
 end
 
 function UI:UpdateTeam(pets)
@@ -21263,6 +21684,9 @@ function UI:UpdateTeam(pets)
 			local ratio = math.clamp(pet.HP / math.max(1, pet.MaxHP), 0, 1)
 			card.Fill.Size = UDim2.fromScale(ratio, 1)
 			card.Fill.BackgroundColor3 = ratio &gt; 0.5 and Color3.fromHex("#7be08a") or (ratio &gt; 0.25 and Color3.fromHex("#f4d35e") or Color3.fromHex("#ef5b5b"))
+			local charge = math.clamp((pet.Energy or 0) / P.Energy.Max, 0, 1)
+			TweenService:Create(card.Energy, TweenInfo.new(0.25), {Size = UDim2.fromScale(charge, 1)}):Play()
+			card.Energy.BackgroundColor3 = charge &gt;= 0.99 and Color3.fromHex("#ffe066") or Color3.fromHex("#b18cff")
 			card.Status.Text = pet.HP &lt;= 0 and L.t("team.fainted") or L.t("team.status." .. tostring(pet.Status))
 			card.Status.TextColor3 = pet.Status == "Secured" and Color3.fromHex("#8ff5e8") or (pet.Status == "Unregistered" and Color3.fromHex("#ffd36b") or MUTED)
 			card.FaceStroke.Color = pet.Status == "Secured" and Color3.fromHex("#7be0b6") or Color3.fromHex("#ffd36b")
@@ -21276,6 +21700,7 @@ function UI:UpdateTeam(pets)
 			end
 			card.Name.Text = L.t("team.empty")
 			card.Fill.Size = UDim2.fromScale(0, 1)
+			card.Energy.Size = UDim2.fromScale(0, 1)
 			card.Status.Text = L.t("team.emptySub")
 			card.Status.TextColor3 = MUTED
 			card.Frame.BackgroundTransparency = 0.45
@@ -21466,7 +21891,7 @@ return UI
 </ProtectedString>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="RBX000086">
+        <Item class="ModuleScript" referent="RBX000087">
           <Properties>
             <string name="Name">WorldUI</string>
             <ProtectedString name="Source">-- 월드에 떠 있는 정보: Core 체력, 가까운 자원 노드 이름·체력, 부서지는 시설 체력.
@@ -21599,12 +22024,12 @@ return W
       </Item>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000087">
+  <Item class="StarterGui" referent="RBX000088">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPack" referent="RBX000088">
+  <Item class="StarterPack" referent="RBX000089">
     <Properties>
       <string name="Name">StarterPack</string>
     </Properties>

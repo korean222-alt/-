@@ -100,6 +100,7 @@ def main():
         "egg": block("EggConfig.lua", "Kinds"),
         "enemy": config_ids("EnemyConfig.lua", r"^\s*(\w+)\s*=\s*\{") & {"Crawler", "Runner", "Brute", "Howler"},
         "station": {"Hand", "Workbench", "Campfire"},
+        "skill": block("PetConfig.lua", "Skills"),
     }
     defense_text = open(os.path.join(CONFIG, "DefenseConfig.lua"), encoding="utf-8").read()
     families["defense"] = set(re.findall(r"^    (\w+) = \{", defense_text, re.M))

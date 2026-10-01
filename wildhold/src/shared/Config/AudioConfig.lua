@@ -52,4 +52,11 @@ return {
 	Victory = "", -- 원정 클리어 팡파르
 	Defeat = "", -- 원정 실패
 	Click = "", -- UI 버튼
+	-- 전투 손맛 (BattleFeelController)
+	Crit = "", -- 치명타
+	Skill = "", -- 펫 필살기
+	KO = "", -- 괴물을 쓰러뜨림
+	LevelUp = "", -- 펫 레벨 업
+	Combo = "", -- 콤보 10·20·30…
+	WildReady = "", -- 야생 펫이 지쳐서 포획 가능!
 }

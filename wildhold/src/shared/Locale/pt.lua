@@ -450,4 +450,21 @@ return {
 	["settings.auto"] = "Automático (aparelho)",
 	["settings.music"] = "🎵 Música",
 	["settings.sfx"] = "🔊 Efeitos sonoros",
+
+	-- 전투 손맛
+	["battle.combo"] = "COMBO x{n}",
+	["battle.comboMilestone"] = "🔥 {n} de combo!",
+	["battle.superEffective"] = "É super eficaz!",
+	["battle.notEffective"] = "Não é muito eficaz…",
+	["battle.ko"] = "KO!",
+	["battle.levelUp"] = "SUBIU DE NÍVEL! Nv{lv}",
+	["battle.ready"] = "Pronto para capturar!",
+	["battle.readyBig"] = "🧺 Jogue uma armadilha agora!",
+	["skill.Mossling"] = "🌿 Chicote de cipó!",
+	["skill.Emberpup"] = "🔥 Tempestade de fogo!",
+	["skill.Shellbub"] = "🌊 Pancada de maré!",
+	["skill.Mossdeer"] = "🦌 Investida de chifres!",
+	["skill.Ashlizard"] = "🌋 Erupção de lava!",
+	["skill.Bogtoad"] = "🫧 Rajada de bolhas!",
+	["skill.Briarhorn"] = "🌹 Tempestade de espinhos!",
 }

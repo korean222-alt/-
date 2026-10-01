@@ -35,8 +35,9 @@ function S:Spawn(kind, laneId, night, boss)
     self.Units[unit.Id] = unit
     return true
 end
+-- 반환: 이 피해로 쓰러뜨렸으면 true (펫 "KO!" 연출)
 function S:Damage(unit, amount)
-    if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return end
+    if unit.Dead or self.ctx.Clock.Phase ~= "Night" then return false end
     unit.HP = math.max(0, unit.HP - amount)
     unit.Part:SetAttribute("CurrentHealth", unit.HP)
     unit.Part:SetAttribute("HitAt", workspace:GetServerTimeNow())
@@ -53,7 +54,9 @@ function S:Damage(unit, amount)
             end
         end
         if unit.Boss then self.ctx.Waves.BossDefeated = true end
+        return true
     end
+    return false
 end
 function S:ClearShot(origin, destination, ignored)
     local params = RaycastParams.new()

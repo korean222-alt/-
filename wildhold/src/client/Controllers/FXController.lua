@@ -118,10 +118,63 @@ function FX:OnArrow(from, to)
 end
 
 -- ===================================================================== 펫 공격 (속성별)
-function FX:OnPet(from, to, species)
+local SKILL_COLOR = {Leaf = {"#b6ff8a", "#2f9e44"}, Ember = {"#ffd36b", "#ff4d1f"}, Tide = {"#c9f6ff", "#2f8fd8"}}
+
+-- 필살기: 원소 색 충격파 + 빛 기둥 + 큰 입자 (반경 = PetConfig.Skills 의 Radius, 단일 공격은 작은 원)
+function FX:Skill(from, to, species)
+	local spec = P.Species[species or ""]
+	local skill = P.Skills and P.Skills[species or ""]
+	local colors = SKILL_COLOR[spec and spec.Element or "Leaf"]
+	local a, b = Color3.fromHex(colors[1]), Color3.fromHex(colors[2])
+	local radius = skill and skill.Radius > 0 and skill.Radius or 5
+	-- 펫 위 빛 기둥 (기 모으기)
+	local pillar = B.cyl(self.Folder, 10, 2.2, CFrame.new(from + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90)), colors[1], M.Neon, false, {Transparency = 0.25})
+	TweenService:Create(pillar, TweenInfo.new(0.5), {Transparency = 1, Size = Vector3.new(14, 0.2, 0.2)}):Play()
+	Debris:AddItem(pillar, 0.55)
+	-- 돌진형(단일 대상)은 펫에서 대상까지 빛 줄기
+	if not skill or skill.Radius == 0 then
+		local dir = to - from
+		if dir.Magnitude > 0.5 then
+			local streak = B.block(self.Folder, Vector3.new(0.6, 0.6, dir.Magnitude), CFrame.lookAt(from:Lerp(to, 0.5) + Vector3.new(0, 1.2, 0), to + Vector3.new(0, 1.2, 0)),
+				colors[1], M.Neon, {Transparency = 0.1})
+			TweenService:Create(streak, TweenInfo.new(0.25), {Transparency = 1, Size = Vector3.new(0.05, 0.05, dir.Magnitude)}):Play()
+			Debris:AddItem(streak, 0.3)
+		end
+	end
+	-- 대상 자리 충격파 (두 겹)
+	for i, delay in ipairs({0, 0.12}) do
+		task.delay(delay, function()
+			local ring = B.cyl(self.Folder, 0.15, 1, CFrame.new(to + Vector3.new(0, 0.3 + i * 0.1, 0)), i == 1 and colors[1] or colors[2], M.Neon, true, {Transparency = 0.15})
+			TweenService:Create(ring, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = Vector3.new(0.15, radius * 2, radius * 2), Transparency = 1}):Play()
+			Debris:AddItem(ring, 0.5)
+		end)
+	end
+	self:Burst(to + Vector3.new(0, 1, 0), 40, {Color = ColorSequence.new(a, b), Size = NumberSequence.new(1.2, 0), Speed = NumberRange.new(10, 22),
+		Lifetime = NumberRange.new(0.4, 0.9), Acceleration = Vector3.new(0, -10, 0), LightEmission = 1})
+	if spec and spec.Element == "Ember" then
+		self:Burst(to + Vector3.new(0, 1, 0), 24, {Texture = FIRE, Color = ColorSequence.new(a, b), Size = NumberSequence.new(3, 0.4), Speed = NumberRange.new(4, 12),
+			Acceleration = Vector3.new(0, 10, 0), LightEmission = 1})
+	end
+	local flash = Instance.new("PointLight")
+	flash.Range, flash.Brightness, flash.Color = radius * 2 + 8, 4, a
+	local h = B.new("Part", self.Folder, {Name = "FX", Size = Vector3.new(0.2, 0.2, 0.2), CFrame = CFrame.new(to + Vector3.new(0, 2, 0)), Transparency = 1, CastShadow = false})
+	flash.Parent = h
+	TweenService:Create(flash, TweenInfo.new(0.5), {Brightness = 0}):Play()
+	Debris:AddItem(h, 0.55)
+end
+
+function FX:OnPet(from, to, species, info)
 	local spec = P.Species[species or ""]
 	local element = spec and spec.Element or "Leaf"
 	local target = to + Vector3.new(0, 1, 0)
+	if type(info) == "table" then
+		if info.S then self:Skill(from, to, species) end
+		-- 치명타: 하얀 별빛
+		if info.C then
+			self:Burst(target, 14, {Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHex("#ffe066")), Size = NumberSequence.new(1, 0),
+				Speed = NumberRange.new(12, 20), Acceleration = Vector3.zero, Lifetime = NumberRange.new(0.15, 0.3), LightEmission = 1})
+		end
+	end
 	if species == "Emberpup" then
 		local ball = B.ball(self.Folder, 1.1, CFrame.new(from), "#ffb347", M.Neon)
 		local att = Instance.new("Attachment")

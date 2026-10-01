@@ -37,6 +37,12 @@ local BUILTIN = {
 	Victory = {"rbxasset://sounds/victory.wav", 1, 0.6},
 	Defeat = {"rbxasset://sounds/uuhhh.mp3", 0.7, 0.5},
 	Click = {"rbxasset://sounds/button.wav", 1, 0.4},
+	Crit = {"rbxasset://sounds/swordslash.wav", 0.8, 0.45},
+	Skill = {"rbxasset://sounds/electronicpingshort.wav", 0.6, 0.55},
+	KO = {"rbxasset://sounds/splat.wav", 0.7, 0.5},
+	LevelUp = {"rbxasset://sounds/victory.wav", 1.3, 0.45},
+	Combo = {"rbxasset://sounds/electronicpingshort.wav", 1.5, 0.45},
+	WildReady = {"rbxasset://sounds/electronicpingshort.wav", 1.2, 0.55},
 }
 local RESOURCE_SOUND = {Wood = "Chop", Stone = "Mine", Scrap = "Mine", Crystal = "Mine"}
 
@@ -47,7 +53,8 @@ end
 
 -- 같은 소리가 한 프레임에 여러 번 겹치지 않게 (화살 여러 발 등)
 local lastPlayed = {}
-function S:Play(key, position, gap)
+-- pitch = 높낮이 배율 (콤보가 쌓일수록 높게)
+function S:Play(key, position, gap, pitchScale)
 	local now = os.clock()
 	if now - (lastPlayed[key] or -1) < (gap or 0.05) then return end
 	lastPlayed[key] = now
@@ -63,7 +70,7 @@ function S:Play(key, position, gap)
 		return
 	end
 	local sound = Instance.new("Sound")
-	sound.SoundId, sound.Volume, sound.PlaybackSpeed = id, volume * scale, pitch * (0.95 + math.random() * 0.1)
+	sound.SoundId, sound.Volume, sound.PlaybackSpeed = id, volume * scale, pitch * (pitchScale or 1) * (0.95 + math.random() * 0.1)
 	if typeof(position) == "Vector3" then
 		local holder = Instance.new("Attachment")
 		holder.WorldPosition = position

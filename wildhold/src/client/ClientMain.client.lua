@@ -47,6 +47,7 @@ if mode ~= "Lobby" then
 	start("HotbarController", remotes)
 	start("CreatureController")
 	start("FXController", remotes)
+	start("BattleFeelController", remotes)
 	start("WorldUI")
 	start("MapController", remotes)
 else

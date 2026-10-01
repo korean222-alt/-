@@ -84,14 +84,21 @@ function S:AddCapture(player,wild)
 end
 function S:Award(player,amount)
     if not self.ctx.Data:Ready(player) then return end
-    local evolved={}
+    local evolved,leveled={},{}
     self.ctx.Data:Mutate(player,function()
         for _,uid in ipairs(self.Teams[player] or {}) do
             local rec=self.Rosters[player][uid]
+            local before=rec.Data.Level
             if R.addXP(rec.Data,amount,P) then table.insert(evolved,rec) end
+            if rec.Data.Level>before then table.insert(leveled,rec) end
             local stats=R.stats(rec.Data,P);rec.MaxHP=stats.HP
         end
     end)
+    -- 레벨 업: 체력이 가득 차고 "LEVEL UP!" 연출 (진화하면 진화 연출이 대신 크게 나온다)
+    for _,rec in ipairs(leveled) do
+        rec.HP=rec.MaxHP
+        if rec.Part then self.ctx.FX:FireAllClients("LevelUp",rec.Part.Position,rec.Data.Uid,rec.Data.Level,player.UserId) end
+    end
     -- 진화: 커지고 강해진 모습으로 바뀌고 체력이 가득 찬다
     for _,rec in ipairs(evolved) do
         rec.HP=rec.MaxHP
@@ -243,10 +250,43 @@ end
 function S:Damage(rec,amount)
     if not rec.Part or rec.HP<=0 then return end
     rec.HP=math.max(0,rec.HP-amount);rec.LastCombat=os.clock()
+    rec.Energy=math.min(P.Energy.Max,(rec.Energy or 0)+P.Energy.Hurt) -- 맞아도 필살기 게이지가 찬다
     if rec.HP==0 then
         local trait=P.Traits[rec.Data.Trait]
         rec.RecoverAt=os.clock()+P.DayRecovery*(trait and trait.Recover or 1);rec.Target=nil
     end
+end
+-- 한 번 때리기: 치명타 · 필살기 게이지 · 속성 상성을 계산하고, 화면 연출용 정보(info)를 FX "Pet" 으로 보낸다
+--  info = {D = 피해, C = 치명타, E = 상성 배율, S = 필살기, U = 펫 uid, O = 주인 UserId, K = 쓰러뜨림, N = 게이지(0~100)}
+function S:Strike(rec,spec,stats,target,isWild,pos)
+    local crit=math.random()<P.Crit.Chance+((rec.Data.Stars or 2)-1)*P.Crit.StarBonus
+    local skill=(rec.Energy or 0)>=P.Energy.Max and P.Skills[rec.Data.SpeciesId]
+    local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)*(crit and P.Crit.Mult or 1)
+    if skill then
+        damage=damage*skill.Mult*(R.stage(rec.Data)==2 and P.SkillAdultBonus or 1)
+        rec.Energy=0
+    else
+        rec.Energy=math.min(P.Energy.Max,(rec.Energy or 0)+P.Energy.PerHit+(crit and P.Energy.Crit or 0))
+    end
+    local info={C=crit,S=skill and true or nil,U=rec.Data.Uid,O=rec.Owner.UserId,E=1}
+    if isWild then
+        local trait=P.Traits[rec.Data.Trait]
+        info.E=R.element(spec.Element,P.Species[target.SpeciesId].Element)
+        damage=damage*info.E*(trait and trait.WildDamage or 1)
+        if not self.ctx.Capture:Damage(target,damage,rec.Owner,true) then damage=0 end
+    else
+        info.K=self.ctx.Enemies:Damage(target,damage)
+        local radius,share=spec.Splash,0.45
+        if skill and skill.Radius>0 then radius,share=skill.Radius,skill.Splash end
+        if radius then
+            local targets={};for _,enemy in pairs(self.ctx.Enemies.Units) do if enemy~=target and (enemy.Part.Position-pos).Magnitude<radius then table.insert(targets,enemy) end end
+            for _,enemy in ipairs(targets) do if self.ctx.Enemies:Damage(enemy,damage*share) then info.K=true end end
+        end
+    end
+    info.D=math.floor(damage+0.5)
+    info.N=math.floor(rec.Energy)
+    if rec.Part then rec.Part:SetAttribute("Energy",info.N) end
+    self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId,info)
 end
 function S:Nearest(position,range)
     local best,distance=nil,range
@@ -294,18 +334,7 @@ function S:Tick(dt)
                             rec.NextAttack,rec.LastCombat=os.clock()+stats.Interval,os.clock()
                             face(rec.Part,pos)
                             rec.Part:SetAttribute("AttackAt",workspace:GetServerTimeNow())
-                            self.ctx.FX:FireAllClients("Pet",rec.Part.Position,pos,rec.Data.SpeciesId)
-                            local damage=stats.Damage*(rec.Stand and P.StandDamage or 1)
-                            if isWild then
-                                local trait=P.Traits[rec.Data.Trait]
-                                self.ctx.Capture:Damage(target,damage*R.element(spec.Element,P.Species[target.SpeciesId].Element)*(trait and trait.WildDamage or 1),rec.Owner,true)
-                            else
-                                self.ctx.Enemies:Damage(target,damage)
-                                if spec.Splash then
-                                    local targets={};for _,enemy in pairs(self.ctx.Enemies.Units) do if enemy~=target and (enemy.Part.Position-pos).Magnitude<spec.Splash then table.insert(targets,enemy) end end
-                                    for _,enemy in ipairs(targets) do self.ctx.Enemies:Damage(enemy,damage*0.45) end
-                                end
-                            end
+                            self:Strike(rec,spec,stats,target,isWild,pos)
                         end
                     elseif rec.Mode~="Guard" then self:Move(rec,Vector3.new(pos.X,2,pos.Z),dt) end
                 elseif rec.Mode=="Follow" or rec.Mode=="Focus" then
@@ -343,7 +372,8 @@ function S:Snapshot(player)
             Exp=rec.Data.Exp,HP=math.ceil(rec.HP),MaxHP=rec.MaxHP,Favorite=rec.Data.Favorite==true,Active=rec.Part~=nil,
             -- 상태 코드 (화면 글자는 Locale "status.<코드>")
             Status=rec.Secured and "Secured" or (rec.PendingSave and "Saving" or (rec.Registered and "Registered" or "Unregistered")),Mode=rec.Mode,
-            Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P)}
+            Stars=rec.Data.Stars or 2,Shiny=rec.Data.Shiny==true,Trait=rec.Data.Trait,Nickname=rec.Data.Nickname,Power=R.power(rec.Data,P),
+            Energy=math.floor(rec.Energy or 0)}
     end
     table.sort(list,function(a,b) if a.Active~=b.Active then return a.Active end;if a.Favorite~=b.Favorite then return a.Favorite end;return a.Uid<b.Uid end)
     return list

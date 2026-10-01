@@ -73,7 +73,11 @@ function S:Damage(wild,amount,player,byPet)
         amount=math.min(amount,wild.HP-floor)
     end
     wild.HP=math.max(1,wild.HP-amount) -- deliberate nonlethal hunt state
-    if wild.HP/wild.MaxHP<=P.CaptureHP then wild.ExhaustUntil=os.clock()+P.ExhaustSeconds end
+    if wild.HP/wild.MaxHP<=P.CaptureHP and not wild.ExhaustUntil then
+        wild.ExhaustUntil=os.clock()+P.ExhaustSeconds
+        -- "포획 가능!" 순간: 큰 글자 + 소리 (사냥한 사람 화면에서 크게)
+        self.ctx.FX:FireAllClients("WildReady",wild.Part.Position,wild.Id,wild.Owner and wild.Owner.UserId or 0)
+    end
     return true
 end
 function S:Nearest(position,range)
